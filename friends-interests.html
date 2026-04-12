@@ -61,6 +61,26 @@
   .leg-solid { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid rgba(255,255,255,0.3); }
   .leg-dashed { width: 12px; height: 12px; border-radius: 50%; border: 1.5px dashed rgba(255,255,255,0.3); }
   #hint { position: absolute; bottom: 14px; right: 14px; font-size: 10px; color: var(--text-dim); text-align: right; letter-spacing: 0.04em; line-height: 1.7; }
+
+  /* ── Mobile ── */
+  @media (max-width: 600px) {
+    header { padding: 14px 16px 10px; }
+    header h1 { font-size: 16px; }
+    header p { display: none; }
+    #download-btn { display: none; }
+    .layout { height: calc(100vh - 58px); }
+    .sidebar { display: none; }
+    .graph-area { width: 100%; }
+    #legend { bottom: 56px; }
+    #hint { display: none; }
+    #mobile-hint {
+      display: block !important;
+      position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%);
+      font-size: 10px; color: var(--text-dim); letter-spacing: 0.04em;
+      white-space: nowrap; text-align: center;
+    }
+  }
+  #mobile-hint { display: none; }
 </style>
 </head>
 <body>
@@ -96,6 +116,7 @@
       <div class="leg-row"><span class="leg-dashed" style="border-color:rgba(138,136,152,0.6)"></span> Person</div>
     </div>
     <div id="hint">Scroll to zoom · Drag to pan<br>Click empty space to clear</div>
+    <div id="mobile-hint">Pinch to zoom · Drag to pan · Tap to select</div>
   </div>
 </div>
 
@@ -106,8 +127,8 @@
 // ╚══════════════════════════════════════════════════════════════════════════════╝
 const PEOPLE_DATA = {
   Adam:    ['Music'],
-  Alex:    ['Resident Evil', 'Dead by Daylight', 'Reading', 'Gacha Games', 'MMOs', 'Coding', 'Owns A Dog'],
-  Cherry:  ['Coding', 'Bird Watching', 'Owns A Cat'],
+  Alex:    ['Resident Evil', 'Dead by Daylight', 'Reading', 'Gacha Games', 'MMOs', 'Coding', 'Owns A Dog', 'Singing / Instrument'],
+  Cherry:  ['Coding', 'Bird Watching'],
   Connor:  ['Coding', 'Bird Watching', 'Owns A Cat'],
   Daniel:  ['Lethal Company', 'Drawing', 'Gacha Games', 'Coding', 'MMOs', 'Painting', 'Movies', 'Music', 'Owns A Dog'],
   Dusan:   ['Music', 'TTRPGs', 'Reading', 'MMOs', 'Movies', 'Singing / Instrument', 'Owns A Dog'],
@@ -479,6 +500,8 @@ const Renderer = (() => {
     const pivot = State.onePerson();
     if (!af) return 0.75;
     if (pivot && node.type === 'person' && !isSel) {
+      // oMap values are already normalised 0–1 where 1.0 = best match
+      // best match → exactly 0.85, zero match → 0.08
       const ratio = oMap ? (oMap[node.label] ?? 0) : 0;
       return 0.08 + ratio * (0.85 - 0.08);
     }
@@ -719,6 +742,72 @@ const Interaction = (() => {
     const rect = cv.getBoundingClientRect();
     Camera.zoom(e.deltaY < 0 ? 1.1 : 0.9, e.clientX - rect.left, e.clientY - rect.top);
     Renderer.draw();
+  }, { passive: false });
+
+  // ── Touch support ──
+  let touches = {};
+  let lastPinchDist = null;
+
+  function touchPos(t, rect) {
+    return { x: t.clientX - rect.left, y: t.clientY - rect.top };
+  }
+
+  cv.addEventListener('touchstart', e => {
+    e.preventDefault();
+    const rect = cv.getBoundingClientRect();
+    touches = {};
+    for (const t of e.touches) touches[t.identifier] = touchPos(t, rect);
+    lastPinchDist = null;
+    dragMoved = false;
+    if (e.touches.length === 1) {
+      dragStart = touchPos(e.touches[0], rect);
+      _camX = e.touches[0].clientX; _camY = e.touches[0].clientY;
+    }
+  }, { passive: false });
+
+  cv.addEventListener('touchmove', e => {
+    e.preventDefault();
+    const rect = cv.getBoundingClientRect();
+    if (e.touches.length === 2) {
+      // Pinch-to-zoom
+      const t0 = touchPos(e.touches[0], rect);
+      const t1 = touchPos(e.touches[1], rect);
+      const dist = Math.hypot(t1.x - t0.x, t1.y - t0.y);
+      const cx = (t0.x + t1.x) / 2, cy = (t0.y + t1.y) / 2;
+      if (lastPinchDist !== null) {
+        Camera.zoom(dist / lastPinchDist, cx, cy);
+        Renderer.draw();
+      }
+      lastPinchDist = dist;
+      dragMoved = true;
+    } else if (e.touches.length === 1) {
+      // Pan
+      const nx = e.touches[0].clientX, ny = e.touches[0].clientY;
+      const dx = nx - _camX, dy = ny - _camY;
+      if (Math.abs(dx) + Math.abs(dy) > 3) dragMoved = true;
+      Camera.pan(dx, dy);
+      _camX = nx; _camY = ny;
+      Renderer.draw();
+    }
+  }, { passive: false });
+
+  cv.addEventListener('touchend', e => {
+    e.preventDefault();
+    if (!dragMoved && e.changedTouches.length === 1) {
+      const rect = cv.getBoundingClientRect();
+      const pos = touchPos(e.changedTouches[0], rect);
+      const hit = getHit(pos.x, pos.y);
+      if (hit) {
+        if (hit.type === 'person') State.togglePerson(hit.label);
+        else State.toggleCat(hit.label);
+        Sidebar.sync();
+      } else {
+        State.clearAll(); Sidebar.sync();
+      }
+      Renderer.draw();
+    }
+    lastPinchDist = null;
+    dragMoved = false;
   }, { passive: false });
 
   return { get hovNode() { return hovNode; } };
