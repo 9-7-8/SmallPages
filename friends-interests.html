@@ -204,10 +204,11 @@ function getNode(id) { return nodes.find(n=>n.id===id); }
 // ── LAYOUT ────────────────────────────────────────────────────────────────────
 function placeNodes() {
   const outerR = Math.min(W,H)*0.37;
+  const innerR = Math.min(W,H)*0.22; // center circle radius for people
   const catNodes = nodes.filter(n=>n.type==='interest');
   const personNodes = nodes.filter(n=>n.type==='person');
 
-  // Interests: fixed on outer ring, sorted by member count (allCats order)
+  // Interests: fixed on outer ring
   catNodes.forEach((n,i) => {
     const a = (i/catNodes.length)*Math.PI*2 - Math.PI/2;
     n.x = outerR*Math.cos(a);
@@ -215,52 +216,54 @@ function placeNodes() {
     n.vx=0; n.vy=0; n.fixed=true;
   });
 
-  // People: start at centroid of their connected interests, then simulate
+  // People: seed at weighted centroid of connected interest directions, scaled into inner circle
   personNodes.forEach(n => {
     const cats = (n.cats||[]).map(c=>getNode('cat:'+c)).filter(Boolean);
     if(cats.length){
-      n.x = cats.reduce((s,c)=>s+c.x,0)/cats.length * 0.4;
-      n.y = cats.reduce((s,c)=>s+c.y,0)/cats.length * 0.4;
-    } else { n.x=0; n.y=0; }
+      let sx=cats.reduce((s,c)=>s+c.x,0)/cats.length;
+      let sy=cats.reduce((s,c)=>s+c.y,0)/cats.length;
+      const d=Math.sqrt(sx*sx+sy*sy)||1;
+      const seed = innerR * 0.5;
+      n.x = (sx/d)*seed; n.y = (sy/d)*seed;
+    } else { n.x=(Math.random()-0.5)*20; n.y=(Math.random()-0.5)*20; }
     n.vx=0; n.vy=0; n.fixed=false;
   });
 
-  // Run force simulation: attract people to their interest nodes, repel people from each other
-  const maxR = outerR * 0.88; // keep people inside the outer ring
-  for(let step=0; step<320; step++){
-    const k = 1 - step/320; // cooling
+  // Force sim: attract toward interest direction, repel each other, hard-clamp inside innerR
+  const maxR = innerR - 24; // node radius ~22 so keep centres inside
+  for(let step=0; step<400; step++){
+    const cool = 1 - step/400;
     for(const n of personNodes){
       let fx=0, fy=0;
-      // Spring attraction toward each connected interest
-      for(const cat of (n.cats||[])){
-        const cn=getNode('cat:'+cat); if(!cn) continue;
-        const dx=cn.x-n.x, dy=cn.y-n.y;
-        const dist=Math.sqrt(dx*dx+dy*dy)||1;
-        const target=cn.radius+n.radius+18;
-        const stretch=dist-target;
-        fx += (dx/dist)*stretch*0.06;
-        fy += (dy/dist)*stretch*0.06;
+      // Gentle pull toward centroid of connected interests (direction only, not to the node itself)
+      const cats=(n.cats||[]).map(c=>getNode('cat:'+c)).filter(Boolean);
+      if(cats.length){
+        let sx=cats.reduce((s,c)=>s+c.x,0)/cats.length;
+        let sy=cats.reduce((s,c)=>s+c.y,0)/cats.length;
+        const d=Math.sqrt(sx*sx+sy*sy)||1;
+        // Pull toward that direction at a moderate distance
+        const tx=(sx/d)*maxR*0.55, ty=(sy/d)*maxR*0.55;
+        fx += (tx-n.x)*0.04;
+        fy += (ty-n.y)*0.04;
       }
       // Repulsion between people
       for(const m of personNodes){
         if(m===n) continue;
         const dx=n.x-m.x, dy=n.y-m.y;
         const dist=Math.sqrt(dx*dx+dy*dy)||1;
-        const minD=n.radius+m.radius+10;
-        if(dist<minD*2){
-          const f=(minD*2-dist)/(minD*2);
-          fx += (dx/dist)*f*3.5;
-          fy += (dy/dist)*f*3.5;
+        const minD=n.radius+m.radius+8;
+        if(dist<minD){
+          fx += (dx/dist)*(minD-dist)*0.5;
+          fy += (dy/dist)*(minD-dist)*0.5;
         }
       }
-      // Soft center pull to keep inside ring
-      const d=Math.sqrt(n.x*n.x+n.y*n.y)||1;
-      if(d>maxR){ fx -= (n.x/d)*(d-maxR)*0.3; fy -= (n.y/d)*(d-maxR)*0.3; }
-
-      n.vx = (n.vx + fx)*0.5*k;
-      n.vy = (n.vy + fy)*0.5*k;
+      n.vx = (n.vx+fx)*0.45*cool;
+      n.vy = (n.vy+fy)*0.45*cool;
       n.x += n.vx;
       n.y += n.vy;
+      // Hard clamp inside circle
+      const d=Math.sqrt(n.x*n.x+n.y*n.y)||1;
+      if(d>maxR){ n.x=(n.x/d)*maxR; n.y=(n.y/d)*maxR; n.vx*=0.2; n.vy*=0.2; }
     }
   }
 }
@@ -338,15 +341,23 @@ function draw() {
   const af=anyFilter();
   const op=wts(0,0);
   const outerR=Math.min(W,H)*0.37*cam.scale;
-  const innerR=Math.min(W,H)*0.155*cam.scale;
+  const innerR=Math.min(W,H)*0.22*cam.scale;
 
-  // Ring guides
+  // Outer ring guide
   ctx.save();
   ctx.beginPath(); ctx.arc(op.x,op.y,outerR,0,Math.PI*2);
   ctx.strokeStyle='rgba(255,255,255,0.06)'; ctx.lineWidth=1; ctx.setLineDash([5,7]); ctx.stroke(); ctx.setLineDash([]);
   ctx.font=`300 10px 'Raleway',sans-serif`; ctx.textAlign='center';
   ctx.fillStyle='rgba(255,255,255,0.2)';
   ctx.fillText('INTERESTS', op.x, op.y - outerR - 9);
+
+  // Inner circle — background for people
+  ctx.beginPath(); ctx.arc(op.x,op.y,innerR,0,Math.PI*2);
+  ctx.fillStyle='rgba(20,18,36,0.72)'; ctx.fill();
+  ctx.beginPath(); ctx.arc(op.x,op.y,innerR,0,Math.PI*2);
+  ctx.strokeStyle='rgba(138,136,152,0.22)'; ctx.lineWidth=1; ctx.setLineDash([3,5]); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle='rgba(255,255,255,0.15)';
+  ctx.fillText('PEOPLE', op.x, op.y - innerR - 7);
   ctx.restore();
 
   // Edges
