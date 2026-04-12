@@ -500,10 +500,11 @@ const Renderer = (() => {
     const pivot = State.onePerson();
     if (!af) return 0.75;
     if (pivot && node.type === 'person' && !isSel) {
-      // oMap values are already normalised 0–1 where 1.0 = best match
-      // best match → exactly 0.85, zero match → 0.08
       const ratio = oMap ? (oMap[node.label] ?? 0) : 0;
-      return 0.08 + ratio * 1//(0.85 - 0.08);
+      // ratio is normalised: 1.0 = best match → full opacity, 0.0 → near-invisible
+      // best match gets 1.0 (same as selected), everyone else scales 0.85 → 0.08
+      if (ratio >= 1.0) return 1.0;
+      return 0.08 + ratio * (0.85 - 0.08);
     }
     return active ? 1 : 0.38;
   }
