@@ -330,6 +330,16 @@ function isHighlighted(node) {
   return true;
 }
 
+// Returns 0..1: fraction of personA's interests that personB also has
+function overlapRatio(nameA, nameB) {
+  const a = new Set(personCats[nameA]||[]);
+  const b = new Set(personCats[nameB]||[]);
+  if (a.size===0) return 0;
+  let shared=0;
+  for (const c of a) if(b.has(c)) shared++;
+  return shared/a.size;
+}
+
 function isEdgeHL(e){return isHighlighted(getNode(e.a))&&isHighlighted(getNode(e.b));}
 function anyFilter(){return selPeople.size>0||selCats.size>0;}
 
@@ -376,14 +386,28 @@ function draw() {
   }
 
   // Nodes
+  // When exactly one person is selected, compute overlap ratios for all other people
+  const onePerson = selPeople.size === 1 ? [...selPeople][0] : null;
+
   for (const node of nodes) {
     const p=wts(node.x,node.y);
     const r=node.radius*cam.scale;
     const active=isHighlighted(node);
-    const alpha=active?1:(af?0.38:0.75);  // dimmed but visible when filtered
     const isHov=hovNode&&hovNode.id===node.id;
     const isSel=node.type==='person'?selPeople.has(node.label):selCats.has(node.label);
     const color=node.color;
+
+    // Compute alpha
+    let alpha;
+    if (!anyFilter()) {
+      alpha = 0.75;
+    } else if (onePerson && node.type==='person' && !isSel) {
+      // Overlap-based: 100% match → 0.70, 0% match → 0.18
+      const ratio = overlapRatio(onePerson, node.label);
+      alpha = 0.18 + ratio * (0.70 - 0.18);
+    } else {
+      alpha = active ? 1 : 0.38;
+    }
 
     if (node.type==='interest') {
       // Glow
