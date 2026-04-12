@@ -134,8 +134,9 @@ for (const [cat, people] of Object.entries(CATS))
 
 // All people derived from data (alphabetical)
 const allPeopleRaw = [...new Set(Object.values(CATS).flat())].sort();
-// Interests sorted by member count descending
+// Interests sorted by member count descending (for color ranking), alpha for sidebar
 const allCats = Object.keys(CATS).sort((a,b) => CATS[b].length - CATS[a].length);
+const allCatsAlpha = [...allCats].sort();
 // People sorted by interest count descending (for rainbow ranking), then alpha for sidebar
 const allPeopleSorted = [...allPeopleRaw].sort((a,b) => (personCats[b]||[]).length - (personCats[a]||[]).length);
 
@@ -211,8 +212,10 @@ function placeNodes() {
     n.x = outerR*Math.cos(a);
     n.y = outerR*Math.sin(a);
   });
-  personNodes.forEach((n,i) => {
-    const a = (i/personNodes.length)*Math.PI*2 - Math.PI/2;
+  // Most interests at 12 o'clock, clockwise, fewest ends just before 12 (11 o'clock direction)
+  const personNodesSorted = [...personNodes].sort((a,b)=>(b.cats||[]).length-(a.cats||[]).length);
+  personNodesSorted.forEach((n,i) => {
+    const a = (i/personNodesSorted.length)*Math.PI*2 - Math.PI/2;
     n.x = innerR*Math.cos(a);
     n.y = innerR*Math.sin(a);
   });
@@ -318,7 +321,7 @@ function draw() {
       const cat=a.type==='interest'?a:b;
       ctx.strokeStyle=ha(cat.color,0.5); ctx.lineWidth=1.5; ctx.setLineDash([]);
     } else {
-      ctx.strokeStyle=af?'rgba(255,255,255,0.018)':'rgba(255,255,255,0.065)';
+      ctx.strokeStyle=af?'rgba(255,255,255,0.06)':'rgba(255,255,255,0.065)';
       ctx.lineWidth=0.8; ctx.setLineDash([3,5]);
     }
     ctx.stroke(); ctx.setLineDash([]);
@@ -329,7 +332,7 @@ function draw() {
     const p=wts(node.x,node.y);
     const r=node.radius*cam.scale;
     const active=isHighlighted(node);
-    const alpha=active?1:(af?0.1:0.75);
+    const alpha=active?1:(af?0.38:0.75);  // dimmed but visible when filtered
     const isHov=hovNode&&hovNode.id===node.id;
     const isSel=node.type==='person'?selPeople.has(node.label):selCats.has(node.label);
     const color=node.color;
@@ -342,10 +345,10 @@ function draw() {
       }
       // Fill
       ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);
-      ctx.fillStyle=ha(color,active?0.15:0.03);ctx.fill();
+      ctx.fillStyle=ha(color,active?0.15:0.06);ctx.fill();
       // Border (solid for interests)
       ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);
-      ctx.strokeStyle=ha(color,active?0.9:0.15);
+      ctx.strokeStyle=ha(color,active?0.9:0.3);
       ctx.lineWidth=isSel?2.5:(isHov?2:1.5);ctx.stroke();
       if(isSel||isHov){
         ctx.beginPath();ctx.arc(p.x,p.y,r+5,0,Math.PI*2);
@@ -355,7 +358,7 @@ function draw() {
       ctx.save();ctx.globalAlpha=alpha;
       const fs=Math.max(8,Math.min(12,r*0.32));
       ctx.font=`600 ${fs}px 'Cinzel',serif`;
-      ctx.fillStyle=active?'#e8e4f0':'#2e2b42';
+      ctx.fillStyle=active?'#e8e4f0':'#7a7490';
       ctx.textAlign='center';ctx.textBaseline='middle';
       const words=node.label.split(' ');
       if(words.length>1&&r>26){
@@ -377,9 +380,9 @@ function draw() {
         ctx.fillStyle=ha(color,0.1);ctx.fill();
       }
       ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);
-      ctx.fillStyle=ha(color,active?(isSel?0.28:0.14):0.03);ctx.fill();
+      ctx.fillStyle=ha(color,active?(isSel?0.28:0.14):0.07);ctx.fill();
       ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);
-      ctx.strokeStyle=ha(color,active?0.9:0.15);
+      ctx.strokeStyle=ha(color,active?0.9:0.35);
       ctx.lineWidth=isSel?2.5:(isHov?2:1.5);
       ctx.setLineDash([4,3]);ctx.stroke();ctx.setLineDash([]);
       if(isHov||isSel){
@@ -388,7 +391,7 @@ function draw() {
       }
       const fs=Math.max(8,Math.min(11,r*0.46));
       ctx.font=`500 ${fs}px 'Raleway',sans-serif`;
-      ctx.fillStyle=active?'#e8e4f0':'#2e2b42';
+      ctx.fillStyle=active?'#e8e4f0':'#7a7490';
       ctx.textAlign='center';ctx.textBaseline='middle';
       ctx.fillText(node.label,p.x,p.y);
       ctx.restore();
@@ -427,9 +430,9 @@ function buildSidebar() {
     d.innerHTML=`<span class="chip-dot" style="background:${personColorMap[name]}"></span>${name}<span class="chip-count">${(personCats[name]||[]).length}</span>`;
     d.onclick=()=>togglePerson(name);pl.appendChild(d);
   }
-  // Interests: sorted by member count (most first)
+  // Interests: alphabetical in sidebar
   const il=document.getElementById('interest-list');
-  for(const cat of allCats){
+  for(const cat of allCatsAlpha){
     const d=document.createElement('div');d.className='chip';d.dataset.cat=cat;
     d.innerHTML=`<span class="chip-dot" style="background:${catColorMap[cat]}"></span>${cat}<span class="chip-count">${CATS[cat].length}</span>`;
     d.onclick=()=>toggleCat(cat);il.appendChild(d);
@@ -526,10 +529,24 @@ function clearAll(){ selPeople.clear(); selCats.clear(); syncChips(); draw(); }
 document.getElementById('reset-btn').onclick=()=>{ cam={x:0,y:0,scale:1}; clearAll(); };
 
 document.getElementById('download-btn').onclick=()=>{
-  const temp=document.createElement('canvas');temp.width=cv.width;temp.height=cv.height;
-  const tctx=temp.getContext('2d');tctx.fillStyle='#0f0e17';tctx.fillRect(0,0,temp.width,temp.height);
-  tctx.drawImage(cv,0,0);
-  const link=document.createElement('a');link.download='friend-interest-map.png';link.href=temp.toDataURL('image/png');link.click();
+  // Find bounding box of all nodes in screen space
+  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  for(const node of nodes){
+    const p=wts(node.x,node.y);
+    const r=node.radius*cam.scale+10;
+    minX=Math.min(minX,p.x-r); minY=Math.min(minY,p.y-r);
+    maxX=Math.max(maxX,p.x+r); maxY=Math.max(maxY,p.y+r);
+  }
+  const pad=24;
+  minX=Math.max(0,minX-pad); minY=Math.max(0,minY-pad);
+  maxX=Math.min(W,maxX+pad); maxY=Math.min(H,maxY+pad);
+  const cw=Math.ceil((maxX-minX)*DPR), ch=Math.ceil((maxY-minY)*DPR);
+  const temp=document.createElement('canvas'); temp.width=cw; temp.height=ch;
+  const tctx=temp.getContext('2d');
+  tctx.fillStyle='#0f0e17'; tctx.fillRect(0,0,cw,ch);
+  tctx.drawImage(cv, minX*DPR, minY*DPR, cw, ch, 0, 0, cw, ch);
+  const link=document.createElement('a'); link.download='friend-interest-map.png';
+  link.href=temp.toDataURL('image/png'); link.click();
 };
 
 window.addEventListener('resize',()=>{ ctx.setTransform(1,0,0,1,0,0); resize(); });
