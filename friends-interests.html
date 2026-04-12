@@ -503,7 +503,7 @@ const Renderer = (() => {
       // oMap values are already normalised 0–1 where 1.0 = best match
       // best match → exactly 0.85, zero match → 0.08
       const ratio = oMap ? (oMap[node.label] ?? 0) : 0;
-      return 0.08 + ratio * (0.95 - 0.08);
+      return 0.08 + ratio * 1//(0.85 - 0.08);
     }
     return active ? 1 : 0.38;
   }
