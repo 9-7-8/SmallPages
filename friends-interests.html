@@ -110,21 +110,22 @@
 <script>
 // ── DATA ──────────────────────────────────────────────────────────────────────
 const CATS = {
-  'Resident Evil':    ['Meg','Alex','Troy'],
-  'Movies':           ['Isabel','Sarina','Troy','Frankie'],
-  'Dead by Daylight': ['Isabel','Alex','Troy','Sarina','Meg','Tyler','Jessica'],
-  'Lethal Company':   ['Daniel','Meg','Isabel'],
-  'Drawing':          ['Meg','Daniel','Troy','Jessica'],
-  'Music':            ['Dusan','Meg','Isabel','Adam'],
-  'TTRPGs':           ['Dusan','Isabel','Tyler','Jessica'],
-  'Painting':         ['Tyler','Jessica'],
-  'Writing':          ['Meg','Isabel','Troy','Jessica'],
-  'Reading':          ['Meg','Alex','Dusan'],
-  'Horror Movies':    ['Isabel','Meg','Sarina'],
-  'Gacha Games':      ['Tyler','Jessica','Alex','Daniel'],
-  'MMOs':             ['Dusan','Tyler','Alex'],
-  'Coding':           ['Connor','Meg','Alex','Daniel','Isabel','Cherry'],
-  'Bird Watching':    ['Connor','Cherry','Isabel'],
+  'Resident Evil':       ['Meg','Alex','Troy','Tyler'],
+  'Movies':              ['Isabel','Sarina','Troy','Frankie'],
+  'Dead by Daylight':    ['Isabel','Alex','Troy','Sarina','Meg','Tyler','Jessica'],
+  'Lethal Company':      ['Daniel','Meg','Isabel'],
+  'Drawing':             ['Meg','Daniel','Troy','Jessica'],
+  'Music':               ['Dusan','Meg','Isabel','Adam'],
+  'TTRPGs':              ['Dusan','Isabel','Tyler','Jessica'],
+  'Painting':            ['Tyler','Jessica'],
+  'Writing':             ['Meg','Isabel','Troy','Jessica','Tyler'],
+  'Reading':             ['Meg','Alex','Dusan','Tyler','Jessica'],
+  'Horror Movies':       ['Isabel','Meg','Sarina'],
+  'Gacha Games':         ['Tyler','Jessica','Alex','Daniel'],
+  'MMOs':                ['Dusan','Tyler','Alex'],
+  'Coding':              ['Connor','Meg','Alex','Daniel','Isabel','Cherry'],
+  'Bird Watching':       ['Connor','Cherry','Isabel'],
+  'Singing / Instrument':['Jessica','Dusan'],
 };
 
 // Build reverse map
@@ -347,17 +348,12 @@ function draw() {
   ctx.save();
   ctx.beginPath(); ctx.arc(op.x,op.y,outerR,0,Math.PI*2);
   ctx.strokeStyle='rgba(255,255,255,0.06)'; ctx.lineWidth=1; ctx.setLineDash([5,7]); ctx.stroke(); ctx.setLineDash([]);
-  ctx.font=`300 10px 'Raleway',sans-serif`; ctx.textAlign='center';
-  ctx.fillStyle='rgba(255,255,255,0.2)';
-  ctx.fillText('INTERESTS', op.x, op.y - outerR - 9);
 
   // Inner circle — background for people
   ctx.beginPath(); ctx.arc(op.x,op.y,innerR,0,Math.PI*2);
   ctx.fillStyle='rgba(20,18,36,0.72)'; ctx.fill();
   ctx.beginPath(); ctx.arc(op.x,op.y,innerR,0,Math.PI*2);
   ctx.strokeStyle='rgba(138,136,152,0.22)'; ctx.lineWidth=1; ctx.setLineDash([3,5]); ctx.stroke(); ctx.setLineDash([]);
-  ctx.fillStyle='rgba(255,255,255,0.15)';
-  ctx.fillText('PEOPLE', op.x, op.y - innerR - 7);
   ctx.restore();
 
   // Edges
