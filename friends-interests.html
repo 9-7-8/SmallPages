@@ -84,7 +84,7 @@
 <div class="layout">
   <aside class="sidebar">
     <div class="sidebar-section">
-      <div class="sidebar-label">People — most interests → purple</div>
+      <div class="sidebar-label">People</div>
       <div id="person-list"></div>
     </div>
     <div class="divider"></div>
@@ -99,9 +99,9 @@
     <div id="tooltip"></div>
     <div id="multibar"></div>
     <div id="legend">
-      <div class="leg-row"><span class="leg-rainbow"></span> <span>red = fewest · purple = most</span></div>
+      <div class="leg-row"><span class="leg-rainbow"></span> <span>interests: red = fewest · purple = most</span></div>
       <div class="leg-row" style="margin-top:8px"><span class="leg-solid"></span> Interest</div>
-      <div class="leg-row"><span class="leg-dashed"></span> Person</div>
+      <div class="leg-row"><span class="leg-dashed" style="border-color:rgba(138,136,152,0.6)"></span> Person</div>
     </div>
     <div id="hint">Scroll to zoom · Drag to pan<br>Click empty space to clear</div>
   </div>
@@ -204,21 +204,65 @@ function getNode(id) { return nodes.find(n=>n.id===id); }
 // ── LAYOUT ────────────────────────────────────────────────────────────────────
 function placeNodes() {
   const outerR = Math.min(W,H)*0.37;
-  const innerR = Math.min(W,H)*0.155;
   const catNodes = nodes.filter(n=>n.type==='interest');
   const personNodes = nodes.filter(n=>n.type==='person');
+
+  // Interests: fixed on outer ring, sorted by member count (allCats order)
   catNodes.forEach((n,i) => {
     const a = (i/catNodes.length)*Math.PI*2 - Math.PI/2;
     n.x = outerR*Math.cos(a);
     n.y = outerR*Math.sin(a);
+    n.vx=0; n.vy=0; n.fixed=true;
   });
-  // Most interests at 12 o'clock, clockwise, fewest ends just before 12 (11 o'clock direction)
-  const personNodesSorted = [...personNodes].sort((a,b)=>(b.cats||[]).length-(a.cats||[]).length);
-  personNodesSorted.forEach((n,i) => {
-    const a = (i/personNodesSorted.length)*Math.PI*2 - Math.PI/2;
-    n.x = innerR*Math.cos(a);
-    n.y = innerR*Math.sin(a);
+
+  // People: start at centroid of their connected interests, then simulate
+  personNodes.forEach(n => {
+    const cats = (n.cats||[]).map(c=>getNode('cat:'+c)).filter(Boolean);
+    if(cats.length){
+      n.x = cats.reduce((s,c)=>s+c.x,0)/cats.length * 0.4;
+      n.y = cats.reduce((s,c)=>s+c.y,0)/cats.length * 0.4;
+    } else { n.x=0; n.y=0; }
+    n.vx=0; n.vy=0; n.fixed=false;
   });
+
+  // Run force simulation: attract people to their interest nodes, repel people from each other
+  const maxR = outerR * 0.88; // keep people inside the outer ring
+  for(let step=0; step<320; step++){
+    const k = 1 - step/320; // cooling
+    for(const n of personNodes){
+      let fx=0, fy=0;
+      // Spring attraction toward each connected interest
+      for(const cat of (n.cats||[])){
+        const cn=getNode('cat:'+cat); if(!cn) continue;
+        const dx=cn.x-n.x, dy=cn.y-n.y;
+        const dist=Math.sqrt(dx*dx+dy*dy)||1;
+        const target=cn.radius+n.radius+18;
+        const stretch=dist-target;
+        fx += (dx/dist)*stretch*0.06;
+        fy += (dy/dist)*stretch*0.06;
+      }
+      // Repulsion between people
+      for(const m of personNodes){
+        if(m===n) continue;
+        const dx=n.x-m.x, dy=n.y-m.y;
+        const dist=Math.sqrt(dx*dx+dy*dy)||1;
+        const minD=n.radius+m.radius+10;
+        if(dist<minD*2){
+          const f=(minD*2-dist)/(minD*2);
+          fx += (dx/dist)*f*3.5;
+          fy += (dy/dist)*f*3.5;
+        }
+      }
+      // Soft center pull to keep inside ring
+      const d=Math.sqrt(n.x*n.x+n.y*n.y)||1;
+      if(d>maxR){ fx -= (n.x/d)*(d-maxR)*0.3; fy -= (n.y/d)*(d-maxR)*0.3; }
+
+      n.vx = (n.vx + fx)*0.5*k;
+      n.vy = (n.vy + fy)*0.5*k;
+      n.x += n.vx;
+      n.y += n.vy;
+    }
+  }
 }
 
 function resize() {
@@ -300,13 +344,8 @@ function draw() {
   ctx.save();
   ctx.beginPath(); ctx.arc(op.x,op.y,outerR,0,Math.PI*2);
   ctx.strokeStyle='rgba(255,255,255,0.06)'; ctx.lineWidth=1; ctx.setLineDash([5,7]); ctx.stroke(); ctx.setLineDash([]);
-  ctx.beginPath(); ctx.arc(op.x,op.y,innerR,0,Math.PI*2);
-  ctx.strokeStyle='rgba(255,255,255,0.08)'; ctx.lineWidth=1; ctx.setLineDash([3,6]); ctx.stroke(); ctx.setLineDash([]);
-  ctx.beginPath(); ctx.arc(op.x,op.y,innerR*1.5,0,Math.PI*2);
-  ctx.fillStyle='rgba(255,255,255,0.015)'; ctx.fill();
   ctx.font=`300 10px 'Raleway',sans-serif`; ctx.textAlign='center';
-  ctx.fillStyle='rgba(255,255,255,0.25)';
-  ctx.fillText('PEOPLE', op.x, op.y - innerR - 9);
+  ctx.fillStyle='rgba(255,255,255,0.2)';
   ctx.fillText('INTERESTS', op.x, op.y - outerR - 9);
   ctx.restore();
 
@@ -373,25 +412,26 @@ function draw() {
       }
       ctx.restore();
     } else {
-      // Person node (dashed border)
+      // Person node — grey, dashed border
+      const GREY='#8a8898';
       ctx.save();ctx.globalAlpha=alpha;
       if(isSel){
         ctx.beginPath();ctx.arc(p.x,p.y,r+9,0,Math.PI*2);
-        ctx.fillStyle=ha(color,0.1);ctx.fill();
+        ctx.fillStyle='rgba(138,136,152,0.12)';ctx.fill();
       }
       ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);
-      ctx.fillStyle=ha(color,active?(isSel?0.28:0.14):0.07);ctx.fill();
+      ctx.fillStyle=active?(isSel?'rgba(138,136,152,0.25)':'rgba(138,136,152,0.12)'):'rgba(138,136,152,0.05)';ctx.fill();
       ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);
-      ctx.strokeStyle=ha(color,active?0.9:0.35);
+      ctx.strokeStyle=active?(isSel?'rgba(200,198,210,0.9)':'rgba(138,136,152,0.75)'):'rgba(138,136,152,0.3)';
       ctx.lineWidth=isSel?2.5:(isHov?2:1.5);
       ctx.setLineDash([4,3]);ctx.stroke();ctx.setLineDash([]);
       if(isHov||isSel){
         ctx.beginPath();ctx.arc(p.x,p.y,r+5,0,Math.PI*2);
-        ctx.strokeStyle=ha(color,0.35);ctx.lineWidth=1;ctx.stroke();
+        ctx.strokeStyle='rgba(200,198,210,0.3)';ctx.lineWidth=1;ctx.stroke();
       }
       const fs=Math.max(8,Math.min(11,r*0.46));
       ctx.font=`500 ${fs}px 'Raleway',sans-serif`;
-      ctx.fillStyle=active?'#e8e4f0':'#7a7490';
+      ctx.fillStyle=active?'#c8c6d2':'#5a5868';
       ctx.textAlign='center';ctx.textBaseline='middle';
       ctx.fillText(node.label,p.x,p.y);
       ctx.restore();
@@ -423,11 +463,11 @@ function draw() {
 
 // ── SIDEBAR ───────────────────────────────────────────────────────────────────
 function buildSidebar() {
-  // People: alphabetical in sidebar, but dot color from personColorMap (ranked by interest count)
+  // People: alphabetical, grey dots
   const pl=document.getElementById('person-list');
   for(const name of allPeopleRaw){
     const d=document.createElement('div');d.className='chip';d.dataset.name=name;
-    d.innerHTML=`<span class="chip-dot" style="background:${personColorMap[name]}"></span>${name}<span class="chip-count">${(personCats[name]||[]).length}</span>`;
+    d.innerHTML=`<span class="chip-dot" style="background:#8a8898"></span>${name}<span class="chip-count">${(personCats[name]||[]).length}</span>`;
     d.onclick=()=>togglePerson(name);pl.appendChild(d);
   }
   // Interests: alphabetical in sidebar
@@ -485,7 +525,7 @@ cv.addEventListener('mousemove',e=>{
     tip.style.display='block';
     let html=`<div class="tip-title">${hovNode.label}</div>`;
     if(hovNode.type==='interest'){
-      html+=hovNode.members.map(p=>`<div class="tip-item"><span class="tip-dot" style="background:${personColorMap[p]||'#888'}"></span>${p}</div>`).join('');
+      html+=hovNode.members.map(p=>`<div class="tip-item"><span class="tip-dot" style="background:#8a8898"></span>${p}</div>`).join('');
     } else {
       html+=(hovNode.cats||[]).map(c=>`<div class="tip-item"><span class="tip-dot" style="background:${catColorMap[c]||'#888'}"></span>${c}</div>`).join('');
     }
