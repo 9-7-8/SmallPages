@@ -111,7 +111,7 @@
 // ── DATA ──────────────────────────────────────────────────────────────────────
 const CATS = {
   'Resident Evil':       ['Meg','Alex','Troy','Tyler'],
-  'Movies':              ['Isabel','Sarina','Troy','Frankie'],
+  'Movies':              ['Isabel','Sarina','Troy','Frankie','Dusan'],
   'Dead by Daylight':    ['Isabel','Alex','Troy','Sarina','Meg','Tyler','Jessica'],
   'Lethal Company':      ['Daniel','Meg','Isabel'],
   'Drawing':             ['Meg','Daniel','Troy','Jessica'],
@@ -232,19 +232,27 @@ function placeNodes() {
     n.vx=0; n.vy=0; n.fixed=false;
   });
 
-  // Force sim: attract toward interest direction, repel each other, hard-clamp inside innerR
+  // Force sim: attract toward interest direction (weighted by rarity), repel each other, hard-clamp inside innerR
   const maxR = innerR - 24; // node radius ~22 so keep centres inside
+  // Precompute per-interest weight: fewer members = stronger pull (inverse member count, normalised)
+  const maxMembers = Math.max(...catNodes.map(c=>c.members.length));
   for(let step=0; step<400; step++){
     const cool = 1 - step/400;
     for(const n of personNodes){
       let fx=0, fy=0;
-      // Gentle pull toward centroid of connected interests (direction only, not to the node itself)
+      // Weighted pull toward each connected interest direction
       const cats=(n.cats||[]).map(c=>getNode('cat:'+c)).filter(Boolean);
       if(cats.length){
-        let sx=cats.reduce((s,c)=>s+c.x,0)/cats.length;
-        let sy=cats.reduce((s,c)=>s+c.y,0)/cats.length;
+        let wSumX=0, wSumY=0, wSum=0;
+        for(const cn of cats){
+          // Weight = maxMembers / memberCount  →  rare interests pull more
+          const w = maxMembers / cn.members.length;
+          wSumX += cn.x * w;
+          wSumY += cn.y * w;
+          wSum += w;
+        }
+        const sx=wSumX/wSum, sy=wSumY/wSum;
         const d=Math.sqrt(sx*sx+sy*sy)||1;
-        // Pull toward that direction at a moderate distance
         const tx=(sx/d)*maxR*0.55, ty=(sy/d)*maxR*0.55;
         fx += (tx-n.x)*0.04;
         fy += (ty-n.y)*0.04;
@@ -389,6 +397,24 @@ function draw() {
   // When exactly one person is selected, compute overlap ratios for all other people
   const onePerson = selPeople.size === 1 ? [...selPeople][0] : null;
 
+  // Pre-compute ratios and find max so we can normalise
+  let overlapMap = null;
+  if (onePerson) {
+    overlapMap = {};
+    let maxRatio = 0;
+    for (const n of nodes) {
+      if (n.type==='person' && !selPeople.has(n.label)) {
+        const r = overlapRatio(onePerson, n.label);
+        overlapMap[n.label] = r;
+        if (r > maxRatio) maxRatio = r;
+      }
+    }
+    // Normalise: person with highest overlap always gets max alpha
+    if (maxRatio > 0) {
+      for (const name in overlapMap) overlapMap[name] /= maxRatio;
+    }
+  }
+
   for (const node of nodes) {
     const p=wts(node.x,node.y);
     const r=node.radius*cam.scale;
@@ -402,9 +428,9 @@ function draw() {
     if (!anyFilter()) {
       alpha = 0.75;
     } else if (onePerson && node.type==='person' && !isSel) {
-      // Overlap-based: 100% match → 0.70, 0% match → 0.18
-      const ratio = overlapRatio(onePerson, node.label);
-      alpha = 0.18 + ratio * (0.70 - 0.18);
+      // Normalised overlap: best match → 0.85, no match → 0.08
+      const ratio = overlapMap ? (overlapMap[node.label] ?? 0) : 0;
+      alpha = 0.08 + ratio * (0.85 - 0.08);
     } else {
       alpha = active ? 1 : 0.38;
     }
