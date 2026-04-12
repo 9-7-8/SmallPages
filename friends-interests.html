@@ -37,9 +37,7 @@
   #download-btn:hover { background: rgba(201,169,110,0.1); }
   #reset-btn { background: transparent; color: var(--text-dim); border: 1px solid rgba(122,116,144,0.35); }
   #reset-btn:hover { color: var(--text); border-color: var(--text-dim); }
-
   .layout { position: relative; z-index: 1; display: flex; height: calc(100vh - 78px); }
-
   .sidebar { width: 210px; flex-shrink: 0; border-right: 1px solid var(--border); padding: 14px 0; overflow-y: auto; background: rgba(15,14,23,0.75); }
   .sidebar-section { padding: 0 13px 13px; }
   .sidebar-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--text-dim); font-weight: 500; margin-bottom: 7px; }
@@ -49,18 +47,14 @@
   .chip-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
   .chip-count { margin-left: auto; font-size: 9px; color: var(--text-dim); background: rgba(255,255,255,0.06); padding: 1px 5px; border-radius: 10px; }
   .divider { height: 1px; background: var(--border); margin: 10px 13px; }
-
   .graph-area { flex: 1; position: relative; overflow: hidden; }
   canvas#graph { position: absolute; inset: 0; width: 100%; height: 100%; cursor: grab; }
   canvas#graph.dragging { cursor: grabbing; }
-
   #tooltip { position: absolute; pointer-events: none; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 9px 13px; font-size: 12px; max-width: 220px; display: none; z-index: 100; box-shadow: 0 4px 24px rgba(0,0,0,0.5); }
   #tooltip .tip-title { font-family: 'Cinzel', serif; font-size: 13px; color: var(--accent); margin-bottom: 5px; font-weight: 400; }
   #tooltip .tip-item { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; color: var(--text); font-weight: 300; }
   #tooltip .tip-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-
   #multibar { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); background: rgba(20,18,35,0.94); border: 1px solid var(--border); border-radius: 20px; padding: 5px 16px; font-size: 11px; color: var(--accent); display: none; z-index: 50; letter-spacing: 0.05em; white-space: nowrap; max-width: 90%; overflow: hidden; text-overflow: ellipsis; }
-
   #legend { position: absolute; bottom: 14px; left: 14px; font-size: 10px; color: var(--text-dim); letter-spacing: 0.04em; }
   .leg-row { margin-top: 5px; display: flex; align-items: center; gap: 7px; }
   .leg-rainbow { width: 60px; height: 8px; border-radius: 4px; background: linear-gradient(to right, #e84040, #e8a040, #e8e040, #40e860, #40c8e8, #4060e8, #9040e8); }
@@ -80,7 +74,6 @@
     <button id="download-btn">⬇ Download View</button>
   </div>
 </header>
-
 <div class="layout">
   <aside class="sidebar">
     <div class="sidebar-section">
@@ -93,7 +86,6 @@
       <div id="interest-list"></div>
     </div>
   </aside>
-
   <div class="graph-area">
     <canvas id="graph"></canvas>
     <div id="tooltip"></div>
@@ -108,549 +100,669 @@
 </div>
 
 <script>
-// ── DATA ──────────────────────────────────────────────────────────────────────
-const CATS = {
-  'Resident Evil':       ['Meg','Alex','Troy','Tyler'],
-  'Movies':              ['Isabel','Sarina','Troy','Frankie','Dusan'],
-  'Dead by Daylight':    ['Isabel','Alex','Troy','Sarina','Meg','Tyler','Jessica'],
-  'Lethal Company':      ['Daniel','Meg','Isabel'],
-  'Drawing':             ['Meg','Daniel','Troy','Jessica'],
-  'Music':               ['Dusan','Meg','Isabel','Adam'],
-  'TTRPGs':              ['Dusan','Isabel','Tyler','Jessica'],
-  'Painting':            ['Tyler','Jessica'],
-  'Writing':             ['Meg','Isabel','Troy','Jessica','Tyler'],
-  'Reading':             ['Meg','Alex','Dusan','Tyler','Jessica'],
-  'Horror Movies':       ['Isabel','Meg','Sarina'],
-  'Gacha Games':         ['Tyler','Jessica','Alex','Daniel'],
-  'MMOs':                ['Dusan','Tyler','Alex'],
-  'Coding':              ['Connor','Meg','Alex','Daniel','Isabel','Cherry'],
-  'Bird Watching':       ['Connor','Cherry','Isabel'],
-  'Singing / Instrument':['Jessica','Dusan'],
-  'Owns A Cat':          ['Meg','Connor'],
-  'Owns A Dog':          ['Isabel','Dusan','Alex','Jessica'],
+// ╔══════════════════════════════════════════════════════════════════════════════╗
+// ║  DATA  — edit this section to add/remove people and interests               ║
+// ║  Format: 'Person Name': ['Interest 1', 'Interest 2', ...]                   ║
+// ╚══════════════════════════════════════════════════════════════════════════════╝
+const PEOPLE_DATA = {
+  Adam:    ['Music'],
+  Alex:    ['Resident Evil', 'Dead by Daylight', 'Reading', 'Gacha Games', 'MMOs', 'Coding', 'Owns A Dog'],
+  Cherry:  ['Coding', 'Bird Watching', 'Owns A Cat'],
+  Connor:  ['Coding', 'Bird Watching', 'Owns A Cat'],
+  Daniel:  ['Lethal Company', 'Drawing', 'Gacha Games', 'Coding', 'MMOs', 'Painting', 'Movies', 'Music', 'Owns A Dog'],
+  Dusan:   ['Music', 'TTRPGs', 'Reading', 'MMOs', 'Movies', 'Singing / Instrument', 'Owns A Dog'],
+  Frankie: ['Movies'],
+  Isabel:  ['Movies', 'Dead by Daylight', 'Lethal Company', 'Music', 'TTRPGs', 'Writing', 'Horror Movies', 'Coding', 'Bird Watching', 'Owns A Dog'],
+  Jessica: ['Dead by Daylight', 'Drawing', 'TTRPGs', 'Painting', 'Writing', 'Reading', 'Gacha Games', 'Singing / Instrument', 'Owns A Dog'],
+  Meg:     ['Resident Evil', 'Dead by Daylight', 'Lethal Company', 'Drawing', 'Music', 'Writing', 'Reading', 'Horror Movies', 'Coding', 'Owns A Cat'],
+  Sarina:  ['Movies', 'Dead by Daylight', 'Horror Movies'],
+  Troy:    ['Resident Evil', 'Movies', 'Dead by Daylight', 'Drawing', 'Writing'],
+  Tyler:   ['Resident Evil', 'Dead by Daylight', 'TTRPGs', 'Painting', 'Writing', 'Reading', 'Gacha Games', 'MMOs'],
 };
 
-// Build reverse map
-const personCats = {};
-for (const [cat, people] of Object.entries(CATS))
-  for (const p of people) { if (!personCats[p]) personCats[p]=[]; personCats[p].push(cat); }
-
-// All people derived from data (alphabetical)
-const allPeopleRaw = [...new Set(Object.values(CATS).flat())].sort();
-// Interests sorted by member count descending (for color ranking), alpha for sidebar
-const allCats = Object.keys(CATS).sort((a,b) => CATS[b].length - CATS[a].length);
-const allCatsAlpha = [...allCats].sort();
-// People sorted by interest count descending (for rainbow ranking), then alpha for sidebar
-const allPeopleSorted = [...allPeopleRaw].sort((a,b) => (personCats[b]||[]).length - (personCats[a]||[]).length);
-
-// ── RAINBOW COLOR ─────────────────────────────────────────────────────────────
-// t=0 → red, t=1 → purple, through rainbow: red→orange→yellow→green→cyan→blue→purple
-function rainbowColor(t) {
-  // hue: 0 (red) at t=0, up to 270 (purple) at t=1
-  const hue = t * 270;
-  // full saturation, lightness 58% for a vivid but not harsh tone on dark bg
-  return hslToHex(hue, 85, 58);
-}
-
-function hslToHex(h, s, l) {
-  s /= 100; l /= 100;
-  const k = n => (n + h/30) % 12;
-  const a = s * Math.min(l, 1-l);
-  const f = n => l - a * Math.max(-1, Math.min(k(n)-3, Math.min(9-k(n), 1)));
-  const toHex = x => Math.round(x*255).toString(16).padStart(2,'0');
-  return '#' + toHex(f(0)) + toHex(f(8)) + toHex(f(4));
-}
-
-// Assign colors by rank
-const catColorMap = {};
-allCats.forEach((cat, i) => {
-  const t = allCats.length === 1 ? 1 : i / (allCats.length - 1);
-  // allCats[0] has most members → purple (t=1), last has fewest → red (t=0)
-  catColorMap[cat] = rainbowColor(1 - t);
-});
-
-const personColorMap = {};
-allPeopleSorted.forEach((name, i) => {
-  const t = allPeopleSorted.length === 1 ? 1 : i / (allPeopleSorted.length - 1);
-  personColorMap[name] = rainbowColor(1 - t);
-});
-
-// ── CANVAS ────────────────────────────────────────────────────────────────────
-const DPR = Math.min(window.devicePixelRatio||1, 2);
-const cv = document.getElementById('graph');
-const ctx = cv.getContext('2d');
-let W, H;
-
-// ── NODES & EDGES ─────────────────────────────────────────────────────────────
-const nodes = [];
-allCats.forEach(cat => nodes.push({
-  id:'cat:'+cat, type:'interest', label:cat,
-  color: catColorMap[cat],
-  members: CATS[cat],
-  radius: 22 + CATS[cat].length * 4.2,
-  x:0, y:0
-}));
-allPeopleRaw.forEach(name => nodes.push({
-  id:'person:'+name, type:'person', label:name,
-  color: personColorMap[name],
-  cats: personCats[name]||[],
-  radius: 22,
-  x:0, y:0
-}));
-
-const edges = [];
-for (const [cat,people] of Object.entries(CATS))
-  for (const p of people) edges.push({a:'person:'+p, b:'cat:'+cat});
-
-function getNode(id) { return nodes.find(n=>n.id===id); }
-
-// ── LAYOUT ────────────────────────────────────────────────────────────────────
-function placeNodes() {
-  const outerR = Math.min(W,H)*0.37;
-  const innerR = Math.min(W,H)*0.22; // center circle radius for people
-  const catNodes = nodes.filter(n=>n.type==='interest');
-  const personNodes = nodes.filter(n=>n.type==='person');
-
-  // Interests: fixed on outer ring
-  catNodes.forEach((n,i) => {
-    const a = (i/catNodes.length)*Math.PI*2 - Math.PI/2;
-    n.x = outerR*Math.cos(a);
-    n.y = outerR*Math.sin(a);
-    n.vx=0; n.vy=0; n.fixed=true;
-  });
-
-  // People: seed at weighted centroid of connected interest directions, scaled into inner circle
-  personNodes.forEach(n => {
-    const cats = (n.cats||[]).map(c=>getNode('cat:'+c)).filter(Boolean);
-    if(cats.length){
-      let sx=cats.reduce((s,c)=>s+c.x,0)/cats.length;
-      let sy=cats.reduce((s,c)=>s+c.y,0)/cats.length;
-      const d=Math.sqrt(sx*sx+sy*sy)||1;
-      const seed = innerR * 0.5;
-      n.x = (sx/d)*seed; n.y = (sy/d)*seed;
-    } else { n.x=(Math.random()-0.5)*20; n.y=(Math.random()-0.5)*20; }
-    n.vx=0; n.vy=0; n.fixed=false;
-  });
-
-  // Force sim: attract toward interest direction (weighted by rarity), repel each other, hard-clamp inside innerR
-  const maxR = innerR - 24; // node radius ~22 so keep centres inside
-  // Precompute per-interest weight: fewer members = stronger pull (inverse member count, normalised)
-  const maxMembers = Math.max(...catNodes.map(c=>c.members.length));
-  for(let step=0; step<400; step++){
-    const cool = 1 - step/400;
-    for(const n of personNodes){
-      let fx=0, fy=0;
-      // Weighted pull toward each connected interest direction
-      const cats=(n.cats||[]).map(c=>getNode('cat:'+c)).filter(Boolean);
-      if(cats.length){
-        let wSumX=0, wSumY=0, wSum=0;
-        for(const cn of cats){
-          // Weight = maxMembers / memberCount  →  rare interests pull more
-          const w = maxMembers / cn.members.length;
-          wSumX += cn.x * w;
-          wSumY += cn.y * w;
-          wSum += w;
-        }
-        const sx=wSumX/wSum, sy=wSumY/wSum;
-        const d=Math.sqrt(sx*sx+sy*sy)||1;
-        const tx=(sx/d)*maxR*0.55, ty=(sy/d)*maxR*0.55;
-        fx += (tx-n.x)*0.04;
-        fy += (ty-n.y)*0.04;
-      }
-      // Repulsion between people
-      for(const m of personNodes){
-        if(m===n) continue;
-        const dx=n.x-m.x, dy=n.y-m.y;
-        const dist=Math.sqrt(dx*dx+dy*dy)||1;
-        const minD=n.radius+m.radius+8;
-        if(dist<minD){
-          fx += (dx/dist)*(minD-dist)*0.5;
-          fy += (dy/dist)*(minD-dist)*0.5;
-        }
-      }
-      n.vx = (n.vx+fx)*0.45*cool;
-      n.vy = (n.vy+fy)*0.45*cool;
-      n.x += n.vx;
-      n.y += n.vy;
-      // Hard clamp inside circle
-      const d=Math.sqrt(n.x*n.x+n.y*n.y)||1;
-      if(d>maxR){ n.x=(n.x/d)*maxR; n.y=(n.y/d)*maxR; n.vx*=0.2; n.vy*=0.2; }
+// ╔══════════════════════════════════════════════════════════════════════════════╗
+// ║  DATA PROCESSING — builds the interest→people map from PEOPLE_DATA          ║
+// ╚══════════════════════════════════════════════════════════════════════════════╝
+const Data = (() => {
+  // Build CATS (interest → [people]) from PEOPLE_DATA
+  const cats = {};
+  for (const [person, interests] of Object.entries(PEOPLE_DATA)) {
+    for (const interest of interests) {
+      if (!cats[interest]) cats[interest] = [];
+      cats[interest].push(person);
     }
   }
-}
 
-function resize() {
-  const rect = cv.parentElement.getBoundingClientRect();
-  W = rect.width; H = rect.height;
-  cv.width = W*DPR; cv.height = H*DPR;
-  ctx.setTransform(1,0,0,1,0,0);
-  ctx.scale(DPR,DPR);
-  placeNodes();
-  draw();
-}
+  // personCats is just PEOPLE_DATA
+  const personCats = PEOPLE_DATA;
 
-// ── CAMERA ────────────────────────────────────────────────────────────────────
-let cam={x:0,y:0,scale:1};
-let dragging=false, dragMoved=false, dragStart={x:0,y:0}, camStart={x:0,y:0};
+  // Sorted lists
+  const allPeople = Object.keys(PEOPLE_DATA).sort();
+  const allCatsByCount = Object.keys(cats).sort((a, b) => cats[b].length - cats[a].length);
+  const allCatsAlpha   = [...allCatsByCount].sort();
 
-function wts(x,y){return{x:(x+cam.x)*cam.scale+W/2,y:(y+cam.y)*cam.scale+H/2};}
-function stw(sx,sy){return{x:(sx-W/2)/cam.scale-cam.x,y:(sy-H/2)/cam.scale-cam.y};}
+  return { cats, personCats, allPeople, allCatsByCount, allCatsAlpha };
+})();
 
-// ── STATE ─────────────────────────────────────────────────────────────────────
-const selPeople = new Set();
-const selCats   = new Set();
-let hovNode = null;
-
-function sharedInts() {
-  if (selPeople.size===0) return new Set();
-  const arr=[...selPeople];
-  let shared = new Set(personCats[arr[0]]||[]);
-  for (let i=1;i<arr.length;i++){
-    const pc=new Set(personCats[arr[i]]||[]);
-    for (const c of [...shared]) if(!pc.has(c)) shared.delete(c);
+// ╔══════════════════════════════════════════════════════════════════════════════╗
+// ║  COLORS — rainbow scale: red = fewest members, purple = most                ║
+// ╚══════════════════════════════════════════════════════════════════════════════╝
+const Colors = (() => {
+  function hslToHex(h, s, l) {
+    s /= 100; l /= 100;
+    const k = n => (n + h / 30) % 12;
+    const a = s * Math.min(l, 1 - l);
+    const f = n => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+    const hex = x => Math.round(x * 255).toString(16).padStart(2, '0');
+    return '#' + hex(f(0)) + hex(f(8)) + hex(f(4));
   }
-  return shared;
-}
 
-function sharedPeople() {
-  if (selCats.size===0) return new Set();
-  const arr=[...selCats];
-  let shared = new Set(CATS[arr[0]]||[]);
-  for (let i=1;i<arr.length;i++){
-    const pc=new Set(CATS[arr[i]]||[]);
-    for (const p of [...shared]) if(!pc.has(p)) shared.delete(p);
+  // t=0 → red, t=1 → violet/purple
+  function rainbow(t) {
+    return hslToHex(t * 270, 85, 58);
   }
-  return shared;
-}
 
-function isHighlighted(node) {
-  if (selPeople.size===0 && selCats.size===0) return true;
-  if (selPeople.size>0) {
-    const sh = sharedInts();
-    if (node.type==='person') return selPeople.has(node.label);
-    return sh.has(node.label);
+  // Assign rainbow colors to interests by member count rank
+  const catColors = {};
+  const cats = Data.allCatsByCount;
+  cats.forEach((cat, i) => {
+    const t = cats.length === 1 ? 1 : i / (cats.length - 1);
+    catColors[cat] = rainbow(1 - t); // index 0 = most members = purple
+  });
+
+  const PERSON_GREY = '#8a8898';
+
+  return { catColors, PERSON_GREY };
+})();
+
+// ╔══════════════════════════════════════════════════════════════════════════════╗
+// ║  GRAPH — nodes, edges, layout (force sim), camera                           ║
+// ╚══════════════════════════════════════════════════════════════════════════════╝
+const Graph = (() => {
+  const DPR = Math.min(window.devicePixelRatio || 1, 2);
+  const cv  = document.getElementById('graph');
+  const ctx = cv.getContext('2d');
+  let W, H;
+
+  // Build nodes
+  const nodes = [];
+  Data.allCatsByCount.forEach(cat => nodes.push({
+    id: 'cat:' + cat, type: 'interest', label: cat,
+    color: Colors.catColors[cat],
+    members: Data.cats[cat],
+    radius: 22 + Data.cats[cat].length * 4.2,
+    x: 0, y: 0, vx: 0, vy: 0,
+  }));
+  Data.allPeople.forEach(name => nodes.push({
+    id: 'person:' + name, type: 'person', label: name,
+    color: Colors.PERSON_GREY,
+    cats: Data.personCats[name] || [],
+    radius: 22,
+    x: 0, y: 0, vx: 0, vy: 0,
+  }));
+
+  // Build edges
+  const edges = [];
+  for (const [cat, people] of Object.entries(Data.cats))
+    for (const p of people) edges.push({ a: 'person:' + p, b: 'cat:' + cat });
+
+  function getNode(id) { return nodes.find(n => n.id === id); }
+
+  // Place interest nodes on outer ring, run force sim for people inside inner circle
+  function placeNodes() {
+    const outerR = Math.min(W, H) * 0.37;
+    const innerR = Math.min(W, H) * 0.22;
+    const catNodes    = nodes.filter(n => n.type === 'interest');
+    const personNodes = nodes.filter(n => n.type === 'person');
+
+    // Interests: evenly spaced on outer ring, order fixed by member count
+    catNodes.forEach((n, i) => {
+      const a = (i / catNodes.length) * Math.PI * 2 - Math.PI / 2;
+      n.x = outerR * Math.cos(a);
+      n.y = outerR * Math.sin(a);
+      n.vx = 0; n.vy = 0;
+    });
+
+    // People: seed position toward weighted centroid of their interests
+    const maxMembers = Math.max(...catNodes.map(c => c.members.length));
+    personNodes.forEach(n => {
+      const connected = (n.cats || []).map(c => getNode('cat:' + c)).filter(Boolean);
+      if (connected.length) {
+        let wX = 0, wY = 0, wSum = 0;
+        for (const cn of connected) {
+          const w = maxMembers / cn.members.length; // rare interests weigh more
+          wX += cn.x * w; wY += cn.y * w; wSum += w;
+        }
+        const sx = wX / wSum, sy = wY / wSum;
+        const d = Math.sqrt(sx * sx + sy * sy) || 1;
+        n.x = (sx / d) * (innerR * 0.5);
+        n.y = (sy / d) * (innerR * 0.5);
+      } else {
+        n.x = (Math.random() - 0.5) * 20;
+        n.y = (Math.random() - 0.5) * 20;
+      }
+      n.vx = 0; n.vy = 0;
+    });
+
+    // Force sim: weighted attraction toward interests, repulsion between people, hard clamp
+    const maxR = innerR - 24;
+    for (let step = 0; step < 400; step++) {
+      const cool = 1 - step / 400;
+      for (const n of personNodes) {
+        let fx = 0, fy = 0;
+
+        // Weighted pull toward rare connected interests
+        const connected = (n.cats || []).map(c => getNode('cat:' + c)).filter(Boolean);
+        if (connected.length) {
+          let wX = 0, wY = 0, wSum = 0;
+          for (const cn of connected) {
+            const w = maxMembers / cn.members.length;
+            wX += cn.x * w; wY += cn.y * w; wSum += w;
+          }
+          const sx = wX / wSum, sy = wY / wSum;
+          const d = Math.sqrt(sx * sx + sy * sy) || 1;
+          const tx = (sx / d) * maxR * 0.55;
+          const ty = (sy / d) * maxR * 0.55;
+          fx += (tx - n.x) * 0.04;
+          fy += (ty - n.y) * 0.04;
+        }
+
+        // Repulsion between people
+        for (const m of personNodes) {
+          if (m === n) continue;
+          const dx = n.x - m.x, dy = n.y - m.y;
+          const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+          const minD = n.radius + m.radius + 8;
+          if (dist < minD) {
+            fx += (dx / dist) * (minD - dist) * 0.5;
+            fy += (dy / dist) * (minD - dist) * 0.5;
+          }
+        }
+
+        n.vx = (n.vx + fx) * 0.45 * cool;
+        n.vy = (n.vy + fy) * 0.45 * cool;
+        n.x += n.vx;
+        n.y += n.vy;
+
+        // Hard clamp inside inner circle
+        const d = Math.sqrt(n.x * n.x + n.y * n.y) || 1;
+        if (d > maxR) { n.x = (n.x / d) * maxR; n.y = (n.y / d) * maxR; n.vx *= 0.2; n.vy *= 0.2; }
+      }
+    }
   }
-  if (selCats.size>0) {
-    const sp = sharedPeople();
-    if (node.type==='interest') return selCats.has(node.label);
-    return sp.has(node.label);
+
+  function resize() {
+    const rect = cv.parentElement.getBoundingClientRect();
+    W = rect.width; H = rect.height;
+    cv.width = W * DPR; cv.height = H * DPR;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.scale(DPR, DPR);
+    placeNodes();
+    Renderer.draw();
   }
-  return true;
-}
 
-// Returns 0..1: fraction of personA's interests that personB also has
-function overlapRatio(nameA, nameB) {
-  const a = new Set(personCats[nameA]||[]);
-  const b = new Set(personCats[nameB]||[]);
-  if (a.size===0) return 0;
-  let shared=0;
-  for (const c of a) if(b.has(c)) shared++;
-  return shared/a.size;
-}
+  return { cv, ctx, nodes, edges, getNode, resize, get W() { return W; }, get H() { return H; }, DPR };
+})();
 
-function isEdgeHL(e){return isHighlighted(getNode(e.a))&&isHighlighted(getNode(e.b));}
-function anyFilter(){return selPeople.size>0||selCats.size>0;}
+// ╔══════════════════════════════════════════════════════════════════════════════╗
+// ║  CAMERA — pan and zoom                                                      ║
+// ╚══════════════════════════════════════════════════════════════════════════════╝
+const Camera = (() => {
+  let cam = { x: 0, y: 0, scale: 1 };
 
-// ── DRAW ──────────────────────────────────────────────────────────────────────
-function ha(hex,a){
-  const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);
-  return`rgba(${r},${g},${b},${a})`;
-}
+  function wts(x, y) {
+    return { x: (x + cam.x) * cam.scale + Graph.W / 2, y: (y + cam.y) * cam.scale + Graph.H / 2 };
+  }
+  function stw(sx, sy) {
+    return { x: (sx - Graph.W / 2) / cam.scale - cam.x, y: (sy - Graph.H / 2) / cam.scale - cam.y };
+  }
+  function reset() { cam = { x: 0, y: 0, scale: 1 }; }
+  function zoom(factor, sx, sy) {
+    const before = stw(sx, sy);
+    cam.scale = Math.max(0.3, Math.min(3.5, cam.scale * factor));
+    const after = stw(sx, sy);
+    cam.x += after.x - before.x;
+    cam.y += after.y - before.y;
+  }
+  function pan(dx, dy) { cam.x += dx / cam.scale; cam.y += dy / cam.scale; }
+  return { wts, stw, reset, zoom, pan, get scale() { return cam.scale; } };
+})();
 
-function draw() {
-  ctx.clearRect(0,0,W,H);
-  const af=anyFilter();
-  const op=wts(0,0);
-  const outerR=Math.min(W,H)*0.37*cam.scale;
-  const innerR=Math.min(W,H)*0.22*cam.scale;
+// ╔══════════════════════════════════════════════════════════════════════════════╗
+// ║  STATE — selection, highlighting, overlap                                   ║
+// ╚══════════════════════════════════════════════════════════════════════════════╝
+const State = (() => {
+  const selPeople = new Set();
+  const selCats   = new Set();
 
-  // Outer ring guide
-  ctx.save();
-  ctx.beginPath(); ctx.arc(op.x,op.y,outerR,0,Math.PI*2);
-  ctx.strokeStyle='rgba(255,255,255,0.06)'; ctx.lineWidth=1; ctx.setLineDash([5,7]); ctx.stroke(); ctx.setLineDash([]);
+  function sharedInterests() {
+    if (selPeople.size === 0) return new Set();
+    const arr = [...selPeople];
+    let shared = new Set(Data.personCats[arr[0]] || []);
+    for (let i = 1; i < arr.length; i++) {
+      const pc = new Set(Data.personCats[arr[i]] || []);
+      for (const c of [...shared]) if (!pc.has(c)) shared.delete(c);
+    }
+    return shared;
+  }
 
-  // Inner circle — background for people
-  ctx.beginPath(); ctx.arc(op.x,op.y,innerR,0,Math.PI*2);
-  ctx.fillStyle='rgba(20,18,36,0.72)'; ctx.fill();
-  ctx.beginPath(); ctx.arc(op.x,op.y,innerR,0,Math.PI*2);
-  ctx.strokeStyle='rgba(138,136,152,0.22)'; ctx.lineWidth=1; ctx.setLineDash([3,5]); ctx.stroke(); ctx.setLineDash([]);
-  ctx.restore();
+  function sharedPeople() {
+    if (selCats.size === 0) return new Set();
+    const arr = [...selCats];
+    let shared = new Set(Data.cats[arr[0]] || []);
+    for (let i = 1; i < arr.length; i++) {
+      const pc = new Set(Data.cats[arr[i]] || []);
+      for (const p of [...shared]) if (!pc.has(p)) shared.delete(p);
+    }
+    return shared;
+  }
 
-  // Edges
-  for (const e of edges) {
-    const a=getNode(e.a), b=getNode(e.b); if(!a||!b) continue;
-    const pa=wts(a.x,a.y), pb=wts(b.x,b.y);
-    const active=isEdgeHL(e);
-    ctx.beginPath(); ctx.moveTo(pa.x,pa.y); ctx.lineTo(pb.x,pb.y);
+  function isHighlighted(node) {
+    if (selPeople.size === 0 && selCats.size === 0) return true;
+    if (selPeople.size > 0) {
+      const sh = sharedInterests();
+      return node.type === 'person' ? selPeople.has(node.label) : sh.has(node.label);
+    }
+    if (selCats.size > 0) {
+      const sp = sharedPeople();
+      return node.type === 'interest' ? selCats.has(node.label) : sp.has(node.label);
+    }
+    return true;
+  }
+
+  // Fraction of personA's interests that personB also has
+  function overlapRatio(nameA, nameB) {
+    const a = new Set(Data.personCats[nameA] || []);
+    const b = new Set(Data.personCats[nameB] || []);
+    if (a.size === 0) return 0;
+    let shared = 0;
+    for (const c of a) if (b.has(c)) shared++;
+    return shared / a.size;
+  }
+
+  // When one person selected: normalised overlap map (best match = 1.0)
+  function overlapMap() {
+    if (selPeople.size !== 1) return null;
+    const pivot = [...selPeople][0];
+    const map = {};
+    let maxR = 0;
+    for (const n of Graph.nodes) {
+      if (n.type === 'person' && !selPeople.has(n.label)) {
+        const r = overlapRatio(pivot, n.label);
+        map[n.label] = r;
+        if (r > maxR) maxR = r;
+      }
+    }
+    if (maxR > 0) for (const k in map) map[k] /= maxR;
+    return map;
+  }
+
+  function togglePerson(name) {
+    selCats.clear();
+    selPeople.has(name) ? selPeople.delete(name) : selPeople.add(name);
+  }
+
+  function toggleCat(cat) {
+    selPeople.clear();
+    selCats.has(cat) ? selCats.delete(cat) : selCats.add(cat);
+  }
+
+  function clearAll() { selPeople.clear(); selCats.clear(); }
+
+  function anyFilter()  { return selPeople.size > 0 || selCats.size > 0; }
+  function onePerson()  { return selPeople.size === 1 ? [...selPeople][0] : null; }
+  function isEdgeHL(e)  { return isHighlighted(Graph.getNode(e.a)) && isHighlighted(Graph.getNode(e.b)); }
+
+  return {
+    selPeople, selCats,
+    sharedInterests, sharedPeople,
+    isHighlighted, isEdgeHL,
+    overlapMap, overlapRatio,
+    togglePerson, toggleCat, clearAll,
+    anyFilter, onePerson,
+  };
+})();
+
+// ╔══════════════════════════════════════════════════════════════════════════════╗
+// ║  RENDERER — draws everything onto the canvas                                ║
+// ╚══════════════════════════════════════════════════════════════════════════════╝
+const Renderer = (() => {
+  const { ctx } = Graph;
+
+  function ha(hex, a) {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r},${g},${b},${a})`;
+  }
+
+  function drawBackground() {
+    const op = Camera.wts(0, 0);
+    const outerR = Math.min(Graph.W, Graph.H) * 0.37 * Camera.scale;
+    const innerR = Math.min(Graph.W, Graph.H) * 0.22 * Camera.scale;
+    ctx.save();
+    // Outer dashed ring
+    ctx.beginPath(); ctx.arc(op.x, op.y, outerR, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 1;
+    ctx.setLineDash([5, 7]); ctx.stroke(); ctx.setLineDash([]);
+    // Inner filled circle with border
+    ctx.beginPath(); ctx.arc(op.x, op.y, innerR, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(20,18,36,0.72)'; ctx.fill();
+    ctx.beginPath(); ctx.arc(op.x, op.y, innerR, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(138,136,152,0.22)'; ctx.lineWidth = 1;
+    ctx.setLineDash([3, 5]); ctx.stroke(); ctx.setLineDash([]);
+    ctx.restore();
+  }
+
+  function drawEdges() {
+    const af = State.anyFilter();
+    for (const e of Graph.edges) {
+      const a = Graph.getNode(e.a), b = Graph.getNode(e.b);
+      if (!a || !b) continue;
+      const pa = Camera.wts(a.x, a.y), pb = Camera.wts(b.x, b.y);
+      const active = State.isEdgeHL(e);
+      ctx.beginPath(); ctx.moveTo(pa.x, pa.y); ctx.lineTo(pb.x, pb.y);
+      if (active) {
+        const cat = a.type === 'interest' ? a : b;
+        ctx.strokeStyle = ha(cat.color, 0.5); ctx.lineWidth = 1.5; ctx.setLineDash([]);
+      } else {
+        ctx.strokeStyle = af ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.065)';
+        ctx.lineWidth = 0.8; ctx.setLineDash([3, 5]);
+      }
+      ctx.stroke(); ctx.setLineDash([]);
+    }
+  }
+
+  function nodeAlpha(node, isSel, oMap) {
+    const af = State.anyFilter();
+    const active = State.isHighlighted(node);
+    const pivot = State.onePerson();
+    if (!af) return 0.75;
+    if (pivot && node.type === 'person' && !isSel) {
+      const ratio = oMap ? (oMap[node.label] ?? 0) : 0;
+      return 0.08 + ratio * (0.85 - 0.08);
+    }
+    return active ? 1 : 0.38;
+  }
+
+  function drawInterestNode(node, isSel, isHov, alpha) {
+    const p = Camera.wts(node.x, node.y);
+    const r = node.radius * Camera.scale;
+    const color = node.color;
+    const active = State.isHighlighted(node);
+
     if (active) {
-      // Color the edge by the interest node's color
-      const cat=a.type==='interest'?a:b;
-      ctx.strokeStyle=ha(cat.color,0.5); ctx.lineWidth=1.5; ctx.setLineDash([]);
+      ctx.beginPath(); ctx.arc(p.x, p.y, r + 8, 0, Math.PI * 2);
+      ctx.fillStyle = ha(color, 0.07); ctx.fill();
+    }
+    ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = ha(color, active ? 0.15 : 0.06); ctx.fill();
+    ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+    ctx.strokeStyle = ha(color, active ? 0.9 : 0.3);
+    ctx.lineWidth = isSel ? 2.5 : (isHov ? 2 : 1.5); ctx.stroke();
+    if (isSel || isHov) {
+      ctx.beginPath(); ctx.arc(p.x, p.y, r + 5, 0, Math.PI * 2);
+      ctx.strokeStyle = ha(color, 0.45); ctx.lineWidth = 1; ctx.stroke();
+    }
+
+    ctx.save(); ctx.globalAlpha = alpha;
+    const fs = Math.max(8, Math.min(12, r * 0.32));
+    ctx.font = `600 ${fs}px 'Cinzel',serif`;
+    ctx.fillStyle = active ? '#e8e4f0' : '#7a7490';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const words = node.label.split(' ');
+    if (words.length > 1 && r > 26) {
+      const mid = Math.ceil(words.length / 2);
+      ctx.fillText(words.slice(0, mid).join(' '), p.x, p.y - fs * 0.6);
+      ctx.fillText(words.slice(mid).join(' '), p.x, p.y + fs * 0.6);
     } else {
-      ctx.strokeStyle=af?'rgba(255,255,255,0.06)':'rgba(255,255,255,0.065)';
-      ctx.lineWidth=0.8; ctx.setLineDash([3,5]);
+      ctx.fillText(node.label, p.x, p.y);
     }
-    ctx.stroke(); ctx.setLineDash([]);
+    if (active && r > 26) {
+      ctx.font = `400 ${Math.max(7, fs - 3)}px 'Raleway',sans-serif`;
+      ctx.fillStyle = ha(color, 0.7);
+      ctx.fillText(node.members.length + ' people', p.x, p.y + fs * 1.6);
+    }
+    ctx.restore();
   }
 
-  // Nodes
-  // When exactly one person is selected, compute overlap ratios for all other people
-  const onePerson = selPeople.size === 1 ? [...selPeople][0] : null;
+  function drawPersonNode(node, isSel, isHov, alpha) {
+    const p = Camera.wts(node.x, node.y);
+    const r = node.radius * Camera.scale;
+    const active = State.isHighlighted(node);
 
-  // Pre-compute ratios and find max so we can normalise
-  let overlapMap = null;
-  if (onePerson) {
-    overlapMap = {};
-    let maxRatio = 0;
-    for (const n of nodes) {
-      if (n.type==='person' && !selPeople.has(n.label)) {
-        const r = overlapRatio(onePerson, n.label);
-        overlapMap[n.label] = r;
-        if (r > maxRatio) maxRatio = r;
-      }
+    ctx.save(); ctx.globalAlpha = alpha;
+    if (isSel) {
+      ctx.beginPath(); ctx.arc(p.x, p.y, r + 9, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(138,136,152,0.12)'; ctx.fill();
     }
-    // Normalise: person with highest overlap always gets max alpha
-    if (maxRatio > 0) {
-      for (const name in overlapMap) overlapMap[name] /= maxRatio;
+    ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = active ? (isSel ? 'rgba(138,136,152,0.25)' : 'rgba(138,136,152,0.12)') : 'rgba(138,136,152,0.05)';
+    ctx.fill();
+    ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+    ctx.strokeStyle = active ? (isSel ? 'rgba(200,198,210,0.9)' : 'rgba(138,136,152,0.75)') : 'rgba(138,136,152,0.3)';
+    ctx.lineWidth = isSel ? 2.5 : (isHov ? 2 : 1.5);
+    ctx.setLineDash([4, 3]); ctx.stroke(); ctx.setLineDash([]);
+    if (isHov || isSel) {
+      ctx.beginPath(); ctx.arc(p.x, p.y, r + 5, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(200,198,210,0.3)'; ctx.lineWidth = 1; ctx.stroke();
+    }
+    const fs = Math.max(8, Math.min(11, r * 0.46));
+    ctx.font = `500 ${fs}px 'Raleway',sans-serif`;
+    ctx.fillStyle = active ? '#c8c6d2' : '#5a5868';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(node.label, p.x, p.y);
+    ctx.restore();
+  }
+
+  function drawNodes() {
+    const oMap = State.overlapMap();
+    for (const node of Graph.nodes) {
+      const isHov = Interaction.hovNode && Interaction.hovNode.id === node.id;
+      const isSel = node.type === 'person' ? State.selPeople.has(node.label) : State.selCats.has(node.label);
+      const alpha = nodeAlpha(node, isSel, oMap);
+      if (node.type === 'interest') drawInterestNode(node, isSel, isHov, alpha);
+      else drawPersonNode(node, isSel, isHov, alpha);
     }
   }
 
-  for (const node of nodes) {
-    const p=wts(node.x,node.y);
-    const r=node.radius*cam.scale;
-    const active=isHighlighted(node);
-    const isHov=hovNode&&hovNode.id===node.id;
-    const isSel=node.type==='person'?selPeople.has(node.label):selCats.has(node.label);
-    const color=node.color;
-
-    // Compute alpha
-    let alpha;
-    if (!anyFilter()) {
-      alpha = 0.75;
-    } else if (onePerson && node.type==='person' && !isSel) {
-      // Normalised overlap: best match → 0.85, no match → 0.08
-      const ratio = overlapMap ? (overlapMap[node.label] ?? 0) : 0;
-      alpha = 0.08 + ratio * (0.85 - 0.08);
+  function updateMultibar() {
+    const bar = document.getElementById('multibar');
+    const sp = State.selPeople, sc = State.selCats;
+    if (sp.size >= 2) {
+      const sh = State.sharedInterests();
+      bar.textContent = [...sp].sort().join(' + ') + '  ·  ' + sh.size + ' shared interest' + (sh.size !== 1 ? 's' : '');
+      bar.style.display = 'block';
+    } else if (sp.size === 1) {
+      const nm = [...sp][0];
+      bar.textContent = nm + '  ·  ' + (Data.personCats[nm] || []).length + ' interests  ·  select more to find overlap';
+      bar.style.display = 'block';
+    } else if (sc.size >= 2) {
+      const shp = State.sharedPeople();
+      bar.textContent = [...sc].join(' + ') + '  ·  ' + shp.size + ' ' + (shp.size !== 1 ? 'people' : 'person') + ' in common';
+      bar.style.display = 'block';
+    } else if (sc.size === 1) {
+      const cat = [...sc][0];
+      bar.textContent = cat + '  ·  ' + Data.cats[cat].length + ' people  ·  select more interests to find overlap';
+      bar.style.display = 'block';
     } else {
-      alpha = active ? 1 : 0.38;
+      bar.style.display = 'none';
     }
+  }
 
-    if (node.type==='interest') {
-      // Glow
-      if(active){
-        ctx.beginPath();ctx.arc(p.x,p.y,r+8,0,Math.PI*2);
-        ctx.fillStyle=ha(color,0.07);ctx.fill();
-      }
-      // Fill
-      ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);
-      ctx.fillStyle=ha(color,active?0.15:0.06);ctx.fill();
-      // Border (solid for interests)
-      ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);
-      ctx.strokeStyle=ha(color,active?0.9:0.3);
-      ctx.lineWidth=isSel?2.5:(isHov?2:1.5);ctx.stroke();
-      if(isSel||isHov){
-        ctx.beginPath();ctx.arc(p.x,p.y,r+5,0,Math.PI*2);
-        ctx.strokeStyle=ha(color,0.45);ctx.lineWidth=1;ctx.stroke();
-      }
-      // Label
-      ctx.save();ctx.globalAlpha=alpha;
-      const fs=Math.max(8,Math.min(12,r*0.32));
-      ctx.font=`600 ${fs}px 'Cinzel',serif`;
-      ctx.fillStyle=active?'#e8e4f0':'#7a7490';
-      ctx.textAlign='center';ctx.textBaseline='middle';
-      const words=node.label.split(' ');
-      if(words.length>1&&r>26){
-        const mid=Math.ceil(words.length/2);
-        ctx.fillText(words.slice(0,mid).join(' '),p.x,p.y-fs*0.6);
-        ctx.fillText(words.slice(mid).join(' '),p.x,p.y+fs*0.6);
-      } else { ctx.fillText(node.label,p.x,p.y); }
-      if(active&&r>26){
-        ctx.font=`400 ${Math.max(7,fs-3)}px 'Raleway',sans-serif`;
-        ctx.fillStyle=ha(color,0.7);
-        ctx.fillText(node.members.length+' people',p.x,p.y+fs*1.6);
-      }
-      ctx.restore();
+  function draw() {
+    ctx.clearRect(0, 0, Graph.W, Graph.H);
+    drawBackground();
+    drawEdges();
+    drawNodes();
+    updateMultibar();
+  }
+
+  return { draw, ha };
+})();
+
+// ╔══════════════════════════════════════════════════════════════════════════════╗
+// ║  SIDEBAR — builds the people and interest chip lists                        ║
+// ╚══════════════════════════════════════════════════════════════════════════════╝
+const Sidebar = (() => {
+  function build() {
+    const pl = document.getElementById('person-list');
+    for (const name of Data.allPeople) {
+      const d = document.createElement('div');
+      d.className = 'chip'; d.dataset.name = name;
+      d.innerHTML = `<span class="chip-dot" style="background:#8a8898"></span>${name}<span class="chip-count">${(Data.personCats[name] || []).length}</span>`;
+      d.onclick = () => { State.togglePerson(name); sync(); Renderer.draw(); };
+      pl.appendChild(d);
+    }
+    const il = document.getElementById('interest-list');
+    for (const cat of Data.allCatsAlpha) {
+      const d = document.createElement('div');
+      d.className = 'chip'; d.dataset.cat = cat;
+      d.innerHTML = `<span class="chip-dot" style="background:${Colors.catColors[cat]}"></span>${cat}<span class="chip-count">${Data.cats[cat].length}</span>`;
+      d.onclick = () => { State.toggleCat(cat); sync(); Renderer.draw(); };
+      il.appendChild(d);
+    }
+  }
+
+  function sync() {
+    document.querySelectorAll('.chip[data-name]').forEach(c => c.classList.toggle('active', State.selPeople.has(c.dataset.name)));
+    document.querySelectorAll('.chip[data-cat]').forEach(c  => c.classList.toggle('active', State.selCats.has(c.dataset.cat)));
+  }
+
+  return { build, sync };
+})();
+
+// ╔══════════════════════════════════════════════════════════════════════════════╗
+// ║  INTERACTION — mouse/wheel events, hit testing, tooltip                     ║
+// ╚══════════════════════════════════════════════════════════════════════════════╝
+const Interaction = (() => {
+  let hovNode = null;
+  let dragging = false, dragMoved = false;
+  let dragStart = { x: 0, y: 0 }, camStart = { x: 0, y: 0 };
+  let _camX = 0, _camY = 0; // snapshot of cam at drag start
+
+  function getHit(sx, sy) {
+    const w = Camera.stw(sx, sy);
+    for (let i = Graph.nodes.length - 1; i >= 0; i--) {
+      const n = Graph.nodes[i], dx = w.x - n.x, dy = w.y - n.y;
+      if (Math.sqrt(dx * dx + dy * dy) < n.radius) return n;
+    }
+    return null;
+  }
+
+  function showTooltip(node, sx, sy) {
+    const tip = document.getElementById('tooltip');
+    let html = `<div class="tip-title">${node.label}</div>`;
+    if (node.type === 'interest') {
+      html += node.members.map(p => `<div class="tip-item"><span class="tip-dot" style="background:#8a8898"></span>${p}</div>`).join('');
     } else {
-      // Person node — grey, dashed border
-      const GREY='#8a8898';
-      ctx.save();ctx.globalAlpha=alpha;
-      if(isSel){
-        ctx.beginPath();ctx.arc(p.x,p.y,r+9,0,Math.PI*2);
-        ctx.fillStyle='rgba(138,136,152,0.12)';ctx.fill();
-      }
-      ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);
-      ctx.fillStyle=active?(isSel?'rgba(138,136,152,0.25)':'rgba(138,136,152,0.12)'):'rgba(138,136,152,0.05)';ctx.fill();
-      ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);
-      ctx.strokeStyle=active?(isSel?'rgba(200,198,210,0.9)':'rgba(138,136,152,0.75)'):'rgba(138,136,152,0.3)';
-      ctx.lineWidth=isSel?2.5:(isHov?2:1.5);
-      ctx.setLineDash([4,3]);ctx.stroke();ctx.setLineDash([]);
-      if(isHov||isSel){
-        ctx.beginPath();ctx.arc(p.x,p.y,r+5,0,Math.PI*2);
-        ctx.strokeStyle='rgba(200,198,210,0.3)';ctx.lineWidth=1;ctx.stroke();
-      }
-      const fs=Math.max(8,Math.min(11,r*0.46));
-      ctx.font=`500 ${fs}px 'Raleway',sans-serif`;
-      ctx.fillStyle=active?'#c8c6d2':'#5a5868';
-      ctx.textAlign='center';ctx.textBaseline='middle';
-      ctx.fillText(node.label,p.x,p.y);
-      ctx.restore();
+      html += (node.cats || []).map(c => `<div class="tip-item"><span class="tip-dot" style="background:${Colors.catColors[c] || '#888'}"></span>${c}</div>`).join('');
     }
+    tip.innerHTML = html;
+    tip.style.left = Math.min(sx + 14, Graph.W - 235) + 'px';
+    tip.style.top  = Math.max(sy - 10, 10) + 'px';
+    tip.style.display = 'block';
   }
 
-  // Multibar
-  const bar=document.getElementById('multibar');
-  if(selPeople.size>=2){
-    const sh=sharedInts();
-    bar.textContent=[...selPeople].sort().join(' + ')+'  ·  '+sh.size+' shared interest'+(sh.size!==1?'s':'');
-    bar.style.display='block';
-  } else if(selPeople.size===1){
-    const nm=[...selPeople][0];
-    bar.textContent=nm+'  ·  '+(personCats[nm]||[]).length+' interests  ·  select more people to find overlap';
-    bar.style.display='block';
-  } else if(selCats.size>=2){
-    const sp=sharedPeople();
-    bar.textContent=[...selCats].join(' + ')+'  ·  '+sp.size+' '+(sp.size!==1?'people':'person')+' in common';
-    bar.style.display='block';
-  } else if(selCats.size===1){
-    const cat=[...selCats][0];
-    bar.textContent=cat+'  ·  '+CATS[cat].length+' people  ·  select more interests to find overlap';
-    bar.style.display='block';
-  } else {
-    bar.style.display='none';
-  }
-}
+  function hideTooltip() { document.getElementById('tooltip').style.display = 'none'; }
 
-// ── SIDEBAR ───────────────────────────────────────────────────────────────────
-function buildSidebar() {
-  // People: alphabetical, grey dots
-  const pl=document.getElementById('person-list');
-  for(const name of allPeopleRaw){
-    const d=document.createElement('div');d.className='chip';d.dataset.name=name;
-    d.innerHTML=`<span class="chip-dot" style="background:#8a8898"></span>${name}<span class="chip-count">${(personCats[name]||[]).length}</span>`;
-    d.onclick=()=>togglePerson(name);pl.appendChild(d);
-  }
-  // Interests: alphabetical in sidebar
-  const il=document.getElementById('interest-list');
-  for(const cat of allCatsAlpha){
-    const d=document.createElement('div');d.className='chip';d.dataset.cat=cat;
-    d.innerHTML=`<span class="chip-dot" style="background:${catColorMap[cat]}"></span>${cat}<span class="chip-count">${CATS[cat].length}</span>`;
-    d.onclick=()=>toggleCat(cat);il.appendChild(d);
-  }
-}
+  const cv = Graph.cv;
 
-function syncChips(){
-  document.querySelectorAll('.chip[data-name]').forEach(c=>c.classList.toggle('active',selPeople.has(c.dataset.name)));
-  document.querySelectorAll('.chip[data-cat]').forEach(c=>c.classList.toggle('active',selCats.has(c.dataset.cat)));
-}
+  cv.addEventListener('mousedown', e => {
+    dragging = true; dragMoved = false;
+    cv.classList.add('dragging');
+    dragStart = { x: e.clientX, y: e.clientY };
+    // Store current cam values via a pan(0,0) call trick — just record start
+    _camX = e.clientX; _camY = e.clientY;
+  });
 
-function togglePerson(name){
-  selCats.clear();
-  selPeople.has(name)?selPeople.delete(name):selPeople.add(name);
-  syncChips(); draw();
-}
-
-function toggleCat(cat){
-  selPeople.clear();
-  selCats.has(cat)?selCats.delete(cat):selCats.add(cat);
-  syncChips(); draw();
-}
-
-// ── EVENTS ────────────────────────────────────────────────────────────────────
-function getHit(sx,sy){
-  const w=stw(sx,sy);
-  for(let i=nodes.length-1;i>=0;i--){
-    const n=nodes[i],dx=w.x-n.x,dy=w.y-n.y;
-    if(Math.sqrt(dx*dx+dy*dy)<n.radius) return n;
-  }
-  return null;
-}
-
-cv.addEventListener('mousedown',e=>{
-  dragging=true;dragMoved=false;cv.classList.add('dragging');
-  dragStart={x:e.clientX,y:e.clientY};camStart={x:cam.x,y:cam.y};
-});
-
-cv.addEventListener('mousemove',e=>{
-  const rect=cv.getBoundingClientRect();
-  const sx=e.clientX-rect.left,sy=e.clientY-rect.top;
-  if(dragging){
-    const dx=e.clientX-dragStart.x,dy=e.clientY-dragStart.y;
-    if(Math.abs(dx)+Math.abs(dy)>3) dragMoved=true;
-    cam.x=camStart.x+dx/cam.scale;cam.y=camStart.y+dy/cam.scale;draw();return;
-  }
-  hovNode=getHit(sx,sy);cv.style.cursor=hovNode?'pointer':'grab';
-  const tip=document.getElementById('tooltip');
-  if(hovNode){
-    tip.style.display='block';
-    let html=`<div class="tip-title">${hovNode.label}</div>`;
-    if(hovNode.type==='interest'){
-      html+=hovNode.members.map(p=>`<div class="tip-item"><span class="tip-dot" style="background:#8a8898"></span>${p}</div>`).join('');
-    } else {
-      html+=(hovNode.cats||[]).map(c=>`<div class="tip-item"><span class="tip-dot" style="background:${catColorMap[c]||'#888'}"></span>${c}</div>`).join('');
+  cv.addEventListener('mousemove', e => {
+    const rect = cv.getBoundingClientRect();
+    const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
+    if (dragging) {
+      const dx = e.clientX - dragStart.x, dy = e.clientY - dragStart.y;
+      if (Math.abs(dx) + Math.abs(dy) > 3) dragMoved = true;
+      Camera.pan(e.clientX - _camX, e.clientY - _camY);
+      _camX = e.clientX; _camY = e.clientY;
+      Renderer.draw(); return;
     }
-    tip.innerHTML=html;
-    tip.style.left=Math.min(sx+14,W-235)+'px';
-    tip.style.top=Math.max(sy-10,10)+'px';
-  } else { tip.style.display='none'; }
-  draw();
-});
+    hovNode = getHit(sx, sy);
+    cv.style.cursor = hovNode ? 'pointer' : 'grab';
+    if (hovNode) showTooltip(hovNode, sx, sy); else hideTooltip();
+    Renderer.draw();
+  });
 
-cv.addEventListener('mouseup',e=>{
-  const wasDrag=dragMoved;dragging=false;dragMoved=false;cv.classList.remove('dragging');
-  if(!wasDrag){
-    const rect=cv.getBoundingClientRect();
-    const hit=getHit(e.clientX-rect.left,e.clientY-rect.top);
-    if(hit){
-      if(hit.type==='person') togglePerson(hit.label);
-      else toggleCat(hit.label);
-    } else { clearAll(); }
-  }
-});
+  cv.addEventListener('mouseup', e => {
+    const wasDrag = dragMoved;
+    dragging = false; dragMoved = false;
+    cv.classList.remove('dragging');
+    if (!wasDrag) {
+      const rect = cv.getBoundingClientRect();
+      const hit = getHit(e.clientX - rect.left, e.clientY - rect.top);
+      if (hit) {
+        if (hit.type === 'person') State.togglePerson(hit.label);
+        else State.toggleCat(hit.label);
+        Sidebar.sync();
+      } else {
+        State.clearAll(); Sidebar.sync();
+      }
+      Renderer.draw();
+    }
+  });
 
-cv.addEventListener('mouseleave',()=>{
-  dragging=false;hovNode=null;
-  document.getElementById('tooltip').style.display='none';
-  draw();
-});
+  cv.addEventListener('mouseleave', () => {
+    dragging = false; hovNode = null; hideTooltip(); Renderer.draw();
+  });
 
-cv.addEventListener('wheel',e=>{
-  e.preventDefault();
-  const rect=cv.getBoundingClientRect();
-  const sx=e.clientX-rect.left,sy=e.clientY-rect.top;
-  const before=stw(sx,sy);
-  cam.scale=Math.max(0.3,Math.min(3.5,cam.scale*(e.deltaY<0?1.1:0.9)));
-  const after=stw(sx,sy);
-  cam.x+=after.x-before.x;cam.y+=after.y-before.y;draw();
-},{passive:false});
+  cv.addEventListener('wheel', e => {
+    e.preventDefault();
+    const rect = cv.getBoundingClientRect();
+    Camera.zoom(e.deltaY < 0 ? 1.1 : 0.9, e.clientX - rect.left, e.clientY - rect.top);
+    Renderer.draw();
+  }, { passive: false });
 
-function clearAll(){ selPeople.clear(); selCats.clear(); syncChips(); draw(); }
+  return { get hovNode() { return hovNode; } };
+})();
 
-document.getElementById('reset-btn').onclick=()=>{ cam={x:0,y:0,scale:1}; clearAll(); };
-
-document.getElementById('download-btn').onclick=()=>{
-  // Find bounding box of all nodes in screen space
-  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
-  for(const node of nodes){
-    const p=wts(node.x,node.y);
-    const r=node.radius*cam.scale+10;
-    minX=Math.min(minX,p.x-r); minY=Math.min(minY,p.y-r);
-    maxX=Math.max(maxX,p.x+r); maxY=Math.max(maxY,p.y+r);
-  }
-  const pad=24;
-  minX=Math.max(0,minX-pad); minY=Math.max(0,minY-pad);
-  maxX=Math.min(W,maxX+pad); maxY=Math.min(H,maxY+pad);
-  const cw=Math.ceil((maxX-minX)*DPR), ch=Math.ceil((maxY-minY)*DPR);
-  const temp=document.createElement('canvas'); temp.width=cw; temp.height=ch;
-  const tctx=temp.getContext('2d');
-  tctx.fillStyle='#0f0e17'; tctx.fillRect(0,0,cw,ch);
-  tctx.drawImage(cv, minX*DPR, minY*DPR, cw, ch, 0, 0, cw, ch);
-  const link=document.createElement('a'); link.download='friend-interest-map.png';
-  link.href=temp.toDataURL('image/png'); link.click();
+// ╔══════════════════════════════════════════════════════════════════════════════╗
+// ║  CONTROLS — reset button, download button                                   ║
+// ╚══════════════════════════════════════════════════════════════════════════════╝
+document.getElementById('reset-btn').onclick = () => {
+  Camera.reset(); State.clearAll(); Sidebar.sync(); Renderer.draw();
 };
 
-window.addEventListener('resize',()=>{ ctx.setTransform(1,0,0,1,0,0); resize(); });
-buildSidebar();
-setTimeout(()=>resize(), 50);
+document.getElementById('download-btn').onclick = () => {
+  const { nodes, W, H, DPR, cv } = Graph;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const node of nodes) {
+    const p = Camera.wts(node.x, node.y);
+    const r = node.radius * Camera.scale + 10;
+    minX = Math.min(minX, p.x - r); minY = Math.min(minY, p.y - r);
+    maxX = Math.max(maxX, p.x + r); maxY = Math.max(maxY, p.y + r);
+  }
+  const pad = 24;
+  minX = Math.max(0, minX - pad); minY = Math.max(0, minY - pad);
+  maxX = Math.min(W, maxX + pad);  maxY = Math.min(H, maxY + pad);
+  const cw = Math.ceil((maxX - minX) * DPR), ch = Math.ceil((maxY - minY) * DPR);
+  const temp = document.createElement('canvas'); temp.width = cw; temp.height = ch;
+  const tctx = temp.getContext('2d');
+  tctx.fillStyle = '#0f0e17'; tctx.fillRect(0, 0, cw, ch);
+  tctx.drawImage(cv, minX * DPR, minY * DPR, cw, ch, 0, 0, cw, ch);
+  const link = document.createElement('a');
+  link.download = 'friend-interest-map.png';
+  link.href = temp.toDataURL('image/png'); link.click();
+};
+
+// ╔══════════════════════════════════════════════════════════════════════════════╗
+// ║  INIT                                                                       ║
+// ╚══════════════════════════════════════════════════════════════════════════════╝
+window.addEventListener('resize', () => {
+  Graph.ctx.setTransform(1, 0, 0, 1, 0, 0);
+  Graph.resize();
+});
+
+Sidebar.build();
+setTimeout(() => Graph.resize(), 50);
 </script>
 </body>
 </html>
