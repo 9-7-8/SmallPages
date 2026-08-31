@@ -202,10 +202,15 @@
         <input type="range" id="zoomInput" min="1" max="4" step="0.1" value="1">
       </div>
       <div class="field checkbox">
+        <input type="checkbox" id="tileable" checked>
+        <label for="tileable" style="margin:0;">Seamlessly tileable (edges wrap cleanly when the texture repeats)</label>
+      </div>
+      <div class="field checkbox">
         <input type="checkbox" id="perfectLoop" checked>
         <label for="perfectLoop" style="margin:0;">Perfect loop (rounds spin/ripple speed to whole rotations)</label>
       </div>
     </fieldset>
+    <p class="note">A single centered swirl can't repeat edge-to-edge on its own — the two edges of the frame sit on opposite sides of the vortex, so their content doesn't match (this is a real mathematical fact about swirling patterns, not a bug to tune around). "Seamlessly tileable" folds the pattern back on itself at the frame's edges so they're guaranteed to meet exactly, at the cost of a more symmetric, kaleidoscope-like look within each tile rather than one clean uninterrupted swirl.</p>
     <p class="note">If the source PNG has a transparent margin (rounded frame, sprite padding, etc.), the swirl automatically crops in to the opaque content so that margin is never dragged into view. "Zoom" pushes in further, beyond that safety crop, for a tighter view of the image center.</p>
     <p class="note">Spin and ripple speed must be whole numbers of rotations for the last frame to land back on the first exactly. Turning off "perfect loop" allows fractional values but leaves a visible seam.</p>
 
@@ -261,6 +266,7 @@ const rippleFreq = document.getElementById("rippleFreq");
 const rippleFreqOut = document.getElementById("rippleFreqOut");
 const zoomInput = document.getElementById("zoomInput");
 const zoomOut = document.getElementById("zoomOut");
+const tileableInput = document.getElementById("tileable");
 const perfectLoop = document.getElementById("perfectLoop");
 
 let sourceImage = null; // HTMLImageElement
@@ -389,6 +395,17 @@ function sampleClamp(data, w, h, x, y, out) {
 // whole numbers, frame 0 and the frame after the last one are identical —
 // that's what makes the loop seamless.
 //
+// When `tileable` is on, the pixel's position within the frame is first
+// passed through a triangle-wave fold (0 at both edges, 1 at the center)
+// instead of a straight -1..1 ramp. A linear ramp hits opposite values at
+// the two edges of the tile, and a swirl's angle depends on that value, so
+// the two edges sample from opposite sides of the vortex — an unavoidable
+// hard seam (single-vortex fields can't be smoothly periodic on a torus;
+// this is a real topological fact, not a bug). The fold makes both edges
+// hit the exact same value instead, so adjacent tiles meet with zero jump.
+// The trade-off is a mirrored, more symmetric look within each tile, since
+// the pattern doubles back on itself horizontally and vertically.
+//
 // Sampling is done relative to a "safe" square region of the source
 // (cropCenterX/Y ± halfExtent) that's been sized so the warp's maximum
 // possible reach never exceeds it. Combined with clamped sampling, this
@@ -400,12 +417,15 @@ function renderSwirlFrame(srcData, srcW, srcH, outSize, frameIndex, totalFrames,
   const spinAngle = params.spinLoops * 2 * Math.PI * t;
   const rippleAngle = params.rippleLoops * 2 * Math.PI * t;
   const pixel = [0, 0, 0, 0];
-  const { cropCenterX, cropCenterY, halfExtent } = params;
+  const { cropCenterX, cropCenterY, halfExtent, tileable } = params;
 
   for (let oy = 0; oy < outSize; oy++) {
-    const ny = ((oy + 0.5) / outSize) * 2 - 1;
+    const rawTy = (oy + 0.5) / outSize;
+    const ny = tileable ? 2 * (1 - Math.abs(2 * rawTy - 1)) - 1 : 2 * rawTy - 1;
     for (let ox = 0; ox < outSize; ox++) {
-      const nx = ((ox + 0.5) / outSize) * 2 - 1;
+      const rawTx = (ox + 0.5) / outSize;
+      const nx = tileable ? 2 * (1 - Math.abs(2 * rawTx - 1)) - 1 : 2 * rawTx - 1;
+
       const r = Math.sqrt(nx * nx + ny * ny);
       const theta = Math.atan2(ny, nx);
 
@@ -460,6 +480,7 @@ convertBtn.addEventListener("click", async () => {
       rippleLoops,
       rippleAmount: parseFloat(rippleAmount.value),
       rippleFreq: parseFloat(rippleFreq.value),
+      tileable: tileableInput.checked,
     };
 
     setStatus("Reading source image…");
