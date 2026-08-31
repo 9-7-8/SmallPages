@@ -196,11 +196,16 @@
         <label for="rippleFreq">Ripple frequency <span class="unit" id="rippleFreqOut">3</span></label>
         <input type="range" id="rippleFreq" min="0" max="10" step="1" value="3">
       </div>
+      <div class="field wide">
+        <label for="zoomInput">Zoom <span class="unit" id="zoomOut">1.0×</span></label>
+        <input type="range" id="zoomInput" min="1" max="4" step="0.1" value="1">
+      </div>
       <div class="field checkbox">
         <input type="checkbox" id="perfectLoop" checked>
         <label for="perfectLoop" style="margin:0;">Perfect loop (rounds spin/ripple speed to whole rotations)</label>
       </div>
     </fieldset>
+    <p class="note">If the source PNG has a transparent margin (rounded frame, sprite padding, etc.), the swirl automatically crops in to the opaque content so that margin is never dragged into view. "Zoom" pushes in further, beyond that safety crop, for a tighter view of the image center.</p>
     <p class="note">Spin and ripple speed must be whole numbers of rotations for the last frame to land back on the first exactly. Turning off "perfect loop" allows fractional values but leaves a visible seam.</p>
 
     <button id="convertBtn" disabled>Convert</button>
@@ -253,6 +258,8 @@ const rippleAmount = document.getElementById("rippleAmount");
 const rippleAmountOut = document.getElementById("rippleAmountOut");
 const rippleFreq = document.getElementById("rippleFreq");
 const rippleFreqOut = document.getElementById("rippleFreqOut");
+const zoomInput = document.getElementById("zoomInput");
+const zoomOut = document.getElementById("zoomOut");
 const perfectLoop = document.getElementById("perfectLoop");
 
 let sourceImage = null; // HTMLImageElement
@@ -298,8 +305,9 @@ function syncLabels() {
   swirlStrengthOut.textContent = parseFloat(swirlStrength.value).toFixed(1);
   rippleAmountOut.textContent = parseFloat(rippleAmount.value).toFixed(2);
   rippleFreqOut.textContent = rippleFreq.value;
+  zoomOut.textContent = `${parseFloat(zoomInput.value).toFixed(1)}×`;
 }
-[fpsInput, durationInput, swirlStrength, rippleAmount, rippleFreq].forEach((el) =>
+[fpsInput, durationInput, swirlStrength, rippleAmount, rippleFreq, zoomInput].forEach((el) =>
   el.addEventListener("input", syncLabels)
 );
 syncLabels();
@@ -314,12 +322,34 @@ function wrap(x, w) {
   return ((x % w) + w) % w;
 }
 
-// Bilinear sample of an RGBA buffer, wrapping at the edges (source treated as tileable).
-function sampleWrap(data, w, h, x, y, out) {
-  x = wrap(x, w);
-  y = wrap(y, h);
+// Finds the bounding box of non-transparent pixels in an RGBA buffer.
+// Returns null if the image has no meaningful transparency (nothing to crop to).
+function findOpaqueBoundingBox(data, w, h, alphaThreshold = 10) {
+  let minX = w, maxX = -1, minY = h, maxY = -1;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const a = data[(y * w + x) * 4 + 3];
+      if (a >= alphaThreshold) {
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+    }
+  }
+  if (maxX < minX || maxY < minY) return null; // fully transparent image
+  if (minX === 0 && minY === 0 && maxX === w - 1 && maxY === h - 1) return null; // nothing to crop
+  return { minX, maxX, minY, maxY };
+}
+
+// Bilinear sample of an RGBA buffer, clamping at the edges. Never reaches
+// outside the buffer, so it only ever returns real source pixel data —
+// nothing is invented, and nothing outside the sampled region can bleed in.
+function sampleClamp(data, w, h, x, y, out) {
+  x = Math.min(Math.max(x, 0), w - 1);
+  y = Math.min(Math.max(y, 0), h - 1);
   const x0 = Math.floor(x), y0 = Math.floor(y);
-  const x1 = (x0 + 1) % w, y1 = (y0 + 1) % h;
+  const x1 = Math.min(x0 + 1, w - 1), y1 = Math.min(y0 + 1, h - 1);
   const fx = x - x0, fy = y - y0;
 
   const i00 = (y0 * w + x0) * 4;
@@ -334,18 +364,25 @@ function sampleWrap(data, w, h, x, y, out) {
   }
 }
 
-// Renders one frame of the swirl: for each output pixel, walks backwards
+// Renders one frame of the swirl. For each output pixel, walks backwards
 // through a time-varying polar warp (spin + radial ripple) to find where
 // in the source texture to sample from. Spin/ripple phases are driven by
 // t = frameIndex / totalFrames, so whenever spinLoops and rippleLoops are
 // whole numbers, frame 0 and the frame after the last one are identical —
 // that's what makes the loop seamless.
+//
+// Sampling is done relative to a "safe" square region of the source
+// (cropCenterX/Y ± halfExtent) that's been sized so the warp's maximum
+// possible reach never exceeds it. Combined with clamped sampling, this
+// guarantees the swirl only ever shows real, opaque source content —
+// it can never drag in a transparent margin from the edges of the PNG.
 function renderSwirlFrame(srcData, srcW, srcH, outSize, frameIndex, totalFrames, params) {
   const out = new Uint8ClampedArray(outSize * outSize * 4);
   const t = frameIndex / totalFrames;
   const spinAngle = params.spinLoops * 2 * Math.PI * t;
   const rippleAngle = params.rippleLoops * 2 * Math.PI * t;
   const pixel = [0, 0, 0, 0];
+  const { cropCenterX, cropCenterY, halfExtent } = params;
 
   for (let oy = 0; oy < outSize; oy++) {
     const ny = ((oy + 0.5) / outSize) * 2 - 1;
@@ -354,16 +391,17 @@ function renderSwirlFrame(srcData, srcW, srcH, outSize, frameIndex, totalFrames,
       const r = Math.sqrt(nx * nx + ny * ny);
       const theta = Math.atan2(ny, nx);
 
-      const twist = params.swirlStrength * Math.max(0, 1 - r);
+      const twist = params.swirlStrength * Math.max(0, 1 - r / Math.SQRT2);
       const thetaSample = theta - twist - spinAngle;
       const rSample = r * (1 + params.rippleAmount * Math.sin(params.rippleFreq * r * 2 * Math.PI - rippleAngle));
 
       const sx = rSample * Math.cos(thetaSample);
       const sy = rSample * Math.sin(thetaSample);
-      const u = wrap((sx + 1) / 2, 1);
-      const v = wrap((sy + 1) / 2, 1);
 
-      sampleWrap(srcData, srcW, srcH, u * srcW, v * srcH, pixel);
+      const srcX = cropCenterX + sx * halfExtent;
+      const srcY = cropCenterY + sy * halfExtent;
+
+      sampleClamp(srcData, srcW, srcH, srcX, srcY, pixel);
 
       const di = (oy * outSize + ox) * 4;
       out[di] = pixel[0];
@@ -415,6 +453,30 @@ convertBtn.addEventListener("click", async () => {
     const srcData = srcCtx.getImageData(0, 0, sourceImage.width, sourceImage.height).data;
     const hasAlpha = hasTransparency(srcData);
     const format = hasAlpha ? "rgba4444" : "rgb565";
+
+    // Figure out the safe region of the source to sample from: crop to the
+    // opaque content (if the PNG has a transparent margin) so that margin
+    // can never be dragged into the swirl, then size the sampling extent so
+    // the warp's worst-case reach (corner radius √2, inflated by the ripple)
+    // still lands inside that region — with clamped sampling as a final
+    // backstop, nothing outside real source pixels can ever be shown.
+    const bbox = findOpaqueBoundingBox(srcData, sourceImage.width, sourceImage.height);
+    let cropCenterX, cropCenterY, cropHalfExtent;
+    if (bbox) {
+      cropCenterX = (bbox.minX + bbox.maxX) / 2;
+      cropCenterY = (bbox.minY + bbox.maxY) / 2;
+      cropHalfExtent = Math.max(bbox.maxX - bbox.minX, bbox.maxY - bbox.minY) / 2;
+    } else {
+      cropCenterX = sourceImage.width / 2;
+      cropCenterY = sourceImage.height / 2;
+      cropHalfExtent = Math.min(sourceImage.width, sourceImage.height) / 2;
+    }
+    const worstCaseReach = Math.SQRT2 * (1 + params.rippleAmount) * 1.02; // + 2% margin
+    const userZoom = parseFloat(zoomInput.value) || 1;
+    const halfExtent = cropHalfExtent / (worstCaseReach * userZoom);
+    params.cropCenterX = cropCenterX;
+    params.cropCenterY = cropCenterY;
+    params.halfExtent = halfExtent;
 
     setStatus(`Rendering ${totalFrames} frames…`);
     const frames = [];
