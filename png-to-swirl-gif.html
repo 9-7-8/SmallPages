@@ -58,6 +58,7 @@
     transition: border-color 0.15s ease, background 0.15s ease;
   }
   .dropzone:hover, .dropzone.drag { border-color: var(--accent-dim); background: #eee9da; }
+  .dropzone:focus-visible { outline: 2px solid var(--accent-dim); outline-offset: 2px; }
   .dropzone input { display: none; }
   .dropzone .hint { color: #6a6555; font-size: 0.85rem; margin-top: 0.4rem; }
   .dropzone img.thumb {
@@ -143,13 +144,13 @@
 <body>
 <main>
   <h1>png → swirl gif</h1>
-  <p class="lede">Turns a still PNG into a seamlessly looping swirling-vortex GIF — the source image is treated as a tileable texture and warped around its own center.</p>
+  <p class="lede">Turns a still image into a seamlessly looping swirling-vortex GIF — the source image is treated as a tileable texture and warped around its own center.</p>
 
   <div class="card">
-    <div class="dropzone" id="dropzone">
-      <div id="dropzoneContent">Drop a PNG here, or click to choose one</div>
-      <div class="hint">rendered entirely in your browser — nothing is uploaded anywhere</div>
-      <input type="file" id="fileInput" accept="image/png">
+    <div class="dropzone" id="dropzone" tabindex="0">
+      <div id="dropzoneContent">Drop an image here, paste one, or click to choose</div>
+      <div class="hint">PNG, JPEG, or WebP — decoded entirely in your browser, nothing is uploaded anywhere</div>
+      <input type="file" id="fileInput" accept="image/png,image/jpeg,image/webp">
     </div>
   </div>
 
@@ -276,9 +277,26 @@ fileInput.addEventListener("change", () => {
   if (fileInput.files.length) setFile(fileInput.files[0]);
 });
 
+// Paste support: works anywhere on the page, not just when the dropzone is
+// focused, since people naturally just hit Ctrl+V after copying an image.
+document.addEventListener("paste", (e) => {
+  const items = e.clipboardData && e.clipboardData.items;
+  if (!items) return;
+  for (const item of items) {
+    if (item.type.startsWith("image/")) {
+      const file = item.getAsFile();
+      if (file) {
+        e.preventDefault();
+        setFile(file);
+      }
+      break;
+    }
+  }
+});
+
 function setFile(file) {
-  if (!file.type.includes("png") && !file.name.toLowerCase().endsWith(".png")) {
-    setStatus("That doesn't look like a PNG.", true);
+  if (!file.type.startsWith("image/")) {
+    setStatus("That doesn't look like an image.", true);
     return;
   }
   const url = URL.createObjectURL(file);
