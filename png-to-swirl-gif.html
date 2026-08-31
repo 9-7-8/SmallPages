@@ -218,8 +218,18 @@
   </div>
 </main>
 
-<script type="module">
-import { GIFEncoder, quantize, applyPalette } from "https://esm.sh/gifenc@1.0.3";
+<script>
+"use strict";
+
+// Loaded lazily on first conversion, so a CDN hiccup can't break drag/drop
+// or the file picker (those are wired up unconditionally, below).
+let gifencLib = null;
+async function loadGifenc() {
+  if (gifencLib) return gifencLib;
+  const mod = await import("https://unpkg.com/gifenc@1.0.3/dist/gifenc.esm.js");
+  gifencLib = mod;
+  return mod;
+}
 
 const dropzone = document.getElementById("dropzone");
 const dropzoneContent = document.getElementById("dropzoneContent");
@@ -371,6 +381,9 @@ convertBtn.addEventListener("click", async () => {
   downloadsEl.classList.remove("ready");
 
   try {
+    setStatus("Loading GIF encoder…");
+    const { GIFEncoder, quantize, applyPalette } = await loadGifenc();
+
     const outSize = Math.max(8, parseInt(sizeInput.value, 10) || 64);
     const fps = Math.max(1, parseFloat(fpsInput.value) || 12);
     const duration = Math.max(0.1, parseFloat(durationInput.value) || 3);
@@ -454,7 +467,11 @@ convertBtn.addEventListener("click", async () => {
     setStatus("Done.");
   } catch (err) {
     console.error(err);
-    setStatus(`Failed: ${err.message}`, true);
+    if (!gifencLib) {
+      setStatus("Couldn't load the GIF encoder from the CDN. Check your connection and try again.", true);
+    } else {
+      setStatus(`Failed: ${err.message}`, true);
+    }
   } finally {
     convertBtn.disabled = false;
   }

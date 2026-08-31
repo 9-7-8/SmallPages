@@ -1,34 +1,53 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Friend Map</title>
-<style>
-  body {
-    margin: 0;
-    background: #0f0e17;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 100vh;
-    font-family: Georgia, serif;
-  }
-  a {
-    color: #c9a96e;
-    font-size: 18px;
-    text-decoration: none;
-    border-bottom: 1px solid rgba(201,169,110,0.4);
-    padding-bottom: 2px;
-    letter-spacing: 0.05em;
-    transition: border-color 0.2s;
-  }
-  a:hover { border-color: #c9a96e; }
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Friend Map</title>
+  <style>
+    body {
+      margin: 0;
+      background: #0f0e17;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: Georgia, serif;
+    }
+    
+    nav ul {
+      list-style: none;      /* Remove bullet points */
+      padding: 0;
+      margin: 0;
+      text-align: center;
+    }
+    
+    nav li {
+      margin: 12px 0;        /* Space between links */
+    }
+    
+    a {
+      color: #c9a96e;
+      font-size: 18px;
+      text-decoration: none;
+      border-bottom: 1px solid rgba(201,169,110,0.4);
+      padding-bottom: 2px;
+      letter-spacing: 0.05em;
+      transition: border-color 0.2s;
+    }
+    
+    a:hover { 
+      border-color: #c9a96e; 
+    }
+  </style>
 </head>
 <body>
-  <p><a href="friends-interests.html">Friend Interest Map</a></p>
-  <p><a href="gif-to-mcmeta.html">Gif to McMeta</a></p>
-  <p><a href="png-to-swirl-gif.html">Png to Swirl Gif</a></p>
+  <nav>
+    <ul>
+      <li><a href="friends-interests.html">Friend Interest Map</a></li>
+      <li><a href="gif-to-mcmeta.html">Gif to McMeta</a></li>
+      <li><a href="png-to-swirl-gif.html">Png to Swirl Gif</a></li>
+    </ul>
+  </nav>
 </body>
 </html>

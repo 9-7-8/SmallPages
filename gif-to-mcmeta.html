@@ -193,10 +193,19 @@
   </div>
 </main>
 
-<script type="module">
-import { parseGIF, decompressFrames } from "https://esm.sh/gifuct-js@2.1.2";
-
+<script>
+"use strict";
 const MS_PER_TICK = 50; // Minecraft: 1 tick = 50ms = 20 ticks/sec
+
+// Loaded lazily on first conversion, so a CDN hiccup can't break drag/drop
+// or the file picker (those are wired up unconditionally, below).
+let gifuctLib = null;
+async function loadGifuct() {
+  if (gifuctLib) return gifuctLib;
+  const mod = await import("https://cdn.jsdelivr.net/npm/gifuct-js@2.1.2/+esm");
+  gifuctLib = mod;
+  return mod;
+}
 
 const dropzone = document.getElementById("dropzone");
 const fileInput = document.getElementById("fileInput");
@@ -245,9 +254,11 @@ convertBtn.addEventListener("click", async () => {
   if (!currentFile) return;
   convertBtn.disabled = true;
   downloadsEl.classList.remove("ready");
-  setStatus("Decoding GIF…");
 
   try {
+    setStatus("Loading GIF decoder…");
+    const { parseGIF, decompressFrames } = await loadGifuct();
+
     const buffer = await currentFile.arrayBuffer();
     const gif = parseGIF(buffer);
     const rawFrames = decompressFrames(gif, true);
@@ -291,7 +302,11 @@ convertBtn.addEventListener("click", async () => {
     setStatus("Done.");
   } catch (err) {
     console.error(err);
-    setStatus(`Failed: ${err.message}`, true);
+    if (!gifuctLib) {
+      setStatus("Couldn't load the GIF decoder from the CDN. Check your connection and try again.", true);
+    } else {
+      setStatus(`Failed: ${err.message}`, true);
+    }
   } finally {
     convertBtn.disabled = false;
   }
