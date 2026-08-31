@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>gif → mcmeta</title>
+<style>
+  :root {
+    --ink: #1c1a17;
+    --paper: #eae5d8;
+    --line: #b8ae97;
+    --accent: #6b7a4f;
+    --accent-dim: #56613f;
+    --mono: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+    --serif: "IBM Plex Serif", Georgia, serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--mono);
+    font-size: 15px;
+    line-height: 1.55;
+    padding: 3rem 1.5rem 5rem;
+  }
+
+  main {
+    max-width: 640px;
+    margin: 0 auto;
+  }
+
+  h1 {
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: 1.9rem;
+    margin: 0 0 0.3rem;
+    letter-spacing: -0.01em;
+  }
+
+  p.lede {
+    margin: 0 0 2.2rem;
+    max-width: 46ch;
+    color: #4a4638;
+  }
+
+  .card {
+    border: 1px solid var(--line);
+    background: #f4f1e6;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .dropzone {
+    border: 1px dashed var(--line);
+    padding: 2.5rem 1.5rem;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+  .dropzone:hover, .dropzone.drag {
+    border-color: var(--accent-dim);
+    background: #eee9da;
+  }
+  .dropzone input { display: none; }
+  .dropzone .hint { color: #6a6555; font-size: 0.85rem; margin-top: 0.4rem; }
+
+  fieldset {
+    border: none;
+    padding: 0;
+    margin: 0 0 1.2rem;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem 1.2rem;
+  }
+  .field { display: flex; flex-direction: column; gap: 0.35rem; }
+  .field.checkbox { flex-direction: row; align-items: center; gap: 0.5rem; grid-column: 1 / -1; }
+  label { font-size: 0.8rem; color: #4a4638; }
+  input[type="number"] {
+    font-family: var(--mono);
+    font-size: 0.9rem;
+    padding: 0.4rem 0.5rem;
+    border: 1px solid var(--line);
+    background: #fff;
+    color: var(--ink);
+  }
+  input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent-dim); }
+
+  button {
+    font-family: var(--mono);
+    font-size: 0.9rem;
+    padding: 0.6rem 1.1rem;
+    background: var(--accent-dim);
+    color: #f4f1e6;
+    border: none;
+    cursor: pointer;
+  }
+  button:disabled { background: #a7a190; cursor: not-allowed; }
+  button:not(:disabled):hover { background: var(--accent); }
+
+  .downloads {
+    display: none;
+    margin-top: 1.5rem;
+    gap: 1.2rem;
+    align-items: flex-start;
+  }
+  .downloads.ready { display: flex; }
+  .preview {
+    border: 1px solid var(--line);
+    background:
+      linear-gradient(45deg, #ddd7c4 25%, transparent 25%),
+      linear-gradient(-45deg, #ddd7c4 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, #ddd7c4 75%),
+      linear-gradient(-45deg, transparent 75%, #ddd7c4 75%);
+    background-size: 12px 12px;
+    background-position: 0 0, 0 6px, 6px -6px, -6px 0;
+    image-rendering: pixelated;
+    max-height: 260px;
+  }
+  .download-list { display: flex; flex-direction: column; gap: 0.6rem; }
+  .download-list a {
+    color: var(--accent-dim);
+    text-decoration: none;
+    border-bottom: 1px solid var(--accent-dim);
+  }
+  .download-list a:hover { color: var(--ink); border-color: var(--ink); }
+  .meta-line { font-size: 0.8rem; color: #6a6555; }
+
+  .mcmeta-out {
+    font-size: 0.78rem;
+    background: #fff;
+    border: 1px solid var(--line);
+    padding: 0.8rem;
+    max-height: 160px;
+    overflow: auto;
+    white-space: pre;
+  }
+
+  .status {
+    font-size: 0.85rem;
+    margin-top: 0.8rem;
+    min-height: 1.2em;
+  }
+  .status.error { color: #9c3b2e; }
+</style>
+</head>
+<body>
+<main>
+  <h1>gif → mcmeta</h1>
+  <p class="lede">Turns an animated GIF into a Minecraft-style tiled vertical texture strip, with a matching <code>.mcmeta</code> built from the GIF's own frame timing.</p>
+
+  <div class="card">
+    <div class="dropzone" id="dropzone">
+      <div>Drop a GIF here, or click to choose one</div>
+      <div class="hint">decoded entirely in your browser — nothing is uploaded anywhere</div>
+      <input type="file" id="fileInput" accept="image/gif">
+    </div>
+  </div>
+
+  <div class="card">
+    <fieldset>
+      <div class="field">
+        <label for="sizeInput">Frame size (px, square)</label>
+        <input type="number" id="sizeInput" min="1" placeholder="auto">
+      </div>
+      <div class="field">
+        <label for="frametimeInput">Force uniform frametime (ticks)</label>
+        <input type="number" id="frametimeInput" min="1" placeholder="use GIF timing">
+      </div>
+      <div class="field checkbox">
+        <input type="checkbox" id="interpolateInput" checked>
+        <label for="interpolateInput" style="margin:0;">Interpolate between frames</label>
+      </div>
+    </fieldset>
+    <button id="convertBtn" disabled>Convert</button>
+    <div class="status" id="status"></div>
+  </div>
+
+  <div class="downloads" id="downloads">
+    <img class="preview" id="previewImg" alt="strip preview">
+    <div class="download-list">
+      <div>
+        <a id="pngLink" download="hay_portal.png">hay_portal.png</a>
+        <div class="meta-line" id="pngMeta"></div>
+      </div>
+      <div>
+        <a id="mcmetaLink" download="hay_portal.png.mcmeta">hay_portal.png.mcmeta</a>
+      </div>
+      <div class="mcmeta-out" id="mcmetaPreview"></div>
+    </div>
+  </div>
+</main>
+
+<script type="module">
+import { parseGIF, decompressFrames } from "https://esm.sh/gifuct-js@2.1.2";
+
+const MS_PER_TICK = 50; // Minecraft: 1 tick = 50ms = 20 ticks/sec
+
+const dropzone = document.getElementById("dropzone");
+const fileInput = document.getElementById("fileInput");
+const convertBtn = document.getElementById("convertBtn");
+const statusEl = document.getElementById("status");
+const downloadsEl = document.getElementById("downloads");
+const previewImg = document.getElementById("previewImg");
+const pngLink = document.getElementById("pngLink");
+const pngMeta = document.getElementById("pngMeta");
+const mcmetaLink = document.getElementById("mcmetaLink");
+const mcmetaPreview = document.getElementById("mcmetaPreview");
+const sizeInput = document.getElementById("sizeInput");
+const frametimeInput = document.getElementById("frametimeInput");
+const interpolateInput = document.getElementById("interpolateInput");
+
+let currentFile = null;
+
+dropzone.addEventListener("click", () => fileInput.click());
+dropzone.addEventListener("dragover", (e) => { e.preventDefault(); dropzone.classList.add("drag"); });
+dropzone.addEventListener("dragleave", () => dropzone.classList.remove("drag"));
+dropzone.addEventListener("drop", (e) => {
+  e.preventDefault();
+  dropzone.classList.remove("drag");
+  if (e.dataTransfer.files.length) setFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener("change", () => {
+  if (fileInput.files.length) setFile(fileInput.files[0]);
+});
+
+function setFile(file) {
+  if (!file.type.includes("gif") && !file.name.toLowerCase().endsWith(".gif")) {
+    setStatus("That doesn't look like a GIF.", true);
+    return;
+  }
+  currentFile = file;
+  convertBtn.disabled = false;
+  setStatus(`Loaded ${file.name} (${(file.size / 1024).toFixed(1)} KB). Click Convert.`);
+}
+
+function setStatus(msg, isError = false) {
+  statusEl.textContent = msg;
+  statusEl.classList.toggle("error", isError);
+}
+
+convertBtn.addEventListener("click", async () => {
+  if (!currentFile) return;
+  convertBtn.disabled = true;
+  downloadsEl.classList.remove("ready");
+  setStatus("Decoding GIF…");
+
+  try {
+    const buffer = await currentFile.arrayBuffer();
+    const gif = parseGIF(buffer);
+    const rawFrames = decompressFrames(gif, true);
+    if (!rawFrames.length) throw new Error("No frames found in this GIF.");
+
+    const gifWidth = gif.lsd.width;
+    const gifHeight = gif.lsd.height;
+    const targetSize = parseInt(sizeInput.value, 10) || Math.max(gifWidth, gifHeight);
+
+    setStatus(`Compositing ${rawFrames.length} frames…`);
+    const fullFrames = buildFullFrames(rawFrames, gifWidth, gifHeight);
+
+    const strip = document.createElement("canvas");
+    strip.width = targetSize;
+    strip.height = targetSize * fullFrames.length;
+    const stripCtx = strip.getContext("2d");
+    stripCtx.imageSmoothingEnabled = false;
+
+    fullFrames.forEach((f, i) => {
+      stripCtx.drawImage(f.canvas, 0, i * targetSize, targetSize, targetSize);
+    });
+
+    const forcedFrametime = parseInt(frametimeInput.value, 10) || null;
+    const interpolate = interpolateInput.checked;
+    const mcmeta = buildMcmeta(fullFrames, interpolate, forcedFrametime);
+    const mcmetaText = JSON.stringify(mcmeta, null, 2);
+
+    const pngBlob = await new Promise((resolve) => strip.toBlob(resolve, "image/png"));
+    const pngUrl = URL.createObjectURL(pngBlob);
+    const mcmetaBlob = new Blob([mcmetaText + "\n"], { type: "application/json" });
+    const mcmetaUrl = URL.createObjectURL(mcmetaBlob);
+
+    previewImg.src = pngUrl;
+    previewImg.style.width = "80px";
+    pngLink.href = pngUrl;
+    pngMeta.textContent = `${strip.width}×${strip.height}px, ${fullFrames.length} frames`;
+    mcmetaLink.href = mcmetaUrl;
+    mcmetaPreview.textContent = mcmetaText;
+
+    downloadsEl.classList.add("ready");
+    setStatus("Done.");
+  } catch (err) {
+    console.error(err);
+    setStatus(`Failed: ${err.message}`, true);
+  } finally {
+    convertBtn.disabled = false;
+  }
+});
+
+// Composites gifuct-js's per-frame patches into full-canvas frames, honoring
+// each frame's disposal method (matches how browsers actually play GIFs back).
+function buildFullFrames(rawFrames, width, height) {
+  const compositeCanvas = document.createElement("canvas");
+  compositeCanvas.width = width;
+  compositeCanvas.height = height;
+  const compositeCtx = compositeCanvas.getContext("2d");
+
+  let savedForRestore = null;
+  const fullFrames = [];
+
+  for (const frame of rawFrames) {
+    const { left, top, width: fw, height: fh } = frame.dims;
+
+    if (frame.disposalType === 3 && !savedForRestore) {
+      savedForRestore = compositeCtx.getImageData(0, 0, width, height);
+    }
+
+    const patchData = new ImageData(new Uint8ClampedArray(frame.patch), fw, fh);
+    compositeCtx.putImageData(patchData, left, top);
+
+    const frameCanvas = document.createElement("canvas");
+    frameCanvas.width = width;
+    frameCanvas.height = height;
+    frameCanvas.getContext("2d").drawImage(compositeCanvas, 0, 0);
+
+    // delay comes back in ms already; GIFs sometimes encode 0, browsers treat that as ~100ms
+    const delay = frame.delay > 0 ? frame.delay : 100;
+    fullFrames.push({ canvas: frameCanvas, delay });
+
+    if (frame.disposalType === 2) {
+      compositeCtx.clearRect(left, top, fw, fh);
+    } else if (frame.disposalType === 3 && savedForRestore) {
+      compositeCtx.putImageData(savedForRestore, 0, 0);
+      savedForRestore = null;
+    }
+  }
+
+  return fullFrames;
+}
+
+function buildMcmeta(fullFrames, interpolate, forcedFrametime) {
+  const animation = { interpolate };
+  if (forcedFrametime) {
+    animation.frametime = forcedFrametime;
+  } else {
+    animation.frames = fullFrames.map((f, i) => ({
+      index: i,
+      time: Math.max(1, Math.round(f.delay / MS_PER_TICK)),
+    }));
+  }
+  return { animation };
+}
+</script>
+</body>
+</html>
