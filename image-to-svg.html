@@ -1,0 +1,1952 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>image → svg</title>
+<style>
+  :root {
+    --ink: #1c1a17;
+    --paper: #eae5d8;
+    --line: #b8ae97;
+    --accent: #6b7a4f;
+    --accent-dim: #56613f;
+    --mono: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+    --serif: "IBM Plex Serif", Georgia, serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--mono);
+    font-size: 15px;
+    line-height: 1.55;
+    padding: 3rem 1.5rem 5rem;
+  }
+
+  main { max-width: 860px; margin: 0 auto; }
+
+  h1 {
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: 1.9rem;
+    margin: 0 0 0.3rem;
+    letter-spacing: -0.01em;
+  }
+
+  p.lede {
+    margin: 0 0 2.2rem;
+    max-width: 60ch;
+    color: #4a4638;
+  }
+
+  .card {
+    border: 1px solid var(--line);
+    background: #f4f1e6;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+
+  h2.section {
+    font-family: var(--serif);
+    font-size: 1.05rem;
+    font-weight: 600;
+    margin: 0 0 1rem;
+  }
+  h2.section + .sub { margin-top: -0.8rem; }
+
+  .dropzone {
+    border: 1px dashed var(--line);
+    padding: 2.5rem 1.5rem;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+  .dropzone:hover, .dropzone.drag, .dropzone:focus-visible {
+    border-color: var(--accent-dim);
+    background: #eee9da;
+    outline: none;
+  }
+  .dropzone input { display: none; }
+  .dropzone .hint { color: #6a6555; font-size: 0.85rem; margin-top: 0.4rem; }
+
+  fieldset {
+    border: none;
+    padding: 0;
+    margin: 0 0 1.2rem;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem 1.2rem;
+  }
+  fieldset:last-child { margin-bottom: 0; }
+  .field { display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; }
+  .field.wide { grid-column: 1 / -1; }
+  .field.checkbox { flex-direction: row; align-items: center; gap: 0.5rem; grid-column: 1 / -1; }
+  label { font-size: 0.8rem; color: #4a4638; }
+  .unit { color: #8a8474; }
+
+  input[type="number"], select {
+    font-family: var(--mono);
+    font-size: 0.9rem;
+    padding: 0.4rem 0.5rem;
+    border: 1px solid var(--line);
+    background: #fff;
+    color: var(--ink);
+  }
+  input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent-dim); }
+  input[type="range"] { accent-color: var(--accent-dim); width: 100%; }
+  input[type="text"] {
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    padding: 0.25rem 0.35rem;
+    border: 1px solid var(--line);
+    background: #fff;
+    color: var(--ink);
+    width: 100%;
+  }
+  :focus-visible { outline: 2px solid var(--accent-dim); outline-offset: 1px; }
+
+  button {
+    font-family: var(--mono);
+    font-size: 0.9rem;
+    padding: 0.6rem 1.1rem;
+    background: var(--accent-dim);
+    color: #f4f1e6;
+    border: none;
+    cursor: pointer;
+  }
+  button:disabled { background: #a7a190; cursor: not-allowed; }
+  button:not(:disabled):hover { background: var(--accent); }
+  button.ghost {
+    background: transparent;
+    color: var(--accent-dim);
+    border: 1px solid var(--line);
+    padding: 0.4rem 0.7rem;
+    font-size: 0.8rem;
+  }
+  button.ghost:not(:disabled):hover { background: #eee9da; color: var(--ink); border-color: var(--accent-dim); }
+
+  .seg { display: flex; border: 1px solid var(--line); width: fit-content; max-width: 100%; flex-wrap: wrap; }
+  .seg button {
+    background: transparent;
+    color: #4a4638;
+    padding: 0.5rem 0.9rem;
+    font-size: 0.85rem;
+    border-right: 1px solid var(--line);
+  }
+  .seg button:last-child { border-right: none; }
+  .seg button[aria-pressed="true"] { background: var(--accent-dim); color: #f4f1e6; }
+  .seg button:not([aria-pressed="true"]):hover { background: #eee9da; color: var(--ink); }
+
+  .row { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; }
+
+  .swatches {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(126px, 1fr));
+    gap: 0.6rem;
+    margin-bottom: 1rem;
+  }
+  .swatch { border: 1px solid var(--line); background: #fff; padding: 0.4rem; display: flex; flex-direction: column; gap: 0.35rem; }
+  .swatch .chip { height: 34px; border: 1px solid rgba(0,0,0,0.15); cursor: pointer; padding: 0; width: 100%; }
+  .swatch .chip:hover { border-color: var(--ink); }
+  .swatch input[type="color"] { position: absolute; opacity: 0; pointer-events: none; width: 0; height: 0; }
+  .swatch .acts { display: flex; gap: 0.3rem; }
+  .swatch .acts button {
+    flex: 1;
+    background: transparent;
+    color: #6a6555;
+    border: 1px solid var(--line);
+    font-size: 0.68rem;
+    padding: 0.15rem 0;
+  }
+  .swatch .acts button:hover { background: #eee9da; color: var(--ink); }
+  .swatch.locked { border-color: var(--accent-dim); }
+  .swatch.locked .acts button.lk { background: var(--accent-dim); color: #f4f1e6; border-color: var(--accent-dim); }
+
+  .compare { margin-top: 1rem; }
+  .panes { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .pane { min-width: 0; }
+  .pane .cap { font-size: 0.75rem; color: #6a6555; margin-bottom: 0.35rem; }
+  .stage {
+    border: 1px solid var(--line);
+    background:
+      linear-gradient(45deg, #ddd7c4 25%, transparent 25%),
+      linear-gradient(-45deg, #ddd7c4 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, #ddd7c4 75%),
+      linear-gradient(-45deg, transparent 75%, #ddd7c4 75%);
+    background-size: 14px 14px;
+    background-position: 0 0, 0 7px, 7px -7px, -7px 0;
+    position: relative;
+    overflow: hidden;
+    line-height: 0;
+  }
+  .stage img, .stage svg { width: 100%; height: auto; display: block; }
+  .stage.zoom img { image-rendering: pixelated; }
+
+  .wipe { position: relative; }
+  .wipe .layer { position: absolute; inset: 0; }
+  .wipe .layer img, .wipe .layer svg { width: 100%; height: 100%; display: block; }
+  .wipe .base { position: relative; }
+  .wipe .seam { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--accent-dim); pointer-events: none; }
+  .wipe .seam::after {
+    content: "";
+    position: absolute;
+    left: -5px; top: 50%;
+    width: 11px; height: 11px;
+    margin-top: -5.5px;
+    background: var(--accent-dim);
+    border: 2px solid #f4f1e6;
+    border-radius: 50%;
+  }
+  .wipe-ctl { margin-top: 0.6rem; }
+
+  .stats { display: flex; gap: 1.2rem; flex-wrap: wrap; font-size: 0.78rem; color: #6a6555; margin-top: 0.9rem; }
+  .stats b { font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+
+  .status { font-size: 0.85rem; margin-top: 0.8rem; min-height: 1.2em; }
+  .status.error { color: #9c3b2e; }
+  .note { font-size: 0.78rem; color: #6a6555; margin-top: -0.4rem; margin-bottom: 1rem; }
+  .note:last-child { margin-bottom: 0; }
+  .sub { font-size: 0.78rem; color: #6a6555; margin: 0 0 1rem; }
+
+  .hidden { display: none !important; }
+
+  @media (max-width: 620px) {
+    body { padding: 2rem 1rem 4rem; }
+    fieldset { grid-template-columns: 1fr; }
+    .panes { grid-template-columns: 1fr; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>image → svg</h1>
+  <p class="lede">Traces a bitmap into flat vector shapes or line work. Pick how many colours the trace is allowed to use, adjust the palette by hand, and compare the result against the original before you download the SVG.</p>
+
+  <div class="card">
+    <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Choose an image">
+      <div id="dropzoneContent">Drop an image here, paste one, or click to choose</div>
+      <div class="hint">PNG, JPEG, GIF, WebP or SVG — traced entirely in your browser, nothing is uploaded anywhere</div>
+      <input type="file" id="fileInput" accept="image/*">
+    </div>
+  </div>
+
+  <div class="card hidden" id="controls">
+    <h2 class="section">What to draw</h2>
+    <div class="seg" id="modeSeg" role="group" aria-label="Trace mode">
+      <button type="button" data-mode="fill" aria-pressed="true">Filled shapes</button>
+      <button type="button" data-mode="outline" aria-pressed="false">Colour outlines</button>
+      <button type="button" data-mode="centerline" aria-pressed="false">Centre lines</button>
+    </div>
+    <p class="note" id="modeNote" style="margin-top:0.8rem;"></p>
+
+    <div id="paletteBlock">
+      <h2 class="section">Palette</h2>
+      <fieldset>
+        <div class="field wide">
+          <label for="colorCount">Number of colours <span class="unit" id="colorCountOut">8</span></label>
+          <input type="range" id="colorCount" min="2" max="32" step="1" value="8">
+        </div>
+        <div class="field">
+          <label for="quantMethod">How colours are picked</label>
+          <select id="quantMethod">
+            <option value="kmeans">Cluster the image (k-means)</option>
+            <option value="median">Split by frequency (median cut)</option>
+            <option value="gray">Even grey steps</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="colorSpace">Colour matching</label>
+          <select id="colorSpace">
+            <option value="oklab">Perceptual (OKLab)</option>
+            <option value="srgb">Raw sRGB</option>
+          </select>
+        </div>
+      </fieldset>
+
+      <div class="swatches" id="swatches"></div>
+      <div class="row" style="margin-bottom:1rem;">
+        <button type="button" class="ghost" id="reExtract">Re-read colours from image</button>
+        <button type="button" class="ghost" id="addColor">Add a colour</button>
+      </div>
+      <p class="note">Locked colours stay exactly where you put them and the rest of the palette is fitted around them. Editing a swatch re-maps the image without re-reading it, so you can nudge a shade without losing the others.</p>
+
+      <fieldset>
+        <div class="field checkbox">
+          <input type="checkbox" id="keepAlpha" checked>
+          <label for="keepAlpha" style="margin:0;">Leave transparent areas empty</label>
+        </div>
+        <div class="field wide" id="alphaField">
+          <label for="alphaCut">Transparency cut-off <span class="unit" id="alphaCutOut">128</span></label>
+          <input type="range" id="alphaCut" min="1" max="254" step="1" value="128">
+        </div>
+      </fieldset>
+    </div>
+
+    <div id="inkBlock" class="hidden">
+      <h2 class="section">Ink</h2>
+      <fieldset>
+        <div class="field wide">
+          <label for="inkThreshold">Darkness cut-off <span class="unit" id="inkThresholdOut">50%</span></label>
+          <input type="range" id="inkThreshold" min="1" max="99" step="1" value="50">
+        </div>
+        <div class="field wide">
+          <label for="prune">Drop stray branches shorter than <span class="unit" id="pruneOut">6 px</span></label>
+          <input type="range" id="prune" min="0" max="40" step="1" value="6">
+        </div>
+        <div class="field checkbox">
+          <input type="checkbox" id="invertInk">
+          <label for="invertInk" style="margin:0;">Trace the light areas instead</label>
+        </div>
+      </fieldset>
+      <p class="note">Centre lines thin the dark areas down to a single-pixel skeleton and follow it, so a drawn stroke becomes one path rather than a loop around its edge. It suits pen work, handwriting and logos; photographs will come out as noise.</p>
+    </div>
+
+    <h2 class="section">Detail</h2>
+    <fieldset>
+      <div class="field wide">
+        <label for="workSize">Trace resolution <span class="unit" id="workSizeOut">480 px</span></label>
+        <input type="range" id="workSize" min="128" max="1400" step="16" value="480">
+      </div>
+      <div class="field wide">
+        <label for="blur">Blur the image first <span class="unit" id="blurOut">0 px</span></label>
+        <input type="range" id="blur" min="0" max="6" step="1" value="0">
+      </div>
+      <div class="field wide" id="cleanupField">
+        <label for="cleanup">Tidy up edges <span class="unit" id="cleanupOut">1 px</span></label>
+        <input type="range" id="cleanup" min="0" max="4" step="1" value="1">
+      </div>
+      <div class="field wide" id="despeckleField">
+        <label for="despeckle">Discard patches smaller than <span class="unit" id="despeckleOut">8 px</span></label>
+        <input type="range" id="despeckle" min="0" max="400" step="1" value="8">
+      </div>
+      <div class="field wide">
+        <label for="simplify">Corner tolerance <span class="unit" id="simplifyOut">1.2 px</span></label>
+        <input type="range" id="simplify" min="0" max="6" step="0.1" value="1.2">
+      </div>
+      <div class="field wide">
+        <label for="smooth">Curve smoothing <span class="unit" id="smoothOut">100%</span></label>
+        <input type="range" id="smooth" min="0" max="100" step="1" value="100">
+      </div>
+      <div class="field wide">
+        <label for="cornerAngle">Keep corners sharper than <span class="unit" id="cornerAngleOut">60°</span></label>
+        <input type="range" id="cornerAngle" min="0" max="180" step="1" value="60">
+      </div>
+    </fieldset>
+    <p class="note">“Tidy up edges” replaces each pixel with the most common colour around it. It removes the blended band along anti-aliased edges, which would otherwise be traced as a thin halo around every shape. Turn it down if it is eating detail you want.</p>
+    <p class="note">Trace resolution is how big the image is when it gets read, not the size of the SVG — the output always matches the original dimensions. Higher is more faithful and much slower.</p>
+
+    <h2 class="section">Finish</h2>
+    <fieldset id="fillFinish">
+      <div class="field checkbox">
+        <input type="checkbox" id="sealSeams" checked>
+        <label for="sealSeams" style="margin:0;">Seal hairline gaps between shapes</label>
+      </div>
+      <div class="field checkbox">
+        <input type="checkbox" id="bgRect">
+        <label for="bgRect" style="margin:0;">Paint a background rectangle behind everything</label>
+      </div>
+    </fieldset>
+    <fieldset id="strokeFinish" class="hidden">
+      <div class="field wide">
+        <label for="strokeWidth">Line weight <span class="unit" id="strokeWidthOut">1.5 px</span></label>
+        <input type="range" id="strokeWidth" min="0.2" max="12" step="0.1" value="1.5">
+      </div>
+      <div class="field">
+        <label for="strokePaint">Line colour</label>
+        <select id="strokePaint">
+          <option value="single">One colour</option>
+          <option value="palette">Colour of the shape</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="strokeColor">Pick the colour</label>
+        <input type="color" id="strokeColor" value="#1c1a17" style="height:34px;padding:2px;border:1px solid var(--line);background:#fff;">
+      </div>
+      <div class="field checkbox" id="frameField">
+        <input type="checkbox" id="drawFrame">
+        <label for="drawFrame" style="margin:0;">Outline the edge of the image too</label>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <div class="field">
+        <label for="precision">Decimal places <span class="unit" id="precisionOut">2</span></label>
+        <input type="range" id="precision" min="0" max="3" step="1" value="2">
+      </div>
+      <div class="field checkbox">
+        <input type="checkbox" id="autoRender" checked>
+        <label for="autoRender" style="margin:0;">Re-trace automatically when I change something</label>
+      </div>
+    </fieldset>
+
+    <div class="row">
+      <button type="button" id="renderBtn">Trace it</button>
+      <button type="button" class="ghost" id="resetBtn">Reset to defaults</button>
+    </div>
+    <div class="status" id="status"></div>
+  </div>
+
+  <div class="card hidden" id="output">
+    <h2 class="section">Compare</h2>
+    <div class="seg" id="viewSeg" role="group" aria-label="Preview layout">
+      <button type="button" data-view="side" aria-pressed="true">Side by side</button>
+      <button type="button" data-view="wipe" aria-pressed="false">Wipe</button>
+      <button type="button" data-view="result" aria-pressed="false">Result only</button>
+    </div>
+
+    <div class="compare">
+      <div class="panes" id="panesView">
+        <div class="pane">
+          <div class="cap">Original</div>
+          <div class="stage" id="stageOriginal"></div>
+        </div>
+        <div class="pane">
+          <div class="cap">Traced</div>
+          <div class="stage" id="stageResult"></div>
+        </div>
+      </div>
+
+      <div class="hidden" id="wipeView">
+        <div class="stage wipe" id="wipeStage">
+          <div class="base" id="wipeBase"></div>
+          <div class="layer" id="wipeTop"></div>
+          <div class="seam" id="wipeSeam"></div>
+        </div>
+        <div class="wipe-ctl">
+          <label for="wipePos">Original on the left, traced on the right</label>
+          <input type="range" id="wipePos" min="0" max="100" step="0.5" value="50">
+        </div>
+      </div>
+
+      <div class="hidden" id="resultView">
+        <div class="stage" id="stageResultOnly"></div>
+      </div>
+    </div>
+
+    <div class="stats" id="stats"></div>
+
+    <div class="row" style="margin-top:1.2rem;">
+      <button type="button" id="downloadBtn">Download SVG</button>
+      <button type="button" class="ghost" id="copyBtn">Copy the markup</button>
+      <a id="dlAnchor" class="hidden"></a>
+    </div>
+    <div class="status" id="outStatus"></div>
+  </div>
+</main>
+
+<script>
+"use strict";
+
+/* ------------------------------------------------------------------ *
+ * small helpers
+ * ------------------------------------------------------------------ */
+const $ = id => document.getElementById(id);
+const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+const tick = () => new Promise(r => setTimeout(r, 0));
+
+function hex(r, g, b) {
+  return "#" + ((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1);
+}
+function parseHex(h) {
+  h = h.trim().replace(/^#/, "");
+  if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+  if (!/^[0-9a-fA-F]{6}$/.test(h)) return null;
+  const n = parseInt(h, 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+/* ------------------------------------------------------------------ *
+ * colour space
+ * ------------------------------------------------------------------ */
+const SRGB_TO_LINEAR = new Float32Array(256);
+for (let i = 0; i < 256; i++) {
+  const c = i / 255;
+  SRGB_TO_LINEAR[i] = c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+}
+
+function rgbToOklab(r, g, b) {
+  const R = SRGB_TO_LINEAR[r], G = SRGB_TO_LINEAR[g], B = SRGB_TO_LINEAR[b];
+  const l = Math.cbrt(0.4122214708 * R + 0.5363325363 * G + 0.0514459929 * B);
+  const m = Math.cbrt(0.2119034982 * R + 0.6806995451 * G + 0.1073969566 * B);
+  const s = Math.cbrt(0.0883024619 * R + 0.2817188376 * G + 0.6299787005 * B);
+  return [
+    0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s,
+    1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s,
+    0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s
+  ];
+}
+function linearToSrgb(c) {
+  c = c <= 0.0031308 ? 12.92 * c : 1.055 * Math.pow(Math.max(c, 0), 1 / 2.4) - 0.055;
+  return clamp(Math.round(c * 255), 0, 255);
+}
+function oklabToRgb(L, a, b) {
+  const l_ = L + 0.3963377774 * a + 0.2158037573 * b;
+  const m_ = L - 0.1055613458 * a - 0.0638541728 * b;
+  const s_ = L - 0.0894841775 * a - 1.2914855480 * b;
+  const l = l_ * l_ * l_, m = m_ * m_ * m_, s = s_ * s_ * s_;
+  return [
+    linearToSrgb(4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s),
+    linearToSrgb(-1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s),
+    linearToSrgb(-0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s)
+  ];
+}
+
+// Both spaces are normalised to a comparable numeric range so one distance
+// formula and one set of slider defaults work for either.
+function makeSpace(name) {
+  if (name === "srgb") {
+    return {
+      to: (r, g, b) => [r / 255, g / 255, b / 255],
+      from: (x, y, z) => [
+        clamp(Math.round(x * 255), 0, 255),
+        clamp(Math.round(y * 255), 0, 255),
+        clamp(Math.round(z * 255), 0, 255)
+      ]
+    };
+  }
+  return { to: rgbToOklab, from: oklabToRgb };
+}
+
+/* ------------------------------------------------------------------ *
+ * image loading and preparation
+ * ------------------------------------------------------------------ */
+const state = {
+  img: null,            // HTMLImageElement
+  name: "traced",
+  origW: 0,
+  origH: 0,
+  palette: [],          // [{ rgb:[r,g,b], locked:bool }]
+  svg: "",
+  runToken: 0,
+  originalURL: ""
+};
+
+function loadImageFromBlob(blob) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    img.onload = () => resolve({ img, url });
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("That file could not be decoded as an image.")); };
+    img.src = url;
+  });
+}
+
+function workingImageData(img, maxDim, srcW, srcH) {
+  const scale = Math.min(1, maxDim / Math.max(srcW, srcH));
+  const w = Math.max(1, Math.round(srcW * scale));
+  const h = Math.max(1, Math.round(srcH * scale));
+  const cv = document.createElement("canvas");
+  cv.width = w; cv.height = h;
+  const ctx = cv.getContext("2d", { willReadFrequently: true });
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(img, 0, 0, w, h);
+  return ctx.getImageData(0, 0, w, h);
+}
+
+// Separable box blur, run twice for a cheap approximation of a gaussian.
+function boxBlur(imgData, radius) {
+  if (radius <= 0) return imgData;
+  const { width: w, height: h } = imgData;
+  let src = imgData.data;
+  let tmp = new Uint8ClampedArray(src.length);
+  for (let pass = 0; pass < 2; pass++) {
+    // horizontal
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        let r = 0, g = 0, b = 0, a = 0, n = 0;
+        for (let k = -radius; k <= radius; k++) {
+          const xx = clamp(x + k, 0, w - 1);
+          const i = (y * w + xx) * 4;
+          r += src[i]; g += src[i + 1]; b += src[i + 2]; a += src[i + 3]; n++;
+        }
+        const o = (y * w + x) * 4;
+        tmp[o] = r / n; tmp[o + 1] = g / n; tmp[o + 2] = b / n; tmp[o + 3] = a / n;
+      }
+    }
+    // vertical
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        let r = 0, g = 0, b = 0, a = 0, n = 0;
+        for (let k = -radius; k <= radius; k++) {
+          const yy = clamp(y + k, 0, h - 1);
+          const i = (yy * w + x) * 4;
+          r += tmp[i]; g += tmp[i + 1]; b += tmp[i + 2]; a += tmp[i + 3]; n++;
+        }
+        const o = (y * w + x) * 4;
+        src[o] = r / n; src[o + 1] = g / n; src[o + 2] = b / n; src[o + 3] = a / n;
+      }
+    }
+  }
+  return imgData;
+}
+
+/* ------------------------------------------------------------------ *
+ * quantisation
+ * ------------------------------------------------------------------ */
+function samplePixels(imgData, alphaCut, maxSamples) {
+  const d = imgData.data;
+  const total = imgData.width * imgData.height;
+  const stride = Math.max(1, Math.floor(total / maxSamples));
+  const out = [];
+  for (let p = 0; p < total; p += stride) {
+    const i = p * 4;
+    if (d[i + 3] < alphaCut) continue;
+    out.push(d[i], d[i + 1], d[i + 2]);
+  }
+  if (!out.length) out.push(0, 0, 0);
+  return out;
+}
+
+function kmeans(samples, k, fixed, space) {
+  const n = samples.length / 3;
+  const pts = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    const c = space.to(samples[i * 3], samples[i * 3 + 1], samples[i * 3 + 2]);
+    pts[i * 3] = c[0]; pts[i * 3 + 1] = c[1]; pts[i * 3 + 2] = c[2];
+  }
+
+  const cent = new Float32Array(k * 3);
+  const locked = new Uint8Array(k);
+  let filled = 0;
+  for (const rgb of fixed) {
+    if (filled >= k) break;
+    const c = space.to(rgb[0], rgb[1], rgb[2]);
+    cent[filled * 3] = c[0]; cent[filled * 3 + 1] = c[1]; cent[filled * 3 + 2] = c[2];
+    locked[filled] = 1;
+    filled++;
+  }
+
+  // k-means++ seeding for the remaining slots
+  const dist = new Float32Array(n).fill(Infinity);
+  const refreshDist = idx => {
+    for (let i = 0; i < n; i++) {
+      const dx = pts[i * 3] - cent[idx * 3];
+      const dy = pts[i * 3 + 1] - cent[idx * 3 + 1];
+      const dz = pts[i * 3 + 2] - cent[idx * 3 + 2];
+      const d2 = dx * dx + dy * dy + dz * dz;
+      if (d2 < dist[i]) dist[i] = d2;
+    }
+  };
+  for (let i = 0; i < filled; i++) refreshDist(i);
+
+  while (filled < k) {
+    let pick;
+    if (filled === 0) {
+      pick = (Math.random() * n) | 0;
+    } else {
+      let sum = 0;
+      for (let i = 0; i < n; i++) sum += dist[i];
+      if (!(sum > 0)) { pick = (Math.random() * n) | 0; }
+      else {
+        let t = Math.random() * sum;
+        pick = n - 1;
+        for (let i = 0; i < n; i++) { t -= dist[i]; if (t <= 0) { pick = i; break; } }
+      }
+    }
+    cent[filled * 3] = pts[pick * 3];
+    cent[filled * 3 + 1] = pts[pick * 3 + 1];
+    cent[filled * 3 + 2] = pts[pick * 3 + 2];
+    refreshDist(filled);
+    filled++;
+  }
+
+  const assign = new Int32Array(n);
+  const sum = new Float64Array(k * 3);
+  const count = new Int32Array(k);
+  for (let iter = 0; iter < 12; iter++) {
+    let moved = 0;
+    for (let i = 0; i < n; i++) {
+      let best = 0, bd = Infinity;
+      for (let c = 0; c < k; c++) {
+        const dx = pts[i * 3] - cent[c * 3];
+        const dy = pts[i * 3 + 1] - cent[c * 3 + 1];
+        const dz = pts[i * 3 + 2] - cent[c * 3 + 2];
+        const d2 = dx * dx + dy * dy + dz * dz;
+        if (d2 < bd) { bd = d2; best = c; }
+      }
+      if (assign[i] !== best) { assign[i] = best; moved++; }
+    }
+    sum.fill(0); count.fill(0);
+    for (let i = 0; i < n; i++) {
+      const c = assign[i];
+      sum[c * 3] += pts[i * 3];
+      sum[c * 3 + 1] += pts[i * 3 + 1];
+      sum[c * 3 + 2] += pts[i * 3 + 2];
+      count[c]++;
+    }
+    for (let c = 0; c < k; c++) {
+      if (locked[c] || count[c] === 0) continue;
+      cent[c * 3] = sum[c * 3] / count[c];
+      cent[c * 3 + 1] = sum[c * 3 + 1] / count[c];
+      cent[c * 3 + 2] = sum[c * 3 + 2] / count[c];
+    }
+    if (iter > 0 && moved === 0) break;
+  }
+
+  const out = [];
+  for (let c = 0; c < k; c++) {
+    out.push(space.from(cent[c * 3], cent[c * 3 + 1], cent[c * 3 + 2]));
+  }
+  return out;
+}
+
+function medianCut(samples, k) {
+  const n = samples.length / 3;
+  const idx = new Int32Array(n);
+  for (let i = 0; i < n; i++) idx[i] = i;
+  let boxes = [{ lo: 0, hi: n }];
+
+  const extent = (lo, hi) => {
+    const mn = [255, 255, 255], mx = [0, 0, 0];
+    for (let i = lo; i < hi; i++) {
+      const p = idx[i] * 3;
+      for (let c = 0; c < 3; c++) {
+        const v = samples[p + c];
+        if (v < mn[c]) mn[c] = v;
+        if (v > mx[c]) mx[c] = v;
+      }
+    }
+    return { mn, mx, range: [mx[0] - mn[0], mx[1] - mn[1], mx[2] - mn[2]] };
+  };
+
+  while (boxes.length < k) {
+    let target = -1, bestSpread = -1, bestExt = null;
+    for (let i = 0; i < boxes.length; i++) {
+      const b = boxes[i];
+      if (b.hi - b.lo < 2) continue;
+      const e = extent(b.lo, b.hi);
+      const s = Math.max(e.range[0], e.range[1], e.range[2]) * (b.hi - b.lo);
+      if (s > bestSpread) { bestSpread = s; target = i; bestExt = e; }
+    }
+    if (target < 0 || bestSpread <= 0) break;
+    const b = boxes[target];
+    const r = bestExt.range;
+    const ch = r[0] >= r[1] && r[0] >= r[2] ? 0 : r[1] >= r[2] ? 1 : 2;
+    const slice = Array.from(idx.subarray(b.lo, b.hi));
+    slice.sort((p, q) => samples[p * 3 + ch] - samples[q * 3 + ch]);
+    for (let i = 0; i < slice.length; i++) idx[b.lo + i] = slice[i];
+
+    // Cut at the middle of the channel's value range rather than at the middle
+    // of the pixel count: a strict count median merges two tight clusters that
+    // happen to sit on the same side of it. Fall back to the count median when
+    // the value cut would leave one side empty.
+    const cutValue = (bestExt.mn[ch] + bestExt.mx[ch]) / 2;
+    let mid = b.lo;
+    while (mid < b.hi && samples[idx[mid] * 3 + ch] <= cutValue) mid++;
+    if (mid <= b.lo || mid >= b.hi) mid = b.lo + ((b.hi - b.lo) >> 1);
+    boxes.splice(target, 1, { lo: b.lo, hi: mid }, { lo: mid, hi: b.hi });
+  }
+
+  return boxes.map(b => {
+    let r = 0, g = 0, bl = 0;
+    const n2 = Math.max(1, b.hi - b.lo);
+    for (let i = b.lo; i < b.hi; i++) {
+      const p = idx[i] * 3;
+      r += samples[p]; g += samples[p + 1]; bl += samples[p + 2];
+    }
+    return [Math.round(r / n2), Math.round(g / n2), Math.round(bl / n2)];
+  });
+}
+
+function grayRamp(k) {
+  const out = [];
+  for (let i = 0; i < k; i++) {
+    const v = Math.round((i / (k - 1)) * 255);
+    out.push([v, v, v]);
+  }
+  return out;
+}
+
+const TRANSPARENT = 255;
+
+function mapToPalette(imgData, palette, space, alphaCut, useAlpha) {
+  const d = imgData.data;
+  const total = imgData.width * imgData.height;
+  const idx = new Uint8Array(total);
+  const k = palette.length;
+
+  const pc = new Float32Array(k * 3);
+  for (let i = 0; i < k; i++) {
+    const c = space.to(palette[i][0], palette[i][1], palette[i][2]);
+    pc[i * 3] = c[0]; pc[i * 3 + 1] = c[1]; pc[i * 3 + 2] = c[2];
+  }
+
+  // 15-bit lookup cache: most images repeat colours heavily.
+  const cache = new Int16Array(32768).fill(-1);
+
+  for (let p = 0; p < total; p++) {
+    const i = p * 4;
+    if (useAlpha && d[i + 3] < alphaCut) { idx[p] = TRANSPARENT; continue; }
+    const r = d[i], g = d[i + 1], b = d[i + 2];
+    const key = ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3);
+    let best = cache[key];
+    if (best < 0) {
+      const c = space.to(r, g, b);
+      let bd = Infinity;
+      best = 0;
+      for (let j = 0; j < k; j++) {
+        const dx = c[0] - pc[j * 3];
+        const dy = c[1] - pc[j * 3 + 1];
+        const dz = c[2] - pc[j * 3 + 2];
+        const d2 = dx * dx + dy * dy + dz * dz;
+        if (d2 < bd) { bd = d2; best = j; }
+      }
+      cache[key] = best;
+    }
+    idx[p] = best;
+  }
+  return idx;
+}
+
+/* ------------------------------------------------------------------ *
+ * edge cleanup
+ *
+ * A photograph or an anti-aliased graphic has a one or two pixel band of
+ * blended colour along every edge. Quantising gives that band its own palette
+ * entries, and tracing then wraps every shape in a thin halo. Replacing each
+ * pixel with the most common colour around it wipes the band out while leaving
+ * anything wider than the window alone.
+ * ------------------------------------------------------------------ */
+function majorityFilter(idx, w, h, radius, rounds) {
+  if (radius <= 0) return idx;
+  const tally = new Int32Array(256);
+  let src = idx;
+  let dst = new Uint8Array(idx.length);
+  for (let round = 0; round < rounds; round++) {
+    for (let y = 0; y < h; y++) {
+      const y0 = Math.max(0, y - radius), y1 = Math.min(h - 1, y + radius);
+      for (let x = 0; x < w; x++) {
+        const x0 = Math.max(0, x - radius), x1 = Math.min(w - 1, x + radius);
+        const here = src[y * w + x];
+        let best = here, bestN = 0;
+        for (let yy = y0; yy <= y1; yy++) {
+          const row = yy * w;
+          for (let xx = x0; xx <= x1; xx++) tally[src[row + xx]]++;
+        }
+        for (let yy = y0; yy <= y1; yy++) {
+          const row = yy * w;
+          for (let xx = x0; xx <= x1; xx++) {
+            const v = src[row + xx];
+            const n = tally[v];
+            // Ties go to the pixel's own colour so detail is not nudged around.
+            if (n > bestN || (n === bestN && v === here)) { bestN = n; best = v; }
+            tally[v] = 0;
+          }
+        }
+        dst[y * w + x] = best;
+      }
+    }
+    const swap = src; src = dst; dst = swap;
+  }
+  if (src !== idx) idx.set(src);
+  return idx;
+}
+
+/* ------------------------------------------------------------------ *
+ * speckle removal
+ * ------------------------------------------------------------------ */
+function despeckle(idx, w, h, minArea) {
+  if (minArea <= 1) return idx;
+  const total = w * h;
+  const label = new Int32Array(total).fill(-1);
+  const stack = new Int32Array(total);
+  const comps = [];
+
+  for (let start = 0; start < total; start++) {
+    if (label[start] !== -1) continue;
+    const color = idx[start];
+    const id = comps.length;
+    let sp = 0, size = 0;
+    stack[sp++] = start;
+    label[start] = id;
+    while (sp > 0) {
+      const p = stack[--sp];
+      size++;
+      const x = p % w, y = (p - x) / w;
+      if (x > 0 && label[p - 1] === -1 && idx[p - 1] === color) { label[p - 1] = id; stack[sp++] = p - 1; }
+      if (x < w - 1 && label[p + 1] === -1 && idx[p + 1] === color) { label[p + 1] = id; stack[sp++] = p + 1; }
+      if (y > 0 && label[p - w] === -1 && idx[p - w] === color) { label[p - w] = id; stack[sp++] = p - w; }
+      if (y < h - 1 && label[p + w] === -1 && idx[p + w] === color) { label[p + w] = id; stack[sp++] = p + w; }
+    }
+    comps.push({ id, size, color });
+  }
+
+  const small = comps.filter(c => c.size < minArea).sort((a, b) => a.size - b.size);
+  if (!small.length) return idx;
+
+  // Bucket pixels by component so each small blob can be rewritten cheaply.
+  const offset = new Int32Array(comps.length + 1);
+  for (const c of comps) offset[c.id + 1] = c.size;
+  for (let i = 1; i <= comps.length; i++) offset[i] += offset[i - 1];
+  const cursor = offset.slice(0, comps.length);
+  const members = new Int32Array(total);
+  for (let p = 0; p < total; p++) members[cursor[label[p]]++] = p;
+
+  const tally = new Map();
+  for (const c of small) {
+    tally.clear();
+    const lo = offset[c.id], hi = offset[c.id + 1];
+    for (let i = lo; i < hi; i++) {
+      const p = members[i];
+      const x = p % w, y = (p - x) / w;
+      const look = q => {
+        if (label[q] === c.id) return;
+        tally.set(idx[q], (tally.get(idx[q]) || 0) + 1);
+      };
+      if (x > 0) look(p - 1);
+      if (x < w - 1) look(p + 1);
+      if (y > 0) look(p - w);
+      if (y < h - 1) look(p + w);
+    }
+    let bestColor = -1, bestN = -1;
+    for (const [col, n] of tally) if (n > bestN) { bestN = n; bestColor = col; }
+    if (bestColor < 0) continue;
+    for (let i = lo; i < hi; i++) idx[members[i]] = bestColor;
+  }
+  return idx;
+}
+
+/* ------------------------------------------------------------------ *
+ * contour tracing
+ *
+ * Every boundary segment is emitted as a directed unit edge along the pixel
+ * lattice with the region on its right, then the edges are chained into
+ * closed loops. A lattice point can host at most two outgoing edges, which
+ * happens where two same-coloured regions touch diagonally; those are
+ * resolved by always taking the sharpest right turn so the loops stay simple.
+ * ------------------------------------------------------------------ */
+function makeTracer(w, h) {
+  const W1 = w + 1;
+  const e1 = new Int32Array(W1 * (h + 1));
+  const e2 = new Int32Array(W1 * (h + 1));
+  const indeg = new Int32Array(W1 * (h + 1));
+  return { w, h, W1, e1, e2, indeg };
+}
+
+function traceColor(T, idx, target, includeBorder) {
+  const { w, h, W1, e1, e2, indeg } = T;
+  e1.fill(-1); e2.fill(-1); indeg.fill(0);
+
+  const add = (sx, sy, ex, ey) => {
+    const s = sy * W1 + sx, e = ey * W1 + ex;
+    if (e1[s] === -1) e1[s] = e; else e2[s] = e;
+    indeg[e]++;
+  };
+
+  for (let y = 0; y < h; y++) {
+    const row = y * w;
+    for (let x = 0; x < w; x++) {
+      if (idx[row + x] !== target) continue;
+      const atTop = y === 0, atBottom = y === h - 1, atLeft = x === 0, atRight = x === w - 1;
+      if (atTop ? includeBorder : idx[row - w + x] !== target) add(x, y, x + 1, y);
+      if (atRight ? includeBorder : idx[row + x + 1] !== target) add(x + 1, y, x + 1, y + 1);
+      if (atBottom ? includeBorder : idx[row + w + x] !== target) add(x + 1, y + 1, x, y + 1);
+      if (atLeft ? includeBorder : idx[row + x - 1] !== target) add(x, y + 1, x, y);
+    }
+  }
+
+  const takeAny = s => {
+    const a = e1[s];
+    if (a === -1) return -1;
+    e1[s] = e2[s]; e2[s] = -1;
+    return a;
+  };
+  const pick = (s, dx, dy) => {
+    const a = e1[s];
+    if (a === -1) return -1;
+    const b = e2[s];
+    if (b === -1) { e1[s] = -1; return a; }
+    const sx = s % W1, sy = (s - sx) / W1;
+    const ax = a % W1, ay = (a - ax) / W1;
+    const cross = dx * (ay - sy) - dy * (ax - sx);
+    if (cross > 0) { e1[s] = b; e2[s] = -1; return a; }
+    e2[s] = -1;
+    return b;
+  };
+
+  const walk = start => {
+    const pts = [];
+    let cur = start, dx = 0, dy = 0, first = true;
+    for (;;) {
+      const nxt = first ? takeAny(cur) : pick(cur, dx, dy);
+      if (nxt === -1) break;
+      const cx = cur % W1, cy = (cur - cx) / W1;
+      pts.push(cx, cy);
+      const nx = nxt % W1, ny = (nxt - nx) / W1;
+      dx = nx - cx; dy = ny - cy;
+      cur = nxt;
+      first = false;
+      if (cur === start) return { pts, closed: true };
+      if (pts.length > 4e6) break;
+    }
+    if (pts.length) {
+      const cx = cur % W1, cy = (cur - cx) / W1;
+      pts.push(cx, cy);
+    }
+    return { pts, closed: false };
+  };
+
+  const paths = [];
+  // Open chains first (only possible when the image border is skipped), so a
+  // walk never starts partway along one.
+  if (!includeBorder) {
+    for (let p = 0; p < e1.length; p++) {
+      while (e1[p] !== -1 && indeg[p] === 0) {
+        const r = walk(p);
+        if (r.pts.length >= 4) paths.push(r);
+        else break;
+      }
+    }
+  }
+  for (let p = 0; p < e1.length; p++) {
+    while (e1[p] !== -1) {
+      const r = walk(p);
+      if (r.pts.length >= 4) paths.push(r);
+      else break;
+    }
+  }
+  return paths;
+}
+
+function collapseCollinear(pts, closed) {
+  const n = pts.length / 2;
+  if (n < 3) return pts;
+  const out = [];
+  const lo = closed ? 0 : 1;
+  const hi = closed ? n : n - 1;
+  if (!closed) out.push(pts[0], pts[1]);
+  for (let i = lo; i < hi; i++) {
+    const pi = ((i - 1 + n) % n) * 2, ci = i * 2, ni = ((i + 1) % n) * 2;
+    const ax = pts[ci] - pts[pi], ay = pts[ci + 1] - pts[pi + 1];
+    const bx = pts[ni] - pts[ci], by = pts[ni + 1] - pts[ci + 1];
+    if (ax * by - ay * bx !== 0) out.push(pts[ci], pts[ci + 1]);
+  }
+  if (!closed) out.push(pts[(n - 1) * 2], pts[(n - 1) * 2 + 1]);
+  return out;
+}
+
+function rdpOpen(pts, eps) {
+  const n = pts.length / 2;
+  if (n < 3 || eps <= 0) return pts.slice();
+  const keep = new Uint8Array(n);
+  keep[0] = 1; keep[n - 1] = 1;
+  const stack = [[0, n - 1]];
+  while (stack.length) {
+    const [a, b] = stack.pop();
+    if (b - a < 2) continue;
+    const ax = pts[a * 2], ay = pts[a * 2 + 1];
+    const bx = pts[b * 2], by = pts[b * 2 + 1];
+    const ex = bx - ax, ey = by - ay;
+    const len = Math.hypot(ex, ey);
+    let far = -1, fd = -1;
+    for (let i = a + 1; i < b; i++) {
+      const px = pts[i * 2], py = pts[i * 2 + 1];
+      let d;
+      if (len === 0) d = Math.hypot(px - ax, py - ay);
+      else d = Math.abs(ex * (ay - py) - (ax - px) * ey) / len;
+      if (d > fd) { fd = d; far = i; }
+    }
+    if (fd > eps && far > 0) {
+      keep[far] = 1;
+      stack.push([a, far], [far, b]);
+    }
+  }
+  const out = [];
+  for (let i = 0; i < n; i++) if (keep[i]) out.push(pts[i * 2], pts[i * 2 + 1]);
+  return out;
+}
+
+function rdpClosed(pts, eps) {
+  const n = pts.length / 2;
+  if (n < 4 || eps <= 0) return pts.slice();
+  // Anchor on the vertex furthest from the first point so the split does not
+  // land in the middle of a long straight run.
+  let far = 1, fd = -1;
+  for (let i = 1; i < n; i++) {
+    const d = Math.hypot(pts[i * 2] - pts[0], pts[i * 2 + 1] - pts[1]);
+    if (d > fd) { fd = d; far = i; }
+  }
+  const a = pts.slice(0, (far + 1) * 2);
+  const b = pts.slice(far * 2).concat([pts[0], pts[1]]);
+  const ra = rdpOpen(a, eps);
+  const rb = rdpOpen(b, eps);
+  const out = ra.slice(0, ra.length - 2).concat(rb.slice(0, rb.length - 2));
+  return out.length >= 6 ? out : pts.slice();
+}
+
+/* ------------------------------------------------------------------ *
+ * polyline → path data
+ * ------------------------------------------------------------------ */
+function makeFormatter(precision, scaleX, scaleY) {
+  const p = precision;
+  const fx = v => {
+    const s = (v * scaleX).toFixed(p);
+    return p === 0 ? s : s.replace(/\.?0+$/, "");
+  };
+  const fy = v => {
+    const s = (v * scaleY).toFixed(p);
+    return p === 0 ? s : s.replace(/\.?0+$/, "");
+  };
+  return { fx, fy };
+}
+
+function turnAngle(px, py, cx, cy, nx, ny) {
+  const ax = cx - px, ay = cy - py;
+  const bx = nx - cx, by = ny - cy;
+  const la = Math.hypot(ax, ay), lb = Math.hypot(bx, by);
+  if (la === 0 || lb === 0) return 0;
+  const cos = clamp((ax * bx + ay * by) / (la * lb), -1, 1);
+  return Math.acos(cos) * 180 / Math.PI;
+}
+
+function pathData(pts, closed, opts) {
+  const { fx, fy } = opts.fmt;
+  const n = pts.length / 2;
+  if (n < 2) return "";
+  const amount = opts.smooth;      // 0..0.5
+  const cornerDeg = opts.cornerDeg;
+  const cmds = [];
+  let nodes = 0;
+
+  const at = i => [pts[i * 2], pts[i * 2 + 1]];
+  const lerp = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+
+  if (!closed) {
+    // Open polyline: endpoints are always hard.
+    const p0 = at(0);
+    cmds.push("M" + fx(p0[0]) + " " + fy(p0[1]));
+    nodes++;
+    for (let i = 1; i < n - 1; i++) {
+      const prev = at(i - 1), cur = at(i), next = at(i + 1);
+      const sharp = amount <= 0 || turnAngle(prev[0], prev[1], cur[0], cur[1], next[0], next[1]) > cornerDeg;
+      if (sharp) {
+        cmds.push("L" + fx(cur[0]) + " " + fy(cur[1]));
+        nodes++;
+      } else {
+        const a = lerp(cur, prev, amount);
+        const b = lerp(cur, next, amount);
+        cmds.push("L" + fx(a[0]) + " " + fy(a[1]));
+        cmds.push("Q" + fx(cur[0]) + " " + fy(cur[1]) + " " + fx(b[0]) + " " + fy(b[1]));
+        nodes += 2;
+      }
+    }
+    const pl = at(n - 1);
+    cmds.push("L" + fx(pl[0]) + " " + fy(pl[1]));
+    nodes++;
+    return { d: cmds.join(""), nodes };
+  }
+
+  for (let i = 0; i < n; i++) {
+    const prev = at((i - 1 + n) % n), cur = at(i), next = at((i + 1) % n);
+    const sharp = amount <= 0 || turnAngle(prev[0], prev[1], cur[0], cur[1], next[0], next[1]) > cornerDeg;
+    if (sharp) {
+      cmds.push("L" + fx(cur[0]) + " " + fy(cur[1]));
+      nodes++;
+    } else {
+      const a = lerp(cur, prev, amount);
+      const b = lerp(cur, next, amount);
+      cmds.push("L" + fx(a[0]) + " " + fy(a[1]));
+      cmds.push("Q" + fx(cur[0]) + " " + fy(cur[1]) + " " + fx(b[0]) + " " + fy(b[1]));
+      nodes += 2;
+    }
+  }
+  cmds[0] = "M" + cmds[0].slice(1);
+  return { d: cmds.join("") + "Z", nodes };
+}
+
+/* ------------------------------------------------------------------ *
+ * centre lines: threshold → Zhang-Suen thinning → graph walk
+ * ------------------------------------------------------------------ */
+const NEIGHBOURS = [[0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1]];
+
+function inkMask(imgData, thresholdPct, invert, alphaCut, useAlpha) {
+  const { width: w, height: h, data: d } = imgData;
+  const t = (thresholdPct / 100) * 255;
+  const m = new Uint8Array(w * h);
+  for (let p = 0; p < w * h; p++) {
+    const i = p * 4;
+    if (useAlpha && d[i + 3] < alphaCut) continue;
+    const lum = 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2];
+    const on = invert ? lum > t : lum <= t;
+    m[p] = on ? 1 : 0;
+  }
+  return m;
+}
+
+function thin(mask, w, h) {
+  const m = mask;
+  const at = (x, y) => (x < 0 || y < 0 || x >= w || y >= h ? 0 : m[y * w + x]);
+
+  // Only pixels touching the background can ever be removed, so the passes walk
+  // the eroding frontier rather than rescanning the whole image. Without this a
+  // large solid region needs one pass per pixel of its half-width and never
+  // finishes inside a sane iteration budget.
+  const onFrontier = new Uint8Array(w * h);
+  let frontier = [];
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const p = y * w + x;
+      if (!m[p]) continue;
+      let exposed = false;
+      for (let i = 0; i < 8 && !exposed; i++) if (!at(x + NEIGHBOURS[i][0], y + NEIGHBOURS[i][1])) exposed = true;
+      if (exposed) { frontier.push(p); onFrontier[p] = 1; }
+    }
+  }
+
+  const doomed = [];
+  for (let iter = 0; iter < 600 && frontier.length; iter++) {
+    let changed = false;
+    for (let step = 0; step < 2; step++) {
+      doomed.length = 0;
+      const surviving = [];
+      for (const p of frontier) {
+        if (!m[p]) { onFrontier[p] = 0; continue; }
+        surviving.push(p);
+        const x = p % w, y = (p - x) / w;
+        const p2 = at(x, y - 1), p3 = at(x + 1, y - 1), p4 = at(x + 1, y),
+              p5 = at(x + 1, y + 1), p6 = at(x, y + 1), p7 = at(x - 1, y + 1),
+              p8 = at(x - 1, y), p9 = at(x - 1, y - 1);
+        const B = p2 + p3 + p4 + p5 + p6 + p7 + p8 + p9;
+        if (B < 2 || B > 6) continue;
+        const seq = [p2, p3, p4, p5, p6, p7, p8, p9, p2];
+        let A = 0;
+        for (let i = 0; i < 8; i++) if (seq[i] === 0 && seq[i + 1] === 1) A++;
+        if (A !== 1) continue;
+        if (step === 0) {
+          if (p2 * p4 * p6 !== 0 || p4 * p6 * p8 !== 0) continue;
+        } else {
+          if (p2 * p4 * p8 !== 0 || p2 * p6 * p8 !== 0) continue;
+        }
+        doomed.push(p);
+      }
+      frontier = surviving;
+      if (!doomed.length) continue;
+      changed = true;
+      for (const p of doomed) { m[p] = 0; onFrontier[p] = 0; }
+      for (const p of doomed) {
+        const x = p % w, y = (p - x) / w;
+        for (let i = 0; i < 8; i++) {
+          const nx = x + NEIGHBOURS[i][0], ny = y + NEIGHBOURS[i][1];
+          if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+          const q = ny * w + nx;
+          if (m[q] && !onFrontier[q]) { onFrontier[q] = 1; frontier.push(q); }
+        }
+      }
+    }
+    if (!changed) break;
+  }
+  return m;
+}
+
+const N8 = NEIGHBOURS;
+
+// Which ring positions touch each other, so we can ask whether a pixel's
+// neighbours would still hang together without it.
+const RING_ADJ = N8.map(([ax, ay], i) =>
+  N8.map(([bx, by], j) => (i !== j && Math.abs(ax - bx) <= 1 && Math.abs(ay - by) <= 1 ? j : -1))
+    .filter(j => j >= 0));
+
+// Zhang-Suen leaves short two-pixel-wide staircases, especially at line ends
+// and shallow slopes. Every one of those becomes a junction and shatters a
+// single stroke into a handful of stubs. A pixel is safe to drop when its own
+// neighbours remain connected to each other without it, and when it is not a
+// line end — deleting sequentially keeps the skeleton intact while collapsing
+// the staircases down to one pixel.
+function tidySkeleton(m, w, h) {
+  const present = new Int8Array(8);
+  const seen = new Uint8Array(8);
+  const stack = new Int32Array(8);
+
+  for (let pass = 0; pass < 24; pass++) {
+    let changed = false;
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        if (!m[y * w + x]) continue;
+        let count = 0;
+        for (let i = 0; i < 8; i++) {
+          const nx = x + N8[i][0], ny = y + N8[i][1];
+          const on = nx >= 0 && ny >= 0 && nx < w && ny < h && m[ny * w + nx] ? 1 : 0;
+          present[i] = on;
+          count += on;
+        }
+        if (count < 2) continue;           // keep endpoints and strays
+        seen.fill(0);
+        let sp = 0, first = -1;
+        for (let i = 0; i < 8; i++) if (present[i]) { first = i; break; }
+        stack[sp++] = first;
+        seen[first] = 1;
+        let reached = 1;
+        while (sp > 0) {
+          const cur = stack[--sp];
+          for (const j of RING_ADJ[cur]) {
+            if (present[j] && !seen[j]) { seen[j] = 1; reached++; stack[sp++] = j; }
+          }
+        }
+        if (reached === count) { m[y * w + x] = 0; changed = true; }
+      }
+    }
+    if (!changed) break;
+  }
+  return m;
+}
+
+// Two stroke halves that meet at a point where nothing else joins are one
+// stroke; stitch them so an SVG editor sees a single path.
+function joinPaths(paths) {
+  const key = (pts, end) => (end ? pts[pts.length - 2] + "," + pts[pts.length - 1] : pts[0] + "," + pts[1]);
+  let merged = true;
+  let list = paths.filter(p => !p.closed);
+  const closed = paths.filter(p => p.closed);
+
+  while (merged) {
+    merged = false;
+    const ends = new Map();
+    list.forEach((p, i) => {
+      for (const e of [0, 1]) {
+        const k = key(p.pts, e);
+        if (!ends.has(k)) ends.set(k, []);
+        ends.get(k).push([i, e]);
+      }
+    });
+    const dead = new Set();
+    for (const [, hits] of ends) {
+      if (hits.length !== 2) continue;
+      const [[i, ei], [j, ej]] = hits;
+      if (i === j || dead.has(i) || dead.has(j)) continue;
+      const a = list[i].pts.slice();
+      const b = list[j].pts.slice();
+      const A = ei === 1 ? a : reversePts(a);
+      const B = ej === 0 ? b : reversePts(b);
+      list[i].pts = A.concat(B.slice(2));
+      dead.add(j);
+      merged = true;
+    }
+    if (dead.size) list = list.filter((_, i) => !dead.has(i));
+  }
+  return closed.concat(list);
+}
+
+function reversePts(pts) {
+  const out = [];
+  for (let i = pts.length - 2; i >= 0; i -= 2) out.push(pts[i], pts[i + 1]);
+  return out;
+}
+
+function traceSkeleton(m, w, h, pruneLen) {
+  const at = (x, y) => (x < 0 || y < 0 || x >= w || y >= h ? 0 : m[y * w + x]);
+  const degree = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (!m[y * w + x]) continue;
+      let n = 0;
+      for (const [dx, dy] of N8) if (at(x + dx, y + dy)) n++;
+      degree[y * w + x] = n;
+    }
+  }
+
+  const used = new Uint8Array(w * h * 8);
+  const dirIndex = (dx, dy) => N8.findIndex(o => o[0] === dx && o[1] === dy);
+  const markStep = (x, y, dx, dy) => {
+    const a = dirIndex(dx, dy);
+    used[(y * w + x) * 8 + a] = 1;
+    const b = dirIndex(-dx, -dy);
+    used[((y + dy) * w + (x + dx)) * 8 + b] = 1;
+  };
+  const stepUsed = (x, y, dx, dy) => used[(y * w + x) * 8 + dirIndex(dx, dy)] === 1;
+
+  const paths = [];
+
+  // A walk that arrives back where it started repeats its first point; drop the
+  // repeat and mark it closed, otherwise the collinear pass reads the
+  // zero-length segment as straight and eats a genuine corner.
+  const keep = (r, minPts) => {
+    const n = r.pts.length;
+    if (n >= 6 && r.pts[n - 2] === r.pts[0] && r.pts[n - 1] === r.pts[1]) {
+      r.pts.length = n - 2;
+      paths.push({ pts: r.pts, closed: true });
+    } else if (n >= minPts) {
+      paths.push({ pts: r.pts, closed: false });
+    }
+  };
+
+  const walkFrom = (sx, sy, dx0, dy0) => {
+    const pts = [sx + 0.5, sy + 0.5];
+    let x = sx, y = sy, dx = dx0, dy = dy0;
+    let steps = 0;
+    for (;;) {
+      markStep(x, y, dx, dy);
+      x += dx; y += dy;
+      pts.push(x + 0.5, y + 0.5);
+      steps++;
+      if (degree[y * w + x] !== 2) break;
+      let found = false;
+      for (const [ax, ay] of N8) {
+        if (!at(x + ax, y + ay)) continue;
+        if (ax === -dx && ay === -dy) continue;
+        if (stepUsed(x, y, ax, ay)) continue;
+        dx = ax; dy = ay; found = true; break;
+      }
+      if (!found) break;
+      if (steps > w * h) break;
+    }
+    return { pts, endDeg: degree[y * w + x], startDeg: degree[sy * w + sx], steps };
+  };
+
+  // Start at every endpoint and junction.
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const p = y * w + x;
+      if (!m[p] || degree[p] === 2 || degree[p] === 0) continue;
+      for (const [dx, dy] of N8) {
+        if (!at(x + dx, y + dy)) continue;
+        if (stepUsed(x, y, dx, dy)) continue;
+        const r = walkFrom(x, y, dx, dy);
+        const isTwig = (r.startDeg === 1 || r.endDeg === 1) && r.steps < pruneLen;
+        if (!isTwig) keep(r, 4);
+      }
+    }
+  }
+  // Anything left is a closed ring of degree-2 pixels.
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const p = y * w + x;
+      if (!m[p] || degree[p] !== 2) continue;
+      let seed = null;
+      for (const [dx, dy] of N8) {
+        if (!at(x + dx, y + dy)) continue;
+        if (stepUsed(x, y, dx, dy)) continue;
+        seed = [dx, dy]; break;
+      }
+      if (!seed) continue;
+      keep(walkFrom(x, y, seed[0], seed[1]), 6);
+    }
+  }
+  return paths;
+}
+
+/* ------------------------------------------------------------------ *
+ * the pipeline
+ * ------------------------------------------------------------------ */
+function readSettings() {
+  return {
+    mode: currentMode,
+    colors: +$("colorCount").value,
+    method: $("quantMethod").value,
+    space: $("colorSpace").value,
+    keepAlpha: $("keepAlpha").checked,
+    alphaCut: +$("alphaCut").value,
+    workSize: +$("workSize").value,
+    blur: +$("blur").value,
+    cleanup: +$("cleanup").value,
+    despeckle: +$("despeckle").value,
+    simplify: +$("simplify").value,
+    smooth: +$("smooth").value / 200,   // 0..0.5
+    cornerDeg: +$("cornerAngle").value,
+    precision: +$("precision").value,
+    sealSeams: $("sealSeams").checked,
+    bgRect: $("bgRect").checked,
+    strokeWidth: +$("strokeWidth").value,
+    strokePaint: $("strokePaint").value,
+    strokeColor: $("strokeColor").value,
+    drawFrame: $("drawFrame").checked,
+    inkThreshold: +$("inkThreshold").value,
+    invertInk: $("invertInk").checked,
+    prune: +$("prune").value
+  };
+}
+
+function ensurePalette(imgData, s, forceExtract) {
+  const space = makeSpace(s.space);
+  const lockedRGB = state.palette.filter(p => p.locked).map(p => p.rgb);
+
+  if (!forceExtract && state.palette.length === s.colors) {
+    return state.palette.map(p => p.rgb);
+  }
+
+  let pal;
+  if (s.method === "gray") {
+    pal = grayRamp(s.colors);
+    const merged = lockedRGB.slice(0, s.colors);
+    while (merged.length < s.colors) merged.push(pal[merged.length]);
+    pal = merged;
+  } else {
+    const samples = samplePixels(imgData, s.keepAlpha ? s.alphaCut : 0, 24000);
+    if (s.method === "median") {
+      const extra = Math.max(1, s.colors - lockedRGB.length);
+      const cut = medianCut(samples, extra);
+      pal = lockedRGB.concat(cut).slice(0, s.colors);
+      while (pal.length < s.colors) pal.push(cut[pal.length % cut.length] || [0, 0, 0]);
+    } else {
+      pal = kmeans(samples, s.colors, lockedRGB, space);
+    }
+  }
+
+  const lockedSet = new Set(state.palette.filter(p => p.locked).map(p => hex(...p.rgb)));
+  state.palette = pal.map(rgb => ({ rgb, locked: lockedSet.has(hex(...rgb)) }));
+  renderSwatches();
+  return pal;
+}
+
+function buildSVG(parts, origW, origH) {
+  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + origW + " " + origH +
+    '" width="' + origW + '" height="' + origH + '" shape-rendering="geometricPrecision">\n' +
+    parts.join("\n") + "\n</svg>";
+}
+
+async function run(forceExtract) {
+  if (!state.img) return;
+  const token = ++state.runToken;
+  const s = readSettings();
+  const status = $("status");
+  status.className = "status";
+  status.textContent = "Reading the image…";
+  await tick();
+  if (token !== state.runToken) return;
+
+  const t0 = performance.now();
+  let imgData = workingImageData(state.img, s.workSize, state.origW, state.origH);
+  if (s.blur > 0) imgData = boxBlur(imgData, s.blur);
+  const w = imgData.width, h = imgData.height;
+  const scaleX = state.origW / w, scaleY = state.origH / h;
+  const fmt = makeFormatter(s.precision, scaleX, scaleY);
+  const avgScale = (scaleX + scaleY) / 2;
+  const pathOpts = { fmt, smooth: s.smooth, cornerDeg: s.cornerDeg };
+
+  const parts = [];
+  let pathCount = 0, nodeCount = 0, colorsUsed = 0;
+
+  if (s.mode === "centerline") {
+    status.textContent = "Thinning the ink…";
+    await tick();
+    if (token !== state.runToken) return;
+
+    const mask = inkMask(imgData, s.inkThreshold, s.invertInk, s.alphaCut, s.keepAlpha);
+    thin(mask, w, h);
+    tidySkeleton(mask, w, h);
+    await tick();
+    if (token !== state.runToken) return;
+
+    status.textContent = "Following the lines…";
+    await tick();
+    const raw = joinPaths(traceSkeleton(mask, w, h, s.prune));
+    const ds = [];
+    for (const p of raw) {
+      let pts = collapseCollinear(p.pts, p.closed);
+      pts = p.closed ? rdpClosed(pts, s.simplify) : rdpOpen(pts, s.simplify);
+      const r = pathData(pts, p.closed, pathOpts);
+      if (!r || !r.d) continue;
+      ds.push(r.d);
+      nodeCount += r.nodes;
+      pathCount++;
+    }
+    if (ds.length) {
+      parts.push('<path fill="none" stroke="' + s.strokeColor + '" stroke-width="' +
+        +(s.strokeWidth).toFixed(2) + '" stroke-linecap="round" stroke-linejoin="round" d="' +
+        ds.join("") + '"/>');
+    }
+    colorsUsed = 1;
+  } else {
+    status.textContent = "Choosing colours…";
+    await tick();
+    if (token !== state.runToken) return;
+
+    const space = makeSpace(s.space);
+    const palette = ensurePalette(imgData, s, forceExtract);
+
+    status.textContent = "Matching pixels to the palette…";
+    await tick();
+    if (token !== state.runToken) return;
+
+    const idx = mapToPalette(imgData, palette, space, s.alphaCut, s.keepAlpha);
+    majorityFilter(idx, w, h, s.cleanup, 1);
+    if (s.despeckle > 1) despeckle(idx, w, h, s.despeckle);
+
+    const counts = new Int32Array(256);
+    for (let p = 0; p < idx.length; p++) counts[idx[p]]++;
+
+    const order = [];
+    for (let c = 0; c < palette.length; c++) if (counts[c] > 0) order.push(c);
+    order.sort((a, b) => counts[b] - counts[a]);
+    colorsUsed = order.length;
+
+    if (s.mode === "fill" && s.bgRect && order.length) {
+      const bg = palette[order[0]];
+      parts.push('<rect x="0" y="0" width="' + state.origW + '" height="' + state.origH +
+        '" fill="' + hex(bg[0], bg[1], bg[2]) + '"/>');
+    }
+
+    const T = makeTracer(w, h);
+    const includeBorder = s.mode === "fill" ? true : s.drawFrame;
+
+    for (let k = 0; k < order.length; k++) {
+      if (token !== state.runToken) return;
+      status.textContent = "Tracing colour " + (k + 1) + " of " + order.length + "…";
+      if (k % 4 === 0) await tick();
+      if (token !== state.runToken) return;
+
+      const c = order[k];
+      const loops = traceColor(T, idx, c, includeBorder);
+      const ds = [];
+      for (const loop of loops) {
+        let pts = collapseCollinear(loop.pts, loop.closed);
+        pts = loop.closed ? rdpClosed(pts, s.simplify) : rdpOpen(pts, s.simplify);
+        if (pts.length < (loop.closed ? 6 : 4)) continue;
+        const r = pathData(pts, loop.closed, pathOpts);
+        if (!r || !r.d) continue;
+        ds.push(r.d);
+        nodeCount += r.nodes;
+      }
+      if (!ds.length) continue;
+      pathCount++;
+      const col = hex(palette[c][0], palette[c][1], palette[c][2]);
+      if (s.mode === "fill") {
+        const seal = s.sealSeams
+          ? ' stroke="' + col + '" stroke-width="' + +(0.7 * avgScale).toFixed(3) + '" stroke-linejoin="round"'
+          : "";
+        parts.push('<path fill="' + col + '" fill-rule="evenodd"' + seal + ' d="' + ds.join("") + '"/>');
+      } else {
+        const stroke = s.strokePaint === "palette" ? col : s.strokeColor;
+        parts.push('<path fill="none" stroke="' + stroke + '" stroke-width="' +
+          +(s.strokeWidth).toFixed(2) + '" stroke-linejoin="round" stroke-linecap="round" d="' +
+          ds.join("") + '"/>');
+      }
+    }
+  }
+
+  if (token !== state.runToken) return;
+
+  const svg = buildSVG(parts, state.origW, state.origH);
+  state.svg = svg;
+  const ms = Math.round(performance.now() - t0);
+
+  showResult(svg, { pathCount, nodeCount, colorsUsed, ms, w, h });
+  status.textContent = "";
+}
+
+/* ------------------------------------------------------------------ *
+ * preview
+ * ------------------------------------------------------------------ */
+let currentMode = "fill";
+let currentView = "side";
+
+function originalTag() {
+  return '<img src="' + state.originalURL + '" alt="the image you supplied">';
+}
+
+function showResult(svg, stats) {
+  $("output").classList.remove("hidden");
+  $("stageOriginal").innerHTML = originalTag();
+  $("stageResult").innerHTML = svg;
+  $("stageResultOnly").innerHTML = svg;
+  $("wipeBase").innerHTML = originalTag();
+  $("wipeTop").innerHTML = svg;
+  applyWipe();
+
+  const bytes = new Blob([svg]).size;
+  const kb = bytes < 1024 ? bytes + " B" : (bytes / 1024).toFixed(1) + " kB";
+  $("stats").innerHTML =
+    "<span>Paths <b>" + stats.pathCount + "</b></span>" +
+    "<span>Nodes <b>" + stats.nodeCount.toLocaleString() + "</b></span>" +
+    "<span>Colours <b>" + stats.colorsUsed + "</b></span>" +
+    "<span>Size <b>" + kb + "</b></span>" +
+    "<span>Traced at <b>" + stats.w + "×" + stats.h + "</b></span>" +
+    "<span>Output <b>" + state.origW + "×" + state.origH + "</b></span>" +
+    "<span>Took <b>" + stats.ms + " ms</b></span>";
+
+  if (stats.pathCount === 0) {
+    const st = $("status");
+    st.className = "status error";
+    st.textContent = "Nothing came out of the trace. Try lowering the darkness cut-off or the discard threshold.";
+  }
+}
+
+function applyWipe() {
+  const p = +$("wipePos").value;
+  $("wipeTop").style.clipPath = "inset(0 0 0 " + p + "%)";
+  $("wipeSeam").style.left = p + "%";
+}
+
+function setView(v) {
+  currentView = v;
+  for (const b of $("viewSeg").children) b.setAttribute("aria-pressed", String(b.dataset.view === v));
+  $("panesView").classList.toggle("hidden", v !== "side");
+  $("wipeView").classList.toggle("hidden", v !== "wipe");
+  $("resultView").classList.toggle("hidden", v !== "result");
+  if (v === "wipe") applyWipe();
+}
+
+/* ------------------------------------------------------------------ *
+ * palette editor
+ * ------------------------------------------------------------------ */
+function renderSwatches() {
+  const box = $("swatches");
+  box.innerHTML = "";
+  state.palette.forEach((entry, i) => {
+    const h = hex(entry.rgb[0], entry.rgb[1], entry.rgb[2]);
+    const el = document.createElement("div");
+    el.className = "swatch" + (entry.locked ? " locked" : "");
+    el.innerHTML =
+      '<button type="button" class="chip" style="background:' + h + '" title="Change this colour"></button>' +
+      '<input type="color" value="' + h + '">' +
+      '<input type="text" value="' + h + '" spellcheck="false" aria-label="Hex value">' +
+      '<div class="acts">' +
+        '<button type="button" class="lk">' + (entry.locked ? "locked" : "lock") + "</button>" +
+        '<button type="button" class="rm">remove</button>' +
+      "</div>";
+
+    const chip = el.querySelector(".chip");
+    const picker = el.querySelector('input[type="color"]');
+    const text = el.querySelector('input[type="text"]');
+
+    chip.addEventListener("click", () => picker.click());
+    picker.addEventListener("input", () => {
+      const rgb = parseHex(picker.value);
+      if (!rgb) return;
+      entry.rgb = rgb;
+      chip.style.background = picker.value;
+      text.value = picker.value;
+    });
+    picker.addEventListener("change", () => scheduleRun(false));
+    text.addEventListener("change", () => {
+      const rgb = parseHex(text.value);
+      if (!rgb) { text.value = hex(entry.rgb[0], entry.rgb[1], entry.rgb[2]); return; }
+      entry.rgb = rgb;
+      const hh = hex(rgb[0], rgb[1], rgb[2]);
+      text.value = hh; chip.style.background = hh; picker.value = hh;
+      scheduleRun(false);
+    });
+    el.querySelector(".lk").addEventListener("click", () => {
+      entry.locked = !entry.locked;
+      renderSwatches();
+    });
+    el.querySelector(".rm").addEventListener("click", () => {
+      if (state.palette.length <= 2) return;
+      state.palette.splice(i, 1);
+      syncColorCount();
+      renderSwatches();
+      scheduleRun(false);
+    });
+
+    box.appendChild(el);
+  });
+}
+
+function syncColorCount() {
+  const n = clamp(state.palette.length, 2, 32);
+  $("colorCount").value = n;
+  $("colorCountOut").textContent = n;
+}
+
+/* ------------------------------------------------------------------ *
+ * wiring
+ * ------------------------------------------------------------------ */
+const MODE_NOTES = {
+  fill: "Every area of flat colour becomes a closed shape with holes cut out of it. Best for logos, illustration and posterised photographs.",
+  outline: "Traces the same boundaries but strokes them instead of filling them, so you get the seams between colour areas as line work.",
+  centerline: "Runs down the middle of dark strokes instead of around them, so one pen stroke becomes one path."
+};
+
+function setMode(m) {
+  currentMode = m;
+  for (const b of $("modeSeg").children) b.setAttribute("aria-pressed", String(b.dataset.mode === m));
+  $("modeNote").textContent = MODE_NOTES[m];
+  $("paletteBlock").classList.toggle("hidden", m === "centerline");
+  $("inkBlock").classList.toggle("hidden", m !== "centerline");
+  $("fillFinish").classList.toggle("hidden", m !== "fill");
+  $("strokeFinish").classList.toggle("hidden", m === "fill");
+  $("frameField").classList.toggle("hidden", m !== "outline");
+  $("despeckleField").classList.toggle("hidden", m === "centerline");
+  $("cleanupField").classList.toggle("hidden", m === "centerline");
+  $("strokePaint").parentElement.classList.toggle("hidden", m === "centerline");
+  $("strokeColor").parentElement.classList.toggle("hidden", m !== "centerline" && $("strokePaint").value === "palette");
+}
+
+let runTimer = null;
+function scheduleRun(forceExtract) {
+  if (!state.img) return;
+  if (!$("autoRender").checked) {
+    $("status").textContent = "Settings changed — press “Trace it” to update.";
+    return;
+  }
+  clearTimeout(runTimer);
+  runTimer = setTimeout(() => run(forceExtract), 220);
+}
+
+const OUTPUTS = {
+  colorCount: v => v,
+  alphaCut: v => v,
+  workSize: v => v + " px",
+  blur: v => v + " px",
+  cleanup: v => (+v === 0 ? "off" : v + " px"),
+  despeckle: v => v + " px",
+  simplify: v => (+v).toFixed(1) + " px",
+  smooth: v => v + "%",
+  cornerAngle: v => v + "°",
+  precision: v => v,
+  strokeWidth: v => (+v).toFixed(1) + " px",
+  inkThreshold: v => v + "%",
+  prune: v => v + " px"
+};
+
+function bindRange(id, requantise) {
+  const el = $(id);
+  const out = $(id + "Out");
+  const paint = () => { if (out) out.textContent = OUTPUTS[id] ? OUTPUTS[id](el.value) : el.value; };
+  paint();
+  el.addEventListener("input", paint);
+  el.addEventListener("change", () => scheduleRun(!!requantise));
+}
+
+function init() {
+  setMode("fill");
+  setView("side");
+
+  for (const b of $("modeSeg").children) {
+    b.addEventListener("click", () => { setMode(b.dataset.mode); scheduleRun(false); });
+  }
+  for (const b of $("viewSeg").children) {
+    b.addEventListener("click", () => setView(b.dataset.view));
+  }
+
+  ["colorCount", "alphaCut", "workSize", "blur", "cleanup", "despeckle", "simplify", "smooth",
+   "cornerAngle", "precision", "strokeWidth", "inkThreshold", "prune"].forEach(id => {
+    bindRange(id, id === "colorCount" || id === "workSize" || id === "blur" || id === "alphaCut");
+  });
+
+  ["quantMethod", "colorSpace"].forEach(id => $(id).addEventListener("change", () => scheduleRun(true)));
+  ["keepAlpha", "sealSeams", "bgRect", "drawFrame", "invertInk", "strokeColor"].forEach(id =>
+    $(id).addEventListener("change", () => scheduleRun(false)));
+  $("strokePaint").addEventListener("change", () => { setMode(currentMode); scheduleRun(false); });
+  $("keepAlpha").addEventListener("change", () => $("alphaField").classList.toggle("hidden", !$("keepAlpha").checked));
+
+  $("colorCount").addEventListener("change", () => {
+    const n = +$("colorCount").value;
+    if (state.palette.length !== n) state.palette = state.palette.filter(p => p.locked).slice(0, n);
+  });
+
+  $("reExtract").addEventListener("click", () => { state.palette = state.palette.filter(p => p.locked); run(true); });
+  $("addColor").addEventListener("click", () => {
+    if (state.palette.length >= 32) return;
+    state.palette.push({ rgb: [128, 128, 128], locked: true });
+    syncColorCount();
+    renderSwatches();
+    scheduleRun(false);
+  });
+
+  $("renderBtn").addEventListener("click", () => run(false));
+  $("resetBtn").addEventListener("click", () => {
+    const d = {
+      colorCount: 8, alphaCut: 128, workSize: 480, blur: 0, cleanup: 1, despeckle: 8, simplify: 1.2,
+      smooth: 100, cornerAngle: 60, precision: 2, strokeWidth: 1.5, inkThreshold: 50, prune: 6
+    };
+    for (const [k, v] of Object.entries(d)) {
+      $(k).value = v;
+      $(k).dispatchEvent(new Event("input"));
+    }
+    $("quantMethod").value = "kmeans";
+    $("colorSpace").value = "oklab";
+    $("keepAlpha").checked = true;
+    $("sealSeams").checked = true;
+    $("bgRect").checked = false;
+    $("drawFrame").checked = false;
+    $("invertInk").checked = false;
+    $("strokePaint").value = "single";
+    $("strokeColor").value = "#1c1a17";
+    $("alphaField").classList.remove("hidden");
+    state.palette = [];
+    setMode("fill");
+    run(true);
+  });
+
+  $("wipePos").addEventListener("input", applyWipe);
+
+  $("downloadBtn").addEventListener("click", () => {
+    if (!state.svg) return;
+    const blob = new Blob([state.svg], { type: "image/svg+xml" });
+    const url = URL.createObjectURL(blob);
+    const a = $("dlAnchor");
+    a.href = url;
+    a.download = state.name.replace(/\.[^.]+$/, "") + ".svg";
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  });
+
+  $("copyBtn").addEventListener("click", async () => {
+    const st = $("outStatus");
+    st.className = "status";
+    try {
+      await navigator.clipboard.writeText(state.svg);
+      st.textContent = "Copied.";
+    } catch (e) {
+      st.className = "status error";
+      st.textContent = "The clipboard is blocked here — use Download SVG instead.";
+    }
+    setTimeout(() => { st.textContent = ""; }, 2500);
+  });
+
+  // input sources
+  const dz = $("dropzone");
+  const fi = $("fileInput");
+  dz.addEventListener("click", () => fi.click());
+  dz.addEventListener("keydown", e => {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fi.click(); }
+  });
+  fi.addEventListener("change", () => { if (fi.files[0]) accept(fi.files[0]); });
+  ["dragenter", "dragover"].forEach(ev => dz.addEventListener(ev, e => {
+    e.preventDefault(); dz.classList.add("drag");
+  }));
+  ["dragleave", "drop"].forEach(ev => dz.addEventListener(ev, e => {
+    e.preventDefault(); dz.classList.remove("drag");
+  }));
+  dz.addEventListener("drop", e => {
+    const f = e.dataTransfer.files[0];
+    if (f) accept(f);
+  });
+  document.addEventListener("paste", e => {
+    if (!e.clipboardData || !e.clipboardData.items) return;
+    for (const item of e.clipboardData.items) {
+      if (item.type.startsWith("image/")) {
+        const f = item.getAsFile();
+        if (f) { accept(f); e.preventDefault(); return; }
+      }
+    }
+  });
+}
+
+async function accept(file) {
+  const status = $("status");
+  try {
+    if (state.originalURL) URL.revokeObjectURL(state.originalURL);
+    const { img, url } = await loadImageFromBlob(file);
+    state.img = img;
+    state.originalURL = url;
+    state.origW = img.naturalWidth || img.width || 512;
+    state.origH = img.naturalHeight || img.height || 512;
+    state.name = (file.name || "traced").replace(/[^\w.\-]+/g, "_");
+    state.palette = [];
+    $("dropzoneContent").textContent = state.name + " — " + state.origW + " × " + state.origH;
+    $("controls").classList.remove("hidden");
+    status.className = "status";
+    await run(true);
+  } catch (err) {
+    status.className = "status error";
+    status.textContent = err.message || "That image could not be read.";
+    return;
+  }
+  const out = $("output");
+  if (out.scrollIntoView) out.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+init();
+</script>
+</body>
+</html>
