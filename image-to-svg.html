@@ -369,6 +369,17 @@
 
     <h2 class="section">Finish</h2>
     <fieldset id="fillFinish">
+      <div class="field wide">
+        <label for="fillStyle">Fill style</label>
+        <select id="fillStyle">
+          <option value="flat">Flat colour</option>
+          <option value="linear">Linear gradients</option>
+        </select>
+      </div>
+      <div class="field wide" id="gradMinField">
+        <label for="gradMin">Only use a gradient when the colour shifts by <span class="unit" id="gradMinOut">10</span></label>
+        <input type="range" id="gradMin" min="0" max="64" step="1" value="10">
+      </div>
       <div class="field checkbox">
         <input type="checkbox" id="sealSeams" checked>
         <label for="sealSeams" style="margin:0;">Seal hairline gaps between shapes</label>
@@ -378,6 +389,7 @@
         <label for="bgRect" style="margin:0;">Paint a background rectangle behind everything</label>
       </div>
     </fieldset>
+    <p class="note hidden" id="gradNote">Gradients are read from the original pixels, not from the palette — the colours above only decide where one shape stops and the next begins. Each region is then drawn on its own and filled with the best straight-line colour ramp across it, and regions whose colour barely moves get an averaged flat fill instead. You can go a little leaner on colours than flat fills need, but not much: the count still has to be high enough to keep separate objects in separate regions, and once two things merge no ramp will pull them apart. Only straight ramps are fitted, so a round highlight comes out approximated rather than matched.</p>
     <fieldset id="strokeFinish" class="hidden">
       <div class="field wide">
         <label for="strokeWidth">Line weight <span class="unit" id="strokeWidthOut">1.5 px</span></label>
@@ -954,6 +966,166 @@ function despeckle(idx, w, h, minArea) {
 }
 
 /* ------------------------------------------------------------------ *
+ * gradient fitting
+ *
+ * Quantising flattens every region to one colour, which is exactly what makes
+ * the shapes traceable — but the original colours are still sitting in the
+ * source pixels. So the index map is used purely to decide where the shapes
+ * are, and each region is then filled from the colours it actually covers:
+ * a least-squares plane per channel over the region, collapsed onto the single
+ * direction that explains the most colour change. That direction becomes the
+ * gradient axis. Anything a linear gradient cannot express (colour varying
+ * across the axis) is what is left on the table.
+ * ------------------------------------------------------------------ */
+function labelComponents(idx, w, h) {
+  const total = w * h;
+  const label = new Int32Array(total).fill(-1);
+  const stack = new Int32Array(total);
+  const areas = [];
+  const colorOf = [];
+  for (let start = 0; start < total; start++) {
+    if (label[start] !== -1) continue;
+    const color = idx[start];
+    const id = areas.length;
+    let sp = 0, size = 0;
+    stack[sp++] = start;
+    label[start] = id;
+    while (sp > 0) {
+      const p = stack[--sp];
+      size++;
+      const x = p % w, y = (p - x) / w;
+      if (x > 0 && label[p - 1] === -1 && idx[p - 1] === color) { label[p - 1] = id; stack[sp++] = p - 1; }
+      if (x < w - 1 && label[p + 1] === -1 && idx[p + 1] === color) { label[p + 1] = id; stack[sp++] = p + 1; }
+      if (y > 0 && label[p - w] === -1 && idx[p - w] === color) { label[p - w] = id; stack[sp++] = p - w; }
+      if (y < h - 1 && label[p + w] === -1 && idx[p + w] === color) { label[p + w] = id; stack[sp++] = p + w; }
+    }
+    areas.push(size);
+    colorOf.push(color);
+  }
+  return { label, areas, colorOf };
+}
+
+function fitRegionColors(imgData, comp, w, h, minArea, maxCount) {
+  const { label, areas, colorOf } = comp;
+  const slot = new Int32Array(areas.length).fill(-1);
+  const eligible = [];
+  for (let i = 0; i < areas.length; i++) {
+    if (areas[i] >= minArea && colorOf[i] !== TRANSPARENT) eligible.push(i);
+  }
+  eligible.sort((a, b) => areas[b] - areas[a]);
+  if (eligible.length > maxCount) eligible.length = maxCount;
+  eligible.forEach((id, k) => { slot[id] = k; });
+  const n = eligible.length;
+  if (!n) return { slot, fits: [] };
+
+  const cnt = new Float64Array(n);
+  const sx = new Float64Array(n), sy = new Float64Array(n);
+  const sxx = new Float64Array(n), sxy = new Float64Array(n), syy = new Float64Array(n);
+  const sc = [new Float64Array(n), new Float64Array(n), new Float64Array(n)];
+  const sxc = [new Float64Array(n), new Float64Array(n), new Float64Array(n)];
+  const syc = [new Float64Array(n), new Float64Array(n), new Float64Array(n)];
+
+  const d = imgData.data;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const p = y * w + x;
+      const k = slot[label[p]];
+      if (k < 0) continue;
+      const i = p * 4;
+      cnt[k]++; sx[k] += x; sy[k] += y;
+      sxx[k] += x * x; sxy[k] += x * y; syy[k] += y * y;
+      for (let ch = 0; ch < 3; ch++) {
+        const v = d[i + ch];
+        sc[ch][k] += v; sxc[ch][k] += x * v; syc[ch][k] += y * v;
+      }
+    }
+  }
+
+  const fits = new Array(n);
+  for (let k = 0; k < n; k++) {
+    const N = cnt[k];
+    const mean = [sc[0][k] / N, sc[1][k] / N, sc[2][k] / N];
+    const mx = sx[k] / N, my = sy[k] / N;
+    const Sxx = sxx[k] - N * mx * mx;
+    const Sxy = sxy[k] - N * mx * my;
+    const Syy = syy[k] - N * my * my;
+    const det = Sxx * Syy - Sxy * Sxy;
+    // A region that is a straight line of pixels has no plane to fit.
+    if (N < 12 || Math.abs(det) < 1e-6) { fits[k] = { flat: true, mean }; continue; }
+
+    const A = [0, 0, 0], B = [0, 0, 0];
+    for (let ch = 0; ch < 3; ch++) {
+      const Sxc = sxc[ch][k] - N * mx * mean[ch];
+      const Syc = syc[ch][k] - N * my * mean[ch];
+      A[ch] = (Syy * Sxc - Sxy * Syc) / det;
+      B[ch] = (Sxx * Syc - Sxy * Sxc) / det;
+    }
+
+    // Dominant eigenvector of the 2x2 scatter of the three channel gradients.
+    let m00 = 0, m01 = 0, m11 = 0;
+    for (let ch = 0; ch < 3; ch++) { m00 += A[ch] * A[ch]; m01 += A[ch] * B[ch]; m11 += B[ch] * B[ch]; }
+    let ux, uy;
+    if (Math.abs(m01) < 1e-12) {
+      if (m00 >= m11) { ux = 1; uy = 0; } else { ux = 0; uy = 1; }
+    } else {
+      const half = (m00 + m11) / 2;
+      const lam = half + Math.sqrt((m00 - m11) * (m00 - m11) / 4 + m01 * m01);
+      ux = lam - m11; uy = m01;
+      const L = Math.hypot(ux, uy) || 1;
+      ux /= L; uy /= L;
+    }
+    fits[k] = {
+      flat: false, mean, ux, uy,
+      slope: [A[0] * ux + B[0] * uy, A[1] * ux + B[1] * uy, A[2] * ux + B[2] * uy],
+      tc: ux * mx + uy * my,
+      tmin: Infinity, tmax: -Infinity
+    };
+  }
+
+  // How far the region actually reaches along its own axis.
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const k = slot[label[y * w + x]];
+      if (k < 0) continue;
+      const f = fits[k];
+      if (f.flat) continue;
+      const t = f.ux * x + f.uy * y;
+      if (t < f.tmin) f.tmin = t;
+      if (t > f.tmax) f.tmax = t;
+    }
+  }
+  return { slot, fits };
+}
+
+const clamp255 = v => clamp(Math.round(v), 0, 255);
+
+// Returns a paint string plus, when a gradient earns its place, the def to go
+// with it. Regions whose colour barely moves get their own averaged flat fill,
+// which is still truer than the palette entry they were quantised to.
+function paintForRegion(f, minShift, id, scaleX, scaleY) {
+  if (f.flat) return { paint: hex(clamp255(f.mean[0]), clamp255(f.mean[1]), clamp255(f.mean[2])) };
+  const lo = [], hi = [];
+  for (let ch = 0; ch < 3; ch++) {
+    lo.push(f.mean[ch] + f.slope[ch] * (f.tmin - f.tc));
+    hi.push(f.mean[ch] + f.slope[ch] * (f.tmax - f.tc));
+  }
+  let shift = 0;
+  for (let ch = 0; ch < 3; ch++) shift = Math.max(shift, Math.abs(hi[ch] - lo[ch]));
+  if (!(shift >= minShift) || !isFinite(f.tmin) || f.tmax - f.tmin < 1e-6) {
+    return { paint: hex(clamp255(f.mean[0]), clamp255(f.mean[1]), clamp255(f.mean[2])) };
+  }
+  const c1 = hex(clamp255(lo[0]), clamp255(lo[1]), clamp255(lo[2]));
+  const c2 = hex(clamp255(hi[0]), clamp255(hi[1]), clamp255(hi[2]));
+  if (c1 === c2) return { paint: c1 };
+  const r = v => +v.toFixed(1);
+  const def = '<linearGradient id="' + id + '" gradientUnits="userSpaceOnUse" x1="' +
+    r(f.ux * f.tmin * scaleX) + '" y1="' + r(f.uy * f.tmin * scaleY) + '" x2="' +
+    r(f.ux * f.tmax * scaleX) + '" y2="' + r(f.uy * f.tmax * scaleY) + '">' +
+    '<stop offset="0" stop-color="' + c1 + '"/><stop offset="1" stop-color="' + c2 + '"/></linearGradient>';
+  return { paint: "url(#" + id + ")", def };
+}
+
+/* ------------------------------------------------------------------ *
  * contour tracing
  *
  * Every boundary segment is emitted as a directed unit edge along the pixel
@@ -1033,6 +1205,17 @@ function traceColor(T, idx, target, includeBorder) {
     return { pts, closed: false };
   };
 
+  // The first edge of a loop has the region on its right, so stepping half a
+  // pixel that way lands on a pixel that definitely belongs to the region. That
+  // is enough to tie every loop — outer boundaries and holes alike — back to the
+  // connected component it came from.
+  const insidePixel = pts => {
+    const dx = pts[2] - pts[0], dy = pts[3] - pts[1];
+    const px = Math.floor((pts[0] + pts[2]) / 2 - dy / 2);
+    const py = Math.floor((pts[1] + pts[3]) / 2 + dx / 2);
+    return py * w + px;
+  };
+
   const paths = [];
   // Open chains first (only possible when the image border is skipped), so a
   // walk never starts partway along one.
@@ -1040,7 +1223,7 @@ function traceColor(T, idx, target, includeBorder) {
     for (let p = 0; p < e1.length; p++) {
       while (e1[p] !== -1 && indeg[p] === 0) {
         const r = walk(p);
-        if (r.pts.length >= 4) paths.push(r);
+        if (r.pts.length >= 4) { r.inside = insidePixel(r.pts); paths.push(r); }
         else break;
       }
     }
@@ -1048,7 +1231,7 @@ function traceColor(T, idx, target, includeBorder) {
   for (let p = 0; p < e1.length; p++) {
     while (e1[p] !== -1) {
       const r = walk(p);
-      if (r.pts.length >= 4) paths.push(r);
+      if (r.pts.length >= 4) { r.inside = insidePixel(r.pts); paths.push(r); }
       else break;
     }
   }
@@ -1491,6 +1674,8 @@ function readSettings() {
     cornerDeg: +$("cornerAngle").value,
     precision: +$("precision").value,
     sealSeams: $("sealSeams").checked,
+    gradients: $("fillStyle").value === "linear",
+    gradMin: +$("gradMin").value,
     bgRect: $("bgRect").checked,
     strokeWidth: +$("strokeWidth").value,
     strokePaint: $("strokePaint").value,
@@ -1534,10 +1719,11 @@ function ensurePalette(imgData, s, forceExtract) {
   return pal;
 }
 
-function buildSVG(parts, origW, origH) {
+function buildSVG(defs, parts, origW, origH) {
+  const head = defs.length ? "<defs>\n" + defs.join("\n") + "\n</defs>\n" : "";
   return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + origW + " " + origH +
     '" width="' + origW + '" height="' + origH + '" shape-rendering="geometricPrecision">\n' +
-    parts.join("\n") + "\n</svg>";
+    head + parts.join("\n") + "\n</svg>";
 }
 
 async function run(forceExtract) {
@@ -1561,7 +1747,8 @@ async function run(forceExtract) {
   const pathOpts = { fmt, smooth: s.smooth, cornerDeg: s.cornerDeg };
 
   const parts = [];
-  let pathCount = 0, nodeCount = 0, colorsUsed = 0;
+  const defs = [];
+  let pathCount = 0, nodeCount = 0, colorsUsed = 0, gradientCount = 0;
 
   if (s.mode === "centerline") {
     status.textContent = "Thinning the ink…";
@@ -1625,6 +1812,32 @@ async function run(forceExtract) {
 
     const T = makeTracer(w, h);
     const includeBorder = s.mode === "fill" ? true : s.drawFrame;
+    const useGradients = s.mode === "fill" && s.gradients;
+
+    // In gradient mode the shapes are emitted one connected region at a time,
+    // because each region gets its own fill. Flat mode keeps the compact
+    // one-path-per-colour output.
+    let comp = null, fitted = null;
+    const paints = [];
+    if (useGradients) {
+      status.textContent = "Finding regions…";
+      await tick();
+      if (token !== state.runToken) return;
+      comp = labelComponents(idx, w, h);
+      fitted = fitRegionColors(imgData, comp, w, h, Math.max(24, s.despeckle), 1500);
+      status.textContent = "Fitting colours…";
+      await tick();
+      if (token !== state.runToken) return;
+      for (let k = 0; k < fitted.fits.length; k++) {
+        const r = paintForRegion(fitted.fits[k], s.gradMin, "g" + k, scaleX, scaleY);
+        paints.push(r.paint);
+        if (r.def) { defs.push(r.def); gradientCount++; }
+      }
+    }
+
+    const seal = paint => s.sealSeams
+      ? ' stroke="' + paint + '" stroke-width="' + +(0.7 * avgScale).toFixed(3) + '" stroke-linejoin="round"'
+      : "";
 
     for (let k = 0; k < order.length; k++) {
       if (token !== state.runToken) return;
@@ -1635,23 +1848,37 @@ async function run(forceExtract) {
       const c = order[k];
       const loops = traceColor(T, idx, c, includeBorder);
       const ds = [];
+      const byRegion = useGradients ? new Map() : null;
+
       for (const loop of loops) {
         let pts = collapseCollinear(loop.pts, loop.closed);
         pts = loop.closed ? rdpClosed(pts, s.simplify) : rdpOpen(pts, s.simplify);
         if (pts.length < (loop.closed ? 6 : 4)) continue;
         const r = pathData(pts, loop.closed, pathOpts);
         if (!r || !r.d) continue;
-        ds.push(r.d);
         nodeCount += r.nodes;
+        const slotIdx = useGradients ? fitted.slot[comp.label[loop.inside]] : -1;
+        if (slotIdx >= 0) {
+          const lab = comp.label[loop.inside];
+          if (!byRegion.has(lab)) byRegion.set(lab, { slot: slotIdx, ds: [] });
+          byRegion.get(lab).ds.push(r.d);
+        } else {
+          ds.push(r.d);
+        }
+      }
+
+      const col = hex(palette[c][0], palette[c][1], palette[c][2]);
+      if (byRegion) {
+        for (const { slot: si, ds: rds } of byRegion.values()) {
+          const paint = paints[si];
+          pathCount++;
+          parts.push('<path fill="' + paint + '" fill-rule="evenodd"' + seal(paint) + ' d="' + rds.join("") + '"/>');
+        }
       }
       if (!ds.length) continue;
       pathCount++;
-      const col = hex(palette[c][0], palette[c][1], palette[c][2]);
       if (s.mode === "fill") {
-        const seal = s.sealSeams
-          ? ' stroke="' + col + '" stroke-width="' + +(0.7 * avgScale).toFixed(3) + '" stroke-linejoin="round"'
-          : "";
-        parts.push('<path fill="' + col + '" fill-rule="evenodd"' + seal + ' d="' + ds.join("") + '"/>');
+        parts.push('<path fill="' + col + '" fill-rule="evenodd"' + seal(col) + ' d="' + ds.join("") + '"/>');
       } else {
         const stroke = s.strokePaint === "palette" ? col : s.strokeColor;
         parts.push('<path fill="none" stroke="' + stroke + '" stroke-width="' +
@@ -1663,11 +1890,11 @@ async function run(forceExtract) {
 
   if (token !== state.runToken) return;
 
-  const svg = buildSVG(parts, state.origW, state.origH);
+  const svg = buildSVG(defs, parts, state.origW, state.origH);
   state.svg = svg;
   const ms = Math.round(performance.now() - t0);
 
-  showResult(svg, { pathCount, nodeCount, colorsUsed, ms, w, h });
+  showResult(svg, { pathCount, nodeCount, colorsUsed, gradientCount, ms, w, h });
   setBusy(false);
   status.textContent = "";
 }
@@ -1711,6 +1938,7 @@ function showResult(svg, stats) {
     "<span>Paths <b>" + stats.pathCount + "</b></span>" +
     "<span>Nodes <b>" + stats.nodeCount.toLocaleString() + "</b></span>" +
     "<span>Colours <b>" + stats.colorsUsed + "</b></span>" +
+    (stats.gradientCount ? "<span>Gradients <b>" + stats.gradientCount + "</b></span>" : "") +
     "<span>Size <b>" + kb + "</b></span>" +
     "<span>Traced at <b>" + stats.w + "×" + stats.h + "</b></span>" +
     "<span>Output <b>" + state.origW + "×" + state.origH + "</b></span>" +
@@ -1838,6 +2066,9 @@ function setMode(m) {
   $("cleanupField").classList.toggle("hidden", m === "centerline");
   $("strokePaint").parentElement.classList.toggle("hidden", m === "centerline");
   $("strokeColor").parentElement.classList.toggle("hidden", m !== "centerline" && $("strokePaint").value === "palette");
+  const grad = m === "fill" && $("fillStyle").value === "linear";
+  $("gradMinField").classList.toggle("hidden", !grad);
+  $("gradNote").classList.toggle("hidden", !grad);
 }
 
 let runTimer = null;
@@ -1863,6 +2094,7 @@ const OUTPUTS = {
   cornerAngle: v => v + "°",
   precision: v => v,
   strokeWidth: v => (+v).toFixed(1) + " px",
+  gradMin: v => (+v === 0 ? "any amount" : v + " of 255"),
   inkThreshold: v => v + "%",
   prune: v => v + " px"
 };
@@ -1891,7 +2123,7 @@ function init() {
   }
 
   ["colorCount", "alphaCut", "workSize", "blur", "cleanup", "despeckle", "simplify", "smooth",
-   "cornerAngle", "precision", "strokeWidth", "inkThreshold", "prune"].forEach(id => {
+   "cornerAngle", "precision", "strokeWidth", "gradMin", "inkThreshold", "prune"].forEach(id => {
     bindRange(id, id === "colorCount" || id === "workSize" || id === "blur" || id === "alphaCut");
   });
 
@@ -1899,6 +2131,7 @@ function init() {
   ["keepAlpha", "sealSeams", "bgRect", "drawFrame", "invertInk", "strokeColor"].forEach(id =>
     $(id).addEventListener("change", () => scheduleRun(false)));
   $("strokePaint").addEventListener("change", () => { setMode(currentMode); scheduleRun(false); });
+  $("fillStyle").addEventListener("change", () => { setMode(currentMode); scheduleRun(false); });
   $("keepAlpha").addEventListener("change", () => $("alphaField").classList.toggle("hidden", !$("keepAlpha").checked));
 
   $("colorCount").addEventListener("change", () => {
@@ -1933,6 +2166,7 @@ function init() {
     $("drawFrame").checked = false;
     $("invertInk").checked = false;
     $("strokePaint").value = "single";
+    $("fillStyle").value = "flat";
     $("strokeColor").value = "#1c1a17";
     $("alphaField").classList.remove("hidden");
     state.palette = [];
