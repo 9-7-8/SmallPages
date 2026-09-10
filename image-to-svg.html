@@ -27,7 +27,30 @@
     padding: 3rem 1.5rem 5rem;
   }
 
+  .shell { max-width: 1210px; margin: 0 auto; }
   main { max-width: 860px; margin: 0 auto; }
+
+  /* The pinned preview only appears when there is genuinely room beside the
+     controls; below that the Compare card at the foot of the page does the job. */
+  .rail { display: none; }
+  @media (min-width: 1040px) {
+    .shell {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 280px;
+      gap: 2.5rem;
+      align-items: start;
+    }
+    main { margin: 0; }
+    .rail { display: block; position: sticky; top: 2rem; }
+  }
+
+  .rail-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.6rem; margin-bottom: 0.5rem; }
+  .rail-cap { font-size: 0.75rem; color: #6a6555; }
+  .rail .stage { transition: opacity 0.15s ease; }
+  .rail .stage img { width: 100%; height: auto; max-height: 60vh; object-fit: contain; }
+  .rail.busy .stage { opacity: 0.45; }
+  .rail-meta { font-size: 0.72rem; color: #6a6555; margin-top: 0.5rem; font-variant-numeric: tabular-nums; min-height: 1.4em; }
+  .seg.small button { padding: 0.25rem 0.5rem; font-size: 0.72rem; }
 
   h1 {
     font-family: var(--serif);
@@ -226,6 +249,7 @@
 </style>
 </head>
 <body>
+<div class="shell">
 <main>
   <h1>image → svg</h1>
   <p class="lede">Traces a bitmap into flat vector shapes or line work. Pick how many colours the trace is allowed to use, adjust the palette by hand, and compare the result against the original before you download the SVG.</p>
@@ -442,6 +466,19 @@
   </div>
 </main>
 
+<aside class="rail hidden" id="rail" aria-label="Pinned preview">
+  <div class="rail-head">
+    <span class="rail-cap" id="railCap">Traced</span>
+    <div class="seg small" id="railSeg" role="group" aria-label="What the pinned preview shows">
+      <button type="button" data-rail="result" aria-pressed="true">Traced</button>
+      <button type="button" data-rail="original" aria-pressed="false">Original</button>
+    </div>
+  </div>
+  <div class="stage" id="railStage"></div>
+  <div class="rail-meta" id="railMeta"></div>
+</aside>
+</div>
+
 <script>
 "use strict";
 
@@ -526,7 +563,8 @@ const state = {
   palette: [],          // [{ rgb:[r,g,b], locked:bool }]
   svg: "",
   runToken: 0,
-  originalURL: ""
+  originalURL: "",
+  previewURL: ""
 };
 
 function loadImageFromBlob(blob) {
@@ -1509,6 +1547,7 @@ async function run(forceExtract) {
   const status = $("status");
   status.className = "status";
   status.textContent = "Reading the image…";
+  setBusy(true);
   await tick();
   if (token !== state.runToken) return;
 
@@ -1629,6 +1668,7 @@ async function run(forceExtract) {
   const ms = Math.round(performance.now() - t0);
 
   showResult(svg, { pathCount, nodeCount, colorsUsed, ms, w, h });
+  setBusy(false);
   status.textContent = "";
 }
 
@@ -1637,22 +1677,36 @@ async function run(forceExtract) {
  * ------------------------------------------------------------------ */
 let currentMode = "fill";
 let currentView = "side";
+let railView = "result";
 
 function originalTag() {
   return '<img src="' + state.originalURL + '" alt="the image you supplied">';
 }
+function resultTag() {
+  return '<img src="' + state.previewURL + '" alt="the traced result">';
+}
 
 function showResult(svg, stats) {
+  // One blob for every preview surface: the browser parses the SVG once and
+  // the panes share it, instead of five inline copies being rebuilt on each
+  // slider nudge.
+  if (state.previewURL) URL.revokeObjectURL(state.previewURL);
+  state.previewURL = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
+
   $("output").classList.remove("hidden");
   $("stageOriginal").innerHTML = originalTag();
-  $("stageResult").innerHTML = svg;
-  $("stageResultOnly").innerHTML = svg;
+  $("stageResult").innerHTML = resultTag();
+  $("stageResultOnly").innerHTML = resultTag();
   $("wipeBase").innerHTML = originalTag();
-  $("wipeTop").innerHTML = svg;
+  $("wipeTop").innerHTML = resultTag();
   applyWipe();
 
   const bytes = new Blob([svg]).size;
   const kb = bytes < 1024 ? bytes + " B" : (bytes / 1024).toFixed(1) + " kB";
+
+  $("rail").classList.remove("hidden");
+  paintRail();
+  $("railMeta").textContent = stats.pathCount + " paths · " + stats.nodeCount.toLocaleString() + " nodes · " + kb;
   $("stats").innerHTML =
     "<span>Paths <b>" + stats.pathCount + "</b></span>" +
     "<span>Nodes <b>" + stats.nodeCount.toLocaleString() + "</b></span>" +
@@ -1667,6 +1721,22 @@ function showResult(svg, stats) {
     st.className = "status error";
     st.textContent = "Nothing came out of the trace. Try lowering the darkness cut-off or the discard threshold.";
   }
+}
+
+function paintRail() {
+  const showing = railView === "original" ? originalTag() : resultTag();
+  $("railStage").innerHTML = showing;
+  $("railCap").textContent = railView === "original" ? "Original" : "Traced";
+}
+
+function setRailView(v) {
+  railView = v;
+  for (const b of $("railSeg").children) b.setAttribute("aria-pressed", String(b.dataset.rail === v));
+  if (state.previewURL) paintRail();
+}
+
+function setBusy(on) {
+  $("rail").classList.toggle("busy", on);
 }
 
 function applyWipe() {
@@ -1815,6 +1885,9 @@ function init() {
   }
   for (const b of $("viewSeg").children) {
     b.addEventListener("click", () => setView(b.dataset.view));
+  }
+  for (const b of $("railSeg").children) {
+    b.addEventListener("click", () => setRailView(b.dataset.rail));
   }
 
   ["colorCount", "alphaCut", "workSize", "blur", "cleanup", "despeckle", "simplify", "smooth",
