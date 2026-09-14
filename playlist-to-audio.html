@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>playlist → audio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --panel:   #dde2e3;
+    --raised:  #eef1f1;
+    --ink:     #171e21;
+    --dim:     #5d686c;
+    --rule:    #b6c0c2;
+    --signal:  #1d5e6d;
+    --signal-soft: rgba(29,94,109,0.10);
+    --ui:   'Archivo', 'Helvetica Neue', sans-serif;
+    --mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--panel);
+    color: var(--ink);
+    font-family: var(--ui);
+    font-size: 15px;
+    line-height: 1.55;
+    padding: 3rem 1.25rem 5rem;
+  }
+
+  .shell { max-width: 760px; margin: 0 auto; }
+
+  h1 {
+    font-size: 1.75rem;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    margin: 0 0 0.35rem;
+  }
+  .lede { margin: 0 0 0.6rem; max-width: 62ch; color: var(--dim); }
+  .lede code { font-family: var(--mono); font-size: 0.88em; color: var(--ink); }
+
+  .prereq {
+    font-size: 0.82rem; color: var(--dim);
+    border-left: 2px solid var(--rule);
+    padding: 0.15rem 0 0.15rem 0.7rem;
+    margin: 0 0 2.4rem; max-width: 62ch;
+  }
+  .prereq code { font-family: var(--mono); color: var(--ink); }
+
+  section { margin-bottom: 2.2rem; }
+  h2 {
+    font-size: 0.95rem; font-weight: 600; margin: 0 0 0.9rem;
+    padding-bottom: 0.45rem; border-bottom: 1px solid var(--rule);
+  }
+
+  /* ── URL field ───────────────────────────────────────────── */
+  input[type="text"], input[type="number"], select {
+    font-family: var(--mono);
+    font-size: 0.92rem;
+    color: var(--ink);
+    background: var(--raised);
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    padding: 0.6rem 0.7rem;
+  }
+  input:focus-visible, select:focus-visible, button:focus-visible, .tier:focus-visible {
+    outline: 2px solid var(--signal);
+    outline-offset: 2px;
+  }
+  #url { width: 100%; }
+
+  .readout {
+    font-size: 0.82rem; margin-top: 0.5rem; min-height: 1.5em;
+    color: var(--dim); font-family: var(--mono);
+  }
+  .readout b { color: var(--signal); font-weight: 500; }
+  .readout.warn b { color: #8a4a22; }
+
+  /* ── Tier cards ──────────────────────────────────────────── */
+  .tiers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; }
+  @media (max-width: 620px) { .tiers { grid-template-columns: 1fr; } }
+
+  .tier {
+    position: relative;
+    text-align: left;
+    background: var(--raised);
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    padding: 0.9rem 0.9rem 1rem;
+    cursor: pointer;
+    font: inherit; color: inherit;
+    transition: border-color 0.12s ease, background 0.12s ease;
+  }
+  .tier:hover { border-color: var(--dim); }
+  .tier[aria-pressed="true"] { border-color: var(--signal); background: var(--signal-soft); }
+  .tier[aria-pressed="true"]::before {
+    content: ''; position: absolute; inset: -1px; border: 1px solid var(--signal);
+    border-radius: 2px; pointer-events: none;
+  }
+
+  /* the one loud element: bar density = data rate */
+  .bars {
+    display: flex; align-items: flex-end; gap: 2px;
+    height: 42px; margin-bottom: 0.75rem;
+  }
+  .bars i { flex: 0 0 2px; background: var(--ink); opacity: 0.72; }
+  .tier[aria-pressed="true"] .bars i { background: var(--signal); opacity: 1; }
+
+  .tier h3 { margin: 0; font-size: 1.05rem; font-weight: 600; letter-spacing: -0.01em; }
+  .tier .rate { font-family: var(--mono); font-size: 0.78rem; color: var(--dim); margin-top: 0.15rem; }
+  .tier p { margin: 0.55rem 0 0; font-size: 0.82rem; color: var(--dim); line-height: 1.45; }
+
+  .tier-extra { margin-top: 0.7rem; display: none; }
+  .tier[aria-pressed="true"] .tier-extra { display: block; }
+  .tier-extra label { font-size: 0.78rem; color: var(--dim); display: block; margin-bottom: 0.25rem; }
+  .tier-extra select { width: 100%; padding: 0.35rem 0.4rem; font-size: 0.82rem; }
+
+  .est {
+    margin-top: 1.1rem;
+    background: var(--raised);
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    padding: 0.9rem 1rem 1rem;
+  }
+  .est-head {
+    display: flex; align-items: flex-end; justify-content: space-between;
+    gap: 1rem; flex-wrap: wrap;
+  }
+  .est-fields { display: flex; gap: 1.2rem; }
+  .est-fields input { width: 7rem; }
+  .est-total { font-family: var(--mono); font-size: 0.95rem; padding-bottom: 0.45rem; }
+
+  table.est-rows { width: 100%; border-collapse: collapse; margin-top: 0.85rem; font-size: 0.86rem; }
+  table.est-rows td { padding: 0.35rem 0; border-top: 1px solid var(--rule); }
+  table.est-rows td.tier-name { width: 40%; }
+  table.est-rows td.tier-rate { color: var(--dim); font-family: var(--mono); font-size: 0.8rem; }
+  table.est-rows td.tier-size {
+    text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums;
+  }
+  table.est-rows tr.on td { color: var(--signal); }
+  table.est-rows tr.on td.tier-name { font-weight: 600; }
+
+  .est-note { font-size: 0.78rem; color: var(--dim); line-height: 1.45; margin-top: 0.8rem; }
+  .est-note code { font-family: var(--mono); color: var(--ink); }
+
+  /* ── Options ─────────────────────────────────────────────── */
+  .opts { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem 1.6rem; }
+  @media (max-width: 620px) { .opts { grid-template-columns: 1fr; } }
+
+  .opt { display: flex; gap: 0.55rem; align-items: flex-start; cursor: pointer; }
+  .opt input[type="checkbox"] { margin: 0.3rem 0 0; accent-color: var(--signal); flex: 0 0 auto; }
+  .opt span { font-size: 0.88rem; }
+  .opt em { display: block; font-style: normal; font-size: 0.78rem; color: var(--dim); line-height: 1.4; }
+
+  .row { display: flex; gap: 1.6rem; flex-wrap: wrap; margin-top: 1rem; }
+  .field label { display: block; font-size: 0.78rem; color: var(--dim); margin-bottom: 0.25rem; }
+  .field input, .field select { padding: 0.4rem 0.5rem; font-size: 0.86rem; }
+  .field input[type="text"] { width: 15rem; }
+  #items { width: 8rem; }
+
+  /* ── Command ─────────────────────────────────────────────── */
+  .cmd-head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
+  .cmd-head h2 { flex: 1; }
+
+  pre {
+    font-family: var(--mono); font-size: 0.85rem; line-height: 1.7;
+    background: var(--raised); border: 1px solid var(--rule); border-radius: 2px;
+    padding: 1rem; margin: 0; overflow-x: auto; white-space: pre-wrap; word-break: break-word;
+  }
+  pre .flag { color: var(--signal); }
+  pre .prompt { color: var(--dim); user-select: none; }
+
+  button.action {
+    font-family: var(--ui); font-size: 0.82rem; font-weight: 500;
+    padding: 0.4rem 0.85rem; border-radius: 2px; cursor: pointer;
+    background: var(--ink); color: var(--panel); border: 1px solid var(--ink);
+    transition: background 0.12s ease;
+  }
+  button.action:hover { background: var(--signal); border-color: var(--signal); }
+  button.action.ghost { background: transparent; color: var(--dim); border-color: var(--rule); }
+  button.action.ghost:hover { background: transparent; color: var(--ink); border-color: var(--dim); }
+  button.action[disabled] { opacity: 0.4; cursor: not-allowed; }
+
+  .cmd-tools { display: flex; gap: 0.5rem; align-items: center; }
+
+  table.why { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.84rem; }
+  table.why td { padding: 0.4rem 0 0.4rem; border-top: 1px solid var(--rule); vertical-align: top; }
+  table.why td:first-child {
+    font-family: var(--mono); color: var(--signal); white-space: nowrap;
+    padding-right: 1.2rem; width: 1%;
+  }
+  table.why td:last-child { color: var(--dim); }
+
+  details.notes { margin-top: 2.4rem; font-size: 0.87rem; color: var(--dim); }
+  details.notes summary { cursor: pointer; color: var(--ink); font-weight: 500; }
+  details.notes p { max-width: 64ch; }
+  details.notes code { font-family: var(--mono); color: var(--ink); font-size: 0.92em; }
+
+  footer { margin-top: 3rem; font-size: 0.8rem; color: var(--dim); }
+  footer a { color: var(--signal); }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <h1>playlist &rarr; audio</h1>
+  <p class="lede">Paste a YouTube or YouTube&nbsp;Music playlist, pick a quality tier, and copy the <code>yt-dlp</code> command. The downloading happens on your machine — a web page can't pull YouTube streams itself, and anything that claims to is routing your request through someone else's server.</p>
+  <p class="prereq">Needs <code>yt-dlp</code> and <code>ffmpeg</code> on PATH. Update first: <code>py -m pip install -U "yt-dlp[default]"</code> &nbsp;·&nbsp; ffmpeg: <code>winget install Gyan.FFmpeg</code></p>
+
+  <section>
+    <h2>Playlist</h2>
+    <input type="text" id="url" spellcheck="false" autocomplete="off"
+           placeholder="https://music.youtube.com/playlist?list=…">
+    <div class="readout" id="readout">Nothing pasted yet.</div>
+  </section>
+
+  <section>
+    <h2>Quality</h2>
+    <div class="tiers" id="tiers">
+
+      <button class="tier" type="button" data-tier="max" aria-pressed="false">
+        <div class="bars" data-bars="48" data-height="1"></div>
+        <h3>Highest quality</h3>
+        <div class="rate" id="max-rate">~160 kbps Opus · untouched</div>
+        <p>Keeps YouTube's own audio stream with no re-encode. That stream is the ceiling — there is no better-sounding version behind it to go and fetch.</p>
+        <div class="tier-extra">
+          <label for="maxq">Container</label>
+          <select id="maxq">
+            <option value="best" selected>As served — Opus or M4A</option>
+            <option value="flac">FLAC — for editors</option>
+            <option value="wav">WAV — for editors</option>
+          </select>
+        </div>
+      </button>
+
+      <button class="tier" type="button" data-tier="balanced" aria-pressed="true">
+        <div class="bars" data-bars="20" data-height="0.58"></div>
+        <h3>Balanced</h3>
+        <div class="rate" id="bal-rate">~245 kbps · stereo</div>
+        <p>Re-encoded to MP3. Costs a little fidelity that you are unlikely to hear, and buys playback on anything that has ever had a headphone jack.</p>
+        <div class="tier-extra">
+          <label for="balq">Encoder setting</label>
+          <select id="balq">
+            <option value="mp3:0" selected>MP3 V0 — variable, ~245 kbps</option>
+            <option value="mp3:2">MP3 V2 — variable, ~190 kbps</option>
+            <option value="mp3:320K">MP3 — 320 kbps constant</option>
+            <option value="opus:128K">Opus — 128 kbps, smaller</option>
+          </select>
+        </div>
+      </button>
+
+      <button class="tier" type="button" data-tier="min" aria-pressed="false">
+        <div class="bars" data-bars="4" data-height="0.13"></div>
+        <h3>Smallest file</h3>
+        <div class="rate" id="min-rate">6 kbps · 1 channel</div>
+        <p>Opus at the bottom of its range, downmixed to mono and put in speech mode. An hour of talk lands around 3&nbsp;MB. Music comes out sounding like a phone call.</p>
+        <div class="tier-extra">
+          <label for="minq">Bitrate</label>
+          <select id="minq">
+            <option value="6K" selected>6 kbps — floor, speech only</option>
+            <option value="12K">12 kbps — clear speech</option>
+            <option value="24K">24 kbps — speech, comfortable</option>
+            <option value="32K">32 kbps — tolerable music</option>
+          </select>
+        </div>
+      </button>
+
+    </div>
+
+    <div class="est">
+      <div class="est-head">
+        <div class="est-fields">
+          <div class="field">
+            <label for="tracks">Videos in playlist</label>
+            <input type="number" id="tracks" value="25" min="1" max="20000" step="1">
+          </div>
+          <div class="field">
+            <label for="avglen">Average length</label>
+            <input type="text" id="avglen" value="4:00" spellcheck="false">
+          </div>
+        </div>
+        <div class="est-total" id="est-total">1 h 40 m</div>
+      </div>
+
+      <table class="est-rows" id="est-rows"></table>
+
+      <div class="est-note" id="est-note">The playlist page shows the count next to the title. Length takes <code>4:00</code>, <code>1:04:00</code>, or <code>4.5</code> for minutes.</div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Options</h2>
+    <div class="opts">
+      <label class="opt"><input type="checkbox" id="o-number" checked>
+        <span>Number the files<em>Prefixes 001, 002… so playlist order survives alphabetical sorting.</em></span></label>
+
+      <label class="opt"><input type="checkbox" id="o-meta" checked>
+        <span>Write tags<em>Title, artist, and upload date into the file's metadata.</em></span></label>
+
+      <label class="opt"><input type="checkbox" id="o-album" checked>
+        <span>Album = playlist name<em>Makes the playlist land as one album in a music library.</em></span></label>
+
+      <label class="opt"><input type="checkbox" id="o-thumb" checked>
+        <span>Embed cover art<em>Uses the video thumbnail, cropped square.</em></span></label>
+
+      <label class="opt"><input type="checkbox" id="o-archive" checked>
+        <span>Keep an archive file<em>Records what it fetched, so re-running only picks up what's new.</em></span></label>
+
+      <label class="opt"><input type="checkbox" id="o-slow" checked>
+        <span>Go slowly<em>Pauses between tracks. Long playlists hammered at full speed get throttled.</em></span></label>
+
+      <label class="opt"><input type="checkbox" id="o-continue" checked>
+        <span>Skip failures<em>One dead or region-locked video won't stop the run.</em></span></label>
+
+      <label class="opt"><input type="checkbox" id="o-sponsor">
+        <span>Cut sponsor segments<em>Uses SponsorBlock. Helpful on talk content, risky on music.</em></span></label>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label for="dest">Save to</label>
+        <input type="text" id="dest" spellcheck="false" value="D:\Music" placeholder="D:\Music">
+      </div>
+      <div class="field">
+        <label for="items">Only tracks</label>
+        <input type="text" id="items" spellcheck="false" placeholder="e.g. 1-20">
+      </div>
+      <div class="field">
+        <label for="cookies">Sign-in cookies</label>
+        <select id="cookies">
+          <option value="">Not needed</option>
+          <option value="firefox">From Firefox</option>
+          <option value="chrome">From Chrome</option>
+          <option value="edge">From Edge</option>
+          <option value="brave">From Brave</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="shell">Shell</label>
+        <select id="shell">
+          <option value="pwsh" selected>PowerShell</option>
+          <option value="bash">bash / zsh</option>
+        </select>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="cmd-head">
+      <h2>Command</h2>
+      <div class="cmd-tools">
+        <button class="action ghost" type="button" id="wrap-btn">Wrap lines</button>
+        <button class="action" type="button" id="copy-btn">Copy</button>
+      </div>
+    </div>
+    <pre id="cmd"></pre>
+    <table class="why" id="why"></table>
+  </section>
+
+  <details class="notes">
+    <summary>When it doesn't work</summary>
+    <p><b>“Requested format is not available” or a signature error.</b> YouTube changed something. Update yt-dlp — <code>py -m pip install -U "yt-dlp[default]"</code> — before assuming anything else is wrong. This is the cause most of the time.</p>
+    <p><b>“ffmpeg not found”.</b> Every tier here re-encodes, so ffmpeg is not optional. Install it and open a fresh terminal so PATH refreshes.</p>
+    <p><b>A private playlist, your Liked Music, or an age-gated video.</b> Set the cookie option to the browser you're signed into. Close that browser first — Chrome and Edge lock their cookie database while running.</p>
+    <p><b>Everything stalls partway through a long playlist.</b> Leave “Go slowly” on and re-run. The archive file means it resumes where it stopped instead of starting over.</p>
+    <p><b>Tracks are tagged oddly.</b> YouTube Music playlists carry real artist and album metadata; plain YouTube playlists mostly don't, so tags get built from the video title. Nothing to be done about that at the download stage.</p>
+    <p><b>A note on what you point this at.</b> Fine for your own uploads, Creative Commons and public-domain material, and things you already hold a licence to. Ripping a commercial music catalogue is something else, and no flag in this builder changes that.</p>
+  </details>
+
+  <footer><a href="index.html">&larr; SmallPages</a></footer>
+
+</div>
+
+<script>
+"use strict";
+
+/* ------------------------------------------------------------------ *
+ * bar density on the tier cards encodes data rate, so the three tiers
+ * are distinguishable before you read a single word of them.
+ * ------------------------------------------------------------------ */
+document.querySelectorAll(".bars").forEach(el => {
+  const n = +el.dataset.bars, h = +el.dataset.height;
+  for (let i = 0; i < n; i++) {
+    const bar = document.createElement("i");
+    // slight jitter so it reads as signal rather than as a progress meter
+    const wobble = 0.82 + 0.18 * Math.abs(Math.sin(i * 1.7));
+    bar.style.height = Math.max(3, 42 * h * wobble) + "px";
+    el.appendChild(bar);
+  }
+});
+
+const $ = id => document.getElementById(id);
+
+const urlEl = $("url"), readout = $("readout"), cmdEl = $("cmd"), whyEl = $("why");
+let tier = "mp3";
+let wrapped = true;
+
+/* ------------------------------------------------------------------ *
+ * URL recognition
+ *
+ * Four shapes turn up in practice: a playlist page, a watch page that
+ * happens to carry a list param, a music.youtube host, and a bare ID
+ * pasted out of an address bar. All four resolve to a canonical
+ * playlist URL so yt-dlp never has to guess.
+ * ------------------------------------------------------------------ */
+function readUrl(raw) {
+  const s = (raw || "").trim();
+  if (!s) return { state: "empty" };
+
+  // bare playlist id
+  if (/^(PL|OLAK5uy_|RDCLAK5uy_|UU|LL|FL|WL|LM|RD)[A-Za-z0-9_-]*$/.test(s)) {
+    return { state: "ok", id: s, url: "https://www.youtube.com/playlist?list=" + s,
+             kind: "playlist ID", music: s.startsWith("OLAK5uy_") };
+  }
+
+  let u;
+  try { u = new URL(s.startsWith("http") ? s : "https://" + s); }
+  catch { return { state: "bad", msg: "Not a URL yet." }; }
+
+  const host = u.hostname.replace(/^www\./, "");
+  if (!/(^|\.)(youtube\.com|youtu\.be|youtube-nocookie\.com)$/.test(host)) {
+    return { state: "bad", msg: "That host isn't YouTube." };
+  }
+
+  const list = u.searchParams.get("list");
+  const music = host === "music.youtube.com";
+
+  if (!list) {
+    const vid = u.searchParams.get("v") || (host === "youtu.be" ? u.pathname.slice(1) : "");
+    if (vid) return { state: "single", url: s, kind: "single video, no playlist attached" };
+    return { state: "bad", msg: "No playlist in that link." };
+  }
+
+  const base = music ? "https://music.youtube.com/playlist?list="
+                     : "https://www.youtube.com/playlist?list=";
+  const kind = music ? "YouTube Music playlist" : "YouTube playlist";
+  return { state: "ok", id: list, url: base + list, kind, music,
+           needsAuth: /^(LM|WL|LL)$/.test(list) };
+}
+
+function paint(info) {
+  readout.className = "readout";
+  if (info.state === "empty") { readout.textContent = "Nothing pasted yet."; return; }
+  if (info.state === "bad")   { readout.className = "readout warn";
+                                readout.innerHTML = "<b>" + info.msg + "</b>"; return; }
+  if (info.state === "single"){ readout.className = "readout warn";
+                                readout.innerHTML = "<b>Single video</b> — it'll grab just this one track."; return; }
+
+  let txt = "<b>" + info.kind + "</b> · " + info.id;
+  if (info.needsAuth) {
+    readout.className = "readout warn";
+    txt += " — this one is tied to your account, so set the cookie option below.";
+  }
+  readout.innerHTML = txt;
+}
+
+/* ------------------------------------------------------------------ *
+ * command assembly
+ *
+ * Each part carries its own explanation, so the annotated table below
+ * the command is generated from the same source as the command itself
+ * and can never drift out of sync with it.
+ * ------------------------------------------------------------------ */
+function build() {
+  const info = readUrl(urlEl.value);
+  paint(info);
+
+  const parts = [];
+  const add = (arg, why) => parts.push({ arg, why });
+
+  add("yt-dlp", null);
+
+  // ── format selection ────────────────────────────────────
+  add('-f "bestaudio/best"', "Take the best audio-only stream; fall back to a full video if none exists.");
+
+  if (tier === "max") {
+    const c = $("maxq").value;
+    if (c === "best") {
+      // No --audio-quality here on purpose: setting one forces a re-encode,
+      // which is exactly what this tier exists to avoid.
+      add("-x --audio-format best",
+          "Strip the audio out of its container and leave the codec alone. Nothing is re-encoded, so nothing is lost.");
+    } else {
+      add("-x --audio-format " + c,
+          "Decode YouTube's stream and rewrite it as " + c.toUpperCase() +
+          ". No fidelity is gained — the source was lossy — but editors that refuse compressed input will take this.");
+    }
+  } else if (tier === "balanced") {
+    const [codec, q] = $("balq").value.split(":");
+    if (codec === "mp3") {
+      add("-x --audio-format mp3 --audio-quality " + q,
+          q.endsWith("K") ? "Encode MP3 at a constant " + q.replace("K", " kbps") + "."
+                          : "Encode MP3 with LAME quality V" + q + ", variable bitrate.");
+    } else {
+      add("-x --audio-format opus --audio-quality " + q,
+          "Encode Opus at " + q.replace("K", " kbps") + " — roughly MP3 V0 quality at half the size, on players that support it.");
+    }
+  } else {
+    const q = $("minq").value;
+    add("-x --audio-format opus --audio-quality " + q,
+        "Encode Opus at " + q.replace("K", " kbps") + ". Naming a bitrate also forces a real re-encode — YouTube already serves Opus, so without it yt-dlp would just copy the stream across untouched.");
+    add('--postprocessor-args "ExtractAudio:-ac 1 -application voip"',
+        "Downmix to one channel and put the encoder in speech mode, which is the only way the bottom of the range stays intelligible.");
+  }
+
+  // ── destination and naming ──────────────────────────────
+  const dest = $("dest").value.trim();
+  if (dest) add('-P "' + dest + '"', "Everything lands under this folder.");
+
+  const numbered = $("o-number").checked;
+  const tpl = numbered
+    ? "%(playlist_title|Downloads)s/%(playlist_index)03d %(title)s.%(ext)s"
+    : "%(playlist_title|Downloads)s/%(title)s.%(ext)s";
+  add('-o "' + tpl + '"',
+      numbered ? "One subfolder per playlist, files numbered in playlist order."
+               : "One subfolder per playlist, files named after the track.");
+
+  // ── metadata ────────────────────────────────────────────
+  if ($("o-meta").checked)  add("--embed-metadata", "Write title, artist, and date into the file's tags.");
+  if ($("o-album").checked) add('--parse-metadata "playlist_title:%(album)s"',
+                                "Use the playlist name as the album tag so it groups in a music library.");
+  if ($("o-thumb").checked) add("--embed-thumbnail", "Attach the thumbnail as cover art.");
+
+  // ── run behaviour ───────────────────────────────────────
+  if ($("o-archive").checked)
+    add('--download-archive "archive.txt"',
+        "Log each finished track. Re-running the same command fetches only what's new.");
+  if ($("o-continue").checked)
+    add("--ignore-errors --no-overwrites",
+        "Skip anything unavailable and don't redo files that already exist.");
+  if ($("o-slow").checked)
+    add("--sleep-requests 1.5 --sleep-interval 2 --max-sleep-interval 6",
+        "Pause between requests. Long playlists pulled flat out get rate-limited.");
+  if ($("o-sponsor").checked)
+    add("--sponsorblock-remove sponsor,selfpromo",
+        "Cut segments the SponsorBlock community has flagged. It works on timestamps, so it can clip music.");
+
+  const items = $("items").value.trim();
+  if (items) add('--playlist-items ' + items, "Restrict to this slice of the playlist.");
+
+  const ck = $("cookies").value;
+  if (ck) add("--cookies-from-browser " + ck,
+              "Borrow your session from " + ck[0].toUpperCase() + ck.slice(1) + " for private or age-gated tracks. Close that browser first.");
+
+  add("--yes-playlist", "Treat the link as a playlist even when it also points at one video.");
+
+  // ── target ──────────────────────────────────────────────
+  const target = info.state === "ok" || info.state === "single" ? info.url : "PLAYLIST_URL";
+  add('"' + target + '"',
+      info.state === "ok" ? "The playlist, in its canonical form." : "Paste your playlist link above and this fills itself in.");
+
+  return parts;
+}
+
+function render() {
+  const parts = build();
+  const shell = $("shell").value;
+  const cont = shell === "pwsh" ? "`" : "\\";
+  const prompt = shell === "pwsh" ? "PS> " : "$ ";
+
+  const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+  let html = '<span class="prompt">' + prompt + "</span>";
+  if (wrapped && parts.length > 2) {
+    html += esc(parts[0].arg);
+    for (let i = 1; i < parts.length; i++) {
+      html += " " + cont + "\n    " + esc(parts[i].arg);
+    }
+  } else {
+    html += parts.map(p => esc(p.arg)).join(" ");
+  }
+  cmdEl.innerHTML = html;
+
+  whyEl.innerHTML = parts
+    .filter(p => p.why)
+    .map(p => "<tr><td>" + esc(p.arg.split(" ")[0]) + "</td><td>" + esc(p.why) + "</td></tr>")
+    .join("");
+
+  sizes();
+}
+
+function plainCommand() {
+  const parts = build();
+  const shell = $("shell").value;
+  const cont = shell === "pwsh" ? "`" : "\\";
+  if (!wrapped) return parts.map(p => p.arg).join(" ");
+  return parts.map(p => p.arg).join(" " + cont + "\n    ");
+}
+
+/* ------------------------------------------------------------------ *
+ * size estimate
+ *
+ * Driven off total seconds rather than a track count: a playlist that
+ * mixes 90-second interludes with 20-minute sets has no meaningful
+ * per-track size, and the runtime is what the bitrate multiplies.
+ * ------------------------------------------------------------------ */
+function rates() {
+  const c = $("maxq").value;
+  // 160 is the practical rate of YouTube's opus 251 stream; FLAC off a
+  // lossy source compresses badly, nearer 60% of PCM than a CD rip's 55%.
+  const max = c === "wav" ? 1411 : c === "flac" ? 850 : 160;
+  const maxLabel = c === "wav"  ? "1411 kbps · uncompressed"
+                 : c === "flac" ? "~850 kbps · lossless wrapper"
+                 :                "~160 kbps Opus · untouched";
+
+  const [bcodec, bq] = $("balq").value.split(":");
+  const bal = bq.endsWith("K") ? +bq.replace("K", "") : (bq === "0" ? 245 : 190);
+  const balLabel = "~" + bal + " kbps · stereo" + (bcodec === "opus" ? " Opus" : "");
+
+  const min = +$("minq").value.replace("K", "");
+  const minLabel = min + " kbps · 1 channel";
+
+  $("max-rate").textContent = maxLabel;
+  $("bal-rate").textContent = balLabel;
+  $("min-rate").textContent = minLabel;
+
+  return [
+    { key: "max",      name: "Highest quality", kbps: max, label: maxLabel },
+    { key: "balanced", name: "Balanced",        kbps: bal, label: balLabel },
+    { key: "min",      name: "Smallest file",   kbps: min, label: minLabel },
+  ];
+}
+
+function parseLen(s) {
+  const m = String(s || "").trim().match(/^(?:(\d+):)?(\d{1,2}):(\d{1,2})$|^(\d+):(\d{1,2})$|^(\d+(?:\.\d+)?)$/);
+  if (!m) return null;
+  if (m[6] !== undefined) return Math.round(+m[6] * 60);            // "4" or "4.5" minutes
+  if (m[4] !== undefined) return +m[4] * 60 + +m[5];                // "4:00"
+  return (+(m[1] || 0)) * 3600 + +m[2] * 60 + +m[3];                // "1:04:00"
+}
+
+function fmtDur(sec) {
+  const h = Math.floor(sec / 3600), m = Math.round((sec % 3600) / 60);
+  return h ? h + " h " + String(m).padStart(2, "0") + " m" : m + " m";
+}
+
+function fmtSize(bytes) {
+  const mb = bytes / 1048576;
+  return mb < 1    ? (bytes / 1024).toFixed(0) + " KB"
+       : mb < 1024 ? mb.toFixed(mb < 10 ? 1 : 0) + " MB"
+       :             (mb / 1024).toFixed(mb / 1024 < 10 ? 2 : 1) + " GB";
+}
+
+function sizes() {
+  const rows = rates();
+
+  const tracks = Math.max(1, Math.min(20000, +$("tracks").value || 1));
+  const per = parseLen($("avglen").value);
+  $("avglen").style.borderColor = per === null ? "#8a4a22" : "";
+  const seconds = tracks * (per === null ? 240 : per);
+
+  $("est-total").textContent = fmtDur(seconds) + " of audio";
+
+  $("est-rows").innerHTML = rows.map(r =>
+    '<tr class="' + (r.key === tier ? "on" : "") + '">' +
+      '<td class="tier-name">' + r.name + "</td>" +
+      '<td class="tier-rate">' + r.label.replace(/^~/, "") + "</td>" +
+      '<td class="tier-size">' + fmtSize(r.kbps * 1000 * seconds / 8) + "</td>" +
+    "</tr>").join("");
+}
+
+/* ── wiring ──────────────────────────────────────────────── */
+document.querySelectorAll(".tier").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".tier").forEach(b => b.setAttribute("aria-pressed", "false"));
+    btn.setAttribute("aria-pressed", "true");
+    tier = btn.dataset.tier;
+    render();
+  });
+});
+
+// clicking the selects inside a card shouldn't re-trigger the card itself
+document.querySelectorAll(".tier-extra select").forEach(sel => {
+  sel.addEventListener("click", e => e.stopPropagation());
+  sel.addEventListener("change", e => { e.stopPropagation(); render(); });
+});
+
+["url", "dest", "items", "cookies", "shell", "tracks", "avglen",
+ "o-number", "o-meta", "o-album", "o-thumb", "o-archive", "o-slow", "o-continue", "o-sponsor"]
+  .forEach(id => {
+    $(id).addEventListener("input", render);
+    $(id).addEventListener("change", render);
+  });
+
+$("wrap-btn").addEventListener("click", () => {
+  wrapped = !wrapped;
+  $("wrap-btn").textContent = wrapped ? "One line" : "Wrap lines";
+  render();
+});
+
+$("copy-btn").addEventListener("click", async () => {
+  const btn = $("copy-btn");
+  try {
+    await navigator.clipboard.writeText(plainCommand());
+    btn.textContent = "Copied";
+  } catch {
+    // clipboard API needs a secure context; select the block so Ctrl+C still works
+    const r = document.createRange();
+    r.selectNodeContents(cmdEl);
+    const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+    btn.textContent = "Press Ctrl+C";
+  }
+  setTimeout(() => { btn.textContent = "Copy"; }, 1600);
+});
+
+render();
+</script>
+</body>
+</html>
