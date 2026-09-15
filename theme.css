@@ -2,12 +2,18 @@
 
 /* ============================================================================
    SmallPages — unified theme
-   Monochromatic neon on true OLED black. One typeface, one hue.
+   Monochromatic glow on true OLED black. One typeface, one accent.
 
-   Every colour on every page is derived from --h below. Change that one
-   number to re-skin the whole repo:
-     288 violet-magenta (default) · 190 cyan · 330 hot pink
-     155 acid green · 40 amber · 0 red
+   Two knobs, both below. --sat is the master: 0 is the default white glow,
+   1 is full colour. --h picks which colour that is once --sat is above 0,
+   and does nothing at all while --sat is 0.
+
+     --sat: 0      white (default)
+     --sat: 1      full colour, at whatever --h says
+     --sat: 0.35   a barely-there wash of --h
+
+     --h: 288 violet-magenta · 190 cyan · 330 hot pink
+          155 acid green · 40 amber · 0 red
 
    Link it in <head>, before the page's own <style> block:
      <link rel="stylesheet" href="theme.css">
@@ -15,30 +21,50 @@
    ========================================================================== */
 
 :root {
+  --sat: 0;
   --h: 288;
+
+  /* Saturation channels, all scaled by the master knob. */
+  --s-accent: calc(var(--sat) * 100%);
+  --s-deep:   calc(var(--sat) * 85%);
+  --s-line:   calc(var(--sat) * 45%);
+  --s-ink:    calc(var(--sat) * 18%);
+
+  /* As colour drains out, accents climb toward white so they stay accents
+     instead of collapsing into mid-grey. At --sat: 1 these are the plain
+     neon lightnesses; at --sat: 0 only --l-hot reaches pure white, which is
+     what keeps hover and focus a visible step above the resting state. */
+  --l-neon: calc(68% + (1 - var(--sat)) * 30%);
+  --l-hot:  calc(80% + (1 - var(--sat)) * 20%);
+  --l-deep: calc(46% + (1 - var(--sat)) * 16%);
+  --l-glow: calc(62% + (1 - var(--sat)) * 38%);
+
+  /* Reusable colour stems. hsl(var(--tint) / 0.07) reads the alpha off the end. */
+  --tint:      var(--h) var(--s-accent) var(--l-glow);
+  --tint-deep: var(--h) var(--s-line) 9%;
 
   /* Surface — true black, so OLED pixels actually switch off.
      Depth comes from hairlines and glow, never from lighter greys. */
   --bg:        #000000;
-  --raised:    hsl(var(--h) 45% 6%);
-  --sunken:    hsl(var(--h) 40% 3%);
+  --raised:    hsl(var(--h) var(--s-line) 6%);
+  --sunken:    hsl(var(--h) var(--s-line) 3%);
 
-  /* Neon — reserved for things that are live, focused, or clickable */
-  --neon:      hsl(var(--h) 100% 68%);
-  --neon-hot:  hsl(var(--h) 100% 80%);
-  --neon-deep: hsl(var(--h) 85% 46%);
-  --glow:      0 0 14px hsl(var(--h) 100% 62% / 0.40);
-  --glow-soft: 0 0 8px  hsl(var(--h) 100% 62% / 0.22);
-  --text-glow: 0 0 10px hsl(var(--h) 100% 65% / 0.45);
+  /* Glow — reserved for things that are live, focused, or clickable */
+  --neon:      hsl(var(--h) var(--s-accent) var(--l-neon));
+  --neon-hot:  hsl(var(--h) var(--s-accent) var(--l-hot));
+  --neon-deep: hsl(var(--h) var(--s-deep) var(--l-deep));
+  --glow:      0 0 14px hsl(var(--tint) / 0.40);
+  --glow-soft: 0 0 8px  hsl(var(--tint) / 0.22);
+  --text-glow: 0 0 10px hsl(var(--tint) / 0.45);
 
-  /* Ink — hue-tinted neutrals, never pure grey */
-  --text:      hsl(var(--h) 20% 94%);
-  --text-dim:  hsl(var(--h) 14% 58%);
-  --text-faint: hsl(var(--h) 14% 38%);
+  /* Ink */
+  --text:       hsl(var(--h) var(--s-ink) 94%);
+  --text-dim:   hsl(var(--h) var(--s-ink) 58%);
+  --text-faint: hsl(var(--h) var(--s-ink) 38%);
 
   /* Structure */
-  --line:      hsl(var(--h) 45% 22%);
-  --line-soft: hsl(var(--h) 45% 14%);
+  --line:      hsl(var(--h) var(--s-line) 22%);
+  --line-soft: hsl(var(--h) var(--s-line) 14%);
 
   /* Type — one family doing every job, differentiated by weight and tracking */
   --sans: "Lexend Deca", "Helvetica Neue", Helvetica, Arial, sans-serif;
@@ -68,7 +94,7 @@ body {
 /* The starfield on the friend map was built for a purple-black page. */
 body::before { display: none !important; }
 
-::selection { background: hsl(var(--h) 100% 62% / 0.28); color: #fff; }
+::selection { background: hsl(var(--tint) / 0.28); color: #fff; }
 
 :focus-visible {
   outline: 1px solid var(--neon);
@@ -131,7 +157,7 @@ code, .mcmeta-out, .stats b, .rail-meta, input[type="number"] {
 a {
   color: var(--neon);
   text-decoration: none;
-  border-bottom: 1px solid hsl(var(--h) 100% 68% / 0.35);
+  border-bottom: 1px solid hsl(var(--tint) / 0.35);
   transition: color 0.15s ease, border-color 0.15s ease, text-shadow 0.15s ease;
 }
 a:hover, a:focus-visible {
@@ -139,7 +165,7 @@ a:hover, a:focus-visible {
   border-color: var(--neon-hot);
   text-shadow: var(--text-glow);
 }
-.download-list a { color: var(--neon); border-bottom-color: hsl(var(--h) 100% 68% / 0.35); }
+.download-list a { color: var(--neon); border-bottom-color: hsl(var(--tint) / 0.35); }
 .download-list a:hover { color: var(--neon-hot); border-color: var(--neon-hot); }
 
 /* ------------------------------------------------------------ surfaces --- */
@@ -156,10 +182,10 @@ a:hover, a:focus-visible {
 .preview, .stage {
   background-color: var(--sunken);
   background-image:
-    linear-gradient(45deg,  hsl(var(--h) 40% 9%) 25%, transparent 25%),
-    linear-gradient(-45deg, hsl(var(--h) 40% 9%) 25%, transparent 25%),
-    linear-gradient(45deg,  transparent 75%, hsl(var(--h) 40% 9%) 75%),
-    linear-gradient(-45deg, transparent 75%, hsl(var(--h) 40% 9%) 75%);
+    linear-gradient(45deg,  hsl(var(--tint-deep)) 25%, transparent 25%),
+    linear-gradient(-45deg, hsl(var(--tint-deep)) 25%, transparent 25%),
+    linear-gradient(45deg,  transparent 75%, hsl(var(--tint-deep)) 75%),
+    linear-gradient(-45deg, transparent 75%, hsl(var(--tint-deep)) 75%);
 }
 
 .divider { background: var(--line-soft); }
@@ -174,7 +200,7 @@ a:hover, a:focus-visible {
 }
 .dropzone:hover, .dropzone.drag, .dropzone:focus-visible {
   border-color: var(--neon);
-  background: hsl(var(--h) 100% 60% / 0.05);
+  background: hsl(var(--tint) / 0.05);
   box-shadow: inset var(--glow-soft);
   outline: none;
 }
@@ -228,10 +254,10 @@ button:not(:disabled):hover,
 button:not(:disabled):focus-visible {
   color: var(--neon-hot);
   border-color: var(--neon);
-  background: hsl(var(--h) 100% 60% / 0.07);
+  background: hsl(var(--tint) / 0.07);
   box-shadow: var(--glow);
 }
-button:not(:disabled):active { background: hsl(var(--h) 100% 60% / 0.14); }
+button:not(:disabled):active { background: hsl(var(--tint) / 0.14); }
 button:disabled {
   color: var(--text-faint);
   border-color: var(--line-soft);
@@ -245,7 +271,7 @@ button:disabled {
 .seg button.on, .seg button[aria-pressed="true"], .seg button.active {
   color: var(--neon);
   border-color: var(--neon);
-  background: hsl(var(--h) 100% 60% / 0.08);
+  background: hsl(var(--tint) / 0.08);
   box-shadow: var(--glow-soft);
 }
 
@@ -270,14 +296,14 @@ button.ghost:not(:disabled):hover { color: var(--neon); border-color: var(--neon
   flex-direction: column;
   gap: 0.35rem;
 }
-.swatch .chip { height: 34px; border: 1px solid hsl(var(--h) 30% 40%); cursor: pointer; padding: 0; width: 100%; }
+.swatch .chip { height: 34px; border: 1px solid hsl(var(--h) var(--s-line) 40%); cursor: pointer; padding: 0; width: 100%; }
 .swatch .chip:hover { border-color: var(--neon); }
 .swatch .acts button { flex: 1; font-size: 0.68rem; padding: 0.15rem 0; }
 .swatch.locked { border-color: var(--neon-deep); }
 .swatch.locked .acts button.lk {
   color: var(--neon);
   border-color: var(--neon);
-  background: hsl(var(--h) 100% 60% / 0.10);
+  background: hsl(var(--tint) / 0.10);
 }
 
 #reset-btn { color: var(--text-dim); border-color: var(--line); }
@@ -318,19 +344,19 @@ header { border-bottom: 1px solid var(--line-soft); }
   border: 1px solid transparent;
   border-radius: 0;
 }
-.sidebar .chip:hover { background: hsl(var(--h) 100% 60% / 0.07); }
+.sidebar .chip:hover { background: hsl(var(--tint) / 0.07); }
 .sidebar .chip.active {
-  background: hsl(var(--h) 100% 60% / 0.12);
+  background: hsl(var(--tint) / 0.12);
   border-color: var(--neon-deep);
   color: var(--neon-hot);
 }
 .chip-count {
   color: var(--text-faint);
-  background: hsl(var(--h) 40% 12%);
+  background: hsl(var(--h) var(--s-line) 12%);
   border-radius: 0;
 }
 
-#tooltip { box-shadow: 0 0 0 1px hsl(var(--h) 100% 60% / 0.12), 0 8px 30px #000; }
+#tooltip { box-shadow: 0 0 0 1px hsl(var(--tint) / 0.12), 0 8px 30px #000; }
 #tooltip .tip-title {
   font-family: var(--sans);
   font-weight: 500;
@@ -349,11 +375,11 @@ header { border-bottom: 1px solid var(--line-soft); }
 /* The old legend advertised a rainbow; the scale is now one hue, dim → lit. */
 .leg-rainbow {
   background: linear-gradient(to right,
-    hsl(var(--h) 55% 22%), hsl(var(--h) 100% 68%));
+    hsl(var(--h) var(--s-line) 22%), var(--neon));
   border-radius: 0;
 }
-.leg-solid  { border-color: hsl(var(--h) 100% 68% / 0.55); }
-.leg-dashed { border-color: hsl(var(--h) 14% 45%); }
+.leg-solid  { border-color: hsl(var(--tint) / 0.55); }
+.leg-dashed { border-color: hsl(var(--h) var(--s-ink) 45%); }
 
 /* ---------------------------------------------------------------- nav ---- */
 

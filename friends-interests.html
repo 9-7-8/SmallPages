@@ -164,15 +164,19 @@ const Data = (() => {
 })();
 
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║  COLORS — one hue from theme.css; rank is carried by lightness              ║
+// ║  COLORS — rank is carried by lightness, not by hue                          ║
 // ╚══════════════════════════════════════════════════════════════════════════════╝
-// Canvas cannot read CSS custom properties, so the hue is pulled out once here
-// and every colour below is derived from it. Change --h in theme.css and the
-// graph re-skins along with the rest of the page.
+// Canvas cannot read CSS custom properties, so --sat and --h are pulled out once
+// here and every colour below is derived from them, mirroring what theme.css
+// does. Change either one there and the graph re-skins with the rest of the page.
 const Colors = (() => {
-  const H = parseInt(
-    getComputedStyle(document.documentElement).getPropertyValue('--h'), 10
-  ) || 288;
+  const css = getComputedStyle(document.documentElement);
+  const num = (name, fallback) => {
+    const v = parseFloat(css.getPropertyValue(name));
+    return Number.isFinite(v) ? v : fallback;
+  };
+  const H   = num('--h', 288);
+  const SAT = num('--sat', 0);   // 0 = white glow, 1 = full colour
 
   function hslToHex(h, s, l) {
     s /= 100; l /= 100;
@@ -183,12 +187,14 @@ const Colors = (() => {
     return '#' + hex(f(0)) + hex(f(8)) + hex(f(4));
   }
 
-  // Shorthand for a translucent tint of the theme hue.
-  const hsl = (s, l, a = 1) => `hsl(${H} ${s}% ${l}% / ${a})`;
+  // Shorthand for a translucent tint. Saturations are quoted at full colour
+  // and scaled down by SAT, matching how theme.css derives its own values.
+  const hsl = (s, l, a = 1) => `hsl(${H} ${s * SAT}% ${l}% / ${a})`;
 
-  // t=0 → dim, t=1 → fully lit
+  // t=0 → dim, t=1 → fully lit. As colour drains out the top of the range
+  // climbs to white, so rank stays legible without a hue to carry it.
   function ramp(t) {
-    return hslToHex(H, 55 + t * 45, 26 + t * 42);
+    return hslToHex(H, (55 + t * 45) * SAT, 26 + t * 42 + (1 - SAT) * t * 32);
   }
 
   // Assign lightness to interests by member count rank
@@ -200,16 +206,16 @@ const Colors = (() => {
   });
 
   // People are deliberately desaturated so lit interest nodes read as the signal.
-  const PERSON      = hslToHex(H, 12, 60);
+  const PERSON      = hslToHex(H, 12 * SAT, 60);
   const BG          = '#000000';
-  const TEXT        = hslToHex(H, 20, 94);
-  const TEXT_DIM    = hslToHex(H, 14, 58);
-  const PERSON_TEXT = hslToHex(H, 14, 82);
-  const PERSON_DIM  = hslToHex(H, 12, 40);
+  const TEXT        = hslToHex(H, 18 * SAT, 94);
+  const TEXT_DIM    = hslToHex(H, 18 * SAT, 58);
+  const PERSON_TEXT = hslToHex(H, 14 * SAT, 82);
+  const PERSON_DIM  = hslToHex(H, 12 * SAT, 40);
 
   const FONT = (weight, size) => `${weight} ${size}px 'Lexend Deca', Helvetica, sans-serif`;
 
-  return { H, hsl, catColors, PERSON, BG, TEXT, TEXT_DIM, PERSON_TEXT, PERSON_DIM, FONT };
+  return { H, SAT, hsl, catColors, PERSON, BG, TEXT, TEXT_DIM, PERSON_TEXT, PERSON_DIM, FONT };
 })();
 
 // ╔══════════════════════════════════════════════════════════════════════════════╗

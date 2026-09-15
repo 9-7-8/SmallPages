@@ -18,33 +18,42 @@ close it. Nothing is uploaded anywhere; every image, GIF and byte stays in your 
 
 ## Theme
 
-All pages share [`theme.css`](theme.css): a monochromatic neon palette on true OLED
-black, set in Lexend Deca (falling back to Helvetica).
+All pages share [`theme.css`](theme.css): a monochromatic glow on true OLED black,
+set in Lexend Deca (falling back to Helvetica).
 
-Every colour derives from a single custom property at the top of the file:
+Two custom properties at the top of the file drive every colour in the repo:
 
 ```css
-:root { --h: 288; }  /* violet-magenta */
+:root {
+  --sat: 0;    /* 0 = white glow · 1 = full colour */
+  --h: 288;    /* which colour, once --sat is above 0 */
+}
 ```
 
-Change that number and the whole repo re-skins. Some that work well:
+`--sat` is the master. At `0` — the default — hue drops out entirely and the
+accent is white. Raise it and `--h` starts to show; `0.35` gives a faint wash,
+`1` gives full neon. Hues that work well:
 
 | `--h` | |
 | --- | --- |
-| `288` | violet-magenta (default) |
+| `288` | violet-magenta |
 | `190` | cyan |
 | `330` | hot pink |
 | `155` | acid green |
 | `40` | amber |
+
+Saturation is scaled by `--sat` throughout, and accents brighten toward white as
+colour drains out, so they stay accents instead of collapsing into mid-grey.
 
 Every page links `theme.css` in `<head>` and keeps only layout and sizing in its
 own `<style>` block — no page declares a colour or a typeface. Shared components
 (`.card`, `.dropzone`, `.seg`, `.swatch`, `button`, form controls) are styled once
 in the theme, so a new page inherits the look with almost no CSS of its own.
 
-Canvas drawing can't read CSS, so `friends-interests.html` pulls `--h` out with
-`getComputedStyle` and derives its node colours from the same hue — interests are
-ranked by lightness, dim for the fewest members through to fully lit for the most.
+Canvas drawing can't read CSS, so `friends-interests.html` pulls both properties
+out with `getComputedStyle` and derives its node colours the same way — interests
+are ranked by lightness, dim for the fewest members through to fully lit for the
+most, which reads the same whether or not there's a hue behind it.
 
 ## Running locally
 
