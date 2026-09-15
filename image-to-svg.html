@@ -4,26 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>image → svg</title>
+<link rel="stylesheet" href="theme.css">
 <style>
-  :root {
-    --ink: #1c1a17;
-    --paper: #eae5d8;
-    --line: #b8ae97;
-    --accent: #6b7a4f;
-    --accent-dim: #56613f;
-    --mono: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
-    --serif: "IBM Plex Serif", Georgia, serif;
-  }
-
-  * { box-sizing: border-box; }
+  /* Layout and sizing only. Colour, type and component styling live in theme.css. */
 
   body {
     margin: 0;
-    background: var(--paper);
-    color: var(--ink);
-    font-family: var(--mono);
-    font-size: 15px;
-    line-height: 1.55;
     padding: 3rem 1.5rem 5rem;
   }
 
@@ -45,56 +31,27 @@
   }
 
   .rail-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.6rem; margin-bottom: 0.5rem; }
-  .rail-cap { font-size: 0.75rem; color: #6a6555; }
+  .rail-cap { font-size: 0.75rem; }
   .rail .stage { transition: opacity 0.15s ease; }
   .rail .stage img { width: 100%; height: auto; max-height: 60vh; object-fit: contain; }
   .rail.busy .stage { opacity: 0.45; }
-  .rail-meta { font-size: 0.72rem; color: #6a6555; margin-top: 0.5rem; font-variant-numeric: tabular-nums; min-height: 1.4em; }
+  .rail-meta { font-size: 0.72rem; margin-top: 0.5rem; min-height: 1.4em; }
   .seg.small button { padding: 0.25rem 0.5rem; font-size: 0.72rem; }
 
-  h1 {
-    font-family: var(--serif);
-    font-weight: 600;
-    font-size: 1.9rem;
-    margin: 0 0 0.3rem;
-    letter-spacing: -0.01em;
-  }
+  p.lede { margin: 0 0 2.2rem; max-width: 60ch; }
 
-  p.lede {
-    margin: 0 0 2.2rem;
-    max-width: 60ch;
-    color: #4a4638;
-  }
+  .card { margin-bottom: 1.5rem; }
 
-  .card {
-    border: 1px solid var(--line);
-    background: #f4f1e6;
-    padding: 1.5rem;
-    margin-bottom: 1.5rem;
-  }
-
-  h2.section {
-    font-family: var(--serif);
-    font-size: 1.05rem;
-    font-weight: 600;
-    margin: 0 0 1rem;
-  }
+  h2.section { margin: 0 0 1rem; }
   h2.section + .sub { margin-top: -0.8rem; }
 
   .dropzone {
-    border: 1px dashed var(--line);
     padding: 2.5rem 1.5rem;
     text-align: center;
     cursor: pointer;
-    transition: border-color 0.15s ease, background 0.15s ease;
-  }
-  .dropzone:hover, .dropzone.drag, .dropzone:focus-visible {
-    border-color: var(--accent-dim);
-    background: #eee9da;
-    outline: none;
   }
   .dropzone input { display: none; }
-  .dropzone .hint { color: #6a6555; font-size: 0.85rem; margin-top: 0.4rem; }
+  .dropzone .hint { font-size: 0.85rem; margin-top: 0.4rem; }
 
   fieldset {
     border: none;
@@ -108,61 +65,16 @@
   .field { display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; }
   .field.wide { grid-column: 1 / -1; }
   .field.checkbox { flex-direction: row; align-items: center; gap: 0.5rem; grid-column: 1 / -1; }
-  label { font-size: 0.8rem; color: #4a4638; }
-  .unit { color: #8a8474; }
 
-  input[type="number"], select {
-    font-family: var(--mono);
-    font-size: 0.9rem;
-    padding: 0.4rem 0.5rem;
-    border: 1px solid var(--line);
-    background: #fff;
-    color: var(--ink);
-  }
-  input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent-dim); }
-  input[type="range"] { accent-color: var(--accent-dim); width: 100%; }
-  input[type="text"] {
-    font-family: var(--mono);
-    font-size: 0.8rem;
-    padding: 0.25rem 0.35rem;
-    border: 1px solid var(--line);
-    background: #fff;
-    color: var(--ink);
-    width: 100%;
-  }
-  :focus-visible { outline: 2px solid var(--accent-dim); outline-offset: 1px; }
+  label { font-size: 0.8rem; }
+  input[type="number"], select { font-size: 0.9rem; }
+  input[type="checkbox"] { width: 16px; height: 16px; }
+  input[type="range"] { width: 100%; }
+  input[type="text"] { font-size: 0.8rem; padding: 0.25rem 0.35rem; width: 100%; }
+  .color-input { height: 34px; padding: 2px; width: 100%; }
 
-  button {
-    font-family: var(--mono);
-    font-size: 0.9rem;
-    padding: 0.6rem 1.1rem;
-    background: var(--accent-dim);
-    color: #f4f1e6;
-    border: none;
-    cursor: pointer;
-  }
-  button:disabled { background: #a7a190; cursor: not-allowed; }
-  button:not(:disabled):hover { background: var(--accent); }
-  button.ghost {
-    background: transparent;
-    color: var(--accent-dim);
-    border: 1px solid var(--line);
-    padding: 0.4rem 0.7rem;
-    font-size: 0.8rem;
-  }
-  button.ghost:not(:disabled):hover { background: #eee9da; color: var(--ink); border-color: var(--accent-dim); }
-
-  .seg { display: flex; border: 1px solid var(--line); width: fit-content; max-width: 100%; flex-wrap: wrap; }
-  .seg button {
-    background: transparent;
-    color: #4a4638;
-    padding: 0.5rem 0.9rem;
-    font-size: 0.85rem;
-    border-right: 1px solid var(--line);
-  }
-  .seg button:last-child { border-right: none; }
-  .seg button[aria-pressed="true"] { background: var(--accent-dim); color: #f4f1e6; }
-  .seg button:not([aria-pressed="true"]):hover { background: #eee9da; color: var(--ink); }
+  button { font-size: 0.9rem; }
+  .seg button { padding: 0.5rem 0.9rem; font-size: 0.85rem; }
 
   .row { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; }
 
@@ -172,34 +84,15 @@
     gap: 0.6rem;
     margin-bottom: 1rem;
   }
-  .swatch { border: 1px solid var(--line); background: #fff; padding: 0.4rem; display: flex; flex-direction: column; gap: 0.35rem; }
-  .swatch .chip { height: 34px; border: 1px solid rgba(0,0,0,0.15); cursor: pointer; padding: 0; width: 100%; }
-  .swatch .chip:hover { border-color: var(--ink); }
   .swatch input[type="color"] { position: absolute; opacity: 0; pointer-events: none; width: 0; height: 0; }
   .swatch .acts { display: flex; gap: 0.3rem; }
-  .swatch .acts button {
-    flex: 1;
-    background: transparent;
-    color: #6a6555;
-    border: 1px solid var(--line);
-    font-size: 0.68rem;
-    padding: 0.15rem 0;
-  }
-  .swatch .acts button:hover { background: #eee9da; color: var(--ink); }
-  .swatch.locked { border-color: var(--accent-dim); }
-  .swatch.locked .acts button.lk { background: var(--accent-dim); color: #f4f1e6; border-color: var(--accent-dim); }
 
   .compare { margin-top: 1rem; }
   .panes { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
   .pane { min-width: 0; }
-  .pane .cap { font-size: 0.75rem; color: #6a6555; margin-bottom: 0.35rem; }
+  .pane .cap { font-size: 0.75rem; margin-bottom: 0.35rem; }
+
   .stage {
-    border: 1px solid var(--line);
-    background:
-      linear-gradient(45deg, #ddd7c4 25%, transparent 25%),
-      linear-gradient(-45deg, #ddd7c4 25%, transparent 25%),
-      linear-gradient(45deg, transparent 75%, #ddd7c4 75%),
-      linear-gradient(-45deg, transparent 75%, #ddd7c4 75%);
     background-size: 14px 14px;
     background-position: 0 0, 0 7px, 7px -7px, -7px 0;
     position: relative;
@@ -213,27 +106,24 @@
   .wipe .layer { position: absolute; inset: 0; }
   .wipe .layer img, .wipe .layer svg { width: 100%; height: 100%; display: block; }
   .wipe .base { position: relative; }
-  .wipe .seam { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--accent-dim); pointer-events: none; }
+  .wipe .seam { position: absolute; top: 0; bottom: 0; width: 1px; pointer-events: none; }
   .wipe .seam::after {
     content: "";
     position: absolute;
     left: -5px; top: 50%;
     width: 11px; height: 11px;
     margin-top: -5.5px;
-    background: var(--accent-dim);
-    border: 2px solid #f4f1e6;
     border-radius: 50%;
   }
   .wipe-ctl { margin-top: 0.6rem; }
 
-  .stats { display: flex; gap: 1.2rem; flex-wrap: wrap; font-size: 0.78rem; color: #6a6555; margin-top: 0.9rem; }
-  .stats b { font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .stats { display: flex; gap: 1.2rem; flex-wrap: wrap; font-size: 0.78rem; margin-top: 0.9rem; }
+  .stats b { font-weight: 500; }
 
   .status { font-size: 0.85rem; margin-top: 0.8rem; min-height: 1.2em; }
-  .status.error { color: #9c3b2e; }
-  .note { font-size: 0.78rem; color: #6a6555; margin-top: -0.4rem; margin-bottom: 1rem; }
+  .note { font-size: 0.78rem; margin-top: -0.4rem; margin-bottom: 1rem; }
   .note:last-child { margin-bottom: 0; }
-  .sub { font-size: 0.78rem; color: #6a6555; margin: 0 0 1rem; }
+  .sub { font-size: 0.78rem; margin: 0 0 1rem; }
 
   .hidden { display: none !important; }
 
@@ -241,10 +131,6 @@
     body { padding: 2rem 1rem 4rem; }
     fieldset { grid-template-columns: 1fr; }
     .panes { grid-template-columns: 1fr; }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    * { transition: none !important; }
   }
 </style>
 </head>
@@ -404,7 +290,7 @@
       </div>
       <div class="field">
         <label for="strokeColor">Pick the colour</label>
-        <input type="color" id="strokeColor" value="#1c1a17" style="height:34px;padding:2px;border:1px solid var(--line);background:#fff;">
+        <input type="color" id="strokeColor" value="#1c1a17" class="color-input">
       </div>
       <div class="field checkbox" id="frameField">
         <input type="checkbox" id="drawFrame">

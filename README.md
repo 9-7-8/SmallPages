@@ -37,12 +37,13 @@ Change that number and the whole repo re-skins. Some that work well:
 | `155` | acid green |
 | `40` | amber |
 
-The theme is linked *after* each page's own `<style>` block so it overrides the
-colours still baked into the older pages. When a page gets cleaned up, its local
-colour rules come out and the link can move up into the normal spot.
+Every page links `theme.css` in `<head>` and keeps only layout and sizing in its
+own `<style>` block — no page declares a colour or a typeface. Shared components
+(`.card`, `.dropzone`, `.seg`, `.swatch`, `button`, form controls) are styled once
+in the theme, so a new page inherits the look with almost no CSS of its own.
 
-Canvas drawing doesn't read CSS, so `friends-interests.html` pulls `--h` out with
-`getComputedStyle` and builds its node colours from the same hue — interests are
+Canvas drawing can't read CSS, so `friends-interests.html` pulls `--h` out with
+`getComputedStyle` and derives its node colours from the same hue — interests are
 ranked by lightness, dim for the fewest members through to fully lit for the most.
 
 ## Running locally

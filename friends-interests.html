@@ -4,65 +4,63 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Friend Interest Map</title>
-<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Raleway:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="theme.css">
 <style>
-  :root {
-    --bg: #0f0e17; --bg2: #181625;
-    --text: #e8e4f0; --text-dim: #7a7490;
-    --accent: #c9a96e; --border: rgba(201,169,110,0.18);
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: var(--bg); color: var(--text); font-family: 'Raleway', sans-serif; font-weight: 300; min-height: 100vh; overflow-x: hidden; }
-  body::before {
-    content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0;
-    background-image:
-      radial-gradient(1px 1px at 10% 20%, rgba(255,255,255,0.2) 0%, transparent 100%),
-      radial-gradient(1px 1px at 30% 70%, rgba(255,255,255,0.12) 0%, transparent 100%),
-      radial-gradient(1px 1px at 60% 15%, rgba(255,255,255,0.18) 0%, transparent 100%),
-      radial-gradient(1px 1px at 80% 55%, rgba(255,255,255,0.1) 0%, transparent 100%),
-      radial-gradient(1px 1px at 45% 40%, rgba(255,255,255,0.1) 0%, transparent 100%),
-      radial-gradient(1px 1px at 15% 90%, rgba(255,255,255,0.14) 0%, transparent 100%),
-      radial-gradient(1px 1px at 70% 30%, rgba(255,255,255,0.18) 0%, transparent 100%);
-  }
+  /* Layout and sizing only. Colour, type and component styling live in theme.css. */
+
+  * { margin: 0; padding: 0; }
+  body { min-height: 100vh; overflow-x: hidden; }
+
   header {
     position: relative; z-index: 10; padding: 20px 30px 14px;
-    border-bottom: 1px solid var(--border);
     display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;
   }
-  header h1 { font-family: 'Cinzel', serif; font-size: 20px; font-weight: 600; color: var(--accent); letter-spacing: 0.06em; }
-  header p { font-size: 11px; color: var(--text-dim); margin-top: 3px; letter-spacing: 0.04em; }
+  header h1 { font-size: 20px; letter-spacing: 0.06em; }
+  header p { font-size: 11px; margin-top: 3px; letter-spacing: 0.04em; }
   .header-actions { display: flex; gap: 10px; align-items: center; }
-  button { font-family: 'Raleway', sans-serif; font-size: 11px; font-weight: 500; letter-spacing: 0.07em; cursor: pointer; border-radius: 4px; transition: all 0.18s; padding: 6px 13px; text-transform: uppercase; }
-  #download-btn { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
-  #download-btn:hover { background: rgba(201,169,110,0.1); }
-  #reset-btn { background: transparent; color: var(--text-dim); border: 1px solid rgba(122,116,144,0.35); }
-  #reset-btn:hover { color: var(--text); border-color: var(--text-dim); }
+  button { font-size: 11px; padding: 6px 13px; }
+
   .layout { position: relative; z-index: 1; display: flex; height: calc(100vh - 78px); }
-  .sidebar { width: 210px; flex-shrink: 0; border-right: 1px solid var(--border); padding: 14px 0; overflow-y: auto; background: rgba(15,14,23,0.75); }
+
+  .sidebar { width: 210px; flex-shrink: 0; padding: 14px 0; overflow-y: auto; }
   .sidebar-section { padding: 0 13px 13px; }
-  .sidebar-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--text-dim); font-weight: 500; margin-bottom: 7px; }
-  .chip { display: flex; align-items: center; gap: 7px; padding: 5px 8px; border-radius: 4px; cursor: pointer; transition: background 0.13s; margin-bottom: 2px; font-size: 12px; font-weight: 400; color: var(--text); border: 1px solid transparent; user-select: none; }
-  .chip:hover { background: rgba(255,255,255,0.05); }
-  .chip.active { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.2); }
+  .sidebar-label { font-size: 9px; letter-spacing: 0.14em; margin-bottom: 7px; }
+  .chip {
+    display: flex; align-items: center; gap: 7px; padding: 5px 8px;
+    cursor: pointer; margin-bottom: 2px; font-size: 12px; user-select: none;
+    transition: background 0.13s, color 0.13s, border-color 0.13s;
+  }
   .chip-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
-  .chip-count { margin-left: auto; font-size: 9px; color: var(--text-dim); background: rgba(255,255,255,0.06); padding: 1px 5px; border-radius: 10px; }
-  .divider { height: 1px; background: var(--border); margin: 10px 13px; }
+  .chip-count { margin-left: auto; font-size: 9px; padding: 1px 5px; }
+  .divider { height: 1px; margin: 10px 13px; }
+
   .graph-area { flex: 1; position: relative; overflow: hidden; }
   canvas#graph { position: absolute; inset: 0; width: 100%; height: 100%; cursor: grab; }
   canvas#graph.dragging { cursor: grabbing; }
-  #tooltip { position: absolute; pointer-events: none; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 9px 13px; font-size: 12px; max-width: 220px; display: none; z-index: 100; box-shadow: 0 4px 24px rgba(0,0,0,0.5); }
-  #tooltip .tip-title { font-family: 'Cinzel', serif; font-size: 13px; color: var(--accent); margin-bottom: 5px; font-weight: 400; }
-  #tooltip .tip-item { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; color: var(--text); font-weight: 300; }
-  #tooltip .tip-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-  #multibar { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); background: rgba(20,18,35,0.94); border: 1px solid var(--border); border-radius: 20px; padding: 5px 16px; font-size: 11px; color: var(--accent); display: none; z-index: 50; letter-spacing: 0.05em; white-space: nowrap; max-width: 90%; overflow: hidden; text-overflow: ellipsis; }
-  #legend { position: absolute; bottom: 14px; left: 14px; font-size: 10px; color: var(--text-dim); letter-spacing: 0.04em; }
-  .leg-row { margin-top: 5px; display: flex; align-items: center; gap: 7px; }
-  .leg-rainbow { width: 60px; height: 8px; border-radius: 4px; background: linear-gradient(to right, #e84040, #e8a040, #e8e040, #40e860, #40c8e8, #4060e8, #9040e8); }
-  .leg-solid { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid rgba(255,255,255,0.3); }
-  .leg-dashed { width: 12px; height: 12px; border-radius: 50%; border: 1.5px dashed rgba(255,255,255,0.3); }
-  #hint { position: absolute; bottom: 14px; right: 14px; font-size: 10px; color: var(--text-dim); text-align: right; letter-spacing: 0.04em; line-height: 1.7; }
 
-  /* ── Mobile ── */
+  #tooltip {
+    position: absolute; pointer-events: none; padding: 9px 13px; font-size: 12px;
+    max-width: 220px; display: none; z-index: 100;
+  }
+  #tooltip .tip-title { font-size: 13px; margin-bottom: 5px; }
+  #tooltip .tip-item { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
+  #tooltip .tip-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+
+  #multibar {
+    position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+    padding: 5px 16px; font-size: 11px; display: none; z-index: 50;
+    letter-spacing: 0.05em; white-space: nowrap; max-width: 90%;
+    overflow: hidden; text-overflow: ellipsis;
+  }
+
+  #legend { position: absolute; bottom: 14px; left: 14px; font-size: 10px; letter-spacing: 0.04em; }
+  .leg-row { margin-top: 5px; display: flex; align-items: center; gap: 7px; }
+  .leg-rainbow { width: 60px; height: 8px; }
+  .leg-solid { width: 12px; height: 12px; border-radius: 50%; border-style: solid; border-width: 1.5px; }
+  .leg-dashed { width: 12px; height: 12px; border-radius: 50%; border-style: dashed; border-width: 1.5px; }
+  #hint { position: absolute; bottom: 14px; right: 14px; font-size: 10px; text-align: right; letter-spacing: 0.04em; line-height: 1.7; }
+
+  /* --- Mobile --- */
   @media (max-width: 600px) {
     header { padding: 14px 16px 10px; }
     header h1 { font-size: 16px; }
@@ -76,7 +74,7 @@
     #mobile-hint {
       display: block !important;
       position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%);
-      font-size: 10px; color: var(--text-dim); letter-spacing: 0.04em;
+      font-size: 10px; letter-spacing: 0.04em;
       white-space: nowrap; text-align: center;
     }
   }
@@ -102,7 +100,7 @@
     </div>
     <div class="divider"></div>
     <div class="sidebar-section">
-      <div class="sidebar-label">Interests — most people → purple</div>
+      <div class="sidebar-label">Interests &mdash; most people first</div>
       <div id="interest-list"></div>
     </div>
   </aside>
@@ -111,9 +109,9 @@
     <div id="tooltip"></div>
     <div id="multibar"></div>
     <div id="legend">
-      <div class="leg-row"><span class="leg-rainbow"></span> <span>interests: red = fewest · purple = most</span></div>
+      <div class="leg-row"><span class="leg-rainbow"></span> <span>interests: dim = fewest members, lit = most</span></div>
       <div class="leg-row" style="margin-top:8px"><span class="leg-solid"></span> Interest</div>
-      <div class="leg-row"><span class="leg-dashed" style="border-color:rgba(138,136,152,0.6)"></span> Person</div>
+      <div class="leg-row"><span class="leg-dashed"></span> Person</div>
     </div>
     <div id="hint">Scroll to zoom · Drag to pan<br>Click empty space to clear</div>
     <div id="mobile-hint">Pinch to zoom · Drag to pan · Tap to select</div>
@@ -166,9 +164,16 @@ const Data = (() => {
 })();
 
 // ╔══════════════════════════════════════════════════════════════════════════════╗
-// ║  COLORS — rainbow scale: red = fewest members, purple = most                ║
+// ║  COLORS — one hue from theme.css; rank is carried by lightness              ║
 // ╚══════════════════════════════════════════════════════════════════════════════╝
+// Canvas cannot read CSS custom properties, so the hue is pulled out once here
+// and every colour below is derived from it. Change --h in theme.css and the
+// graph re-skins along with the rest of the page.
 const Colors = (() => {
+  const H = parseInt(
+    getComputedStyle(document.documentElement).getPropertyValue('--h'), 10
+  ) || 288;
+
   function hslToHex(h, s, l) {
     s /= 100; l /= 100;
     const k = n => (n + h / 30) % 12;
@@ -178,22 +183,33 @@ const Colors = (() => {
     return '#' + hex(f(0)) + hex(f(8)) + hex(f(4));
   }
 
-  // t=0 → red, t=1 → violet/purple
-  function rainbow(t) {
-    return hslToHex(t * 270, 85, 58);
+  // Shorthand for a translucent tint of the theme hue.
+  const hsl = (s, l, a = 1) => `hsl(${H} ${s}% ${l}% / ${a})`;
+
+  // t=0 → dim, t=1 → fully lit
+  function ramp(t) {
+    return hslToHex(H, 55 + t * 45, 26 + t * 42);
   }
 
-  // Assign rainbow colors to interests by member count rank
+  // Assign lightness to interests by member count rank
   const catColors = {};
   const cats = Data.allCatsByCount;
   cats.forEach((cat, i) => {
     const t = cats.length === 1 ? 1 : i / (cats.length - 1);
-    catColors[cat] = rainbow(1 - t); // index 0 = most members = purple
+    catColors[cat] = ramp(1 - t); // index 0 = most members = brightest
   });
 
-  const PERSON_GREY = '#8a8898';
+  // People are deliberately desaturated so lit interest nodes read as the signal.
+  const PERSON      = hslToHex(H, 12, 60);
+  const BG          = '#000000';
+  const TEXT        = hslToHex(H, 20, 94);
+  const TEXT_DIM    = hslToHex(H, 14, 58);
+  const PERSON_TEXT = hslToHex(H, 14, 82);
+  const PERSON_DIM  = hslToHex(H, 12, 40);
 
-  return { catColors, PERSON_GREY };
+  const FONT = (weight, size) => `${weight} ${size}px 'Lexend Deca', Helvetica, sans-serif`;
+
+  return { H, hsl, catColors, PERSON, BG, TEXT, TEXT_DIM, PERSON_TEXT, PERSON_DIM, FONT };
 })();
 
 // ╔══════════════════════════════════════════════════════════════════════════════╗
@@ -464,13 +480,13 @@ const Renderer = (() => {
     ctx.save();
     // Outer dashed ring
     ctx.beginPath(); ctx.arc(op.x, op.y, outerR, 0, Math.PI * 2);
-    ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 1;
+    ctx.strokeStyle = Colors.hsl(45, 30, 0.45); ctx.lineWidth = 1;
     ctx.setLineDash([5, 7]); ctx.stroke(); ctx.setLineDash([]);
     // Inner filled circle with border
     ctx.beginPath(); ctx.arc(op.x, op.y, innerR, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(20,18,36,0.72)'; ctx.fill();
+    ctx.fillStyle = Colors.hsl(45, 5, 0.72); ctx.fill();
     ctx.beginPath(); ctx.arc(op.x, op.y, innerR, 0, Math.PI * 2);
-    ctx.strokeStyle = 'rgba(138,136,152,0.22)'; ctx.lineWidth = 1;
+    ctx.strokeStyle = Colors.hsl(35, 34, 0.45); ctx.lineWidth = 1;
     ctx.setLineDash([3, 5]); ctx.stroke(); ctx.setLineDash([]);
     ctx.restore();
   }
@@ -487,7 +503,7 @@ const Renderer = (() => {
         const cat = a.type === 'interest' ? a : b;
         ctx.strokeStyle = ha(cat.color, 0.5); ctx.lineWidth = 1.5; ctx.setLineDash([]);
       } else {
-        ctx.strokeStyle = af ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.065)';
+        ctx.strokeStyle = af ? Colors.hsl(30, 55, 0.08) : Colors.hsl(30, 55, 0.10);
         ctx.lineWidth = 0.8; ctx.setLineDash([3, 5]);
       }
       ctx.stroke(); ctx.setLineDash([]);
@@ -531,8 +547,8 @@ const Renderer = (() => {
 
     ctx.save(); ctx.globalAlpha = alpha;
     const fs = Math.max(8, Math.min(12, r * 0.32));
-    ctx.font = `600 ${fs}px 'Cinzel',serif`;
-    ctx.fillStyle = active ? '#e8e4f0' : '#7a7490';
+    ctx.font = Colors.FONT(500, fs);
+    ctx.fillStyle = active ? Colors.TEXT : Colors.TEXT_DIM;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     const words = node.label.split(' ');
     if (words.length > 1 && r > 26) {
@@ -543,7 +559,7 @@ const Renderer = (() => {
       ctx.fillText(node.label, p.x, p.y);
     }
     if (active && r > 26) {
-      ctx.font = `400 ${Math.max(7, fs - 3)}px 'Raleway',sans-serif`;
+      ctx.font = Colors.FONT(300, Math.max(7, fs - 3));
       ctx.fillStyle = ha(color, 0.7);
       ctx.fillText(node.members.length + ' people', p.x, p.y + fs * 1.6);
     }
@@ -558,22 +574,22 @@ const Renderer = (() => {
     ctx.save(); ctx.globalAlpha = alpha;
     if (isSel) {
       ctx.beginPath(); ctx.arc(p.x, p.y, r + 9, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(138,136,152,0.12)'; ctx.fill();
+      ctx.fillStyle = Colors.hsl(12, 60, 0.12); ctx.fill();
     }
     ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
-    ctx.fillStyle = active ? (isSel ? 'rgba(138,136,152,0.25)' : 'rgba(138,136,152,0.12)') : 'rgba(138,136,152,0.05)';
+    ctx.fillStyle = active ? (isSel ? Colors.hsl(12, 60, 0.25) : Colors.hsl(12, 60, 0.12)) : Colors.hsl(12, 60, 0.05);
     ctx.fill();
     ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
-    ctx.strokeStyle = active ? (isSel ? 'rgba(200,198,210,0.9)' : 'rgba(138,136,152,0.75)') : 'rgba(138,136,152,0.3)';
+    ctx.strokeStyle = active ? (isSel ? Colors.hsl(16, 82, 0.9) : Colors.hsl(12, 60, 0.75)) : Colors.hsl(12, 60, 0.3);
     ctx.lineWidth = isSel ? 2.5 : (isHov ? 2 : 1.5);
     ctx.setLineDash([4, 3]); ctx.stroke(); ctx.setLineDash([]);
     if (isHov || isSel) {
       ctx.beginPath(); ctx.arc(p.x, p.y, r + 5, 0, Math.PI * 2);
-      ctx.strokeStyle = 'rgba(200,198,210,0.3)'; ctx.lineWidth = 1; ctx.stroke();
+      ctx.strokeStyle = Colors.hsl(16, 82, 0.3); ctx.lineWidth = 1; ctx.stroke();
     }
     const fs = Math.max(8, Math.min(11, r * 0.46));
-    ctx.font = `500 ${fs}px 'Raleway',sans-serif`;
-    ctx.fillStyle = active ? '#c8c6d2' : '#5a5868';
+    ctx.font = Colors.FONT(400, fs);
+    ctx.fillStyle = active ? Colors.PERSON_TEXT : Colors.PERSON_DIM;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText(node.label, p.x, p.y);
     ctx.restore();
@@ -634,7 +650,7 @@ const Sidebar = (() => {
     for (const name of Data.allPeople) {
       const d = document.createElement('div');
       d.className = 'chip'; d.dataset.name = name;
-      d.innerHTML = `<span class="chip-dot" style="background:#8a8898"></span>${name}<span class="chip-count">${(Data.personCats[name] || []).length}</span>`;
+      d.innerHTML = `<span class="chip-dot" style="background:${Colors.PERSON}"></span>${name}<span class="chip-count">${(Data.personCats[name] || []).length}</span>`;
       d.onclick = () => { State.togglePerson(name); sync(); Renderer.draw(); };
       pl.appendChild(d);
     }
@@ -678,7 +694,7 @@ const Interaction = (() => {
     const tip = document.getElementById('tooltip');
     let html = `<div class="tip-title">${node.label}</div>`;
     if (node.type === 'interest') {
-      html += node.members.map(p => `<div class="tip-item"><span class="tip-dot" style="background:#8a8898"></span>${p}</div>`).join('');
+      html += node.members.map(p => `<div class="tip-item"><span class="tip-dot" style="background:${Colors.PERSON}"></span>${p}</div>`).join('');
     } else {
       html += (node.cats || []).map(c => `<div class="tip-item"><span class="tip-dot" style="background:${Colors.catColors[c] || '#888'}"></span>${c}</div>`).join('');
     }
@@ -836,7 +852,7 @@ document.getElementById('download-btn').onclick = () => {
   const cw = Math.ceil((maxX - minX) * DPR), ch = Math.ceil((maxY - minY) * DPR);
   const temp = document.createElement('canvas'); temp.width = cw; temp.height = ch;
   const tctx = temp.getContext('2d');
-  tctx.fillStyle = '#0f0e17'; tctx.fillRect(0, 0, cw, ch);
+  tctx.fillStyle = Colors.BG; tctx.fillRect(0, 0, cw, ch);
   tctx.drawImage(cv, minX * DPR, minY * DPR, cw, ch, 0, 0, cw, ch);
   const link = document.createElement('a');
   link.download = 'friend-interest-map.png';

@@ -9,9 +9,9 @@
      288 violet-magenta (default) · 190 cyan · 330 hot pink
      155 acid green · 40 amber · 0 red
 
-   Drop this into every page AFTER its own <style> block:
+   Link it in <head>, before the page's own <style> block:
      <link rel="stylesheet" href="theme.css">
-   Loading it last lets it win over the colours still baked into each page.
+   Pages carry layout and sizing only; every colour and typeface lives here.
    ========================================================================== */
 
 :root {
@@ -20,8 +20,6 @@
   /* Surface — true black, so OLED pixels actually switch off.
      Depth comes from hairlines and glow, never from lighter greys. */
   --bg:        #000000;
-  --bg2:       #000000;
-  --paper:     #000000;
   --raised:    hsl(var(--h) 45% 6%);
   --sunken:    hsl(var(--h) 40% 3%);
 
@@ -36,23 +34,14 @@
   /* Ink — hue-tinted neutrals, never pure grey */
   --text:      hsl(var(--h) 20% 94%);
   --text-dim:  hsl(var(--h) 14% 58%);
-  --text-faint:hsl(var(--h) 14% 38%);
+  --text-faint: hsl(var(--h) 14% 38%);
 
   /* Structure */
   --line:      hsl(var(--h) 45% 22%);
   --line-soft: hsl(var(--h) 45% 14%);
 
-  /* Legacy names the existing pages already reference — remapped, so their
-     own rules land on the new palette instead of the old paper one. */
-  --ink:        var(--text);
-  --accent:     var(--neon);
-  --accent-dim: var(--neon-deep);
-  --border:     var(--line-soft);
-
   /* Type — one family doing every job, differentiated by weight and tracking */
-  --sans:  "Lexend Deca", "Helvetica Neue", Helvetica, Arial, sans-serif;
-  --mono:  var(--sans);
-  --serif: var(--sans);
+  --sans: "Lexend Deca", "Helvetica Neue", Helvetica, Arial, sans-serif;
 
   color-scheme: dark;
   accent-color: var(--neon);
@@ -131,8 +120,9 @@ code, .mcmeta-out, .stats b, .rail-meta, input[type="number"] {
   font-variant-numeric: tabular-nums;
 }
 
-.hint, .note, .sub, .meta-line, .rail-cap, .rail-meta,
-.dropzone .hint, #hint, #legend, #mobile-hint {
+.hint, .note, .sub, .meta-line, .rail-cap, .rail-meta, .stats,
+.dropzone .hint, .pane .cap, .unit, label .unit,
+#hint, #legend, #mobile-hint {
   color: var(--text-faint);
 }
 
@@ -259,6 +249,37 @@ button:disabled {
   box-shadow: var(--glow-soft);
 }
 
+button.ghost {
+  color: var(--text-dim);
+  border-color: var(--line);
+  padding: 0.4rem 0.7rem;
+  font-size: 0.8rem;
+}
+button.ghost:not(:disabled):hover { color: var(--neon); border-color: var(--neon); }
+
+.seg { display: flex; border: 1px solid var(--line); width: fit-content; max-width: 100%; flex-wrap: wrap; }
+.seg button { border: none; border-right: 1px solid var(--line); }
+.seg button:last-child { border-right: none; }
+
+/* Colour swatches carry their own fill, so only the frame is themed. */
+.swatch {
+  border: 1px solid var(--line);
+  background: var(--sunken);
+  padding: 0.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.swatch .chip { height: 34px; border: 1px solid hsl(var(--h) 30% 40%); cursor: pointer; padding: 0; width: 100%; }
+.swatch .chip:hover { border-color: var(--neon); }
+.swatch .acts button { flex: 1; font-size: 0.68rem; padding: 0.15rem 0; }
+.swatch.locked { border-color: var(--neon-deep); }
+.swatch.locked .acts button.lk {
+  color: var(--neon);
+  border-color: var(--neon);
+  background: hsl(var(--h) 100% 60% / 0.10);
+}
+
 #reset-btn { color: var(--text-dim); border-color: var(--line); }
 #reset-btn:hover { color: var(--text); border-color: var(--text-dim); box-shadow: none; }
 
@@ -292,13 +313,13 @@ header { border-bottom: 1px solid var(--line-soft); }
   border-right: 1px solid var(--line-soft);
 }
 
-.chip {
+.sidebar .chip {
   color: var(--text);
   border: 1px solid transparent;
   border-radius: 0;
 }
-.chip:hover { background: hsl(var(--h) 100% 60% / 0.07); }
-.chip.active {
+.sidebar .chip:hover { background: hsl(var(--h) 100% 60% / 0.07); }
+.sidebar .chip.active {
   background: hsl(var(--h) 100% 60% / 0.12);
   border-color: var(--neon-deep);
   color: var(--neon-hot);

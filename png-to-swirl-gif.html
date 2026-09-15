@@ -4,69 +4,33 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>png → swirl gif</title>
+<link rel="stylesheet" href="theme.css">
 <style>
-  :root {
-    --ink: #1c1a17;
-    --paper: #eae5d8;
-    --line: #b8ae97;
-    --accent: #6b7a4f;
-    --accent-dim: #56613f;
-    --mono: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
-    --serif: "IBM Plex Serif", Georgia, serif;
-  }
-
-  * { box-sizing: border-box; }
+  /* Layout and sizing only. Colour, type and component styling live in theme.css. */
 
   body {
     margin: 0;
-    background: var(--paper);
-    color: var(--ink);
-    font-family: var(--mono);
-    font-size: 15px;
-    line-height: 1.55;
     padding: 3rem 1.5rem 5rem;
   }
 
   main { max-width: 640px; margin: 0 auto; }
 
-  h1 {
-    font-family: var(--serif);
-    font-weight: 600;
-    font-size: 1.9rem;
-    margin: 0 0 0.3rem;
-    letter-spacing: -0.01em;
-  }
+  p.lede { margin: 0 0 2.2rem; max-width: 48ch; }
 
-  p.lede {
-    margin: 0 0 2.2rem;
-    max-width: 48ch;
-    color: #4a4638;
-  }
-
-  .card {
-    border: 1px solid var(--line);
-    background: #f4f1e6;
-    padding: 1.5rem;
-    margin-bottom: 1.5rem;
-  }
+  .card { margin-bottom: 1.5rem; }
 
   .dropzone {
-    border: 1px dashed var(--line);
     padding: 2.5rem 1.5rem;
     text-align: center;
     cursor: pointer;
-    transition: border-color 0.15s ease, background 0.15s ease;
   }
-  .dropzone:hover, .dropzone.drag { border-color: var(--accent-dim); background: #eee9da; }
-  .dropzone:focus-visible { outline: 2px solid var(--accent-dim); outline-offset: 2px; }
   .dropzone input { display: none; }
-  .dropzone .hint { color: #6a6555; font-size: 0.85rem; margin-top: 0.4rem; }
+  .dropzone .hint { font-size: 0.85rem; margin-top: 0.4rem; }
   .dropzone img.thumb {
     max-width: 80px;
     max-height: 80px;
     image-rendering: pixelated;
     margin-bottom: 0.6rem;
-    border: 1px solid var(--line);
   }
 
   fieldset {
@@ -80,65 +44,40 @@
   .field { display: flex; flex-direction: column; gap: 0.35rem; }
   .field.checkbox { flex-direction: row; align-items: center; gap: 0.5rem; grid-column: 1 / -1; }
   .field.wide { grid-column: 1 / -1; }
-  label { font-size: 0.8rem; color: #4a4638; }
-  label .unit { color: #8a8470; }
-  input[type="number"], input[type="range"] {
-    font-family: var(--mono);
-    font-size: 0.9rem;
-  }
-  input[type="number"] {
-    padding: 0.4rem 0.5rem;
-    border: 1px solid var(--line);
-    background: #fff;
-    color: var(--ink);
-  }
-  input[type="range"] { accent-color: var(--accent-dim); width: 100%; }
-  input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent-dim); }
+
+  label { font-size: 0.8rem; }
+  input[type="number"], input[type="range"] { font-size: 0.9rem; }
+  input[type="range"] { width: 100%; }
+  input[type="checkbox"] { width: 16px; height: 16px; }
   .range-row { display: flex; align-items: center; gap: 0.6rem; }
   .range-row output { font-size: 0.85rem; min-width: 3ch; text-align: right; }
 
-  h2.section {
-    font-family: var(--serif);
-    font-size: 1.05rem;
-    font-weight: 600;
-    margin: 0 0 1rem;
-  }
+  h2.section { margin: 0 0 1rem; }
 
-  button {
-    font-family: var(--mono);
-    font-size: 0.9rem;
-    padding: 0.6rem 1.1rem;
-    background: var(--accent-dim);
-    color: #f4f1e6;
-    border: none;
-    cursor: pointer;
-  }
-  button:disabled { background: #a7a190; cursor: not-allowed; }
-  button:not(:disabled):hover { background: var(--accent); }
+  button { font-size: 0.9rem; }
 
   .downloads { display: none; margin-top: 1.5rem; gap: 1.2rem; align-items: flex-start; }
   .downloads.ready { display: flex; }
+
   .preview {
-    border: 1px solid var(--line);
-    background:
-      linear-gradient(45deg, #ddd7c4 25%, transparent 25%),
-      linear-gradient(-45deg, #ddd7c4 25%, transparent 25%),
-      linear-gradient(45deg, transparent 75%, #ddd7c4 75%),
-      linear-gradient(-45deg, transparent 75%, #ddd7c4 75%);
     background-size: 12px 12px;
     background-position: 0 0, 0 6px, 6px -6px, -6px 0;
     image-rendering: pixelated;
     width: 160px;
     height: 160px;
   }
+
   .download-list { display: flex; flex-direction: column; gap: 0.6rem; }
-  .download-list a { color: var(--accent-dim); text-decoration: none; border-bottom: 1px solid var(--accent-dim); }
-  .download-list a:hover { color: var(--ink); border-color: var(--ink); }
-  .meta-line { font-size: 0.8rem; color: #6a6555; }
+  .meta-line { font-size: 0.8rem; }
 
   .status { font-size: 0.85rem; margin-top: 0.8rem; min-height: 1.2em; }
-  .status.error { color: #9c3b2e; }
-  .note { font-size: 0.78rem; color: #6a6555; margin-top: -0.4rem; margin-bottom: 1rem; }
+  .note { font-size: 0.78rem; margin-top: -0.4rem; margin-bottom: 1rem; }
+
+  @media (max-width: 620px) {
+    body { padding: 2rem 1rem 4rem; }
+    fieldset { grid-template-columns: 1fr; }
+    .downloads.ready { flex-direction: column; }
+  }
 </style>
 </head>
 <body>

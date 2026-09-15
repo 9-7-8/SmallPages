@@ -4,68 +4,28 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>gif → mcmeta</title>
+<link rel="stylesheet" href="theme.css">
 <style>
-  :root {
-    --ink: #1c1a17;
-    --paper: #eae5d8;
-    --line: #b8ae97;
-    --accent: #6b7a4f;
-    --accent-dim: #56613f;
-    --mono: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
-    --serif: "IBM Plex Serif", Georgia, serif;
-  }
-
-  * { box-sizing: border-box; }
+  /* Layout and sizing only. Colour, type and component styling live in theme.css. */
 
   body {
     margin: 0;
-    background: var(--paper);
-    color: var(--ink);
-    font-family: var(--mono);
-    font-size: 15px;
-    line-height: 1.55;
     padding: 3rem 1.5rem 5rem;
   }
 
-  main {
-    max-width: 640px;
-    margin: 0 auto;
-  }
+  main { max-width: 640px; margin: 0 auto; }
 
-  h1 {
-    font-family: var(--serif);
-    font-weight: 600;
-    font-size: 1.9rem;
-    margin: 0 0 0.3rem;
-    letter-spacing: -0.01em;
-  }
+  p.lede { margin: 0 0 2.2rem; max-width: 46ch; }
 
-  p.lede {
-    margin: 0 0 2.2rem;
-    max-width: 46ch;
-    color: #4a4638;
-  }
-
-  .card {
-    border: 1px solid var(--line);
-    background: #f4f1e6;
-    padding: 1.5rem;
-    margin-bottom: 1.5rem;
-  }
+  .card { margin-bottom: 1.5rem; }
 
   .dropzone {
-    border: 1px dashed var(--line);
     padding: 2.5rem 1.5rem;
     text-align: center;
     cursor: pointer;
-    transition: border-color 0.15s ease, background 0.15s ease;
-  }
-  .dropzone:hover, .dropzone.drag {
-    border-color: var(--accent-dim);
-    background: #eee9da;
   }
   .dropzone input { display: none; }
-  .dropzone .hint { color: #6a6555; font-size: 0.85rem; margin-top: 0.4rem; }
+  .dropzone .hint { font-size: 0.85rem; margin-top: 0.4rem; }
 
   fieldset {
     border: none;
@@ -77,28 +37,11 @@
   }
   .field { display: flex; flex-direction: column; gap: 0.35rem; }
   .field.checkbox { flex-direction: row; align-items: center; gap: 0.5rem; grid-column: 1 / -1; }
-  label { font-size: 0.8rem; color: #4a4638; }
-  input[type="number"] {
-    font-family: var(--mono);
-    font-size: 0.9rem;
-    padding: 0.4rem 0.5rem;
-    border: 1px solid var(--line);
-    background: #fff;
-    color: var(--ink);
-  }
-  input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent-dim); }
 
-  button {
-    font-family: var(--mono);
-    font-size: 0.9rem;
-    padding: 0.6rem 1.1rem;
-    background: var(--accent-dim);
-    color: #f4f1e6;
-    border: none;
-    cursor: pointer;
-  }
-  button:disabled { background: #a7a190; cursor: not-allowed; }
-  button:not(:disabled):hover { background: var(--accent); }
+  label { font-size: 0.8rem; }
+  input[type="number"] { font-size: 0.9rem; }
+  input[type="checkbox"] { width: 16px; height: 16px; }
+  button { font-size: 0.9rem; }
 
   .downloads {
     display: none;
@@ -107,43 +50,32 @@
     align-items: flex-start;
   }
   .downloads.ready { display: flex; }
+
   .preview {
-    border: 1px solid var(--line);
-    background:
-      linear-gradient(45deg, #ddd7c4 25%, transparent 25%),
-      linear-gradient(-45deg, #ddd7c4 25%, transparent 25%),
-      linear-gradient(45deg, transparent 75%, #ddd7c4 75%),
-      linear-gradient(-45deg, transparent 75%, #ddd7c4 75%);
     background-size: 12px 12px;
     background-position: 0 0, 0 6px, 6px -6px, -6px 0;
     image-rendering: pixelated;
     max-height: 260px;
   }
+
   .download-list { display: flex; flex-direction: column; gap: 0.6rem; }
-  .download-list a {
-    color: var(--accent-dim);
-    text-decoration: none;
-    border-bottom: 1px solid var(--accent-dim);
-  }
-  .download-list a:hover { color: var(--ink); border-color: var(--ink); }
-  .meta-line { font-size: 0.8rem; color: #6a6555; }
+  .meta-line { font-size: 0.8rem; }
 
   .mcmeta-out {
     font-size: 0.78rem;
-    background: #fff;
-    border: 1px solid var(--line);
     padding: 0.8rem;
     max-height: 160px;
     overflow: auto;
     white-space: pre;
   }
 
-  .status {
-    font-size: 0.85rem;
-    margin-top: 0.8rem;
-    min-height: 1.2em;
+  .status { font-size: 0.85rem; margin-top: 0.8rem; min-height: 1.2em; }
+
+  @media (max-width: 620px) {
+    body { padding: 2rem 1rem 4rem; }
+    fieldset { grid-template-columns: 1fr; }
+    .downloads.ready { flex-direction: column; }
   }
-  .status.error { color: #9c3b2e; }
 </style>
 </head>
 <body>
