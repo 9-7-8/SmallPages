@@ -1,55 +1,91 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Friend Map</title>
-  <style>
-    body {
-      margin: 0;
-      background: #0f0e17;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-      font-family: Georgia, serif;
-    }
-    
-    nav ul {
-      list-style: none;      /* Remove bullet points */
-      padding: 0;
-      margin: 0;
-      text-align: center;
-    }
-    
-    nav li {
-      margin: 12px 0;        /* Space between links */
-    }
-    
-    a {
-      color: #c9a96e;
-      font-size: 18px;
-      text-decoration: none;
-      border-bottom: 1px solid rgba(201,169,110,0.4);
-      padding-bottom: 2px;
-      letter-spacing: 0.05em;
-      transition: border-color 0.2s;
-    }
-    
-    a:hover { 
-      border-color: #c9a96e; 
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SmallPages</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  body {
+    margin: 0;
+    padding: 4rem 1.5rem 5rem;
+    min-height: 100vh;
+  }
+
+  main { max-width: 620px; margin: 0 auto; }
+
+  h1 { font-size: 2.4rem; margin-bottom: 0.4rem; }
+
+  p.lede { margin: 0 0 3rem; max-width: 46ch; }
+
+  nav li { border-top: 1px solid var(--line-soft); }
+  nav li:last-child { border-bottom: 1px solid var(--line-soft); }
+
+  nav a {
+    display: flex;
+    align-items: baseline;
+    gap: 1rem;
+    padding: 1.05rem 0.2rem;
+    border-bottom: none;
+    color: var(--text);
+  }
+  nav a:hover, nav a:focus-visible {
+    color: var(--neon-hot);
+    background: hsl(var(--h) 100% 60% / 0.05);
+    text-shadow: none;
+    outline-offset: -1px;
+  }
+
+  nav .name { font-weight: 400; letter-spacing: 0.01em; }
+  nav .what {
+    margin-left: auto;
+    text-align: right;
+    font-size: 0.78rem;
+    color: var(--text-faint);
+  }
+  nav a:hover .what { color: var(--text-dim); }
+
+  @media (max-width: 520px) {
+    body { padding: 2.5rem 1.2rem 4rem; }
+    h1 { font-size: 1.9rem; }
+    nav a { flex-direction: column; gap: 0.25rem; }
+    nav .what { margin-left: 0; text-align: left; }
+  }
+</style>
 </head>
 <body>
+<main>
+  <h1>SmallPages</h1>
+  <p class="lede">Single-purpose tools that run entirely in the browser. Nothing uploads anywhere.</p>
+
   <nav>
     <ul>
-      <li><a href="friends-interests.html">Friend Interest Map</a></li>
-      <li><a href="gif-to-mcmeta.html">Gif to McMeta</a></li>
-      <li><a href="png-to-swirl-gif.html">Png to Swirl Gif</a></li>
-      <li><a href="image-to-svg.html">Image to SVG</a></li>
-      <li><a href="playlist-to-audio.html">Playlist to Audio</a></li>
+      <li>
+        <a href="friends-interests.html">
+          <span class="name">Friend interest map</span>
+          <span class="what">who overlaps with who</span>
+        </a>
+      </li>
+      <li>
+        <a href="gif-to-mcmeta.html">
+          <span class="name">gif &rarr; mcmeta</span>
+          <span class="what">animated texture strip for Minecraft</span>
+        </a>
+      </li>
+      <li>
+        <a href="png-to-swirl-gif.html">
+          <span class="name">png &rarr; swirl gif</span>
+          <span class="what">spin a still image into a loop</span>
+        </a>
+      </li>
+      <li>
+        <a href="image-to-svg.html">
+          <span class="name">image &rarr; svg</span>
+          <span class="what">trace a bitmap to vector shapes or lines</span>
+        </a>
+      </li>
     </ul>
   </nav>
+</main>
 </body>
 </html>
