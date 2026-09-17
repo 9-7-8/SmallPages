@@ -4,58 +4,27 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Unified Palette Grid</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Lexend+Deca:wght@200;300;400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="theme.css">
 <style>
-/* ══════════════════════════════════════════════════════════════════════════
-   THEME — repo-wide tokens. When SmallPages gets its shared style.css,
-   everything down to the END THEME marker lifts out of here unchanged.
-   ══════════════════════════════════════════════════════════════════════════ */
+/* Layout and sizing only — every colour and the typeface come from theme.css.
+   The names below are local aliases onto the shared tokens, so the rules
+   further down keep reading the way they were written. */
 :root {
-  --bg:        #000000;
-  --surface:   #0a0a0a;
-  --surface-2: #131313;
-  --line:      #262626;
-  --line-soft: #1a1a1a;
-  --ink:       #ededed;
-  --ink-dim:   #8a8a8a;
-  --ink-faint: #5a5a5a;
-  --neon:      #00e5ff;
-  --neon-dim:  rgba(0, 229, 255, 0.16);
-  --sans: 'Lexend Deca', Helvetica, Arial, sans-serif;
+  --surface:   var(--raised);
+  --surface-2: hsl(var(--h) var(--s-line) 9%);
+  --ink:       var(--text);
+  --ink-dim:   var(--text-dim);
+  --ink-faint: var(--text-faint);
+  --neon-dim:  hsl(var(--tint) / 0.16);
   --step: 1.5rem;
 }
-* { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; }
-body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--ink);
-  font-family: var(--sans);
-  font-weight: 300;
-  font-size: 15px;
-  line-height: 1.6;
-  letter-spacing: 0.01em;
-}
-a { color: var(--neon); text-decoration: none; border-bottom: 1px solid var(--neon-dim); }
-a:hover { border-bottom-color: var(--neon); }
-h1, h2, h3 { font-weight: 200; letter-spacing: -0.01em; margin: 0; }
-button, input, select { font-family: var(--sans); font-size: 0.85rem; color: var(--ink); }
-button { cursor: pointer; background: transparent; border: 1px solid var(--line); border-radius: 2px; padding: 0.45rem 0.9rem; font-weight: 300; }
-button:hover { border-color: var(--neon); color: var(--neon); }
-button:disabled { opacity: 0.35; cursor: not-allowed; }
-button:disabled:hover { border-color: var(--line); color: var(--ink); }
-button[aria-pressed="true"] { border-color: var(--neon); color: var(--neon); background: var(--neon-dim); }
-:focus-visible { outline: 2px solid var(--neon); outline-offset: 2px; }
-input[type="range"] { accent-color: var(--neon); width: 100%; }
-input[type="number"], input[type="text"] {
-  background: var(--surface-2); border: 1px solid var(--line); border-radius: 2px;
-  padding: 0.35rem 0.5rem; width: 100%;
-}
+body { margin: 0; }
+h1, h2, h3 { letter-spacing: -0.01em; margin: 0; }
+button, input, select { font-size: 0.85rem; }
+input[type="range"] { width: 100%; }
+input[type="number"], input[type="text"] { width: 100%; }
+/* The native colour input is driven by the swatch above it, never shown. */
 input[type="color"] { position: absolute; width: 0; height: 0; opacity: 0; pointer-events: none; }
-@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
-/* ══════════════════════════════════════════════════════════════ END THEME ═ */
 
 .wrap { max-width: 1040px; margin: 0 auto; padding: 0 1.25rem 6rem; }
 
@@ -99,7 +68,7 @@ input[type="color"] { position: absolute; width: 0; height: 0; opacity: 0; point
   background: var(--surface); text-align: center; font-size: 0.78rem; letter-spacing: 0.06em; }
 .base .kill { width: 100%; border: none; border-top: 1px solid var(--line); border-radius: 0;
   font-size: 0.7rem; color: var(--ink-faint); padding: 0.3rem 0; }
-.base .kill:hover { color: #ff5c5c; border-color: var(--line); }
+.base .kill:hover { color: var(--neon-hot); border-color: var(--neon); }
 
 /* ── before / after strip ─────────────────────────────────────────────── */
 .strip { display: flex; gap: 2px; height: 46px; border: 1px solid var(--line); padding: 2px; border-radius: 2px; }
@@ -122,7 +91,7 @@ input[type="color"] { position: absolute; width: 0; height: 0; opacity: 0; point
   aspect-ratio: 4 / 3; min-width: 74px; display: grid; place-items: center;
   font-size: 0.7rem; letter-spacing: 0.05em; transition: transform 0.12s;
 }
-.cell:hover { transform: scale(1.06); z-index: 5; box-shadow: 0 0 0 1px #000, 0 0 0 2px var(--ink); border-color: transparent; }
+.cell:hover { transform: scale(1.06); z-index: 5; box-shadow: 0 0 0 1px var(--bg), 0 0 0 2px var(--ink); border-color: transparent; }
 .cell.diag::after {
   content: ''; position: absolute; inset: 4px; border: 1px dashed currentColor; opacity: 0.45;
 }
@@ -133,7 +102,7 @@ input[type="color"] { position: absolute; width: 0; height: 0; opacity: 0; point
 .sheet-row { display: grid; gap: 3px; }
 .sheet-lab { font-size: 0.72rem; color: var(--ink-faint); display: flex; align-items: center; white-space: nowrap; padding-right: 0.7rem; }
 .tile { height: 34px; min-width: 34px; border: none; border-radius: 0; padding: 0; }
-.tile:hover { box-shadow: 0 0 0 1px #000, 0 0 0 2px var(--ink); }
+.tile:hover { box-shadow: 0 0 0 1px var(--bg), 0 0 0 2px var(--ink); }
 
 /* ── house preview ────────────────────────────────────────────────────── */
 .preview { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 2rem; align-items: start; }
@@ -141,7 +110,7 @@ input[type="color"] { position: absolute; width: 0; height: 0; opacity: 0; point
 .scene { width: 100%; border: 1px solid var(--line); border-radius: 2px; display: block; }
 .legend { display: flex; flex-direction: column; gap: 0.3rem; }
 .legend .item { display: flex; align-items: center; gap: 0.6rem; font-size: 0.78rem; color: var(--ink-dim); }
-.legend .item i { width: 15px; height: 15px; flex: none; border: 1px solid rgba(255,255,255,0.14); }
+.legend .item i { width: 15px; height: 15px; flex: none; border: 1px solid var(--line); }
 
 /* ── export ───────────────────────────────────────────────────────────── */
 .out {

@@ -66,8 +66,11 @@
   --line:      hsl(var(--h) var(--s-line) 22%);
   --line-soft: hsl(var(--h) var(--s-line) 14%);
 
-  /* Type — one family doing every job, differentiated by weight and tracking */
+  /* Type — one family doing every job, differentiated by weight and tracking.
+     --mono is the one exception, for text that is literally a command or a
+     column of figures, and it stays a system stack so nothing is downloaded. */
   --sans: "Lexend Deca", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
   color-scheme: dark;
   accent-color: var(--neon);
@@ -266,9 +269,11 @@ button:disabled {
   box-shadow: none;
 }
 
-/* Segmented controls: the selected one is the lit one. */
+/* Segmented controls: the selected one is the lit one. Pages that mark state
+   with aria-pressed get the same treatment without opting into .seg. */
 .seg button { border-color: var(--line); color: var(--text-dim); }
-.seg button.on, .seg button[aria-pressed="true"], .seg button.active {
+.seg button.on, .seg button.active,
+button[aria-pressed="true"] {
   color: var(--neon);
   border-color: var(--neon);
   background: hsl(var(--tint) / 0.08);

@@ -4,48 +4,28 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>palette → gem</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Lexend+Deca:wght@200;300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="theme.css">
 <style>
-  /* ──────────────────────────────────────────────────────────────
-     Tokens — matches the SmallPages house look: monochromatic neon
-     on OLED black, Lexend Deca. Lift this block into the shared
-     stylesheet when the repo gets one; nothing below it is page-
-     specific except the .stage / .swatch rules.
-     ────────────────────────────────────────────────────────────── */
+  /* Layout and sizing only — every colour and the typeface come from
+     theme.css. The names below are local aliases onto the shared tokens,
+     so the rules further down keep reading the way they were written. */
   :root {
-    --void: #000000;
-    --panel: #070809;
-    --panel-2: #0c0e10;
-    --hair: #191d1f;
-    --hair-lit: #2b3336;
-    --ink: #d8ebe8;
-    --ink-dim: #6f8582;
-    --ink-faint: #475755;
-    --neon: #3ff0d8;
-    --neon-deep: #11433c;
-    --neon-glow: rgba(63, 240, 216, 0.22);
-    --sans: "Lexend Deca", Helvetica, Arial, sans-serif;
+    --void: var(--bg);
+    --panel: var(--raised);
+    --panel-2: hsl(var(--h) var(--s-line) 9%);
+    --hair: var(--line-soft);
+    --hair-lit: var(--line);
+    --ink: var(--text);
+    --ink-dim: var(--text-dim);
+    --ink-faint: var(--text-faint);
+    --neon-glow: hsl(var(--tint) / 0.22);
   }
-
-  * { box-sizing: border-box; }
-
-  html { -webkit-text-size-adjust: 100%; }
 
   body {
     margin: 0;
-    background: var(--void);
-    color: var(--ink);
-    font-family: var(--sans);
-    font-weight: 300;
-    font-size: 15px;
     line-height: 1.55;
     padding: 2.4rem 1.2rem 5rem;
   }
-
-  ::selection { background: var(--neon); color: #001c18; }
-  :focus-visible { outline: 1px solid var(--neon); outline-offset: 2px; }
 
   .shell { max-width: 1180px; margin: 0 auto; }
 
@@ -81,18 +61,18 @@
     position: relative;
     aspect-ratio: 1 / 1;
     background:
-      radial-gradient(60% 60% at 50% 45%, #0b0d0e 0%, #000 70%);
+      radial-gradient(60% 60% at 50% 45%, var(--raised) 0%, var(--bg) 70%);
     display: grid;
     place-items: center;
     overflow: hidden;
   }
   .stage.checker {
-    background-color: #0a0a0a;
+    background-color: var(--sunken);
     background-image:
-      linear-gradient(45deg, #151617 25%, transparent 25%),
-      linear-gradient(-45deg, #151617 25%, transparent 25%),
-      linear-gradient(45deg, transparent 75%, #151617 75%),
-      linear-gradient(-45deg, transparent 75%, #151617 75%);
+      linear-gradient(45deg,  hsl(var(--tint-deep)) 25%, transparent 25%),
+      linear-gradient(-45deg, hsl(var(--tint-deep)) 25%, transparent 25%),
+      linear-gradient(45deg,  transparent 75%, hsl(var(--tint-deep)) 75%),
+      linear-gradient(-45deg, transparent 75%, hsl(var(--tint-deep)) 75%);
     background-size: 18px 18px;
     background-position: 0 0, 0 9px, 9px -9px, -9px 0;
   }
@@ -110,7 +90,7 @@
 
   .strip { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-top: 0.9rem; }
   .strip button {
-    padding: 0; border: 1px solid var(--hair); background: #050607;
+    padding: 0; border: 1px solid var(--hair); background: var(--sunken);
     aspect-ratio: 1 / 1; cursor: pointer; overflow: hidden;
     transition: border-color 0.14s ease;
   }
@@ -137,7 +117,7 @@
   .swatch input[type="color"]::-webkit-color-swatch { border: none; }
   .swatch .kill {
     position: absolute; top: -6px; right: -6px; width: 17px; height: 17px;
-    border-radius: 50%; border: 1px solid var(--hair-lit); background: #0b0d0e;
+    border-radius: 50%; border: 1px solid var(--hair-lit); background: var(--raised);
     color: var(--ink-dim); font-size: 11px; line-height: 1; cursor: pointer;
     display: grid; place-items: center; padding: 0;
   }
@@ -160,6 +140,8 @@
   .presets .dots i { width: 7px; height: 14px; display: block; }
 
   .drop {
+    /* It's a <label>, so it needs taking out of the inline flow by hand. */
+    display: block;
     border: 1px dashed var(--hair-lit); padding: 1.1rem 0.9rem; text-align: center;
     cursor: pointer; color: var(--ink-dim); font-size: 0.8rem;
     transition: border-color 0.14s ease, color 0.14s ease;
@@ -179,7 +161,7 @@
     padding: 0.45rem 0.4rem; cursor: pointer; text-align: left;
   }
   .cuts button:hover { color: var(--ink); }
-  .cuts button[aria-pressed="true"] { color: #001c18; background: var(--neon); border-color: var(--neon); }
+  .cuts button[aria-pressed="true"] { color: var(--bg); background: var(--neon); border-color: var(--neon); }
 
   .field { margin-top: 0.8rem; }
   .field:first-child { margin-top: 0; }
@@ -213,10 +195,10 @@
 
   button.act {
     font-family: var(--sans); font-weight: 400; font-size: 0.82rem;
-    background: var(--neon); color: #001c18; border: none;
+    background: var(--neon); color: var(--bg); border: none;
     padding: 0.5rem 0.95rem; cursor: pointer;
   }
-  button.act:hover { background: #6ff7e4; }
+  button.act:hover { background: var(--neon-hot); }
   button.ghost {
     font-family: var(--sans); font-weight: 300; font-size: 0.78rem;
     background: transparent; color: var(--ink-dim); border: 1px solid var(--hair);

@@ -23,7 +23,8 @@ close it. Nothing is uploaded anywhere; every image, GIF and byte stays in your 
 ## Theme
 
 All pages share [`theme.css`](theme.css): a monochromatic glow on true OLED black,
-set in Lexend Deca (falling back to Helvetica).
+set in Lexend Deca (falling back to Helvetica). The one other face is `--mono`, a
+system monospace stack for text that is literally a command or a column of figures.
 
 Two custom properties at the top of the file drive every colour in the repo:
 
