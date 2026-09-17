@@ -1,0 +1,1561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>palette → gem</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lexend+Deca:wght@200;300;400;500&display=swap" rel="stylesheet">
+<style>
+  /* ──────────────────────────────────────────────────────────────
+     Tokens — matches the SmallPages house look: monochromatic neon
+     on OLED black, Lexend Deca. Lift this block into the shared
+     stylesheet when the repo gets one; nothing below it is page-
+     specific except the .stage / .swatch rules.
+     ────────────────────────────────────────────────────────────── */
+  :root {
+    --void: #000000;
+    --panel: #070809;
+    --panel-2: #0c0e10;
+    --hair: #191d1f;
+    --hair-lit: #2b3336;
+    --ink: #d8ebe8;
+    --ink-dim: #6f8582;
+    --ink-faint: #475755;
+    --neon: #3ff0d8;
+    --neon-deep: #11433c;
+    --neon-glow: rgba(63, 240, 216, 0.22);
+    --sans: "Lexend Deca", Helvetica, Arial, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  html { -webkit-text-size-adjust: 100%; }
+
+  body {
+    margin: 0;
+    background: var(--void);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-weight: 300;
+    font-size: 15px;
+    line-height: 1.55;
+    padding: 2.4rem 1.2rem 5rem;
+  }
+
+  ::selection { background: var(--neon); color: #001c18; }
+  :focus-visible { outline: 1px solid var(--neon); outline-offset: 2px; }
+
+  .shell { max-width: 1180px; margin: 0 auto; }
+
+  header { margin-bottom: 2rem; }
+  h1 {
+    font-weight: 200;
+    font-size: clamp(1.9rem, 6vw, 2.9rem);
+    letter-spacing: -0.02em;
+    margin: 0;
+    color: var(--ink);
+  }
+  h1 em {
+    font-style: normal;
+    color: var(--neon);
+    text-shadow: 0 0 22px var(--neon-glow);
+  }
+  header p {
+    margin: 0.5rem 0 0;
+    max-width: 62ch;
+    color: var(--ink-dim);
+    font-size: 0.92rem;
+  }
+
+  .layout { display: grid; gap: 1.6rem; }
+  @media (min-width: 900px) {
+    .layout { grid-template-columns: minmax(0, 1fr) 380px; align-items: start; }
+    .left { position: sticky; top: 1.6rem; }
+  }
+
+  /* ── stage ── */
+  .stage-wrap { border: 1px solid var(--hair); background: var(--panel); }
+  .stage {
+    position: relative;
+    aspect-ratio: 1 / 1;
+    background:
+      radial-gradient(60% 60% at 50% 45%, #0b0d0e 0%, #000 70%);
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+  }
+  .stage.checker {
+    background-color: #0a0a0a;
+    background-image:
+      linear-gradient(45deg, #151617 25%, transparent 25%),
+      linear-gradient(-45deg, #151617 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, #151617 75%),
+      linear-gradient(-45deg, transparent 75%, #151617 75%);
+    background-size: 18px 18px;
+    background-position: 0 0, 0 9px, 9px -9px, -9px 0;
+  }
+  .stage canvas { width: 100%; height: 100%; display: block; }
+
+  .stage-bar {
+    display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap;
+    padding: 0.7rem 0.85rem;
+    border-top: 1px solid var(--hair);
+    font-size: 0.78rem;
+    color: var(--ink-faint);
+  }
+  .stage-bar .spacer { flex: 1 1 auto; }
+  .seed { font-variant-numeric: tabular-nums; color: var(--ink-dim); }
+
+  .strip { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-top: 0.9rem; }
+  .strip button {
+    padding: 0; border: 1px solid var(--hair); background: #050607;
+    aspect-ratio: 1 / 1; cursor: pointer; overflow: hidden;
+    transition: border-color 0.14s ease;
+  }
+  .strip button:hover, .strip button:focus-visible { border-color: var(--neon-deep); }
+  .strip button[aria-current="true"] { border-color: var(--neon); }
+  .strip canvas { width: 100%; height: 100%; display: block; }
+
+  /* ── panels ── */
+  section.panel { border: 1px solid var(--hair); background: var(--panel); padding: 1.1rem 1.1rem 1.25rem; margin-bottom: 1rem; }
+  section.panel > h2 {
+    font-size: 0.86rem; font-weight: 400; margin: 0 0 0.85rem;
+    color: var(--ink); letter-spacing: 0.01em;
+  }
+  section.panel > h2 .hint { color: var(--ink-faint); font-weight: 200; margin-left: 0.5rem; }
+
+  /* ── palette ── */
+  .swatches { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 0.9rem; }
+  .swatch { position: relative; width: 46px; height: 46px; }
+  .swatch input[type="color"] {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    padding: 0; border: 1px solid var(--hair-lit); background: none; cursor: pointer;
+  }
+  .swatch input[type="color"]::-webkit-color-swatch-wrapper { padding: 2px; }
+  .swatch input[type="color"]::-webkit-color-swatch { border: none; }
+  .swatch .kill {
+    position: absolute; top: -6px; right: -6px; width: 17px; height: 17px;
+    border-radius: 50%; border: 1px solid var(--hair-lit); background: #0b0d0e;
+    color: var(--ink-dim); font-size: 11px; line-height: 1; cursor: pointer;
+    display: grid; place-items: center; padding: 0;
+  }
+  .swatch .kill:hover { color: var(--neon); border-color: var(--neon-deep); }
+  .add-swatch {
+    width: 46px; height: 46px; border: 1px dashed var(--hair-lit); background: transparent;
+    color: var(--ink-dim); font-size: 17px; cursor: pointer; font-family: var(--sans);
+  }
+  .add-swatch:hover { color: var(--neon); border-color: var(--neon-deep); }
+
+  .presets { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 0.9rem; }
+  .presets button {
+    display: flex; align-items: center; gap: 6px;
+    background: var(--panel-2); border: 1px solid var(--hair); color: var(--ink-dim);
+    font-family: var(--sans); font-weight: 300; font-size: 0.75rem;
+    padding: 0.28rem 0.5rem 0.28rem 0.32rem; cursor: pointer;
+  }
+  .presets button:hover { color: var(--ink); border-color: var(--hair-lit); }
+  .presets .dots { display: flex; }
+  .presets .dots i { width: 7px; height: 14px; display: block; }
+
+  .drop {
+    border: 1px dashed var(--hair-lit); padding: 1.1rem 0.9rem; text-align: center;
+    cursor: pointer; color: var(--ink-dim); font-size: 0.8rem;
+    transition: border-color 0.14s ease, color 0.14s ease;
+  }
+  .drop:hover, .drop.drag, .drop:focus-visible { border-color: var(--neon-deep); color: var(--ink); }
+  .drop input { display: none; }
+  .drop .sub { display: block; color: var(--ink-faint); font-size: 0.72rem; margin-top: 0.2rem; }
+  .source { display: none; align-items: center; gap: 0.6rem; margin-top: 0.7rem; }
+  .source img { width: 54px; height: 54px; object-fit: cover; border: 1px solid var(--hair); }
+  .source span { font-size: 0.75rem; color: var(--ink-faint); }
+
+  /* ── controls ── */
+  .cuts { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 5px; }
+  .cuts button {
+    background: var(--panel-2); border: 1px solid var(--hair); color: var(--ink-dim);
+    font-family: var(--sans); font-weight: 300; font-size: 0.78rem;
+    padding: 0.45rem 0.4rem; cursor: pointer; text-align: left;
+  }
+  .cuts button:hover { color: var(--ink); }
+  .cuts button[aria-pressed="true"] { color: #001c18; background: var(--neon); border-color: var(--neon); }
+
+  .field { margin-top: 0.8rem; }
+  .field:first-child { margin-top: 0; }
+  .field .row { display: flex; justify-content: space-between; align-items: baseline; gap: 0.6rem; }
+  .field label { font-size: 0.8rem; color: var(--ink-dim); }
+  .field output { font-size: 0.75rem; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+
+  input[type="range"] {
+    -webkit-appearance: none; appearance: none; width: 100%; height: 22px;
+    background: transparent; cursor: pointer; margin: 0;
+  }
+  input[type="range"]::-webkit-slider-runnable-track { height: 1px; background: var(--hair-lit); }
+  input[type="range"]::-moz-range-track { height: 1px; background: var(--hair-lit); }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 11px; height: 11px; border-radius: 50%;
+    background: var(--neon); margin-top: -5px; box-shadow: 0 0 10px var(--neon-glow);
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 11px; height: 11px; border: none; border-radius: 50%; background: var(--neon);
+  }
+
+  .checks { display: flex; flex-wrap: wrap; gap: 0.5rem 1.1rem; margin-top: 0.95rem; }
+  .checks label { display: flex; align-items: center; gap: 0.45rem; font-size: 0.8rem; color: var(--ink-dim); cursor: pointer; }
+  input[type="checkbox"] { accent-color: var(--neon); width: 14px; height: 14px; }
+
+  select {
+    font-family: var(--sans); font-weight: 300; font-size: 0.78rem;
+    background: var(--panel-2); color: var(--ink); border: 1px solid var(--hair);
+    padding: 0.3rem 0.4rem;
+  }
+
+  button.act {
+    font-family: var(--sans); font-weight: 400; font-size: 0.82rem;
+    background: var(--neon); color: #001c18; border: none;
+    padding: 0.5rem 0.95rem; cursor: pointer;
+  }
+  button.act:hover { background: #6ff7e4; }
+  button.ghost {
+    font-family: var(--sans); font-weight: 300; font-size: 0.78rem;
+    background: transparent; color: var(--ink-dim); border: 1px solid var(--hair);
+    padding: 0.38rem 0.7rem; cursor: pointer;
+  }
+  button.ghost:hover { color: var(--neon); border-color: var(--neon-deep); }
+
+  .notes { color: var(--ink-faint); font-size: 0.8rem; }
+  .notes p { margin: 0 0 0.6rem; max-width: 66ch; }
+  .notes p:last-child { margin-bottom: 0; }
+  .notes b { color: var(--ink-dim); font-weight: 400; }
+
+  footer { margin-top: 2.5rem; font-size: 0.75rem; color: var(--ink-faint); }
+  footer a { color: var(--ink-dim); text-decoration: none; border-bottom: 1px solid var(--hair-lit); }
+  footer a:hover { color: var(--neon); border-color: var(--neon-deep); }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+
+<header>
+  <h1>palette <em>→</em> gem</h1>
+  <p>Pick a palette, or pull one out of any image, and this grows a faceted stone from it — sharp plane changes, cool light facets against warm shadow ones, and whatever fire the cut can carry.</p>
+</header>
+
+<div class="layout">
+
+  <div class="left">
+    <div class="stage-wrap">
+      <div class="stage" id="stage"><canvas id="main" width="900" height="900"></canvas></div>
+      <div class="stage-bar">
+        <span class="seed">seed <span id="seedOut">—</span></span>
+        <button class="ghost" id="reroll" type="button">Reroll</button>
+        <span class="spacer"></span>
+        <select id="exportSize" aria-label="Export size">
+          <option value="900">900 px</option>
+          <option value="1600" selected>1600 px</option>
+          <option value="2400">2400 px</option>
+        </select>
+        <button class="act" id="download" type="button">Download PNG</button>
+      </div>
+    </div>
+    <div class="strip" id="strip"></div>
+  </div>
+
+  <div class="right">
+
+    <section class="panel">
+      <h2>Palette <span class="hint" id="palCount"></span></h2>
+      <div class="swatches" id="swatches"></div>
+      <div class="presets" id="presets"></div>
+      <label class="drop" id="drop" tabindex="0">
+        Drop an image, tap to browse, or paste one
+        <span class="sub">colours get pulled straight out of it</span>
+        <input type="file" id="file" accept="image/*">
+      </label>
+      <div class="source" id="source"><img id="sourceImg" alt="Image the palette came from"><span id="sourceName"></span></div>
+    </section>
+
+    <section class="panel">
+      <h2>Cut</h2>
+      <div class="cuts" id="cuts"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Light and material</h2>
+      <div class="field">
+        <div class="row"><label for="light">Light direction</label><output id="lightOut"></output></div>
+        <input type="range" id="light" min="0" max="360" step="1" value="135">
+      </div>
+      <div class="field">
+        <div class="row"><label for="facets">Facets</label><output id="facetsOut"></output></div>
+        <input type="range" id="facets" min="6" max="90" step="1" value="34">
+      </div>
+      <div class="field">
+        <div class="row"><label for="contrast">Value contrast</label><output id="contrastOut"></output></div>
+        <input type="range" id="contrast" min="0" max="100" step="1" value="72">
+      </div>
+      <div class="field">
+        <div class="row"><label for="spread">Hue spread</label><output id="spreadOut"></output></div>
+        <input type="range" id="spread" min="0" max="100" step="1" value="45">
+      </div>
+      <div class="field">
+        <div class="row"><label for="fire">Fire</label><output id="fireOut"></output></div>
+        <input type="range" id="fire" min="0" max="100" step="1" value="35">
+      </div>
+      <div class="field">
+        <div class="row"><label for="flaws">Flaws</label><output id="flawsOut"></output></div>
+        <input type="range" id="flaws" min="0" max="100" step="1" value="30">
+      </div>
+      <div class="field">
+        <div class="row"><label for="reflect">Internal reflections</label><output id="reflectOut"></output></div>
+        <input type="range" id="reflect" min="0" max="100" step="1" value="55">
+      </div>
+      <div class="field">
+        <div class="row"><label for="glow">Glow</label><output id="glowOut"></output></div>
+        <input type="range" id="glow" min="0" max="100" step="1" value="28">
+      </div>
+      <div class="checks">
+        <label><input type="checkbox" id="glowOn" checked> Outer glow</label>
+        <label><input type="checkbox" id="sparkleOn" checked> Sparkles</label>
+        <label><input type="checkbox" id="shadow"> Contact shadow</label>
+        <label><input type="checkbox" id="grey"> Value check</label>
+        <label for="backdrop">Backdrop</label>
+        <select id="backdrop">
+          <option value="dark" selected>Dark</option>
+          <option value="light">Light</option>
+          <option value="none">Transparent</option>
+        </select>
+      </div>
+    </section>
+
+    <section class="panel notes">
+      <p><b>Internal reflections</b> is the slider that does most of the work on a cut stone. It throws wedges outward from the centre — from the termination on a raw crystal — darkens roughly half of them, lets the rest carry the vivid saturated colour, and lays a scatter of loose triangles over the top, then the same scatter again mirrored.</p>
+      <p><b>Outer glow</b> off removes the halo that spills past the silhouette, which is usually what you want for an asset on a transparent background. The Glow slider still drives the bloom inside the stone. <b>Sparkles</b> off removes the dispersion stars and the dust around them; on a cabochon the Fire slider keeps producing the flashes trapped under the dome.</p>
+      <p><b>Value check</b> strips the colour out. If the stone stops reading as a hard, brittle object in greyscale, the hues were doing the work the values should be doing.</p>
+      <p>Faceted stones build in four passes: flat planes, reflections across them, then the highlight — one plane takes pure white, the ones around it take a brighter but less saturated version — and edge shines last. Cabochon and pearl deliberately skip it: opaque, rounded material can't disperse light into facets, so it holds one main highlight and a strong local colour instead.</p>
+    </section>
+
+  </div>
+</div>
+
+<footer>Everything runs in the page. Images you drop are read locally and never uploaded. <a href="index.html">Back to the index</a></footer>
+
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ══ random ══════════════════════════════════════════════════ */
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  const clamp = (v, a, b) => v < a ? a : (v > b ? b : v);
+  const lerp = (a, b, t) => a + (b - a) * t;
+
+  /* ══ colour ══════════════════════════════════════════════════ */
+  function hexToRgb(hex) {
+    let h = hex.replace("#", "");
+    if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+    const n = parseInt(h, 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+  function rgbToHex(r, g, b) {
+    const f = (v) => clamp(Math.round(v), 0, 255).toString(16).padStart(2, "0");
+    return "#" + f(r) + f(g) + f(b);
+  }
+  function rgbToHsl(r, g, b) {
+    r /= 255; g /= 255; b /= 255;
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+    let h = 0, s = 0; const l = (mx + mn) / 2;
+    if (mx !== mn) {
+      const d = mx - mn;
+      s = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn);
+      if (mx === r) h = ((g - b) / d + (g < b ? 6 : 0));
+      else if (mx === g) h = (b - r) / d + 2;
+      else h = (r - g) / d + 4;
+      h *= 60;
+    }
+    return { h: h, s: s, l: l };
+  }
+  const H = (h, s, l, a) =>
+    "hsla(" + (((h % 360) + 360) % 360).toFixed(1) + "," +
+    clamp(s * 100, 0, 100).toFixed(1) + "%," +
+    clamp(l * 100, 0, 100).toFixed(1) + "%," + (a === undefined ? 1 : a) + ")";
+  // Shortest signed way round the wheel from h to target.
+  const toward = (h, target, amt) => h + (((target - h + 540) % 360) - 180) * amt;
+
+  /* ══ geometry ════════════════════════════════════════════════ */
+  function area(p) {
+    let a = 0;
+    for (let i = 0; i < p.length; i++) {
+      const q = p[(i + 1) % p.length];
+      a += p[i][0] * q[1] - q[0] * p[i][1];
+    }
+    return Math.abs(a) / 2;
+  }
+  function centroid(p) {
+    let x = 0, y = 0;
+    for (const q of p) { x += q[0]; y += q[1]; }
+    return [x / p.length, y / p.length];
+  }
+  function clipHalf(poly, p0, n) {
+    const out = [];
+    for (let i = 0; i < poly.length; i++) {
+      const a = poly[i], b = poly[(i + 1) % poly.length];
+      const da = (a[0] - p0[0]) * n[0] + (a[1] - p0[1]) * n[1];
+      const db = (b[0] - p0[0]) * n[0] + (b[1] - p0[1]) * n[1];
+      if (da >= 0) out.push(a);
+      if ((da >= 0) !== (db >= 0)) {
+        const t = da / (da - db);
+        out.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]);
+      }
+    }
+    return out;
+  }
+  function splitPoly(poly, p0, dir) {
+    const n = [-dir[1], dir[0]];
+    return [clipHalf(poly, p0, n), clipHalf(poly, p0, [-n[0], -n[1]])];
+  }
+  function hull(pts) {
+    const p = pts.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    const cross = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+    const lo = [], up = [];
+    for (const q of p) { while (lo.length >= 2 && cross(lo[lo.length - 2], lo[lo.length - 1], q) <= 0) lo.pop(); lo.push(q); }
+    for (let i = p.length - 1; i >= 0; i--) { const q = p[i]; while (up.length >= 2 && cross(up[up.length - 2], up[up.length - 1], q) <= 0) up.pop(); up.push(q); }
+    lo.pop(); up.pop();
+    return lo.concat(up);
+  }
+  function tracePoly(ctx, p) {
+    ctx.beginPath();
+    ctx.moveTo(p[0][0], p[0][1]);
+    for (let i = 1; i < p.length; i++) ctx.lineTo(p[i][0], p[i][1]);
+    ctx.closePath();
+  }
+
+  /* ══ state ═══════════════════════════════════════════════════ */
+  const PRESETS = {
+    amethyst: ["#2a1046", "#5b2b8a", "#9a5fd0", "#c9a3f2", "#f0e4ff"],
+    sapphire: ["#050d2a", "#12256b", "#2a55c4", "#5f9bef", "#cfe4ff"],
+    emerald:  ["#032218", "#0a5a3c", "#12946a", "#4fd3a0", "#c8f7e0"],
+    ruby:     ["#2a0410", "#6e0a24", "#b81c3e", "#e85a72", "#ffc9cf"],
+    citrine:  ["#3a1e05", "#8a4d0b", "#d68a1e", "#f2c14e", "#fff1c2"],
+    diamond:  ["#101820", "#4a6070", "#9fb6c6", "#dbe8f0", "#ffffff"],
+    opal:     ["#0b2340", "#1f7a8c", "#3fd6a8", "#f2e394", "#ff7bd0", "#e8f4ff"],
+    jade:     ["#0a2a1e", "#15503a", "#2e8a63", "#66c49a", "#bfe8d4"],
+    pearl:    ["#3a2f36", "#8c7a80", "#d8c7c2", "#f3e9e4", "#ffffff"]
+  };
+  const CUTS = [
+    { id: "crystal",  label: "Raw crystal" },
+    { id: "brilliant", label: "Brilliant" },
+    { id: "step",      label: "Step cut" },
+    { id: "cabochon",  label: "Cabochon" },
+    { id: "pearl",     label: "Pearl" }
+  ];
+
+  const S = {
+    palette: PRESETS.amethyst.slice(),
+    cut: "crystal",
+    seed: 1042,
+    light: 135,
+    facets: 34,
+    contrast: 0.72,
+    spread: 0.45,
+    fire: 0.35,
+    flaws: 0.30,
+    reflect: 0.55,
+    glow: 0.28,
+    glowOn: true,
+    sparkleOn: true,
+    shadow: false,
+    grey: false,
+    backdrop: "dark"
+  };
+  let stripSeeds = [];
+
+  /* ══ shading core ════════════════════════════════════════════ */
+  function paletteHSL() {
+    const list = S.palette.map((hex) => { const c = hexToRgb(hex); return rgbToHsl(c[0], c[1], c[2]); });
+    list.sort((a, b) => a.l - b.l);
+    return list.length ? list : [{ h: 260, s: 0.5, l: 0.5 }];
+  }
+
+  function lightVec(deg) {
+    const a = deg * Math.PI / 180;
+    const v = [Math.cos(a), -Math.sin(a), 0.72];
+    const m = Math.hypot(v[0], v[1], v[2]);
+    return [v[0] / m, v[1] / m, v[2] / m];
+  }
+
+  // Turns a facet normal into a colour, following the reference: a hard
+  // break between lit and unlit rather than a smooth ramp, lit facets
+  // nudged cool, shadow facets nudged warm and kept in a narrower band.
+  function facetColor(n, L, pal, flow, rng) {
+    const lam = n[0] * L[0] + n[1] * L[1] + n[2] * L[2];
+    const thr = 0.10;
+    const lit = lam > thr;
+    const c = S.contrast;
+    let l, base, s;
+
+    // Which palette colour this facet family draws from.
+    const mid = (pal.length - 1) / 2;
+    const jitter = (rng() - 0.5) * 2.4 * S.spread;
+    let idx = Math.round(mid + (flow * 2.2 + jitter) * S.spread * pal.length * 0.55);
+    base = pal[clamp(idx, 0, pal.length - 1)];
+
+    if (lit) {
+      const t = clamp((lam - thr) / (1 - thr), 0, 1);
+      // Weighted so only the facets squarely facing the light go near white;
+      // the rest of the lit group keeps its colour.
+      l = lerp(0.36 + 0.09 * c, 0.54 + 0.24 * c, Math.pow(t, 1.45));
+      s = base.s * lerp(1.05, 0.62, Math.pow(t, 1.6)) * (0.82 + rng() * 0.32);
+      // The planes that are lit but not facing the light take the vivid,
+      // high-saturation colour — that is where a painted gem gets its punch.
+      if (t < 0.55) s *= 1 + 0.95 * S.reflect * (1 - t / 0.55);
+    } else {
+      const t = clamp((thr - lam) / (thr + 1), 0, 1);
+      // Shadows carry a smaller range of hue and value than the lit side, and
+      // the planes turned right away go almost to black.
+      l = lerp(0.26 - 0.11 * c, 0.04 + 0.03 * c, Math.pow(t, 0.5));
+      s = base.s * (0.85 + rng() * 0.2);
+    }
+    s = clamp(s, 0, 1);
+    l = clamp(l + (rng() - 0.5) * 0.11, 0.02, 0.98);
+
+    let h = base.h;
+    h = lit ? toward(h, 205, 0.16 * c) : toward(h, 28, 0.20 * c);
+    h += (rng() - 0.5) * 34 * S.spread;
+    return { css: H(h, s, l), h: h, s: s, l: l, lam: lam, lit: lit };
+  }
+
+  /* ══ silhouettes ═════════════════════════════════════════════ */
+  // A shard: organic mix of long and short edges, tapering to a
+  // termination. Hulled so every later split stays clean.
+  function shardHull(cx, cy, len, wid, ang, rng) {
+    const ca = Math.cos(ang), sa = Math.sin(ang);
+    const local = (u, v) => [cx + (u - 0.5) * len * ca - v * wid * sa,
+                             cy + (u - 0.5) * len * sa + v * wid * ca];
+    const pts = [];
+    // Breakpoints land irregularly, so the silhouette gets the organic mix of
+    // long and short edges a grown crystal has.
+    const breaks = [0];
+    let u = 0.06 + rng() * 0.10;
+    while (u < 0.92) { breaks.push(u); u += 0.12 + rng() * 0.30; }
+    breaks.push(1);
+    // Pointed termination at t=0, full width held to a flat broken base at t=1.
+    const prof = (t) => 0.04 + 0.96 * Math.pow(clamp(t / 0.34, 0, 1), 0.55);
+    const wl = 0.78 + rng() * 0.44, wr = 0.78 + rng() * 0.44;
+    const skew = (rng() - 0.5) * 0.18;
+    for (const t of breaks) pts.push(local(t, -prof(t) * wl * (0.96 + rng() * 0.08) / 2));
+    // a slanted cut across the base, as if it snapped off the matrix
+    pts.push(local(1 + skew, prof(1) * wr / 2));
+    for (let i = breaks.length - 1; i >= 0; i--) {
+      const t = breaks[i];
+      pts.push(local(t, prof(t) * wr * (0.96 + rng() * 0.08) / 2));
+    }
+    return hull(pts);
+  }
+
+  function facetShard(poly, ang, tip, want, rng) {
+    const axis = [Math.cos(ang), Math.sin(ang)];
+    const perp = [-axis[1], axis[0]];
+    let polys = [poly];
+    const minA = area(poly) / (want * 3.2);
+    let guard = 0;
+    while (polys.length < want && guard < want * 14) {
+      guard++;
+      let total = 0;
+      for (const p of polys) total += area(p);
+      let pick = rng() * total, i = 0;
+      for (; i < polys.length - 1; i++) { pick -= area(polys[i]); if (pick <= 0) break; }
+      const p = polys[i], c = centroid(p);
+      const r = rng();
+      let dir;
+      if (r < 0.60) {
+        const j = (rng() - 0.5) * 0.40;
+        dir = [Math.cos(ang + j), Math.sin(ang + j)];
+      } else if (r < 0.84) {
+        const d = [tip[0] - c[0] + (rng() - 0.5) * 30, tip[1] - c[1] + (rng() - 0.5) * 30];
+        const m = Math.hypot(d[0], d[1]) || 1;
+        dir = [d[0] / m, d[1] / m];
+      } else {
+        const j = (rng() - 0.5) * 0.7;
+        dir = [Math.cos(ang + Math.PI / 2 + j), Math.sin(ang + Math.PI / 2 + j)];
+      }
+      const off = Math.sqrt(area(p)) * (rng() - 0.5) * 0.7;
+      const p0 = [c[0] - dir[1] * off, c[1] + dir[0] * off];
+      const parts = splitPoly(p, p0, dir);
+      if (parts[0].length > 2 && parts[1].length > 2 && area(parts[0]) > minA && area(parts[1]) > minA) {
+        polys.splice(i, 1, parts[0], parts[1]);
+      }
+    }
+    return { polys: polys, axis: axis, perp: perp };
+  }
+
+  /* ══ the gem itself ══════════════════════════════════════════ */
+  // The painting tutorials all build a faceted stone in the same order:
+  // block the planes in flat, throw the internal reflections across them,
+  // then put the highlights and the edge shines on last. This follows it.
+  function drawFacets(ctx, facets, pal, L, rng, size, sil, focus) {
+    // Fill, then stroke each facet in its own colour so no seams open up
+    // between neighbours — the plane change does the separating, not a line.
+    for (const f of facets) {
+      const c = f.color;
+      tracePoly(ctx, f.poly);
+      ctx.fillStyle = c.css;
+      ctx.fill();
+      ctx.lineWidth = Math.max(1, size / 900);
+      ctx.strokeStyle = c.css;
+      ctx.stroke();
+    }
+    if (sil) {
+      internals(ctx, sil, focus || centroid(sil), pal, rng, size);
+      ambient(ctx, sil, size);
+    }
+    highlightTiers(ctx, facets, size);
+    edgeShines(ctx, facets, size);
+    if (sil) bloom(ctx, facets, sil, size);
+  }
+
+  // Wedges thrown from one point — the centre of a cut stone, the
+  // termination of a shard. Dark ones cut the surface into slices, bright
+  // ones are the light travelling back out.
+  function internals(ctx, sil, focus, pal, rng, size) {
+    if (S.reflect <= 0.01) return;
+    let r = 0;
+    for (const p of sil) r = Math.max(r, Math.hypot(p[0] - focus[0], p[1] - focus[1]));
+    const dark = pal[0];
+    let vivid = pal[0];
+    for (const p of pal) if (p.s * (0.35 + p.l) > vivid.s * (0.35 + vivid.l)) vivid = p;
+    ctx.save();
+    tracePoly(ctx, sil);
+    ctx.clip();
+
+    const n = Math.round(8 + S.reflect * 30);
+    for (let i = 0; i < n; i++) {
+      const a = rng() * Math.PI * 2;
+      const w = (0.012 + rng() * 0.10) * (0.7 + S.reflect);
+      const r0 = r * (0.03 + rng() * 0.24), r1 = r * (0.8 + rng() * 0.6);
+      tracePoly(ctx, [
+        [focus[0] + Math.cos(a - w * 0.35) * r0, focus[1] + Math.sin(a - w * 0.35) * r0],
+        [focus[0] + Math.cos(a + w * 0.35) * r0, focus[1] + Math.sin(a + w * 0.35) * r0],
+        [focus[0] + Math.cos(a + w) * r1, focus[1] + Math.sin(a + w) * r1],
+        [focus[0] + Math.cos(a - w) * r1, focus[1] + Math.sin(a - w) * r1]
+      ]);
+      if (rng() < 0.55) {
+        ctx.globalCompositeOperation = "source-over";
+        ctx.fillStyle = H(dark.h, dark.s, 0.05, (0.08 + rng() * 0.20) * S.reflect);
+      } else {
+        ctx.globalCompositeOperation = "lighter";
+        ctx.fillStyle = H(vivid.h + (rng() - 0.5) * 26, Math.min(1, vivid.s + 0.2), 0.44,
+                          (0.05 + rng() * 0.14) * S.reflect);
+      }
+      ctx.fill();
+    }
+
+    // A scatter of loose triangles, laid down once and then again mirrored,
+    // which is how the lasso-pattern method breaks up a flat stone.
+    const tris = [];
+    const m = Math.round(3 + S.reflect * 14);
+    for (let i = 0; i < m; i++) {
+      const bx = focus[0] + (rng() - 0.5) * r * 1.9, by = focus[1] + (rng() - 0.5) * r * 1.9;
+      const t = [];
+      for (let k = 0; k < 3; k++) {
+        const a = rng() * Math.PI * 2, rr = r * (0.07 + rng() * 0.38);
+        t.push([bx + Math.cos(a) * rr, by + Math.sin(a) * rr]);
+      }
+      tris.push(t);
+    }
+    for (let pass = 0; pass < 2; pass++) {
+      for (const t of tris) {
+        const q = pass === 0 ? t : t.map((p) => [p[0], 2 * focus[1] - p[1]]);
+        tracePoly(ctx, q);
+        if (pass === 0) {
+          ctx.globalCompositeOperation = "lighter";
+          ctx.fillStyle = H(vivid.h, Math.min(1, vivid.s + 0.15), 0.42, 0.07 * S.reflect);
+        } else {
+          ctx.globalCompositeOperation = "source-over";
+          ctx.fillStyle = H(dark.h, dark.s, 0.07, 0.10 * S.reflect);
+        }
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+
+  // A stone is darker at its foot than at its shoulder whatever the light
+  // is doing. Weak, but it stops the facets reading as a flat pattern.
+  function ambient(ctx, sil, size) {
+    let y0 = Infinity, y1 = -Infinity;
+    for (const p of sil) { if (p[1] < y0) y0 = p[1]; if (p[1] > y1) y1 = p[1]; }
+    const g = ctx.createLinearGradient(0, y0, 0, y1);
+    g.addColorStop(0, "rgba(255,255,255,0.05)");
+    g.addColorStop(0.45, "rgba(0,0,0,0)");
+    g.addColorStop(1, "rgba(0,0,0,0.22)");
+    ctx.save();
+    tracePoly(ctx, sil);
+    ctx.clip();
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, size, size);
+    ctx.restore();
+  }
+
+  // One plane takes the pure white. The planes around it take a bright but
+  // less saturated version of it, so the highlight has somewhere to fall off.
+  function highlightTiers(ctx, facets, size) {
+    const ranked = facets.slice().sort((a, b) => b.color.lam - a.color.lam);
+    const hot = Math.max(1, Math.round(facets.length * 0.05));
+    const first = ranked[0];
+    if (!first || first.color.lam < 0.5) return;
+    const fc = centroid(first.poly);
+    let reach = 0;
+    for (const f of facets) {
+      const c = centroid(f.poly);
+      reach = Math.max(reach, Math.hypot(c[0] - fc[0], c[1] - fc[1]));
+    }
+    for (const f of facets) {
+      if (!f.color.lit || f.color.lam < 0.3) continue;
+      const c = centroid(f.poly);
+      const d = Math.hypot(c[0] - fc[0], c[1] - fc[1]) / (reach || 1);
+      if (d > 0.28) continue;
+      tracePoly(ctx, f.poly);
+      ctx.fillStyle = H(f.color.h, f.color.s * 0.5, 0.80, (0.17 - d * 0.45) * S.contrast);
+      ctx.fill();
+    }
+    for (let i = 0; i < hot && i < ranked.length; i++) {
+      const f = ranked[i];
+      if (f.color.lam < 0.5) break;
+      tracePoly(ctx, f.poly);
+      ctx.fillStyle = H(f.color.h, 0.12, i === 0 ? 0.97 : 0.92, 0.3 + 0.35 * S.contrast);
+      ctx.fill();
+    }
+    void size;
+  }
+
+  // White lines on the cut edges, but only the ones catching the light.
+  function edgeShines(ctx, facets, size) {
+    for (const f of facets) {
+      if (f.color.lam < 0.6) continue;
+      tracePoly(ctx, f.poly);
+      ctx.lineWidth = Math.max(1, size / 1400);
+      ctx.strokeStyle = H(f.color.h, f.color.s * 0.3, Math.min(0.98, f.color.l + 0.24), 0.42);
+      ctx.stroke();
+    }
+  }
+
+  // The bright planes bleed over their neighbours — the copy-blur-lower-the-
+  // opacity move that every one of these tutorials repeats three or four times.
+  function bloom(ctx, facets, sil, size) {
+    if (S.glow <= 0.02) return;
+    ctx.save();
+    tracePoly(ctx, sil);
+    ctx.clip();
+    ctx.globalCompositeOperation = "lighter";
+    ctx.globalAlpha = 0.14 * S.glow;
+    for (const f of facets) {
+      if (f.color.lam < 0.55) continue;
+      ctx.shadowColor = H(f.color.h, f.color.s * 0.5, 0.85, 0.7);
+      ctx.shadowBlur = size * 0.04 * S.glow;
+      tracePoly(ctx, f.poly);
+      ctx.fillStyle = H(f.color.h, f.color.s * 0.35, 0.78, 0.7);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // The pattern inside a table facet points at the centre of the stone: a fan
+  // of alternating dark and bright wedges converging on it.
+  function internalReflections(ctx, poly, color, rng, size) {
+    const c = centroid(poly);
+    let r = 0;
+    for (const p of poly) r = Math.max(r, Math.hypot(p[0] - c[0], p[1] - c[1]));
+    ctx.save();
+    tracePoly(ctx, poly);
+    ctx.clip();
+    const n = 5 + Math.floor(rng() * 4);
+    let a = rng() * Math.PI * 2;
+    for (let i = 0; i < n; i++) {
+      a += Math.PI * 2 / n * (0.55 + rng() * 0.9);
+      const w = 0.06 + rng() * 0.3;
+      const r0 = r * (0.02 + rng() * 0.12);
+      tracePoly(ctx, [
+        [c[0] + Math.cos(a) * r0, c[1] + Math.sin(a) * r0],
+        [c[0] + Math.cos(a + w) * r * 1.4, c[1] + Math.sin(a + w) * r * 1.4],
+        [c[0] + Math.cos(a - w) * r * 1.4, c[1] + Math.sin(a - w) * r * 1.4]
+      ]);
+      const dark = i % 2 === 0;
+      ctx.fillStyle = dark
+        ? H(color.h, Math.min(1, color.s + 0.25), Math.max(0.06, color.l - 0.34), 0.5)
+        : H(color.h, color.s * 0.4, Math.min(0.97, color.l + 0.2), 0.35);
+      ctx.fill();
+    }
+    ctx.restore();
+    void size;
+  }
+
+  function addFlaws(ctx, facets, rng, size) {
+    if (S.flaws <= 0.01) return;
+    const n = Math.round(S.flaws * facets.length * 0.55);
+    for (let i = 0; i < n; i++) {
+      const f = facets[Math.floor(rng() * facets.length)];
+      if (!f || f.poly.length < 3) continue;
+      // A dent catches the light. On a plane that is turned away there is
+      // barely any light to catch, so it stays close to the facet's own value.
+      if (!f.color.lit && rng() < 0.55) continue;
+      const c = centroid(f.poly);
+      const r = Math.sqrt(area(f.poly)) * 0.5;
+      ctx.save();
+      tracePoly(ctx, f.poly);
+      ctx.clip();
+      const a = rng() * Math.PI * 2;
+      const len = r * (0.4 + rng() * 0.9);
+      const x0 = c[0] + (rng() - 0.5) * r, y0 = c[1] + (rng() - 0.5) * r;
+      const x1 = x0 + Math.cos(a) * len, y1 = y0 + Math.sin(a) * len;
+      const lift = f.color.lit ? 0.22 + 0.16 * f.color.lam : 0.12;
+      const l = Math.min(0.95, f.color.l + lift);
+      // Fades at both ends, so it reads as a crack in the surface rather than
+      // a line drawn on top of it.
+      const g = ctx.createLinearGradient(x0, y0, x1, y1);
+      g.addColorStop(0, H(f.color.h, f.color.s * 0.5, l, 0));
+      g.addColorStop(0.4, H(f.color.h, f.color.s * 0.35, l, 0.6));
+      g.addColorStop(1, H(f.color.h, f.color.s * 0.5, l, 0.05));
+      ctx.lineCap = "butt";
+      ctx.lineWidth = Math.max(1, size / 1000) * (0.6 + rng() * 0.7);
+      ctx.strokeStyle = g;
+      ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+      // the dent's own shadow, one pixel off, keeps it from reading as a scratch
+      ctx.lineWidth = Math.max(1, size / 1100);
+      ctx.strokeStyle = H(f.color.h, f.color.s * 0.8, Math.max(0.03, f.color.l - 0.18), 0.45);
+      const dx = -Math.sin(a) * size / 520, dy = Math.cos(a) * size / 520;
+      ctx.beginPath(); ctx.moveTo(x0 + dx, y0 + dy); ctx.lineTo(x1 + dx, y1 + dy); ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  function addFire(ctx, facets, rng, size, L) {
+    if (!S.sparkleOn || S.fire <= 0.01) return;
+    const bright = facets.filter((f) => f.color.lam > 0.5);
+    const pool = bright.length ? bright : facets;
+    const n = Math.round(S.fire * 16) + 2;
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    for (let i = 0; i < n; i++) {
+      const f = pool[Math.floor(rng() * pool.length)];
+      const c = centroid(f.poly);
+      const r = Math.sqrt(area(f.poly)) * 0.35;
+      const x = c[0] + (rng() - 0.5) * r, y = c[1] + (rng() - 0.5) * r;
+      const big = rng() < 0.22;
+      const reach = size * (big ? 0.06 + rng() * 0.08 : 0.018 + rng() * 0.03) * (0.6 + S.fire);
+      const rays = big ? 6 : 4;
+      const spin = rng() * Math.PI;
+      const hue0 = rng() * 360;
+      for (let k = 0; k < rays; k++) {
+        const a = spin + k * Math.PI * 2 / rays;
+        const len = reach * (k % 2 ? 0.55 : 1);
+        const g = ctx.createLinearGradient(x, y, x + Math.cos(a) * len, y + Math.sin(a) * len);
+        g.addColorStop(0, H(hue0, 0.2, 0.95, 0.9));
+        g.addColorStop(0.45, H(hue0 + 60 * (k % 3), 0.95, 0.6, 0.45));
+        g.addColorStop(1, H(hue0 + 120, 0.9, 0.5, 0));
+        ctx.strokeStyle = g;
+        ctx.lineWidth = Math.max(1, size / 1100) * (big ? 1.5 : 1);
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(a) * len, y + Math.sin(a) * len); ctx.stroke();
+      }
+      const cr = reach * 0.16;
+      const core = ctx.createRadialGradient(x, y, 0, x, y, cr);
+      core.addColorStop(0, "rgba(255,255,255,0.9)");
+      core.addColorStop(0.4, "rgba(255,255,255,0.35)");
+      core.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.fillStyle = core;
+      ctx.beginPath(); ctx.arc(x, y, cr, 0, Math.PI * 2); ctx.fill();
+    }
+    // loose spectral dust in the air around the stone
+    const dust = Math.round(S.fire * 30);
+    for (let i = 0; i < dust; i++) {
+      const f = pool[Math.floor(rng() * pool.length)];
+      const c = centroid(f.poly);
+      const x = c[0] + (rng() - 0.5) * size * 0.25;
+      const y = c[1] + (rng() - 0.5) * size * 0.25;
+      ctx.fillStyle = H(rng() * 360, 0.9, 0.7, 0.35 + rng() * 0.4);
+      ctx.beginPath(); ctx.arc(x, y, size / 900 * (0.8 + rng() * 1.8), 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function glowPass(ctx, path, pal, size) {
+    if (!S.glowOn || S.glow <= 0.01) return;
+    // The glow takes the palette's most saturated colour — the lightest one is
+    // often near white, which would throw a colourless halo.
+    let top = pal[pal.length - 1];
+    for (const p of pal) if (p.s * (0.3 + p.l) > top.s * (0.3 + top.l)) top = p;
+    const neutral = top.s < 0.12;
+    ctx.save();
+    ctx.shadowColor = neutral
+      ? "rgba(200,220,235," + (0.5 * S.glow + 0.1).toFixed(3) + ")"
+      : H(top.h, Math.min(1, top.s + 0.2), 0.6, 0.55 * S.glow + 0.1);
+    ctx.shadowBlur = size * 0.09 * S.glow;
+    ctx.fillStyle = H(top.h, top.s, 0.2, 1);
+    for (let i = 0; i < 3; i++) { tracePoly(ctx, path); ctx.fill(); }
+    ctx.restore();
+  }
+
+  /* ── raw crystal ── */
+  function renderCrystal(ctx, size, pal, L, rng) {
+    const cx = size / 2, cy = size / 2;
+    const shards = [];
+    const main = {
+      cx: cx + (rng() - 0.5) * size * 0.04,
+      cy: cy + (rng() - 0.5) * size * 0.04,
+      len: size * (0.62 + rng() * 0.14),
+      wid: size * (0.20 + rng() * 0.12),
+      ang: Math.PI / 2 + (rng() - 0.5) * 0.85,
+      scale: 1
+    };
+    shards.push(main);
+    const extra = rng() < 0.62 ? (rng() < 0.4 ? 2 : 1) : 0;
+    for (let i = 0; i < extra; i++) {
+      shards.push({
+        cx: main.cx + (rng() - 0.5) * size * 0.34,
+        cy: main.cy + size * (0.10 + rng() * 0.16),
+        len: main.len * (0.36 + rng() * 0.28),
+        wid: main.wid * (0.4 + rng() * 0.4),
+        ang: main.ang + (rng() - 0.5) * 1.5,
+        scale: 0.72
+      });
+    }
+    // companions behind first, dimmed, so the main shard keeps the eye
+    shards.sort((a, b) => b.scale === a.scale ? 0 : (a.scale - b.scale));
+    const all = [];
+    for (const sh of shards) {
+      const poly = shardHull(sh.cx, sh.cy, sh.len, sh.wid, sh.ang, rng);
+      const tip = [sh.cx - Math.cos(sh.ang) * sh.len * 0.5, sh.cy - Math.sin(sh.ang) * sh.len * 0.5];
+      const want = Math.max(4, Math.round(S.facets * (sh.scale === 1 ? 1 : 0.4)));
+      const cut = facetShard(poly, sh.ang, tip, want, rng);
+      if (sh.scale === 1) glowPass(ctx, poly, pal, size);
+      const facets = [];
+      const halfW = sh.wid / 2;
+      for (const p of cut.polys) {
+        if (p.length < 3) continue;
+        const c = centroid(p);
+        const dx = c[0] - sh.cx, dy = c[1] - sh.cy;
+        const u = (dx * cut.axis[0] + dy * cut.axis[1]) / (sh.len / 2);
+        const v = (dx * cut.perp[0] + dy * cut.perp[1]) / halfW;
+        let np = clamp(v, -1.1, 1.1) * 1.06 + (rng() - 0.5) * 0.62;
+        let na = u < -0.42 ? clamp((-u - 0.42) / 0.58, 0, 1) * -0.78 : (rng() - 0.5) * 0.3;
+        const m2 = np * np + na * na;
+        if (m2 > 0.94) { const k = Math.sqrt(0.94 / m2); np *= k; na *= k; }
+        const nz = Math.sqrt(Math.max(0.05, 1 - np * np - na * na));
+        const n = [np * cut.perp[0] + na * cut.axis[0], np * cut.perp[1] + na * cut.axis[1], nz];
+        const flow = (u * 0.7 + v * 1.1);
+        const color = facetColor(n, L, pal, flow, rng);
+        if (sh.scale !== 1) { color.l *= 0.72; color.css = H(color.h, color.s, color.l); color.lam *= 0.6; }
+        facets.push({ poly: p, color: color, n: n });
+      }
+      drawFacets(ctx, facets, pal, L, rng, size, poly, tip);
+      if (sh.scale === 1) {
+        addFlaws(ctx, facets, rng, size);
+        rimLight(ctx, poly, L, pal, size);
+      }
+      for (const f of facets) if (sh.scale === 1) all.push(f);
+    }
+    addFire(ctx, all, rng, size, L);
+  }
+
+  /* ── brilliant cut ── */
+  function renderBrilliant(ctx, size, pal, L, rng) {
+    const cx = size / 2, cy = size / 2;
+    const R = size * 0.38;
+    const n = clamp(Math.round(4 + S.facets / 6), 6, 14);
+    const tilt = rng() * Math.PI * 2;
+    const out = [], tab = [], mid = [];
+    const rt = R * (0.40 + rng() * 0.08);
+    const rm = R * (0.70 + rng() * 0.08);
+    const wob = () => 1 + (rng() - 0.5) * 0.05;
+    for (let i = 0; i < n; i++) {
+      const a = tilt + i * Math.PI * 2 / n;
+      out.push([cx + Math.cos(a) * R * wob(), cy + Math.sin(a) * R * wob()]);
+      tab.push([cx + Math.cos(a) * rt, cy + Math.sin(a) * rt]);
+      const am = a + Math.PI / n;
+      mid.push([cx + Math.cos(am) * rm, cy + Math.sin(am) * rm]);
+    }
+    glowPass(ctx, out, pal, size);
+    const facets = [];
+    const mk = (poly, radial, strength) => {
+      const c = centroid(poly);
+      const dx = c[0] - cx, dy = c[1] - cy;
+      const m = Math.hypot(dx, dy) || 1;
+      let np = strength + (rng() - 0.5) * 0.5;
+      np = clamp(np, -0.95, 0.95);
+      const ja = rng() * Math.PI * 2, jm = (rng() - 0.5) * 0.3;
+      let nx = (dx / m) * np + Math.cos(ja) * jm;
+      let ny = (dy / m) * np + Math.sin(ja) * jm;
+      const l2 = nx * nx + ny * ny;
+      if (l2 > 0.94) { const k = Math.sqrt(0.94 / l2); nx *= k; ny *= k; }
+      const nz = Math.sqrt(Math.max(0.05, 1 - nx * nx - ny * ny));
+      const flow = (dx * 0.9 + dy * 1.3) / R;
+      facets.push({ poly: poly, color: facetColor([nx, ny, nz], L, pal, flow, rng), n: [nx, ny, nz] });
+      void radial;
+    };
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      mk([tab[i], tab[j], mid[i]], true, 0.30);              // star
+      mk([tab[i], mid[i], out[i]], true, 0.66);              // upper girdle
+      mk([tab[j], mid[i], out[j]], true, 0.66);
+      mk([out[i], mid[i], out[j]], true, 0.88);              // main
+    }
+    mk(tab, true, 0.05);                                      // table
+    facets.sort((a, b) => area(b.poly) - area(a.poly));
+    drawFacets(ctx, facets, pal, L, rng, size, out, [cx, cy]);
+    // the table is the brightest plane in a brilliant; give it a hard highlight
+    const table = facets.reduce((a, b) => area(a.poly) > area(b.poly) ? a : b);
+    tracePoly(ctx, table.poly);
+    ctx.fillStyle = H(table.color.h, 0.16, 0.86, 0.22 + 0.22 * S.contrast);
+    ctx.fill();
+    internalReflections(ctx, table.poly, { h: table.color.h, s: Math.max(0.35, table.color.s), l: 0.62 }, rng, size);
+    addFlaws(ctx, facets, rng, size);
+    rimLight(ctx, out, L, pal, size);
+    addFire(ctx, facets, rng, size, L);
+  }
+
+  /* ── step cut ── */
+  function renderStep(ctx, size, pal, L, rng) {
+    const cx = size / 2, cy = size / 2;
+    const w = size * (0.26 + rng() * 0.06), h = size * (0.38 + rng() * 0.06);
+    const bev = Math.min(w, h) * (0.28 + rng() * 0.12);
+    const oct = (sw, sh, sb) => [
+      [cx - sw + sb, cy - sh], [cx + sw - sb, cy - sh], [cx + sw, cy - sh + sb],
+      [cx + sw, cy + sh - sb], [cx + sw - sb, cy + sh], [cx - sw + sb, cy + sh],
+      [cx - sw, cy + sh - sb], [cx - sw, cy - sh + sb]
+    ];
+    const rings = clamp(Math.round(2 + S.facets / 16), 2, 5);
+    const outer = oct(w, h, bev);
+    glowPass(ctx, outer, pal, size);
+    const facets = [];
+    for (let r = 0; r < rings; r++) {
+      const k0 = 1 - r / rings * 0.78, k1 = 1 - (r + 1) / rings * 0.78;
+      const a = oct(w * k0, h * k0, bev * k0);
+      const b = oct(w * k1, h * k1, bev * k1);
+      for (let i = 0; i < 8; i++) {
+        const j = (i + 1) % 8;
+        const poly = [a[i], a[j], b[j], b[i]];
+        const c = centroid(poly);
+        const dx = c[0] - cx, dy = c[1] - cy;
+        const m = Math.hypot(dx, dy) || 1;
+        // Step cuts read as a few broad planes, so the tilt is even and
+        // the jitter is small — long flat flashes instead of sparkle.
+        const np = 0.42 + r * 0.16 + (rng() - 0.5) * 0.12;
+        let nx = (dx / m) * np, ny = (dy / m) * np;
+        const nz = Math.sqrt(Math.max(0.05, 1 - nx * nx - ny * ny));
+        const flow = (dx * 0.8 + dy * 1.4) / (h || 1);
+        facets.push({ poly: poly, color: facetColor([nx, ny, nz], L, pal, flow, rng), n: [nx, ny, nz] });
+      }
+    }
+    const kk = 1 - 0.78;
+    const table = oct(w * kk, h * kk, bev * kk);
+    const tableColor = facetColor([0.03, -0.05, 0.99], L, pal, 0, rng);
+    facets.push({ poly: table, color: tableColor, n: [0, 0, 1] });
+    drawFacets(ctx, facets, pal, L, rng, size, outer, [cx, cy]);
+    internalReflections(ctx, table, { h: tableColor.h, s: tableColor.s, l: tableColor.l }, rng, size);
+    addFlaws(ctx, facets, rng, size);
+    rimLight(ctx, outer, L, pal, size);
+    addFire(ctx, facets, rng, size, L);
+  }
+
+  /* ── rounded, opaque material: cabochon and pearl ── */
+  function renderRound(ctx, size, pal, L, rng, kind) {
+    const cx = size / 2, cy = size / 2;
+    const rx = size * (kind === "pearl" ? 0.30 : 0.32 + rng() * 0.04);
+    const ry = kind === "pearl" ? rx : rx * (0.70 + rng() * 0.22);
+    const rot = kind === "pearl" ? 0 : (rng() - 0.5) * 0.7;
+    const dark = pal[0], deep = pal[Math.floor(pal.length * 0.35)] || pal[0];
+    const local = pal[Math.floor(pal.length * 0.55)] || pal[pal.length - 1];
+    const top = pal[pal.length - 1];
+
+    const ring = [];
+    for (let i = 0; i < 64; i++) {
+      const a = i / 64 * Math.PI * 2;
+      const x = Math.cos(a) * rx, y = Math.sin(a) * ry;
+      ring.push([cx + x * Math.cos(rot) - y * Math.sin(rot), cy + x * Math.sin(rot) + y * Math.cos(rot)]);
+    }
+    glowPass(ctx, ring, pal, size);
+
+    // L points towards the light, so the highlight sits on the +L side and
+    // the form turns away on the other.
+    const hx = cx + L[0] * rx * 0.42, hy = cy + L[1] * ry * 0.42;
+    ctx.save();
+    tracePoly(ctx, ring);
+    ctx.clip();
+
+    // Body: strong local colour, low value contrast, form turning away slowly.
+    const c = S.contrast;
+    const bxc = cx + L[0] * rx * 0.3, byc = cy + L[1] * ry * 0.3;
+    const body = ctx.createRadialGradient(bxc, byc, rx * 0.05, bxc, byc, rx * 1.18);
+    if (kind === "pearl") {
+      body.addColorStop(0, H(top.h, top.s * 0.35, 0.86));
+      body.addColorStop(0.42, H(local.h, local.s * 0.45, 0.60 - 0.1 * c));
+      body.addColorStop(1, H(dark.h, dark.s * 0.8, 0.16 - 0.06 * c));
+    } else {
+      body.addColorStop(0, H(local.h, local.s * 0.92, 0.60 + 0.06 * (1 - c)));
+      body.addColorStop(0.45, H(deep.h, deep.s, 0.38));
+      body.addColorStop(1, H(dark.h, Math.min(1, dark.s + 0.1), 0.08 + 0.04 * (1 - c)));
+    }
+    ctx.fillStyle = body;
+    ctx.fillRect(0, 0, size, size);
+
+    // The terminator: where the form turns away, deepened so the stone reads
+    // round even in greyscale.
+    const tx = cx - L[0] * rx * 0.85, ty = cy - L[1] * ry * 0.85;
+    const term = ctx.createRadialGradient(tx, ty, 0, tx, ty, rx * 1.35);
+    term.addColorStop(0, "rgba(0,0,0," + (0.18 + 0.20 * c).toFixed(3) + ")");
+    term.addColorStop(0.7, "rgba(0,0,0,0.10)");
+    term.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = term;
+    ctx.fillRect(0, 0, size, size);
+
+    // The dome falls away at its own edge all the way round, independent of
+    // where the light is.
+    const vig = ctx.createRadialGradient(cx, cy, rx * 0.5, cx, cy, rx * 1.02);
+    vig.addColorStop(0, "rgba(0,0,0,0)");
+    vig.addColorStop(1, "rgba(0,0,0," + (0.30 + 0.25 * c).toFixed(3) + ")");
+    ctx.save();
+    ctx.translate(cx, cy); ctx.rotate(rot); ctx.scale(1, ry / rx); ctx.translate(-cx, -cy);
+    ctx.fillStyle = vig;
+    ctx.beginPath(); ctx.arc(cx, cy, rx * 1.02, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+
+    if (kind !== "pearl") {
+      // Light passing through the stone instead of off it: the saturated glow
+      // gathers near the far rim, where the reference puts it.
+      const gx = cx - L[0] * rx * 0.78, gy = cy - L[1] * ry * 0.78;
+      const g = ctx.createRadialGradient(gx, gy, 0, gx, gy, rx * 0.6);
+      g.addColorStop(0, H(local.h, Math.min(1, local.s + 0.3), 0.5, 0.4));
+      g.addColorStop(1, H(local.h, local.s, 0.5, 0));
+      ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.fillStyle = g;
+      ctx.fillRect(0, 0, size, size); ctx.restore();
+
+      // mottling, so the colour is not flat
+      const blobs = Math.round(6 + S.spread * 22);
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      for (let i = 0; i < blobs; i++) {
+        const p = pal[Math.floor(pal.length * 0.4 + rng() * pal.length * 0.6)] || local;
+        const bx = cx + (rng() - 0.5) * rx * 1.8, by = cy + (rng() - 0.5) * ry * 1.8;
+        const br = rx * (0.06 + rng() * 0.22);
+        const bg = ctx.createRadialGradient(bx, by, 0, bx, by, br);
+        bg.addColorStop(0, H(p.h + (rng() - 0.5) * 30 * S.spread, p.s, 0.5, 0.06 + rng() * 0.10));
+        bg.addColorStop(1, H(p.h, p.s, 0.5, 0));
+        ctx.fillStyle = bg;
+        ctx.beginPath(); ctx.arc(bx, by, br, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.restore();
+
+      // opal fire: flat spectral patches trapped under the dome
+      if (S.fire > 0.02) {
+        ctx.save();
+        ctx.globalCompositeOperation = "lighter";
+        const patches = Math.round(S.fire * 26);
+        for (let i = 0; i < patches; i++) {
+          const px = cx + (rng() - 0.5) * rx * 1.7, py = cy + (rng() - 0.5) * ry * 1.7;
+          const pr = rx * (0.03 + rng() * 0.09);
+          const hue = rng() * 360;
+          const pg = ctx.createRadialGradient(px, py, 0, px, py, pr * 1.6);
+          pg.addColorStop(0, H(hue, 0.95, 0.62, 0.16 + rng() * 0.26 * S.fire));
+          pg.addColorStop(1, H(hue, 0.95, 0.55, 0));
+          ctx.fillStyle = pg;
+          ctx.save();
+          ctx.translate(px, py);
+          ctx.rotate(rng() * Math.PI);
+          ctx.scale(1, 0.4 + rng() * 0.7);
+          ctx.translate(-px, -py);
+          ctx.beginPath(); ctx.arc(px, py, pr * 1.6, 0, Math.PI * 2); ctx.fill();
+          ctx.restore();
+        }
+        ctx.restore();
+      }
+    } else {
+      // Pearl sheen: broad, soft, hue drifting across the surface.
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      for (let i = 0; i < 3; i++) {
+        const p = pal[Math.floor(rng() * pal.length)];
+        const sx = cx + (rng() - 0.5) * rx, sy = cy + (rng() - 0.5) * ry;
+        const sg = ctx.createRadialGradient(sx, sy, 0, sx, sy, rx * (0.7 + rng() * 0.6));
+        sg.addColorStop(0, H(p.h + (rng() - 0.5) * 60 * S.spread, 0.6, 0.55, 0.16 + 0.14 * S.spread));
+        sg.addColorStop(1, H(p.h, 0.6, 0.5, 0));
+        ctx.fillStyle = sg;
+        ctx.fillRect(0, 0, size, size);
+      }
+      ctx.restore();
+    }
+
+    // Light bounced back up into the far rim — the band that makes a sphere
+    // read as a sphere rather than a disc.
+    const bx = cx - L[0] * rx * 1.0, by = cy - L[1] * ry * 1.0;
+    const rim = ctx.createRadialGradient(bx, by, 0, bx, by, rx * 0.55);
+    rim.addColorStop(0, H(top.h, top.s * 0.6, 0.7, kind === "pearl" ? 0.34 : 0.24));
+    rim.addColorStop(1, H(top.h, top.s, 0.6, 0));
+    ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.fillStyle = rim;
+    ctx.fillRect(0, 0, size, size); ctx.restore();
+
+    // One main highlight. Round material gets a single one, blended.
+    const hr = rx * (kind === "pearl" ? 0.24 : 0.15);
+    const spec = ctx.createRadialGradient(hx, hy, 0, hx, hy, hr);
+    spec.addColorStop(0, "rgba(255,255,255," + (kind === "pearl" ? 0.85 : 0.97) + ")");
+    spec.addColorStop(kind === "pearl" ? 0.32 : 0.3, "rgba(255,255,255," + (kind === "pearl" ? 0.42 : 0.72) + ")");
+    spec.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = spec;
+    ctx.beginPath(); ctx.arc(hx, hy, hr, 0, Math.PI * 2); ctx.fill();
+    if (kind !== "pearl") {
+      const sx2 = hx - L[0] * rx * 0.4, sy2 = hy - L[1] * ry * 0.4;
+      const s2 = ctx.createRadialGradient(sx2, sy2, 0, sx2, sy2, hr * 0.42);
+      s2.addColorStop(0, "rgba(255,255,255,0.4)");
+      s2.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.fillStyle = s2;
+      ctx.beginPath(); ctx.arc(sx2, sy2, hr * 0.55, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+
+    // Contact edge: a hard thin line only where the light strikes.
+    rimLight(ctx, ring, L, pal, size);
+  }
+
+  function rimLight(ctx, poly, L, pal, size) {
+    const top = pal[pal.length - 1];
+    const c = centroid(poly);
+    let r = 0;
+    for (const p of poly) r = Math.max(r, Math.hypot(p[0] - c[0], p[1] - c[1]));
+    // Fades out as the edge turns away, so the rim never wraps the whole stone.
+    const g = ctx.createLinearGradient(
+      c[0] + L[0] * r, c[1] + L[1] * r,
+      c[0] - L[0] * r * 0.5, c[1] - L[1] * r * 0.5
+    );
+    g.addColorStop(0, H(top.h, top.s * 0.5, 0.95, 0.6));
+    g.addColorStop(0.55, H(top.h, top.s * 0.5, 0.9, 0.22));
+    g.addColorStop(1, H(top.h, top.s * 0.5, 0.9, 0));
+    ctx.save();
+    tracePoly(ctx, poly);
+    ctx.lineWidth = Math.max(1, size / 800);
+    ctx.strokeStyle = g;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /* ══ render entry point ══════════════════════════════════════ */
+  function render(canvas, size, seed) {
+    const ctx = canvas.getContext("2d");
+    canvas.width = size; canvas.height = size;
+    ctx.clearRect(0, 0, size, size);
+    if (S.backdrop !== "none") {
+      const bg = ctx.createRadialGradient(size / 2, size * 0.45, 0, size / 2, size / 2, size * 0.75);
+      if (S.backdrop === "light") {
+        bg.addColorStop(0, "#f6f5f7");
+        bg.addColorStop(1, "#d9d8de");
+      } else {
+        bg.addColorStop(0, "#0b0d0e");
+        bg.addColorStop(1, "#000000");
+      }
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, size, size);
+    }
+    const rng = mulberry32(seed);
+    const pal = paletteHSL();
+    const L = lightVec(S.light);
+    ctx.lineJoin = "miter";
+    ctx.miterLimit = 2;
+    if (S.shadow) {
+      // Cast away from the light, and low, so the stone sits on something.
+      const sx = size / 2 - L[0] * size * 0.14;
+      const sy = size * 0.90;
+      const g = ctx.createRadialGradient(sx, sy, 0, sx, sy, size * 0.36);
+      g.addColorStop(0, "rgba(14,10,18,0.78)");
+      g.addColorStop(0.5, "rgba(14,10,18,0.32)");
+      g.addColorStop(1, "rgba(14,10,18,0)");
+      ctx.save();
+      ctx.translate(sx, sy); ctx.scale(1, 0.17); ctx.translate(-sx, -sy);
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(sx, sy, size * 0.36, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+    if (S.cut === "crystal") renderCrystal(ctx, size, pal, L, rng);
+    else if (S.cut === "brilliant") renderBrilliant(ctx, size, pal, L, rng);
+    else if (S.cut === "step") renderStep(ctx, size, pal, L, rng);
+    else renderRound(ctx, size, pal, L, rng, S.cut);
+
+    if (S.grey) {
+      const d = ctx.getImageData(0, 0, size, size);
+      const px = d.data;
+      for (let i = 0; i < px.length; i += 4) {
+        const y = 0.2126 * px[i] + 0.7152 * px[i + 1] + 0.0722 * px[i + 2];
+        px[i] = px[i + 1] = px[i + 2] = y;
+      }
+      ctx.putImageData(d, 0, 0);
+    }
+  }
+
+  /* ══ palette from an image ═══════════════════════════════════ */
+  function extractPalette(img, k) {
+    const w = 96, h = 96;
+    const c = document.createElement("canvas");
+    c.width = w; c.height = h;
+    const x = c.getContext("2d", { willReadFrequently: true });
+    x.drawImage(img, 0, 0, w, h);
+    const d = x.getImageData(0, 0, w, h).data;
+    const pts = [];
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i + 3] < 128) continue;
+      pts.push([d[i], d[i + 1], d[i + 2]]);
+    }
+    if (!pts.length) return null;
+    const rng = mulberry32(7);
+    // k-means++ seeding, then a dozen passes — plenty at this sample size
+    const cen = [pts[Math.floor(rng() * pts.length)].slice()];
+    while (cen.length < k) {
+      let best = null, bestD = -1;
+      for (let t = 0; t < 140; t++) {
+        const p = pts[Math.floor(rng() * pts.length)];
+        let dm = Infinity;
+        for (const q of cen) {
+          const dd = (p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2 + (p[2] - q[2]) ** 2;
+          if (dd < dm) dm = dd;
+        }
+        if (dm > bestD) { bestD = dm; best = p; }
+      }
+      cen.push(best.slice());
+    }
+    for (let it = 0; it < 12; it++) {
+      const sum = cen.map(() => [0, 0, 0, 0]);
+      for (const p of pts) {
+        let bi = 0, bd = Infinity;
+        for (let i = 0; i < cen.length; i++) {
+          const q = cen[i];
+          const dd = (p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2 + (p[2] - q[2]) ** 2;
+          if (dd < bd) { bd = dd; bi = i; }
+        }
+        sum[bi][0] += p[0]; sum[bi][1] += p[1]; sum[bi][2] += p[2]; sum[bi][3]++;
+      }
+      for (let i = 0; i < cen.length; i++) {
+        if (sum[i][3]) { cen[i] = [sum[i][0] / sum[i][3], sum[i][1] / sum[i][3], sum[i][2] / sum[i][3]]; }
+      }
+    }
+    cen.sort((a, b) => (a[0] + a[1] + a[2]) - (b[0] + b[1] + b[2]));
+    return cen.map((c2) => rgbToHex(c2[0], c2[1], c2[2]));
+  }
+
+  /* ══ wiring ══════════════════════════════════════════════════ */
+  const $ = (id) => document.getElementById(id);
+  const mainCanvas = $("main");
+
+  function drawAll() {
+    render(mainCanvas, 900, S.seed);
+    $("seedOut").textContent = S.seed;
+    $("stage").classList.toggle("checker", S.backdrop === "none");
+    drawStrip();
+  }
+
+  function drawStrip() {
+    const strip = $("strip");
+    strip.textContent = "";
+    for (const seed of stripSeeds) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.title = "Use seed " + seed;
+      if (seed === S.seed) b.setAttribute("aria-current", "true");
+      const c = document.createElement("canvas");
+      b.appendChild(c);
+      strip.appendChild(b);
+      render(c, 190, seed);
+      b.addEventListener("click", () => { S.seed = seed; drawAll(); });
+    }
+  }
+
+  function reseedStrip() {
+    stripSeeds = [S.seed];
+    for (let i = 0; i < 5; i++) stripSeeds.push(Math.floor(Math.random() * 999999));
+  }
+
+  /* palette UI */
+  function buildSwatches() {
+    const box = $("swatches");
+    box.textContent = "";
+    S.palette.forEach((hex, i) => {
+      const w = document.createElement("div");
+      w.className = "swatch";
+      const inp = document.createElement("input");
+      inp.type = "color"; inp.value = hex;
+      inp.setAttribute("aria-label", "Palette colour " + (i + 1));
+      inp.addEventListener("input", () => { S.palette[i] = inp.value; drawAll(); });
+      w.appendChild(inp);
+      if (S.palette.length > 2) {
+        const k = document.createElement("button");
+        k.type = "button"; k.className = "kill"; k.textContent = "×";
+        k.setAttribute("aria-label", "Remove colour " + (i + 1));
+        k.addEventListener("click", () => { S.palette.splice(i, 1); buildSwatches(); drawAll(); });
+        w.appendChild(k);
+      }
+      box.appendChild(w);
+    });
+    if (S.palette.length < 8) {
+      const add = document.createElement("button");
+      add.type = "button"; add.className = "add-swatch"; add.textContent = "+";
+      add.setAttribute("aria-label", "Add a colour");
+      add.addEventListener("click", () => {
+        S.palette.push(S.palette[S.palette.length - 1] || "#888888");
+        buildSwatches(); drawAll();
+      });
+      box.appendChild(add);
+    }
+    $("palCount").textContent = S.palette.length + " colours";
+  }
+
+  function buildPresets() {
+    const box = $("presets");
+    for (const name in PRESETS) {
+      const b = document.createElement("button");
+      b.type = "button";
+      const dots = document.createElement("span");
+      dots.className = "dots";
+      for (const hex of PRESETS[name]) {
+        const i = document.createElement("i");
+        i.style.background = hex;
+        dots.appendChild(i);
+      }
+      b.appendChild(dots);
+      b.appendChild(document.createTextNode(name));
+      b.addEventListener("click", () => {
+        S.palette = PRESETS[name].slice();
+        if (name === "pearl") S.cut = "pearl";
+        else if (name === "opal" || name === "jade") S.cut = "cabochon";
+        else if (name === "diamond") S.cut = "brilliant";
+        buildSwatches(); buildCuts(); drawAll();
+      });
+      box.appendChild(b);
+    }
+  }
+
+  function buildCuts() {
+    const box = $("cuts");
+    box.textContent = "";
+    for (const cut of CUTS) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = cut.label;
+      b.setAttribute("aria-pressed", String(S.cut === cut.id));
+      b.addEventListener("click", () => { S.cut = cut.id; buildCuts(); drawAll(); });
+      box.appendChild(b);
+    }
+  }
+
+  /* image → palette */
+  function loadImageFile(file) {
+    if (!file || !file.type.startsWith("image/")) {
+      $("sourceName").textContent = "That file isn't an image. Try a PNG or JPG.";
+      $("source").style.display = "flex";
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const pal = extractPalette(img, clamp(S.palette.length, 4, 6));
+      if (pal) { S.palette = pal; buildSwatches(); drawAll(); }
+      $("sourceImg").src = url;
+      $("sourceName").textContent = file.name || "pasted image";
+      $("source").style.display = "flex";
+    };
+    img.onerror = () => {
+      $("sourceName").textContent = "Couldn't read that image.";
+      $("source").style.display = "flex";
+      URL.revokeObjectURL(url);
+    };
+    img.src = url;
+  }
+
+  const drop = $("drop");
+  drop.addEventListener("click", () => $("file").click());
+  drop.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("file").click(); }
+  });
+  drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("drag"); });
+  drop.addEventListener("dragleave", () => drop.classList.remove("drag"));
+  drop.addEventListener("drop", (e) => {
+    e.preventDefault(); drop.classList.remove("drag");
+    if (e.dataTransfer.files.length) loadImageFile(e.dataTransfer.files[0]);
+  });
+  $("file").addEventListener("change", (e) => {
+    if (e.target.files.length) loadImageFile(e.target.files[0]);
+  });
+  document.addEventListener("paste", (e) => {
+    const items = e.clipboardData && e.clipboardData.items;
+    if (!items) return;
+    for (const it of items) {
+      if (it.type.startsWith("image/")) {
+        const f = it.getAsFile();
+        if (f) { e.preventDefault(); loadImageFile(f); }
+        break;
+      }
+    }
+  });
+
+  /* sliders */
+  const SLIDERS = [
+    ["light", "lightOut", (v) => { S.light = v; }, (v) => v + "°"],
+    ["facets", "facetsOut", (v) => { S.facets = v; }, (v) => String(v)],
+    ["contrast", "contrastOut", (v) => { S.contrast = v / 100; }, (v) => v + "%"],
+    ["spread", "spreadOut", (v) => { S.spread = v / 100; }, (v) => v + "%"],
+    ["fire", "fireOut", (v) => { S.fire = v / 100; }, (v) => v + "%"],
+    ["flaws", "flawsOut", (v) => { S.flaws = v / 100; }, (v) => v + "%"],
+    ["reflect", "reflectOut", (v) => { S.reflect = v / 100; }, (v) => v + "%"],
+    ["glow", "glowOut", (v) => { S.glow = v / 100; }, (v) => v + "%"]
+  ];
+  for (const [id, outId, set, fmt] of SLIDERS) {
+    const el = $(id), out = $(outId);
+    const sync = (redraw) => {
+      const v = Number(el.value);
+      set(v); out.textContent = fmt(v);
+      if (redraw) drawAll();
+    };
+    el.addEventListener("input", () => sync(true));
+    sync(false);
+  }
+
+  $("glowOn").addEventListener("change", (e) => { S.glowOn = e.target.checked; drawAll(); });
+  $("sparkleOn").addEventListener("change", (e) => { S.sparkleOn = e.target.checked; drawAll(); });
+  $("shadow").addEventListener("change", (e) => { S.shadow = e.target.checked; drawAll(); });
+  $("grey").addEventListener("change", (e) => { S.grey = e.target.checked; drawAll(); });
+  $("backdrop").addEventListener("change", (e) => { S.backdrop = e.target.value; drawAll(); });
+  $("reroll").addEventListener("click", () => {
+    S.seed = Math.floor(Math.random() * 999999);
+    reseedStrip();
+    drawAll();
+  });
+
+  $("download").addEventListener("click", () => {
+    const size = Number($("exportSize").value);
+    const c = document.createElement("canvas");
+    render(c, size, S.seed);
+    c.toBlob((blob) => {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "gem-" + S.cut + "-" + S.seed + ".png";
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    }, "image/png");
+  });
+
+  buildSwatches();
+  buildPresets();
+  buildCuts();
+  reseedStrip();
+  drawAll();
+})();
+</script>
+</body>
+</html>

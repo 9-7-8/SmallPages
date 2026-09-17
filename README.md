@@ -14,8 +14,11 @@ close it. Nothing is uploaded anywhere; every image, GIF and byte stays in your 
 | [`friends-interests.html`](friends-interests.html) | Force-directed map of people and their interests. Select several people to see what they share, or several interests to see who has all of them. Data lives in a `PEOPLE_DATA` object at the top of the file — edit it directly. |
 | [`gif-to-mcmeta.html`](gif-to-mcmeta.html) | Turns an animated GIF into a Minecraft vertical texture strip plus a matching `.mcmeta`, with frametimes read from the GIF's own timing. |
 | [`png-to-swirl-gif.html`](png-to-swirl-gif.html) | Spins a still image into a looping GIF. |
-| [`unzip.html`](unzip.html) | Opens a `.zip` and lists what's inside; click a name to save that file. Reads the archive's central directory directly and inflates with the browser's own `DecompressionStream`, so there's no library to load. |
 | [`image-to-svg.html`](image-to-svg.html) | Traces a bitmap into vector work — flat colour regions or centreline strokes — with palette control and a before/after wipe. |
+| [`palette-to-gem.html`](palette-to-gem.html) | Grows a faceted gemstone out of a palette you pick or pull from an image — sharp plane changes, cool facets against warm ones, and whatever fire the cut carries. |
+| [`unified-palette.html`](unified-palette.html) | Takes colours that refuse to sit together, gives them a shared undertone, then cross-mixes them into a palette where every colour agrees with every other one. |
+| [`playlist-to-audio.html`](playlist-to-audio.html) | Turns a YouTube or YouTube Music playlist into a `yt-dlp` command you run yourself. The page builds the command only — no audio passes through it. |
+| [`unzip.html`](unzip.html) | Opens a `.zip` and lists what's inside; click a name to save that file. Reads the archive's central directory directly and inflates with the browser's own `DecompressionStream`, so there's no library to load. |
 
 ## Theme
 
