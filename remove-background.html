@@ -133,7 +133,7 @@
     </div>
   </div>
 
-  <p class="note">The cut is made by <a href="https://github.com/imgly/background-removal-js">@imgly/background-removal</a>, an ISNet segmentation model running under ONNX Runtime. This page asks it for the full-precision model rather than the quantized default, which is the sharpest of the three it offers and about 80&nbsp;MB to fetch the first time. Your browser caches it after that.</p>
+  <p class="note">The cut is made by <a href="https://github.com/imgly/background-removal-js">@imgly/background-removal</a>, an ISNet segmentation model running under ONNX Runtime, <a href="vendor/">bundled into this repo</a> so the page doesn't depend on anyone else's script host. This page asks it for the full-precision model rather than the quantized default: it's the sharpest of the three, and about 80&nbsp;MB to fetch the first time. Your browser caches it after that, and the picture itself never leaves the page.</p>
 </main>
 
 <script>
@@ -163,9 +163,12 @@ let busy = false;
 
 const EXT = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" };
 
-// Two CDNs, because the whole page is dead if the import fails. esm.sh is
-// first: it resolves the onnxruntime-web peer dependency on its own.
+// The vendored bundle comes first: it has onnxruntime-web already resolved
+// inside it, so nothing has to work out a peer dependency at run time. The
+// CDNs are only there for the case where this file has been carried off on
+// its own, without the rest of the repo around it.
 const SOURCES = [
+  "./vendor/imgly-background-removal.mjs",
   "https://esm.sh/@imgly/background-removal@1.7.0",
   "https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/+esm",
 ];
@@ -233,7 +236,8 @@ function loadRemover() {
         if (typeof fn !== "function") throw new Error("no removeBackground export");
         return fn;
       } catch (err) {
-        failures.push(`${new URL(url).hostname}: ${err.message}`);
+        const where = url.startsWith(".") ? "vendored copy" : new URL(url).hostname;
+        failures.push(`${where}: ${err.message}`);
       }
     }
     libPromise = null;                      // let the next attempt try again

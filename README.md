@@ -14,7 +14,7 @@ close it. Nothing is uploaded anywhere; every image, GIF and byte stays in your 
 | [`gif-to-mcmeta.html`](gif-to-mcmeta.html) | Turns an animated GIF into a Minecraft vertical texture strip plus a matching `.mcmeta`, with frametimes read from the GIF's own timing. |
 | [`png-to-swirl-gif.html`](png-to-swirl-gif.html) | Spins a still image into a looping GIF. |
 | [`image-to-svg.html`](image-to-svg.html) | Traces a bitmap into vector work — flat colour regions or centreline strokes — with palette control and a before/after wipe. |
-| [`remove-background.html`](remove-background.html) | Cuts the subject out of a photo and hands back a transparent PNG to copy or save. Runs an ISNet segmentation model locally through [@imgly/background-removal](https://github.com/imgly/background-removal-js) — the model is fetched from a CDN on first use (~80 MB, then cached), and the image itself never leaves the browser. |
+| [`remove-background.html`](remove-background.html) | Cuts the subject out of a photo and hands back a transparent PNG to copy or save. Runs an ISNet segmentation model locally through [@imgly/background-removal](https://github.com/imgly/background-removal-js), bundled into [`vendor/`](vendor/). The weights are fetched on first use (~80 MB, then cached by the browser); the image itself never leaves the page. |
 | [`palette-to-gem.html`](palette-to-gem.html) | Grows a faceted gemstone out of a palette you pick or pull from an image — sharp plane changes, cool facets against warm ones, and whatever fire the cut carries. |
 | [`unified-palette.html`](unified-palette.html) | Takes colours that refuse to sit together, gives them a shared undertone, then cross-mixes them into a palette where every colour agrees with every other one. |
 | [`playlist-to-audio.html`](playlist-to-audio.html) | Turns a YouTube or YouTube Music playlist into a `yt-dlp` command you run yourself. The page builds the command only — no audio passes through it. |
@@ -72,13 +72,15 @@ python3 -m http.server
 
 Then visit `http://localhost:8000`.
 
-Three tools pull something from a CDN at runtime — `gifuct-js` for GIF decoding,
-`gif.js` for encoding, and `@imgly/background-removal` plus its ONNX model for
-`remove-background.html` — so those need a connection the first time you use them.
-Everything else works offline.
+Three tools need the network the first time they run — `gifuct-js` for GIF decoding
+and `gif.js` for encoding, both pulled from a CDN, and the ONNX weights behind
+`remove-background.html`. Everything else works offline.
 
-Note that `@imgly/background-removal` is AGPL-3.0, which is a stronger copyleft than
-this repo's own licence. It is loaded from a CDN at runtime rather than vendored here.
+`remove-background.html` is the one page that isn't self-contained: it imports
+[`vendor/imgly-background-removal.mjs`](vendor/), a bundled copy of an AGPL-3.0
+library. It is bundled rather than pulled from a CDN because the package has a peer
+dependency that a bare CDN import would have to resolve by itself. The page still
+falls back to a CDN if it is carried off without the repo around it.
 
 ## Adding a page
 
