@@ -15,7 +15,7 @@
     position: relative; z-index: 10; padding: 20px 30px 14px;
     display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;
   }
-  header h1 { font-size: 20px; letter-spacing: 0.06em; }
+  header h1 { letter-spacing: 0.06em; }
   header p { font-size: 11px; margin-top: 3px; letter-spacing: 0.04em; }
   .header-actions { display: flex; gap: 10px; align-items: center; }
   button { font-size: 11px; padding: 6px 13px; }
@@ -63,7 +63,6 @@
   /* --- Mobile --- */
   @media (max-width: 600px) {
     header { padding: 14px 16px 10px; }
-    header h1 { font-size: 16px; }
     header p { display: none; }
     #download-btn { display: none; }
     .layout { height: calc(100vh - 58px); }

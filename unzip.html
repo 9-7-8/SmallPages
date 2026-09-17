@@ -48,6 +48,15 @@
     font-size: 0.78rem;
   }
 
+  .all-row {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+  }
+  .all-note { font-size: 0.78rem; }
+
   @media (max-width: 620px) {
     body { padding: 2rem 1rem 4rem; }
   }
@@ -67,7 +76,13 @@
     <div class="status" id="status"></div>
   </div>
 
-  <div class="card files download-list" id="files"></div>
+  <div class="card files download-list" id="files">
+    <div class="all-row">
+      <button id="allBtn" class="ghost">Download all</button>
+      <span class="all-note">one file per second, so the browser doesn't cancel the run</span>
+    </div>
+    <div id="rows"></div>
+  </div>
 </main>
 
 <script>
@@ -77,6 +92,8 @@ const dropzone = document.getElementById("dropzone");
 const fileInput = document.getElementById("fileInput");
 const statusEl = document.getElementById("status");
 const filesEl = document.getElementById("files");
+const rowsEl = document.getElementById("rows");
+const allBtn = document.getElementById("allBtn");
 
 dropzone.addEventListener("click", () => fileInput.click());
 dropzone.addEventListener("dragover", (e) => { e.preventDefault(); dropzone.classList.add("drag"); });
@@ -97,7 +114,8 @@ function setStatus(msg, isError = false) {
 
 async function openArchive(file) {
   filesEl.classList.remove("ready");
-  filesEl.textContent = "";
+  rowsEl.textContent = "";
+  cancelAll();
   setStatus(`Reading ${file.name}…`);
 
   let entries;
@@ -115,8 +133,11 @@ async function openArchive(file) {
     return;
   }
 
-  for (const entry of files) filesEl.appendChild(rowFor(file, entry));
+  for (const entry of files) rowsEl.appendChild(rowFor(file, entry));
   filesEl.classList.add("ready");
+  allBtn.textContent = `Download all ${files.length}`;
+  allBtn.disabled = false;
+  allBtn.onclick = () => downloadAll(file, files);
 
   const total = files.reduce((sum, e) => sum + e.size, 0);
   setStatus(`${files.length} file${files.length === 1 ? "" : "s"}, ${formatSize(total)} unpacked.`);
@@ -218,6 +239,62 @@ async function extract(file, entry) {
 
   const stream = packed.stream().pipeThrough(new DecompressionStream("deflate-raw"));
   return await new Response(stream).blob();
+}
+
+// Browsers cancel a burst of downloads fired from one gesture, so they go out
+// one per second. Each run carries a token; bumping it stops the run in flight.
+const SAVE_INTERVAL_MS = 1000;
+let runToken = 0;
+let running = false;
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function cancelAll() {
+  runToken++;
+  running = false;
+  allBtn.disabled = true;
+  allBtn.textContent = "Download all";
+  allBtn.onclick = null;
+}
+
+async function downloadAll(file, entries) {
+  const idle = () => {
+    running = false;
+    allBtn.textContent = `Download all ${entries.length}`;
+  };
+
+  if (running) {            // a run is going: this click stops it
+    runToken++;
+    idle();
+    setStatus("Stopped.");
+    return;
+  }
+
+  const token = ++runToken;
+  running = true;
+  allBtn.textContent = "Stop";
+  let failed = 0;
+
+  for (let i = 0; i < entries.length; i++) {
+    const entry = entries[i];
+    setStatus(`Saving ${i + 1} of ${entries.length} — ${entry.name}`);
+    try {
+      save(await extract(file, entry), entry.name.split("/").pop());
+    } catch (err) {
+      console.error(err);
+      failed++;
+    }
+    if (token !== runToken) return;          // stopped, or a new archive opened
+    if (i === entries.length - 1) break;
+
+    await sleep(SAVE_INTERVAL_MS);
+    if (token !== runToken) return;
+  }
+
+  idle();
+  setStatus(failed
+    ? `Saved ${entries.length - failed} of ${entries.length}; ${failed} couldn't be extracted.`
+    : `Saved all ${entries.length}.`);
 }
 
 function save(blob, name) {

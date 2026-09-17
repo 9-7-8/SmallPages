@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>anything → image</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  /* Layout and sizing only. Colour, type and component styling live in theme.css. */
+
+  body { margin: 0; padding: 3rem 1.5rem 5rem; }
+
+  main { max-width: 760px; margin: 0 auto; }
+
+  p.lede { margin: 0 0 2.2rem; max-width: 52ch; }
+
+  .card { margin-bottom: 1.5rem; }
+
+  .dropzone {
+    padding: 2.5rem 1.5rem;
+    text-align: center;
+    cursor: pointer;
+  }
+  .dropzone input { display: none; }
+  .dropzone .hint { font-size: 0.85rem; margin-top: 0.4rem; }
+  .dropzone kbd {
+    font-family: var(--mono);
+    font-size: 0.85em;
+    border: 1px solid var(--line);
+    padding: 0.05em 0.35em;
+  }
+
+  .link-row { display: flex; gap: 0.6rem; margin-top: 1rem; }
+  .link-row input { flex: 1; min-width: 0; font-family: var(--mono); font-size: 0.85rem; }
+
+  .status { font-size: 0.85rem; margin-top: 0.8rem; min-height: 1.2em; }
+
+  .out { display: none; }
+  .out.ready { display: block; }
+
+  .stage {
+    padding: 1rem;
+    text-align: center;
+    overflow: auto;
+    max-height: 60vh;
+  }
+  .stage canvas { max-width: 100%; height: auto; vertical-align: middle; }
+
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.2rem;
+    align-items: flex-end;
+    margin-top: 1.2rem;
+  }
+  .field { display: flex; flex-direction: column; gap: 0.35rem; }
+  .field label { font-size: 0.8rem; }
+  .field.grow { flex: 1; min-width: 12rem; }
+
+  .acts { display: flex; gap: 0.6rem; margin-left: auto; }
+
+  .meta-line { font-size: 0.8rem; margin-top: 0.9rem; }
+
+  /* Offscreen holder used to measure pasted markup before it is drawn. */
+  .measure {
+    position: fixed;
+    left: -10000px;
+    top: 0;
+    max-width: 1000px;
+  }
+
+  @media (max-width: 620px) {
+    body { padding: 2rem 1rem 4rem; }
+    .acts { margin-left: 0; width: 100%; }
+    .acts button { flex: 1; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>anything → image</h1>
+  <p class="lede">Paste, drop, or pick anything at all — a screenshot, a cell range out of a spreadsheet, a shape off a slide, an SVG, a paragraph of text, a link — and it comes back as an image you can copy or save.</p>
+
+  <div class="card">
+    <div class="dropzone" id="dropzone" tabindex="0">
+      <div>Hit <kbd>Ctrl</kbd>+<kbd>V</kbd> anywhere on this page</div>
+      <div class="hint">or drop a file here, or click to choose one — nothing leaves your browser</div>
+      <input type="file" id="fileInput" accept="image/*,.svg,.txt,.html">
+    </div>
+    <div class="link-row">
+      <input type="text" id="urlInput" placeholder="…or paste a link and press Enter">
+      <button id="urlBtn" class="ghost">Fetch</button>
+    </div>
+    <div class="status" id="status"></div>
+  </div>
+
+  <div class="out" id="out">
+    <div class="card">
+      <div class="stage" id="stage"></div>
+
+      <div class="controls">
+        <div class="field">
+          <label>Format</label>
+          <div class="seg" id="fmtSeg">
+            <button data-fmt="image/png" aria-pressed="true">PNG</button>
+            <button data-fmt="image/jpeg" aria-pressed="false">JPEG</button>
+            <button data-fmt="image/webp" aria-pressed="false">WebP</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Background</label>
+          <div class="seg" id="bgSeg">
+            <button data-bg="transparent" aria-pressed="true">None</button>
+            <button data-bg="#ffffff" aria-pressed="false">White</button>
+            <button data-bg="#000000" aria-pressed="false">Black</button>
+          </div>
+        </div>
+
+        <div class="field grow" id="qualityField">
+          <label for="quality">Quality <span id="qualityVal">92</span></label>
+          <input type="range" id="quality" min="40" max="100" value="92">
+        </div>
+
+        <div class="acts">
+          <button id="copyBtn">Copy</button>
+          <button id="saveBtn">Download</button>
+        </div>
+      </div>
+
+      <div class="meta-line" id="meta"></div>
+    </div>
+  </div>
+</main>
+
+<script>
+"use strict";
+
+const dropzone = document.getElementById("dropzone");
+const fileInput = document.getElementById("fileInput");
+const urlInput = document.getElementById("urlInput");
+const urlBtn = document.getElementById("urlBtn");
+const statusEl = document.getElementById("status");
+const outEl = document.getElementById("out");
+const stageEl = document.getElementById("stage");
+const metaEl = document.getElementById("meta");
+const fmtSeg = document.getElementById("fmtSeg");
+const bgSeg = document.getElementById("bgSeg");
+const qualityField = document.getElementById("qualityField");
+const quality = document.getElementById("quality");
+const qualityVal = document.getElementById("qualityVal");
+const copyBtn = document.getElementById("copyBtn");
+const saveBtn = document.getElementById("saveBtn");
+
+// The drawn source, before format and background are applied.
+let source = null;
+let format = "image/png";
+let background = "transparent";
+
+const EXT = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" };
+
+function setStatus(msg, isError = false) {
+  statusEl.textContent = msg;
+  statusEl.classList.toggle("error", isError);
+}
+
+/* ---------------------------------------------------------------- input -- */
+
+dropzone.addEventListener("click", () => fileInput.click());
+dropzone.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInput.click(); }
+});
+fileInput.addEventListener("change", () => {
+  if (fileInput.files.length) fromFile(fileInput.files[0]);
+});
+
+for (const type of ["dragover", "dragenter"]) {
+  document.addEventListener(type, (e) => { e.preventDefault(); dropzone.classList.add("drag"); });
+}
+document.addEventListener("dragleave", (e) => {
+  if (e.relatedTarget === null) dropzone.classList.remove("drag");
+});
+document.addEventListener("drop", (e) => {
+  e.preventDefault();
+  dropzone.classList.remove("drag");
+  const dt = e.dataTransfer;
+  if (dt.files && dt.files.length) return fromFile(dt.files[0]);
+  const uri = dt.getData("text/uri-list") || dt.getData("text/plain");
+  if (uri) fromText(uri);
+});
+
+urlBtn.addEventListener("click", () => urlInput.value.trim() && fromText(urlInput.value.trim()));
+urlInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && urlInput.value.trim()) fromText(urlInput.value.trim());
+});
+
+// One paste handler for the whole page: whatever the clipboard holds, the
+// richest usable flavour wins — a bitmap first, then markup, then text.
+document.addEventListener("paste", (e) => {
+  if (e.target === urlInput) return;
+  const cd = e.clipboardData;
+  if (!cd) return;
+  e.preventDefault();
+
+  for (const item of cd.items || []) {
+    if (item.kind === "file" && item.type.startsWith("image/")) {
+      const file = item.getAsFile();
+      if (file) return fromFile(file);
+    }
+  }
+
+  const html = cd.getData("text/html");
+  const text = cd.getData("text/plain");
+
+  // Spreadsheet cells and slide shapes arrive as markup; text/plain would
+  // throw away the table and every bit of styling with it.
+  if (html && html.trim()) return fromHtml(html, text);
+  if (text && text.trim()) return fromText(text);
+  setStatus("Nothing usable on the clipboard.", true);
+});
+
+/* --------------------------------------------------------------- routing -- */
+
+async function fromFile(file) {
+  setStatus(`Reading ${file.name || "file"}…`);
+  try {
+    if (file.type === "image/svg+xml" || /\.svg$/i.test(file.name || "")) {
+      return await drawSvg(await file.text(), file.name || "svg");
+    }
+    if (file.type.startsWith("image/")) {
+      return await drawBitmap(await createImageBitmap(file), file.name || "image", "transparent");
+    }
+    if (file.type === "text/html" || /\.html?$/i.test(file.name || "")) {
+      return await fromHtml(await file.text(), "");
+    }
+    // Anything else readable becomes a text image; binary would render as
+    // mojibake, so refuse it rather than draw noise.
+    const text = await file.text();
+    if (/[\x00-\x08\x0e-\x1f]/.test(text.slice(0, 2000))) {
+      throw new Error("that file isn't an image, markup, or text");
+    }
+    return await drawText(text, file.name || "text");
+  } catch (err) {
+    console.error(err);
+    setStatus(`Couldn't use that file: ${err.message}`, true);
+  }
+}
+
+async function fromText(raw) {
+  const text = raw.trim();
+  if (/^<svg[\s>]/i.test(text)) return drawSvg(text, "svg");
+
+  const url = asUrl(text);
+  if (url) return fromUrl(url);
+
+  return drawText(raw, "text");
+}
+
+function asUrl(text) {
+  if (/\s/.test(text)) return null;
+  try {
+    const u = new URL(text);
+    return /^https?:$/.test(u.protocol) ? u : null;
+  } catch { return null; }
+}
+
+async function fromUrl(url) {
+  setStatus(`Fetching ${url.hostname}…`);
+  try {
+    const res = await fetch(url.href, { mode: "cors" });
+    if (!res.ok) throw new Error(`the server answered ${res.status}`);
+    const blob = await res.blob();
+
+    if (blob.type.startsWith("image/")) {
+      if (blob.type === "image/svg+xml") return await drawSvg(await blob.text(), url.pathname);
+      const name = url.pathname.split("/").pop() || "image";
+      return await drawBitmap(await createImageBitmap(blob), name, "transparent");
+    }
+    // It's a page, not an image. One browser tab cannot screenshot another
+    // origin — no API exposes it — so the link itself becomes the picture.
+    setStatus(`${url.hostname} is a page, not an image, so here it is as a link card.`);
+    return await drawLinkCard(url);
+  } catch (err) {
+    console.error(err);
+    // A CORS refusal is indistinguishable from a network failure from here.
+    setStatus(`Couldn't read that link (${err.message}) — it may block cross-origin reads. Drawing a link card instead.`);
+    return drawLinkCard(url);
+  }
+}
+
+/* ------------------------------------------------------------- renderers -- */
+
+function themeInk() {
+  const cs = getComputedStyle(document.body);
+  return { bg: cs.backgroundColor, ink: cs.color, sans: cs.fontFamily };
+}
+
+async function drawBitmap(bitmap, label, suggestedBg) {
+  const canvas = document.createElement("canvas");
+  canvas.width = bitmap.width;
+  canvas.height = bitmap.height;
+  canvas.getContext("2d").drawImage(bitmap, 0, 0);
+  show({ canvas, label, suggestedBg });
+}
+
+async function drawSvg(svgText, label) {
+  // Size can live in the viewBox alone, so both spellings are read.
+  const doc = new DOMParser().parseFromString(svgText, "image/svg+xml");
+  if (doc.querySelector("parsererror")) throw new Error("that SVG doesn't parse");
+  const svg = doc.documentElement;
+
+  let w = parseFloat(svg.getAttribute("width"));
+  let h = parseFloat(svg.getAttribute("height"));
+  if (!w || !h) {
+    const box = (svg.getAttribute("viewBox") || "").split(/[\s,]+/).map(Number);
+    if (box.length === 4 && box[2] && box[3]) { w = box[2]; h = box[3]; }
+  }
+  w = Math.round(w || 512);
+  h = Math.round(h || 512);
+
+  const scale = Math.min(2, Math.max(1, 1200 / w));   // it's vector, so render it crisp
+  const blob = new Blob([svgText], { type: "image/svg+xml;charset=utf-8" });
+  const bitmap = await bitmapFromBlob(blob, Math.round(w * scale), Math.round(h * scale));
+  await drawBitmap(bitmap, label, "transparent");
+}
+
+async function fromHtml(html, fallbackText) {
+  setStatus("Laying out the markup…");
+  try {
+    await drawHtml(html);
+  } catch (err) {
+    console.error(err);
+    if (fallbackText && fallbackText.trim()) {
+      setStatus("That markup wouldn't render, so its text was used instead.");
+      return drawText(fallbackText, "text");
+    }
+    setStatus(`Couldn't render that markup: ${err.message}`, true);
+  }
+}
+
+// Pasted markup is drawn by laying it out in a real element, then handing
+// that element to an SVG <foreignObject>, which a canvas can rasterise.
+async function drawHtml(html) {
+  const doc = new DOMParser().parseFromString(html, "text/html");
+
+  // Nothing external: scripts never run inside an SVG image, and a remote
+  // image or stylesheet would either fail to load or taint the canvas.
+  doc.querySelectorAll("script, link, meta, base, iframe, object, embed").forEach((n) => n.remove());
+  doc.querySelectorAll("img, image").forEach((n) => {
+    const src = n.getAttribute("src") || n.getAttribute("href") || "";
+    if (!src.startsWith("data:")) n.remove();
+  });
+
+  const holder = document.createElement("div");
+  holder.className = "measure";
+  holder.setAttribute("xmlns", "http://www.w3.org/1999/xhtml");
+  // Inline, because a class name serialises but its stylesheet does not — and
+  // spreadsheet and slide markup is written expecting a white page under it.
+  holder.setAttribute("style",
+    "display:inline-block;padding:16px;background:#ffffff;color:#000000;" +
+    "font-family:Helvetica,Arial,sans-serif;font-size:14px;line-height:1.4");
+  for (const node of Array.from(doc.head.childNodes)) holder.appendChild(node.cloneNode(true));
+  for (const node of Array.from(doc.body.childNodes)) holder.appendChild(node.cloneNode(true));
+  document.body.appendChild(holder);
+
+  try {
+    if (!holder.textContent.trim() && !holder.querySelector("*")) {
+      throw new Error("it came through empty");
+    }
+    const rect = holder.getBoundingClientRect();
+    const w = Math.max(1, Math.ceil(rect.width));
+    const h = Math.max(1, Math.ceil(rect.height));
+
+    const xml = new XMLSerializer().serializeToString(holder);
+    const svg =
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">` +
+      `<foreignObject x="0" y="0" width="${w}" height="${h}">${xml}</foreignObject></svg>`;
+
+    const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
+    const bitmap = await bitmapFromBlob(blob, w * 2, h * 2);
+    await drawBitmap(bitmap, "markup", "#ffffff");
+  } finally {
+    holder.remove();
+  }
+}
+
+async function drawText(text, label) {
+  const { bg, ink, sans } = themeInk();
+  const pad = 44;
+  const size = 22;
+  const lineHeight = Math.round(size * 1.55);
+  const maxWidth = 860;
+
+  const measure = document.createElement("canvas").getContext("2d");
+  measure.font = `300 ${size}px ${sans}`;
+
+  const lines = [];
+  for (const paragraph of text.replace(/\r\n?/g, "\n").split("\n")) {
+    if (!paragraph) { lines.push(""); continue; }
+    let line = "";
+    for (const word of paragraph.split(/(\s+)/)) {
+      const next = line + word;
+      if (measure.measureText(next).width > maxWidth - pad * 2 && line) {
+        lines.push(line.trimEnd());
+        line = word.trimStart();
+      } else {
+        line = next;
+      }
+    }
+    lines.push(line.trimEnd());
+  }
+
+  const widest = Math.max(...lines.map((l) => measure.measureText(l).width), 0);
+  const width = Math.min(maxWidth, Math.max(240, Math.ceil(widest) + pad * 2));
+  const height = pad * 2 + lines.length * lineHeight;
+
+  const scale = 2;                                  // so the text isn't soft
+  const canvas = document.createElement("canvas");
+  canvas.width = width * scale;
+  canvas.height = height * scale;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(scale, scale);
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, width, height);
+  ctx.fillStyle = ink;
+  ctx.font = `300 ${size}px ${sans}`;
+  ctx.textBaseline = "top";
+  lines.forEach((line, i) => ctx.fillText(line, pad, pad + i * lineHeight));
+
+  show({ canvas, label, suggestedBg: "transparent" });
+}
+
+async function drawLinkCard(url) {
+  const { bg, ink, sans } = themeInk();
+  const accent = getComputedStyle(document.documentElement).getPropertyValue("--neon").trim() || ink;
+  const width = 900;
+  const height = 320;
+  const scale = 2;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width * scale;
+  canvas.height = height * scale;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(scale, scale);
+
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, width, height);
+  ctx.strokeStyle = accent;
+  ctx.globalAlpha = 0.5;
+  ctx.strokeRect(0.5, 0.5, width - 1, height - 1);
+  ctx.globalAlpha = 1;
+
+  ctx.fillStyle = accent;
+  ctx.font = `200 46px ${sans}`;
+  ctx.textBaseline = "top";
+  ctx.fillText(url.hostname.replace(/^www\./, ""), 56, 96);
+
+  ctx.fillStyle = ink;
+  ctx.font = `300 20px ${sans}`;
+  const path = decodeURI(url.pathname + url.search);
+  ctx.fillText(path.length > 64 ? path.slice(0, 63) + "…" : path, 56, 168);
+
+  ctx.globalAlpha = 0.55;
+  ctx.font = `300 16px ${sans}`;
+  ctx.fillText(url.href.length > 86 ? url.href.slice(0, 85) + "…" : url.href, 56, 214);
+
+  show({ canvas, label: url.hostname, suggestedBg: "transparent" });
+}
+
+// Decoding through an <img> is the only way to rasterise an SVG, and it is
+// what lets the result be drawn at a chosen size.
+function bitmapFromBlob(blob, width, height) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+      URL.revokeObjectURL(url);
+      createImageBitmap(canvas).then(resolve, reject);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("it wouldn't render"));
+    };
+    img.src = url;
+  });
+}
+
+/* ---------------------------------------------------------------- output -- */
+
+function show({ canvas, label, suggestedBg }) {
+  source = { canvas, label };
+  background = suggestedBg;
+  syncSeg(bgSeg, "bg", background);
+
+  refreshPreview();
+  outEl.classList.add("ready");
+  metaEl.textContent = `${canvas.width} × ${canvas.height} px, from ${label}`;
+  setStatus(`Ready — ${canvas.width} × ${canvas.height}.`);
+}
+
+// What the stage shows is what gets written out, transparency included —
+// the checker behind it comes from the theme.
+function refreshPreview() {
+  if (!source) return;
+  stageEl.textContent = "";
+  stageEl.appendChild(compose());
+}
+
+// Background and format are applied at export time, so switching either one
+// never degrades what was captured.
+function compose() {
+  const out = document.createElement("canvas");
+  out.width = source.canvas.width;
+  out.height = source.canvas.height;
+  const ctx = out.getContext("2d");
+
+  // JPEG has no alpha: without a fill, transparent pixels come out black.
+  const fill = background !== "transparent" ? background
+    : (format === "image/jpeg" ? "#ffffff" : null);
+  if (fill) {
+    ctx.fillStyle = fill;
+    ctx.fillRect(0, 0, out.width, out.height);
+  }
+  ctx.drawImage(source.canvas, 0, 0);
+  return out;
+}
+
+function encode(type, q) {
+  return new Promise((resolve, reject) => {
+    compose().toBlob((blob) => {
+      if (!blob) return reject(new Error(`this browser can't write ${type}`));
+      // A browser that doesn't know the type quietly hands back a PNG.
+      if (blob.type !== type) return reject(new Error(`this browser can't write ${type}`));
+      resolve(blob);
+    }, type, q);
+  });
+}
+
+function baseName() {
+  const stem = (source.label || "image").replace(/\.[^.]+$/, "").replace(/[^\w.-]+/g, "-");
+  return (stem || "image").slice(0, 60);
+}
+
+saveBtn.addEventListener("click", async () => {
+  if (!source) return;
+  try {
+    const lossy = format !== "image/png";
+    const blob = await encode(format, lossy ? Number(quality.value) / 100 : undefined);
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${baseName()}.${EXT[format]}`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    setStatus(`Saved ${link.download} (${(blob.size / 1024).toFixed(1)} KB).`);
+  } catch (err) {
+    console.error(err);
+    setStatus(`Couldn't save: ${err.message}`, true);
+  }
+});
+
+copyBtn.addEventListener("click", async () => {
+  if (!source) return;
+  try {
+    if (!navigator.clipboard || !window.ClipboardItem) {
+      throw new Error("this browser has no clipboard image support");
+    }
+    // PNG is the only image type every clipboard implementation accepts.
+    const png = await encode("image/png");
+    await navigator.clipboard.write([new ClipboardItem({ "image/png": png })]);
+    setStatus(format === "image/png"
+      ? "Copied to the clipboard."
+      : "Copied as PNG — clipboards only take PNG.");
+  } catch (err) {
+    console.error(err);
+    setStatus(`Couldn't copy: ${err.message}`, true);
+  }
+});
+
+/* -------------------------------------------------------------- controls -- */
+
+function syncSeg(seg, attr, value) {
+  for (const btn of seg.querySelectorAll("button")) {
+    btn.setAttribute("aria-pressed", String(btn.dataset[attr] === value));
+  }
+}
+
+fmtSeg.addEventListener("click", (e) => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  format = btn.dataset.fmt;
+  syncSeg(fmtSeg, "fmt", format);
+  qualityField.style.visibility = format === "image/png" ? "hidden" : "visible";
+  refreshPreview();
+});
+
+bgSeg.addEventListener("click", (e) => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  background = btn.dataset.bg;
+  syncSeg(bgSeg, "bg", background);
+  refreshPreview();
+});
+
+quality.addEventListener("input", () => { qualityVal.textContent = quality.value; });
+qualityField.style.visibility = "hidden";
+</script>
+</body>
+</html>

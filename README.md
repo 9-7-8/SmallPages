@@ -11,14 +11,14 @@ close it. Nothing is uploaded anywhere; every image, GIF and byte stays in your 
 | Page | What it does |
 | --- | --- |
 | [`index.html`](index.html) | The hub. Links to everything below. |
-| [`friends-interests.html`](friends-interests.html) | Force-directed map of people and their interests. Select several people to see what they share, or several interests to see who has all of them. Data lives in a `PEOPLE_DATA` object at the top of the file — edit it directly. |
 | [`gif-to-mcmeta.html`](gif-to-mcmeta.html) | Turns an animated GIF into a Minecraft vertical texture strip plus a matching `.mcmeta`, with frametimes read from the GIF's own timing. |
 | [`png-to-swirl-gif.html`](png-to-swirl-gif.html) | Spins a still image into a looping GIF. |
 | [`image-to-svg.html`](image-to-svg.html) | Traces a bitmap into vector work — flat colour regions or centreline strokes — with palette control and a before/after wipe. |
 | [`palette-to-gem.html`](palette-to-gem.html) | Grows a faceted gemstone out of a palette you pick or pull from an image — sharp plane changes, cool facets against warm ones, and whatever fire the cut carries. |
 | [`unified-palette.html`](unified-palette.html) | Takes colours that refuse to sit together, gives them a shared undertone, then cross-mixes them into a palette where every colour agrees with every other one. |
 | [`playlist-to-audio.html`](playlist-to-audio.html) | Turns a YouTube or YouTube Music playlist into a `yt-dlp` command you run yourself. The page builds the command only — no audio passes through it. |
-| [`unzip.html`](unzip.html) | Opens a `.zip` and lists what's inside; click a name to save that file. Reads the archive's central directory directly and inflates with the browser's own `DecompressionStream`, so there's no library to load. |
+| [`anything-to-image.html`](anything-to-image.html) | Paste, drop or pick anything — a screenshot, spreadsheet cells, a slide shape, an SVG, plain text, a link — and it comes back as a PNG, JPEG or WebP to copy or save. |
+| [`unzip.html`](unzip.html) | Opens a `.zip` and lists what's inside; click a name to save that file, or take the lot one per second. Reads the archive's central directory directly and inflates with the browser's own `DecompressionStream`, so there's no library to load. |
 
 ## Theme
 
@@ -55,10 +55,10 @@ own `<style>` block — no page declares a colour or a typeface. Shared componen
 (`.card`, `.dropzone`, `.seg`, `.swatch`, `button`, form controls) are styled once
 in the theme, so a new page inherits the look with almost no CSS of its own.
 
-Canvas drawing can't read CSS, so `friends-interests.html` pulls both properties
-out with `getComputedStyle` and derives its node colours the same way — interests
-are ranked by lightness, dim for the fewest members through to fully lit for the
-most, which reads the same whether or not there's a hue behind it.
+Canvas drawing can't read CSS, so a page that draws its own pixels —
+`anything-to-image.html`, when it renders text or a link card — pulls the
+resolved colours out with `getComputedStyle` and paints with those, so what it
+produces matches the page whatever `--sat` and `--h` are set to.
 
 ## Running locally
 
@@ -88,5 +88,7 @@ repo, and it's why any page here can be handed to someone as a single file.
 
 ## License
 
-[CC BY 4.0](LICENSE) — use it for anything, commercial or not, modify it freely.
-Just credit Ixora and link back to this repo.
+[![CC BY 4.0](https://img.shields.io/badge/License-CC%20BY%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by/4.0/)
+
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) — use it for anything,
+commercial or not, modify it freely. Just credit Ixora and link back to this repo.
