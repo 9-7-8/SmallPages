@@ -26,11 +26,39 @@
 
   .status { font-size: 0.85rem; margin-top: 0.8rem; min-height: 1.2em; }
 
+  /* The working panel stands where the drop zone was, at the same height, so
+     the card doesn't jump the moment a file lands. */
+  .working {
+    display: none;
+    align-items: center;
+    gap: 1.1rem;
+    padding: 2.5rem 1.5rem;
+    border: 1px dashed var(--line);
+  }
+  body.busy .dropzone { display: none; }
+  body.busy .working { display: flex; }
+
+  .spinner {
+    flex: none;
+    width: 34px;
+    height: 34px;
+    border: 2px solid var(--line);
+    border-top-color: var(--neon);
+    border-radius: 50%;
+    box-shadow: var(--glow-soft);
+    animation: spin 0.9s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .step { font-size: 0.95rem; }
+  .step-detail { font-size: 0.8rem; margin-top: 0.15rem; }
+
   .bar {
     height: 2px;
     margin-top: 0.7rem;
     background: var(--line-soft);
     display: none;
+    overflow: hidden;
   }
   .bar.on { display: block; }
   .bar i {
@@ -40,6 +68,16 @@
     background: var(--neon);
     box-shadow: var(--glow-soft);
     transition: width 0.2s ease;
+  }
+  /* Inference reports nothing as it goes, so the bar sweeps instead of filling. */
+  .bar.waiting i {
+    width: 32%;
+    transition: none;
+    animation: sweep 1.5s ease-in-out infinite;
+  }
+  @keyframes sweep {
+    0%   { transform: translateX(-100%); }
+    100% { transform: translateX(412%); }
   }
 
   .out { display: none; }
@@ -88,8 +126,17 @@
       <div class="hint">you can paste one too &mdash; the model downloads once, then it's cached</div>
       <input type="file" id="fileInput" accept="image/*">
     </div>
-    <div class="status" id="status"></div>
+
+    <div class="working" id="working" role="status" aria-live="polite">
+      <div class="spinner" aria-hidden="true"></div>
+      <div>
+        <div class="step" id="stepLabel">Starting</div>
+        <div class="step-detail" id="stepDetail"></div>
+      </div>
+    </div>
+
     <div class="bar" id="bar"><i id="barFill"></i></div>
+    <div class="status" id="status"></div>
   </div>
 
   <div class="out" id="out">
@@ -144,6 +191,8 @@ const fileInput = document.getElementById("fileInput");
 const statusEl = document.getElementById("status");
 const barEl = document.getElementById("bar");
 const barFill = document.getElementById("barFill");
+const stepLabel = document.getElementById("stepLabel");
+const stepDetail = document.getElementById("stepDetail");
 const outEl = document.getElementById("out");
 const stageEl = document.getElementById("stage");
 const metaEl = document.getElementById("meta");
@@ -180,11 +229,117 @@ function setStatus(msg, isError = false) {
 
 function setProgress(fraction) {
   if (fraction === null) {
-    barEl.classList.remove("on");
+    barEl.classList.remove("on", "waiting");
     return;
   }
   barEl.classList.add("on");
+  barEl.classList.remove("waiting");
   barFill.style.width = `${Math.max(0, Math.min(1, fraction)) * 100}%`;
+}
+
+// An indeterminate bar, for the stretch where nothing reports back.
+function setWaiting() {
+  barEl.classList.add("on", "waiting");
+  barFill.style.width = "";
+}
+
+/* ----------------------------------------------------------------- steps -- */
+
+const STEPS = ["Starting the worker", "Fetching the model", "Cutting out the subject"];
+
+let step = 0;
+let stepStart = 0;
+let tick = null;          // ticks the elapsed count while the model runs
+let settle = null;        // fires once the downloads have gone quiet
+let fetchKey = null;
+let fetchFrom = 0;
+let fetchBytes = 0;
+
+function beginWork(name) {
+  document.body.classList.add("busy");
+  clearTimers();
+  fetchKey = null;
+  setStep(0);
+  setStatus(`Working on ${name}`);
+}
+
+function endWork() {
+  document.body.classList.remove("busy");
+  clearTimers();
+  setProgress(null);
+}
+
+function clearTimers() {
+  clearInterval(tick);
+  clearTimeout(settle);
+  tick = settle = null;
+}
+
+function setStep(index, detail = "") {
+  clearInterval(tick);
+  tick = null;
+  step = index;
+  stepStart = performance.now();
+  stepLabel.textContent = STEPS[index];
+  setDetail(detail);
+}
+
+function setDetail(text) {
+  stepDetail.textContent = `step ${step + 1} of ${STEPS.length}${text ? ` · ${text}` : ""}`;
+}
+
+function humanSeconds(s) {
+  if (!isFinite(s) || s < 0) return null;
+  if (s < 60) return `${Math.max(1, Math.round(s))}s`;
+  return `${Math.floor(s / 60)}m ${String(Math.round(s % 60)).padStart(2, "0")}s`;
+}
+
+function humanBytes(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1048576) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / 1048576).toFixed(bytes < 10485760 ? 1 : 0)} MB`;
+}
+
+// The library reports downloads but says nothing while it computes, so the
+// move to the last step is inferred from the downloads going quiet.
+function armSettle(delay = 1200) {
+  clearTimeout(settle);
+  settle = setTimeout(startComputeStep, delay);
+}
+
+function startComputeStep() {
+  if (step === 2) return;
+  clearTimers();
+  setStep(2, "this one reports nothing as it goes — the clock is the only sign");
+  setWaiting();
+  tick = setInterval(() => {
+    setDetail(`${humanSeconds((performance.now() - stepStart) / 1000)} so far`);
+  }, 1000);
+}
+
+function onLibraryProgress(key, current, total) {
+  if (!key.startsWith("fetch:")) return startComputeStep();
+
+  clearTimeout(settle);                   // still downloading, so don't move on
+  settle = null;
+  if (step !== 1) setStep(1);             // also stops the elapsed ticker
+
+  if (key !== fetchKey) {                 // a new file started downloading
+    fetchKey = key;
+    fetchFrom = performance.now();
+    fetchBytes = current;
+  }
+
+  if (total) setProgress(current / total);
+
+  const seconds = (performance.now() - fetchFrom) / 1000;
+  const rate = seconds > 0.6 ? (current - fetchBytes) / seconds : 0;
+  const left = rate > 0 ? humanSeconds((total - current) / rate) : null;
+  const what = key.includes("/models/") ? "the model" : "runtime files";
+
+  setDetail(`${what} · ${humanBytes(current)} of ${humanBytes(total)}${left ? ` · about ${left} left` : ""}`);
+
+  if (current >= total) armSettle();
 }
 
 /* ---------------------------------------------------------------- input -- */
@@ -221,29 +376,89 @@ document.addEventListener("paste", (e) => {
 
 /* ------------------------------------------------------------- the model -- */
 
-let libPromise = null;
+const MODEL_CONFIG = {
+  device: "gpu",                            // falls back to cpu on its own
+  model: "isnet",                           // full precision: the sharpest of the three
+  output: { format: "image/png", type: "foreground" },
+};
 
-// Loaded on demand rather than at page load, so the drop zone works instantly
-// and a CDN outage can't stop the page from rendering.
-function loadRemover() {
-  if (libPromise) return libPromise;
-  libPromise = (async () => {
-    const failures = [];
-    for (const url of SOURCES) {
-      try {
-        const mod = await import(url);
-        const fn = mod.default || mod.removeBackground;
-        if (typeof fn !== "function") throw new Error("no removeBackground export");
-        return fn;
-      } catch (err) {
-        const where = url.startsWith(".") ? "vendored copy" : new URL(url).hostname;
-        failures.push(`${where}: ${err.message}`);
-      }
+// ONNX Runtime holds the thread it runs on for the whole inference. On the main
+// thread that freezes the page — spinner included — for ten seconds or more, so
+// the work goes to a worker and the page stays alive to show it happening.
+// The worker is built here rather than kept in its own file, so this page is
+// still one file you can hand to someone.
+function workerFor(libUrl) {
+  const source = `
+import { removeBackground } from ${JSON.stringify(libUrl)};
+self.onmessage = async (e) => {
+  try {
+    const blob = await removeBackground(e.data.blob, Object.assign({}, e.data.config, {
+      progress: (key, current, total) => self.postMessage({ type: "progress", key, current, total }),
+    }));
+    self.postMessage({ type: "done", blob });
+  } catch (err) {
+    self.postMessage({ type: "error", message: String((err && err.message) || err) });
+  }
+};
+self.postMessage({ type: "ready" });
+`;
+  const url = URL.createObjectURL(new Blob([source], { type: "text/javascript" }));
+  const worker = new Worker(url, { type: "module" });
+  URL.revokeObjectURL(url);
+  return worker;
+}
+
+// Resolves once one of the sources has actually imported inside a worker.
+function cutOutInWorker(libUrl, file) {
+  return new Promise((resolve, reject) => {
+    let worker;
+    try {
+      worker = workerFor(libUrl);
+    } catch (err) {
+      return reject(Object.assign(new Error(err.message), { beforeStart: true }));
     }
-    libPromise = null;                      // let the next attempt try again
-    throw new Error(failures.join("; "));
-  })();
-  return libPromise;
+
+    let started = false;
+    const fail = (message) => {
+      worker.terminate();
+      reject(Object.assign(new Error(message), { beforeStart: !started }));
+    };
+
+    worker.onmessage = (e) => {
+      const msg = e.data;
+      if (msg.type === "ready") {
+        started = true;
+        setStep(1, "checking what's already cached");
+        setWaiting();
+        armSettle(3000);
+        return;
+      }
+      if (msg.type === "progress") return onLibraryProgress(msg.key, msg.current, msg.total);
+      worker.terminate();
+      if (msg.type === "done") resolve(msg.blob);
+      else reject(new Error(msg.message));
+    };
+    worker.onerror = (e) => fail(e.message || "the worker wouldn't start");
+
+    worker.postMessage({ blob: file, config: MODEL_CONFIG });
+  });
+}
+
+// Each source is tried in turn, and only an import failure moves on to the
+// next one — a model that loaded and then failed is a real error.
+async function cutOut(file) {
+  const failures = [];
+  for (const url of SOURCES) {
+    const absolute = new URL(url, location.href).href;
+    try {
+      return await cutOutInWorker(absolute, file);
+    } catch (err) {
+      if (!err.beforeStart) throw err;
+      const where = url.startsWith(".") ? "vendored copy" : new URL(absolute).hostname;
+      failures.push(`${where}: ${err.message}`);
+    }
+  }
+  throw new Error(failures.join("; "));
 }
 
 async function run(file) {
@@ -254,37 +469,31 @@ async function run(file) {
   }
 
   busy = true;
+  const runStart = performance.now();
   outEl.classList.remove("ready");
-  setStatus("Loading the model…");
-  setProgress(0);
+  sourceName = file.name || "image";
+  beginWork(sourceName);
+  setWaiting();
 
   try {
-    const removeBackground = await loadRemover();
     original = await canvasFromBlob(file);
-    sourceName = file.name || "image";
 
-    setStatus("Cutting the subject out — this is the slow part.");
-    const result = await removeBackground(file, {
-      device: "gpu",                        // falls back to cpu on its own
-      model: "isnet",                       // full precision: the sharpest of the three
-      output: { format: "image/png", type: "foreground" },
-      progress: (key, current, total) => {
-        if (total) setProgress(current / total);
-        setStatus(`Fetching ${key.includes("onnx") ? "the model" : "runtime files"} — ${Math.round((current / total) * 100)}%`);
-      },
-    });
+    // Everything may already be cached, in which case no download is reported
+    // at all and this settles straight through to the last step.
+    const result = await cutOut(file);
 
+    const took = humanSeconds((performance.now() - runStart) / 1000);
     cutout = await canvasFromBlob(result);
     view = "cutout";
     syncSeg(viewSeg, "view", view);
     show();
-    setStatus(`Done — ${cutout.width} × ${cutout.height}.`);
+    setStatus(`Done in ${took} — ${cutout.width} × ${cutout.height}.`);
   } catch (err) {
     console.error(err);
     setStatus(`Couldn't remove the background (${err.message}). The model is fetched from a CDN on first use, so this needs a connection the first time.`, true);
   } finally {
     busy = false;
-    setProgress(null);
+    endWork();
   }
 }
 
