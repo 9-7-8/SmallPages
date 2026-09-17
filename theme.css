@@ -386,6 +386,23 @@ header { border-bottom: 1px solid var(--line-soft); }
 .leg-solid  { border-color: hsl(var(--tint) / 0.55); }
 .leg-dashed { border-color: hsl(var(--h) var(--s-ink) 45%); }
 
+/* --------------------------------------------------------------- back ---- */
+
+/* Every page but the index carries one of these directly above its title. */
+.home {
+  display: inline-block;
+  margin-bottom: 1.1rem;
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+  border-bottom: 1px solid transparent;
+}
+.home:hover, .home:focus-visible {
+  color: var(--neon);
+  border-bottom-color: transparent;
+  text-shadow: var(--text-glow);
+}
+
 /* ---------------------------------------------------------------- nav ---- */
 
 nav ul { list-style: none; padding: 0; margin: 0; }
