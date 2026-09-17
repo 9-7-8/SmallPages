@@ -1,0 +1,984 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Unified Palette Grid</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lexend+Deca:wght@200;300;400;600&display=swap" rel="stylesheet">
+<style>
+/* ══════════════════════════════════════════════════════════════════════════
+   THEME — repo-wide tokens. When SmallPages gets its shared style.css,
+   everything down to the END THEME marker lifts out of here unchanged.
+   ══════════════════════════════════════════════════════════════════════════ */
+:root {
+  --bg:        #000000;
+  --surface:   #0a0a0a;
+  --surface-2: #131313;
+  --line:      #262626;
+  --line-soft: #1a1a1a;
+  --ink:       #ededed;
+  --ink-dim:   #8a8a8a;
+  --ink-faint: #5a5a5a;
+  --neon:      #00e5ff;
+  --neon-dim:  rgba(0, 229, 255, 0.16);
+  --sans: 'Lexend Deca', Helvetica, Arial, sans-serif;
+  --step: 1.5rem;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-weight: 300;
+  font-size: 15px;
+  line-height: 1.6;
+  letter-spacing: 0.01em;
+}
+a { color: var(--neon); text-decoration: none; border-bottom: 1px solid var(--neon-dim); }
+a:hover { border-bottom-color: var(--neon); }
+h1, h2, h3 { font-weight: 200; letter-spacing: -0.01em; margin: 0; }
+button, input, select { font-family: var(--sans); font-size: 0.85rem; color: var(--ink); }
+button { cursor: pointer; background: transparent; border: 1px solid var(--line); border-radius: 2px; padding: 0.45rem 0.9rem; font-weight: 300; }
+button:hover { border-color: var(--neon); color: var(--neon); }
+button:disabled { opacity: 0.35; cursor: not-allowed; }
+button:disabled:hover { border-color: var(--line); color: var(--ink); }
+button[aria-pressed="true"] { border-color: var(--neon); color: var(--neon); background: var(--neon-dim); }
+:focus-visible { outline: 2px solid var(--neon); outline-offset: 2px; }
+input[type="range"] { accent-color: var(--neon); width: 100%; }
+input[type="number"], input[type="text"] {
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: 2px;
+  padding: 0.35rem 0.5rem; width: 100%;
+}
+input[type="color"] { position: absolute; width: 0; height: 0; opacity: 0; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+/* ══════════════════════════════════════════════════════════════ END THEME ═ */
+
+.wrap { max-width: 1040px; margin: 0 auto; padding: 0 1.25rem 6rem; }
+
+/* ── masthead ─────────────────────────────────────────────────────────── */
+.mast { padding: 3.5rem 0 2rem; border-bottom: 1px solid var(--line-soft); }
+.mast h1 { font-size: clamp(2rem, 7vw, 3.1rem); line-height: 1.05; }
+.mast p { max-width: 58ch; color: var(--ink-dim); margin: 1rem 0 0; }
+.mast .credit { color: var(--ink-faint); font-size: 0.8rem; margin-top: 1.25rem; }
+
+/* ── steps ────────────────────────────────────────────────────────────── */
+.step { padding: 2.75rem 0; border-bottom: 1px solid var(--line-soft); }
+.step-head { display: flex; align-items: baseline; gap: 0.9rem; margin-bottom: 0.4rem; }
+.step-num {
+  flex: none; width: 1.6rem; height: 1.6rem; border: 1px solid var(--line);
+  border-radius: 50%; display: grid; place-items: center;
+  font-size: 0.72rem; color: var(--ink-faint); align-self: center;
+}
+.step h2 { font-size: 1.3rem; }
+.step .lede { color: var(--ink-dim); max-width: 62ch; margin: 0 0 1.5rem 2.5rem; }
+@media (max-width: 640px) { .step .lede { margin-left: 0; } }
+
+/* ── controls ─────────────────────────────────────────────────────────── */
+.controls { display: flex; flex-wrap: wrap; gap: 1.25rem 2rem; align-items: flex-end; margin-bottom: 1.5rem; }
+.ctl { min-width: 190px; flex: 1 1 190px; }
+.ctl label { display: block; font-size: 0.78rem; color: var(--ink-dim); margin-bottom: 0.4rem; }
+.ctl .val { color: var(--ink); font-variant-numeric: tabular-nums; }
+.btn-row { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 2px; overflow: hidden; }
+.seg button { border: none; border-right: 1px solid var(--line); border-radius: 0; }
+.seg button:last-child { border-right: none; }
+
+/* ── base colour editor ───────────────────────────────────────────────── */
+.bases { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1.25rem; }
+.base {
+  width: 132px; border: 1px solid var(--line); border-radius: 2px;
+  background: var(--surface); overflow: hidden;
+}
+.base .chip { width: 100%; height: 66px; border: none; border-radius: 0; padding: 0; display: block; }
+.base .chip:hover { box-shadow: inset 0 0 0 2px var(--ink); }
+.base .hex { width: 100%; border: none; border-top: 1px solid var(--line); border-radius: 0;
+  background: var(--surface); text-align: center; font-size: 0.78rem; letter-spacing: 0.06em; }
+.base .kill { width: 100%; border: none; border-top: 1px solid var(--line); border-radius: 0;
+  font-size: 0.7rem; color: var(--ink-faint); padding: 0.3rem 0; }
+.base .kill:hover { color: #ff5c5c; border-color: var(--line); }
+
+/* ── before / after strip ─────────────────────────────────────────────── */
+.strip { display: flex; gap: 2px; height: 46px; border: 1px solid var(--line); padding: 2px; border-radius: 2px; }
+.strip div { flex: 1; }
+.strip-pair { display: grid; gap: 0.75rem; grid-template-columns: 1fr 1fr; align-items: center; }
+.strip-pair .cap { font-size: 0.75rem; color: var(--ink-faint); margin-bottom: 0.35rem; }
+@media (max-width: 560px) { .strip-pair { grid-template-columns: 1fr; } }
+
+/* ── the grid ─────────────────────────────────────────────────────────── */
+.grid-scroll { overflow-x: auto; padding-bottom: 0.5rem; }
+.grid { display: grid; gap: 3px; min-width: min-content; }
+.rowlab {
+  display: flex; align-items: center; gap: 0.5rem; padding-right: 0.7rem;
+  font-size: 0.75rem; color: var(--ink-dim); white-space: nowrap;
+}
+.rowlab i { width: 11px; height: 11px; border-radius: 50%; flex: none; }
+.collab { font-size: 0.72rem; color: var(--ink-faint); text-align: center; padding-bottom: 0.35rem; white-space: nowrap; }
+.cell {
+  border: none; border-radius: 0; padding: 0; position: relative;
+  aspect-ratio: 4 / 3; min-width: 74px; display: grid; place-items: center;
+  font-size: 0.7rem; letter-spacing: 0.05em; transition: transform 0.12s;
+}
+.cell:hover { transform: scale(1.06); z-index: 5; box-shadow: 0 0 0 1px #000, 0 0 0 2px var(--ink); border-color: transparent; }
+.cell.diag::after {
+  content: ''; position: absolute; inset: 4px; border: 1px dashed currentColor; opacity: 0.45;
+}
+.note { font-size: 0.78rem; color: var(--ink-faint); margin-top: 0.9rem; max-width: 58ch; }
+
+/* ── variation sheet ──────────────────────────────────────────────────── */
+.sheet { display: grid; gap: 3px; margin-top: 0.25rem; }
+.sheet-row { display: grid; gap: 3px; }
+.sheet-lab { font-size: 0.72rem; color: var(--ink-faint); display: flex; align-items: center; white-space: nowrap; padding-right: 0.7rem; }
+.tile { height: 34px; min-width: 34px; border: none; border-radius: 0; padding: 0; }
+.tile:hover { box-shadow: 0 0 0 1px #000, 0 0 0 2px var(--ink); }
+
+/* ── house preview ────────────────────────────────────────────────────── */
+.preview { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 2rem; align-items: start; }
+@media (max-width: 760px) { .preview { grid-template-columns: 1fr; } }
+.scene { width: 100%; border: 1px solid var(--line); border-radius: 2px; display: block; }
+.legend { display: flex; flex-direction: column; gap: 0.3rem; }
+.legend .item { display: flex; align-items: center; gap: 0.6rem; font-size: 0.78rem; color: var(--ink-dim); }
+.legend .item i { width: 15px; height: 15px; flex: none; border: 1px solid rgba(255,255,255,0.14); }
+
+/* ── export ───────────────────────────────────────────────────────────── */
+.out {
+  width: 100%; min-height: 150px; background: var(--surface-2); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 2px; padding: 0.8rem;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 0.78rem; line-height: 1.7; resize: vertical; margin-top: 1rem;
+}
+
+/* ── toast ────────────────────────────────────────────────────────────── */
+#toast {
+  position: fixed; left: 50%; bottom: 1.5rem; transform: translate(-50%, 1.5rem);
+  background: var(--surface-2); border: 1px solid var(--neon); color: var(--neon);
+  padding: 0.5rem 1.1rem; border-radius: 2px; font-size: 0.8rem; letter-spacing: 0.05em;
+  opacity: 0; pointer-events: none; transition: opacity 0.18s, transform 0.18s; z-index: 99;
+}
+#toast.on { opacity: 1; transform: translate(-50%, 0); }
+
+footer { padding: 2.5rem 0 0; font-size: 0.8rem; color: var(--ink-faint); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="mast">
+  <h1>Unified Palette Grid</h1>
+  <p>Pick a few colours that refuse to sit together, give them a shared undertone, then cross-mix
+     them into a full palette where every colour already agrees with every other one.</p>
+  <p class="credit">Three colours in, nine out, and as many more as you want after that.</p>
+</header>
+
+<!-- ═══ STEP 1 ════════════════════════════════════════════════════════════ -->
+<section class="step">
+  <div class="step-head"><span class="step-num">1</span><h2>Start with your colours</h2></div>
+  <p class="lede">The ones you actually want — the green you want for grass, the purple you want
+     for a roof. It doesn't matter yet that they clash.</p>
+
+  <div class="bases" id="bases"></div>
+  <div class="btn-row">
+    <button id="addBase">Add a colour</button>
+    <button id="randomBase">Random set</button>
+    <span class="seg" id="presets">
+      <button type="button" data-preset="house">House</button>
+      <button type="button" data-preset="heat">Heat</button>
+      <button type="button" data-preset="flag">Flag</button>
+      <button type="button" data-preset="moss">Moss</button>
+    </span>
+  </div>
+</section>
+
+<!-- ═══ STEP 2 ════════════════════════════════════════════════════════════ -->
+<section class="step">
+  <div class="step-head"><span class="step-num">2</span><h2>Give them something in common</h2></div>
+  <p class="lede">Stir the same small amount of one colour into all of them. In paint that's a
+     dab of orange in every mix; on screen it's a nudge of the same hue through everything. Keep
+     it low — you want a shared cast, not a filter.</p>
+
+  <div class="controls">
+    <div class="ctl">
+      <label for="unifyHex">Undertone colour</label>
+      <div class="btn-row">
+        <button type="button" id="unifySwatch" style="width:46px;height:34px;padding:0;border:1px solid var(--line)"></button>
+        <input type="color" id="unifyHex">
+        <input type="text" id="unifyText" spellcheck="false" style="width:106px" aria-label="Undertone hex">
+      </div>
+    </div>
+    <div class="ctl">
+      <label for="unifyAmt">Strength <span class="val" id="unifyAmtOut">15%</span></label>
+      <input type="range" id="unifyAmt" min="0" max="60" step="1" value="15">
+    </div>
+    <div class="ctl" style="flex:0 0 auto;min-width:0">
+      <button type="button" id="unifyOn" aria-pressed="true">Undertone on</button>
+    </div>
+  </div>
+
+  <div class="strip-pair">
+    <div><div class="cap">Your colours</div><div class="strip" id="stripBefore"></div></div>
+    <div><div class="cap">With the undertone</div><div class="strip" id="stripAfter"></div></div>
+  </div>
+</section>
+
+<!-- ═══ STEP 3 ════════════════════════════════════════════════════════════ -->
+<section class="step">
+  <div class="step-head"><span class="step-num">3</span><h2>Cross-mix them in a grid</h2></div>
+  <p class="lede">Each row belongs to one colour and stays dominant along it — the purple row holds
+     nothing but purples. Each cell takes a splash of the column's colour. The diagonal, where a
+     colour meets itself, gives your originals back. Tap any cell to copy its hex.</p>
+
+  <div class="controls">
+    <div class="ctl">
+      <label for="dom">Row colour dominance <span class="val" id="domOut">70 / 30</span></label>
+      <input type="range" id="dom" min="50" max="95" step="1" value="70">
+    </div>
+    <div class="ctl" style="flex:0 0 auto">
+      <label>Mixing</label>
+      <span class="seg" id="spaceSeg">
+        <button type="button" data-space="srgb" aria-pressed="true">Like paint</button>
+        <button type="button" data-space="oklab" aria-pressed="false">Perceptual</button>
+      </span>
+    </div>
+    <div class="ctl" style="flex:0 0 auto">
+      <label>Cell labels</label>
+      <button type="button" id="labelsOn" aria-pressed="true">Show hex</button>
+    </div>
+  </div>
+
+  <div class="grid-scroll"><div class="grid" id="grid"></div></div>
+  <p class="note" id="gridNote"></p>
+</section>
+
+<!-- ═══ STEP 4 ════════════════════════════════════════════════════════════ -->
+<section class="step">
+  <div class="step-head"><span class="step-num">4</span><h2>Stretch it into range</h2></div>
+  <p class="lede">Lighten and darken every colour in the grid and you have highlights and shadows
+     that still belong to the same family. Pull the saturation down for the quiet parts of a
+     picture.</p>
+
+  <div class="controls">
+    <div class="ctl">
+      <label for="varSteps">Shades per colour <span class="val" id="varStepsOut">5</span></label>
+      <input type="range" id="varSteps" min="1" max="9" step="2" value="5">
+    </div>
+    <div class="ctl">
+      <label for="varLight">Lightness range <span class="val" id="varLightOut">±30%</span></label>
+      <input type="range" id="varLight" min="5" max="55" step="1" value="30">
+    </div>
+    <div class="ctl">
+      <label for="varSat">Saturation drop at the edges <span class="val" id="varSatOut">20%</span></label>
+      <input type="range" id="varSat" min="0" max="80" step="1" value="20">
+    </div>
+  </div>
+
+  <div class="sheet" id="sheet"></div>
+</section>
+
+<!-- ═══ PREVIEW ═══════════════════════════════════════════════════════════ -->
+<section class="step">
+  <div class="step-head"><span class="step-num">5</span><h2>See it on something</h2></div>
+  <p class="lede">A palette only proves itself in use. Reassign the colours until the little house
+     stops fighting itself.</p>
+
+  <div class="preview">
+    <svg class="scene" id="scene" viewBox="0 0 400 260" role="img" aria-label="A small house on a hill, coloured with the palette">
+      <rect id="p-sky"    x="0" y="0" width="400" height="260"/>
+      <ellipse id="p-hill" cx="200" cy="255" rx="215" ry="72"/>
+      <path id="p-shrub"  d="M46 214c0-17 13-30 29-30s29 13 29 30z"/>
+      <rect id="p-wall"   x="120" y="120" width="160" height="96"/>
+      <path id="p-roof"   d="M104 122 200 52l96 70z"/>
+      <rect id="p-door"   x="186" y="162" width="30" height="54" rx="15"/>
+      <rect id="p-win1"   x="136" y="140" width="34" height="30"/>
+      <rect id="p-win2"   x="232" y="140" width="34" height="30"/>
+      <path id="p-path"   d="M191 216h20l16 40h-52z"/>
+      <circle id="p-tree" cx="332" cy="176" r="34"/>
+      <rect id="p-trunk"  x="327" y="196" width="10" height="26"/>
+    </svg>
+    <div>
+      <div class="legend" id="legend"></div>
+      <div class="btn-row" style="margin-top:1rem">
+        <button id="reroll">Reassign colours</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ EXPORT ════════════════════════════════════════════════════════════ -->
+<section class="step" style="border-bottom:none">
+  <div class="step-head"><span class="step-num">6</span><h2>Take it with you</h2></div>
+  <p class="lede">The grid colours, and every shade you made from them if you want the lot.</p>
+
+  <div class="controls">
+    <div class="ctl" style="flex:0 0 auto">
+      <label>Format</label>
+      <span class="seg" id="fmtSeg">
+        <button type="button" data-fmt="hex" aria-pressed="true">Hex list</button>
+        <button type="button" data-fmt="css" aria-pressed="false">CSS</button>
+        <button type="button" data-fmt="json" aria-pressed="false">JSON</button>
+        <button type="button" data-fmt="gpl" aria-pressed="false">GIMP</button>
+      </span>
+    </div>
+    <div class="ctl" style="flex:0 0 auto">
+      <label>Contents</label>
+      <button type="button" id="inclVar" aria-pressed="false">Include shades</button>
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button id="copyOut">Copy to clipboard</button>
+    <button id="dlText">Download file</button>
+    <button id="dlPng">Download swatch sheet</button>
+  </div>
+  <textarea class="out" id="out" spellcheck="false" readonly></textarea>
+</section>
+
+<footer>Everything happens in this tab — no uploads, no accounts. <a href="index.html">Back to Small Pages</a></footer>
+</div>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+/* ╔══════════════════════════════════════════════════════════════════════════╗
+   ║  COLOUR MATHS                                                            ║
+   ╚══════════════════════════════════════════════════════════════════════════╝ */
+const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+const $ = id => document.getElementById(id);
+
+function hex(r, g, b) {
+  return '#' + ((1 << 24) | (Math.round(r) << 16) | (Math.round(g) << 8) | Math.round(b)).toString(16).slice(1);
+}
+function parseHex(h) {
+  if (typeof h !== 'string') return null;
+  h = h.trim().replace(/^#/, '');
+  if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+  if (!/^[0-9a-fA-F]{6}$/.test(h)) return null;
+  const n = parseInt(h, 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+/* sRGB ⇄ linear ⇄ OKLab. Used for the perceptual mixing mode and for every
+   lightness / saturation adjustment, which behave far better in OKLab than
+   they do in HSL. */
+const TO_LINEAR = new Float32Array(256);
+for (let i = 0; i < 256; i++) {
+  const c = i / 255;
+  TO_LINEAR[i] = c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+}
+function linearToSrgb(c) {
+  c = c <= 0.0031308 ? 12.92 * c : 1.055 * Math.pow(Math.max(c, 0), 1 / 2.4) - 0.055;
+  return clamp(Math.round(c * 255), 0, 255);
+}
+function rgbToOklab(r, g, b) {
+  const R = TO_LINEAR[r], G = TO_LINEAR[g], B = TO_LINEAR[b];
+  const l = Math.cbrt(0.4122214708 * R + 0.5363325363 * G + 0.0514459929 * B);
+  const m = Math.cbrt(0.2119034982 * R + 0.6806995451 * G + 0.1073969566 * B);
+  const s = Math.cbrt(0.0883024619 * R + 0.2817188376 * G + 0.6299787005 * B);
+  return [
+    0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s,
+    1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s,
+    0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s
+  ];
+}
+function oklabToRgb(L, a, b) {
+  const l_ = L + 0.3963377774 * a + 0.2158037573 * b;
+  const m_ = L - 0.1055613458 * a - 0.0638541728 * b;
+  const s_ = L - 0.0894841775 * a - 1.2914855480 * b;
+  const l = l_ ** 3, m = m_ ** 3, s = s_ ** 3;
+  return [
+    linearToSrgb(4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s),
+    linearToSrgb(-1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s),
+    linearToSrgb(-0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s)
+  ];
+}
+
+/* Mix b into a by t (0 = all a, 1 = all b).
+   'srgb' matches what a brush at 30% opacity does in Photoshop, which is the
+   version of this trick most people will have been taught. 'oklab' keeps the
+   midpoints from going muddy. */
+function mix(aHex, bHex, t, space) {
+  const A = parseHex(aHex), B = parseHex(bHex);
+  if (!A || !B) return aHex;
+  if (t <= 0) return hex(A[0], A[1], A[2]);
+  if (t >= 1) return hex(B[0], B[1], B[2]);
+  if (space === 'oklab') {
+    const la = rgbToOklab(A[0], A[1], A[2]), lb = rgbToOklab(B[0], B[1], B[2]);
+    const out = oklabToRgb(
+      la[0] + (lb[0] - la[0]) * t,
+      la[1] + (lb[1] - la[1]) * t,
+      la[2] + (lb[2] - la[2]) * t
+    );
+    return hex(out[0], out[1], out[2]);
+  }
+  return hex(A[0] + (B[0] - A[0]) * t, A[1] + (B[1] - A[1]) * t, A[2] + (B[2] - A[2]) * t);
+}
+
+/* Shift lightness (dL, absolute in OKLab's 0–1 L) and scale chroma. */
+function adjust(h, dL, satScale) {
+  const c = parseHex(h);
+  if (!c) return h;
+  const [L, a, b] = rgbToOklab(c[0], c[1], c[2]);
+  const out = oklabToRgb(clamp(L + dL, 0, 1), a * satScale, b * satScale);
+  return hex(out[0], out[1], out[2]);
+}
+
+function luminance(h) {
+  const c = parseHex(h) || [0, 0, 0];
+  return 0.2126 * TO_LINEAR[c[0]] + 0.7152 * TO_LINEAR[c[1]] + 0.0722 * TO_LINEAR[c[2]];
+}
+const readable = h => (luminance(h) > 0.22 ? '#111111' : '#f2f2f2');
+
+/* A rough hue name, so the row labels say something useful. */
+function colourName(h) {
+  const c = parseHex(h) || [0, 0, 0];
+  const max = Math.max(...c) / 255, min = Math.min(...c) / 255;
+  const l = (max + min) / 2, d = max - min;
+  if (d < 0.06) return l > 0.85 ? 'white' : l < 0.12 ? 'black' : 'grey';
+  let hu;
+  const [r, g, b] = c.map(v => v / 255);
+  if (max === r) hu = ((g - b) / d) % 6;
+  else if (max === g) hu = (b - r) / d + 2;
+  else hu = (r - g) / d + 4;
+  hu = (hu * 60 + 360) % 360;
+  const names = [[12,'red'],[38,'orange'],[68,'yellow'],[150,'green'],[195,'teal'],
+                 [250,'blue'],[292,'violet'],[345,'magenta'],[360,'red']];
+  const base = names.find(n => hu < n[0])[1];
+  if (l > 0.80) return 'pale ' + base;
+  if (l < 0.30) return 'deep ' + base;
+  return base;
+}
+
+/* ╔══════════════════════════════════════════════════════════════════════════╗
+   ║  STATE                                                                   ║
+   ╚══════════════════════════════════════════════════════════════════════════╝ */
+const PRESETS = {
+  house: ['#5e2a55', '#faf2b0', '#63c53c'],
+  heat:  ['#ffd400', '#ff1e7a', '#e8261c'],
+  flag:  ['#e8261c', '#f2f2f2', '#6b7396'],
+  moss:  ['#2f4a3c', '#c8b273', '#7d4a2e', '#8fb5a6']
+};
+
+const state = {
+  bases: PRESETS.house.slice(),
+  unify: { hex: '#f5a03c', amount: 0.15, on: true },
+  dominance: 0.70,
+  space: 'srgb',
+  labels: true,
+  varSteps: 5,
+  varLight: 0.30,
+  varSat: 0.20,
+  includeVars: false,
+  format: 'hex',
+  sceneMap: null
+};
+
+const STORE_KEY = 'smallpages.unified-palette.v1';
+function save() {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { /* private mode, fine */ }
+}
+function load() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (!raw) return;
+    const s = JSON.parse(raw);
+    if (Array.isArray(s.bases) && s.bases.length >= 2 && s.bases.every(parseHex)) {
+      Object.assign(state, s);
+      state.unify = Object.assign({ hex: '#f5a03c', amount: 0.15, on: true }, s.unify || {});
+    }
+  } catch (e) { /* nothing stored, or stored badly — carry on with defaults */ }
+}
+
+/* Derived values ---------------------------------------------------------- */
+const unified = () => state.bases.map(b =>
+  state.unify.on ? mix(b, state.unify.hex, state.unify.amount, state.space) : b);
+
+function gridColours() {
+  const u = unified();
+  return u.map(rowC => u.map(colC => mix(rowC, colC, 1 - state.dominance, state.space)));
+}
+const flatGrid = () => gridColours().flat();
+
+/* One variation level: i runs 0…n-1, centre level is untouched. */
+function variantOf(h, i, n) {
+  if (n <= 1) return h;
+  const t = (i / (n - 1)) * 2 - 1;              // -1 … +1
+  return adjust(h, -t * state.varLight, 1 - Math.abs(t) * state.varSat);
+}
+
+function fullPalette() {
+  const g = flatGrid();
+  if (!state.includeVars || state.varSteps <= 1) return g;
+  const out = [];
+  for (let i = 0; i < state.varSteps; i++) for (const c of g) out.push(variantOf(c, i, state.varSteps));
+  return out;
+}
+
+/* ╔══════════════════════════════════════════════════════════════════════════╗
+   ║  SMALL UI HELPERS                                                        ║
+   ╚══════════════════════════════════════════════════════════════════════════╝ */
+let toastTimer;
+function toast(msg) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('on');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('on'), 1600);
+}
+function copyText(text, msg) {
+  const done = () => toast(msg);
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(done, () => fallback(text, done));
+  } else fallback(text, done);
+}
+function fallback(text, done) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.cssText = 'position:fixed;top:-1000px';
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); done(); } catch (e) { toast('Copy failed — select it by hand'); }
+  ta.remove();
+}
+function segSelect(container, key, attr) {
+  for (const b of container.children) b.setAttribute('aria-pressed', String(b.dataset[attr] === state[key]));
+}
+
+/* ╔══════════════════════════════════════════════════════════════════════════╗
+   ║  RENDER                                                                  ║
+   ╚══════════════════════════════════════════════════════════════════════════╝ */
+function renderBases() {
+  const box = $('bases');
+  box.innerHTML = '';
+  state.bases.forEach((h, i) => {
+    const el = document.createElement('div');
+    el.className = 'base';
+    el.innerHTML =
+      '<button type="button" class="chip" style="background:' + h + '" title="Change this colour"></button>' +
+      '<input type="color" value="' + h + '">' +
+      '<input type="text" class="hex" value="' + h + '" spellcheck="false" aria-label="Colour ' + (i + 1) + ' hex">' +
+      '<button type="button" class="kill">remove</button>';
+
+    const chip = el.querySelector('.chip');
+    const picker = el.querySelector('input[type="color"]');
+    const text = el.querySelector('.hex');
+
+    chip.addEventListener('click', () => picker.click());
+    picker.addEventListener('input', () => {
+      state.bases[i] = picker.value;
+      chip.style.background = picker.value;
+      text.value = picker.value;
+      renderAll(false);
+    });
+    text.addEventListener('change', () => {
+      const rgb = parseHex(text.value);
+      if (!rgb) { text.value = state.bases[i]; return; }
+      const h2 = hex(rgb[0], rgb[1], rgb[2]);
+      state.bases[i] = h2;
+      text.value = h2; chip.style.background = h2; picker.value = h2;
+      renderAll(false);
+    });
+    el.querySelector('.kill').addEventListener('click', () => {
+      if (state.bases.length <= 2) { toast('Two colours is the minimum'); return; }
+      state.bases.splice(i, 1);
+      state.sceneMap = null;
+      renderAll();
+    });
+
+    box.appendChild(el);
+  });
+  $('addBase').disabled = state.bases.length >= 6;
+}
+
+function renderUnify() {
+  $('unifySwatch').style.background = state.unify.hex;
+  $('unifyHex').value = state.unify.hex;
+  $('unifyText').value = state.unify.hex;
+  $('unifyAmt').value = Math.round(state.unify.amount * 100);
+  $('unifyAmtOut').textContent = Math.round(state.unify.amount * 100) + '%';
+  $('unifyOn').setAttribute('aria-pressed', String(state.unify.on));
+  $('unifyOn').textContent = state.unify.on ? 'Undertone on' : 'Undertone off';
+
+  const fill = (el, cols) => {
+    el.innerHTML = '';
+    cols.forEach(c => {
+      const d = document.createElement('div');
+      d.style.background = c;
+      el.appendChild(d);
+    });
+  };
+  fill($('stripBefore'), state.bases);
+  fill($('stripAfter'), unified());
+}
+
+function renderGrid() {
+  const u = unified(), g = gridColours(), n = u.length;
+  const box = $('grid');
+  box.innerHTML = '';
+  box.style.gridTemplateColumns = 'max-content repeat(' + n + ', minmax(74px, 148px))';
+  box.style.justifyContent = 'start';
+
+  // header row: blank corner, then one label per column
+  const corner = document.createElement('div');
+  box.appendChild(corner);
+  u.forEach(c => {
+    const d = document.createElement('div');
+    d.className = 'collab';
+    d.textContent = '+ ' + colourName(c);
+    box.appendChild(d);
+  });
+
+  g.forEach((row, r) => {
+    const lab = document.createElement('div');
+    lab.className = 'rowlab';
+    lab.innerHTML = '<i style="background:' + u[r] + '"></i>' + colourName(u[r]) + ' row';
+    box.appendChild(lab);
+
+    row.forEach((c, col) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'cell' + (r === col ? ' diag' : '');
+      b.style.background = c;
+      b.style.color = readable(c);
+      b.textContent = state.labels ? c.toUpperCase() : '';
+      b.title = c + (r === col ? ' — your original colour' : ' — ' + colourName(u[r]) + ' with ' + colourName(u[col]));
+      b.addEventListener('click', () => copyText(c, c.toUpperCase() + ' copied'));
+      box.appendChild(b);
+    });
+  });
+
+  const n2 = n * n;
+  const total = n2 * (state.varSteps > 1 ? state.varSteps : 1);
+  $('gridNote').textContent = n + ' colours in, ' + n2 + ' out — ' + total + ' once the shades in step 4 are counted.';
+}
+
+function renderSheet() {
+  const g = flatGrid(), n = state.varSteps;
+  const box = $('sheet');
+  box.innerHTML = '';
+  box.style.overflowX = 'auto';
+
+  for (let i = 0; i < n; i++) {
+    const row = document.createElement('div');
+    row.className = 'sheet-row';
+    row.style.gridTemplateColumns = 'minmax(78px, auto) repeat(' + g.length + ', minmax(22px, 1fr))';
+
+    const t = (n <= 1) ? 0 : (i / (n - 1)) * 2 - 1;
+    const lab = document.createElement('div');
+    lab.className = 'sheet-lab';
+    lab.textContent = Math.abs(t) < 0.001 ? 'as mixed'
+      : (t < 0 ? 'lighter ' : 'darker ') + Math.round(Math.abs(t) * state.varLight * 100) + '%';
+    row.appendChild(lab);
+
+    g.forEach(c => {
+      const v = variantOf(c, i, n);
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'tile';
+      b.style.background = v;
+      b.title = v;
+      b.addEventListener('click', () => copyText(v, v.toUpperCase() + ' copied'));
+      row.appendChild(b);
+    });
+    box.appendChild(row);
+  }
+}
+
+/* ── the little house ────────────────────────────────────────────────────── */
+const PARTS = [
+  ['p-sky',   'Sky'],
+  ['p-hill',  'Hill'],
+  ['p-wall',  'Walls'],
+  ['p-roof',  'Roof'],
+  ['p-door',  'Door'],
+  ['p-win1',  'Windows'],
+  ['p-path',  'Path'],
+  ['p-tree',  'Tree'],
+  ['p-shrub', 'Shrub'],
+  ['p-trunk', 'Trunk']
+];
+
+/* Parts that would disappear into each other if they landed on the same
+   colour — a trunk the same green as its tree, a roof the same as its walls. */
+const CLASHES = [[0,1],[0,7],[1,6],[1,8],[2,3],[2,4],[2,5],[3,4],[7,9]];
+
+function buildSceneMap() {
+  const g = flatGrid();
+  const idx = g.map((_, i) => i);
+  let best = null, bestScore = -1;
+
+  for (let attempt = 0; attempt < 60; attempt++) {
+    const pool = [];
+    while (pool.length < PARTS.length) {
+      const bag = idx.slice();
+      for (let i = bag.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [bag[i], bag[j]] = [bag[j], bag[i]];
+      }
+      pool.push(...bag);
+    }
+    const pick = pool.slice(0, PARTS.length);
+    let score = 0;
+    for (const [a, b] of CLASHES) if (g[pick[a]] !== g[pick[b]]) score++;
+    if (score > bestScore) { bestScore = score; best = pick; }
+    if (score === CLASHES.length) break;
+  }
+  state.sceneMap = best;
+}
+
+function renderScene() {
+  const g = flatGrid();
+  if (!state.sceneMap || state.sceneMap.length !== PARTS.length) buildSceneMap();
+  const leg = $('legend');
+  leg.innerHTML = '';
+
+  PARTS.forEach((p, i) => {
+    const c = g[state.sceneMap[i] % g.length];
+    const el = $(p[0]);
+    if (el) el.setAttribute('fill', c);
+    if (p[0] === 'p-win1') { const w2 = $('p-win2'); if (w2) w2.setAttribute('fill', c); }
+
+    const row = document.createElement('div');
+    row.className = 'item';
+    row.innerHTML = '<i style="background:' + c + '"></i>' + p[1] + ' <span style="color:var(--ink-faint);margin-left:auto">' + c + '</span>';
+    row.style.cursor = 'pointer';
+    row.title = 'Copy ' + c;
+    row.addEventListener('click', () => copyText(c, c.toUpperCase() + ' copied'));
+    leg.appendChild(row);
+  });
+}
+
+/* ── export ──────────────────────────────────────────────────────────────── */
+function exportText() {
+  const cols = fullPalette();
+  const seen = new Set(), list = [];
+  for (const c of cols) if (!seen.has(c)) { seen.add(c); list.push(c); }
+
+  if (state.format === 'hex') return list.map(c => c.toUpperCase()).join('\n');
+
+  if (state.format === 'css') {
+    const counts = {};
+    return ':root {\n' + list.map(c => {
+      const base = colourName(c).replace(/\s+/g, '-');
+      counts[base] = (counts[base] || 0) + 1;
+      return '  --' + base + '-' + counts[base] + ': ' + c + ';';
+    }).join('\n') + '\n}';
+  }
+
+  if (state.format === 'json') {
+    return JSON.stringify({
+      base: state.bases,
+      undertone: state.unify.on ? { colour: state.unify.hex, amount: state.unify.amount } : null,
+      dominance: state.dominance,
+      mixing: state.space,
+      grid: gridColours(),
+      palette: list
+    }, null, 2);
+  }
+
+  // GIMP / Krita / Inkscape palette
+  let out = 'GIMP Palette\nName: Unified Grid\nColumns: ' + state.bases.length + '\n#\n';
+  for (const c of list) {
+    const [r, g, b] = parseHex(c);
+    out += String(r).padStart(3) + ' ' + String(g).padStart(3) + ' ' + String(b).padStart(3) + '\t' + c.toUpperCase() + '\n';
+  }
+  return out;
+}
+
+function renderExport() { $('out').value = exportText(); }
+
+function download(name, text, type) {
+  const blob = new Blob([text], { type: type || 'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+
+function downloadSheet() {
+  const n = state.bases.length;
+  const withShades = state.includeVars && state.varSteps > 1;
+  const rows = [];
+  if (withShades) {
+    const g = flatGrid();
+    for (let i = 0; i < state.varSteps; i++) rows.push(g.map(c => variantOf(c, i, state.varSteps)));
+  } else {
+    gridColours().forEach(r => rows.push(r));
+  }
+
+  const cw = 150, ch = 104, pad = 24;
+  const wide = Math.max(...rows.map(r => r.length));
+  const W = pad * 2 + wide * cw, H = pad * 2 + rows.length * ch + 34;
+  const cv = document.createElement('canvas');
+  const dpr = 2;
+  cv.width = W * dpr; cv.height = H * dpr;
+  const ctx = cv.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.fillStyle = '#000000';
+  ctx.fillRect(0, 0, W, H);
+
+  rows.forEach((row, r) => {
+    row.forEach((c, i) => {
+      const x = pad + i * cw, y = pad + r * ch;
+      ctx.fillStyle = c;
+      ctx.fillRect(x, y, cw - 4, ch - 4);
+      ctx.fillStyle = readable(c);
+      ctx.font = '13px Helvetica, Arial, sans-serif';
+      ctx.fillText(c.toUpperCase(), x + 10, y + ch - 18);
+    });
+  });
+
+  ctx.fillStyle = '#8a8a8a';
+  ctx.font = '13px Helvetica, Arial, sans-serif';
+  ctx.fillText('Unified palette — ' + n + ' base colours, ' + rows.reduce((s, r) => s + r.length, 0) + ' swatches', pad, H - pad + 6);
+
+  const a = document.createElement('a');
+  a.download = 'unified-palette.png';
+  a.href = cv.toDataURL('image/png');
+  a.click();
+  toast('Swatch sheet saved');
+}
+
+/* ╔══════════════════════════════════════════════════════════════════════════╗
+   ║  WIRING                                                                  ║
+   ╚══════════════════════════════════════════════════════════════════════════╝ */
+function renderAll(rebuildBases = true) {
+  if (rebuildBases) renderBases();
+  renderUnify();
+  renderGrid();
+  renderSheet();
+  renderScene();
+  renderExport();
+  save();
+}
+
+$('addBase').addEventListener('click', () => {
+  if (state.bases.length >= 6) return;
+  // Offer something a good distance round the wheel from what's already there.
+  const c = parseHex(state.bases[state.bases.length - 1]);
+  const [L, a, b] = rgbToOklab(c[0], c[1], c[2]);
+  const ang = Math.atan2(b, a) + 2.4, rad = Math.hypot(a, b) || 0.08;
+  const out = oklabToRgb(clamp(L * 0.9 + 0.1, 0.15, 0.9), Math.cos(ang) * rad, Math.sin(ang) * rad);
+  state.bases.push(hex(out[0], out[1], out[2]));
+  state.sceneMap = null;
+  renderAll();
+});
+
+$('randomBase').addEventListener('click', () => {
+  const n = state.bases.length;
+  const start = Math.random() * Math.PI * 2;
+  state.bases = Array.from({ length: n }, (_, i) => {
+    const ang = start + (i / n) * Math.PI * 2 + (Math.random() - 0.5) * 0.7;
+    const rad = 0.06 + Math.random() * 0.11;
+    const L = 0.35 + Math.random() * 0.5;
+    const out = oklabToRgb(L, Math.cos(ang) * rad, Math.sin(ang) * rad);
+    return hex(out[0], out[1], out[2]);
+  });
+  state.sceneMap = null;
+  renderAll();
+});
+
+$('presets').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  state.bases = PRESETS[b.dataset.preset].slice();
+  state.sceneMap = null;
+  renderAll();
+});
+
+$('unifySwatch').addEventListener('click', () => $('unifyHex').click());
+$('unifyHex').addEventListener('input', () => {
+  state.unify.hex = $('unifyHex').value;
+  renderAll(false);
+});
+$('unifyText').addEventListener('change', () => {
+  const rgb = parseHex($('unifyText').value);
+  if (!rgb) { $('unifyText').value = state.unify.hex; return; }
+  state.unify.hex = hex(rgb[0], rgb[1], rgb[2]);
+  renderAll(false);
+});
+$('unifyAmt').addEventListener('input', () => {
+  state.unify.amount = +$('unifyAmt').value / 100;
+  renderAll(false);
+});
+$('unifyOn').addEventListener('click', () => {
+  state.unify.on = !state.unify.on;
+  renderAll(false);
+});
+
+$('dom').addEventListener('input', () => {
+  state.dominance = +$('dom').value / 100;
+  $('domOut').textContent = $('dom').value + ' / ' + (100 - +$('dom').value);
+  renderGrid(); renderSheet(); renderScene(); renderExport(); save();
+});
+
+$('spaceSeg').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  state.space = b.dataset.space;
+  segSelect($('spaceSeg'), 'space', 'space');
+  renderAll(false);
+});
+
+$('labelsOn').addEventListener('click', () => {
+  state.labels = !state.labels;
+  $('labelsOn').setAttribute('aria-pressed', String(state.labels));
+  $('labelsOn').textContent = state.labels ? 'Show hex' : 'Hide hex';
+  renderGrid(); save();
+});
+
+for (const [id, key, fmt] of [
+  ['varSteps', 'varSteps', v => v],
+  ['varLight', 'varLight', v => '±' + v + '%'],
+  ['varSat',   'varSat',   v => v + '%']
+]) {
+  $(id).addEventListener('input', () => {
+    const raw = +$(id).value;
+    state[key] = id === 'varSteps' ? raw : raw / 100;
+    $(id + 'Out').textContent = fmt(raw);
+    renderSheet(); renderGrid(); renderExport(); save();
+  });
+}
+
+$('reroll').addEventListener('click', () => { buildSceneMap(); renderScene(); save(); });
+
+$('fmtSeg').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  state.format = b.dataset.fmt;
+  segSelect($('fmtSeg'), 'format', 'fmt');
+  renderExport(); save();
+});
+
+$('inclVar').addEventListener('click', () => {
+  state.includeVars = !state.includeVars;
+  $('inclVar').setAttribute('aria-pressed', String(state.includeVars));
+  renderExport(); save();
+});
+
+$('copyOut').addEventListener('click', () => copyText($('out').value, 'Palette copied'));
+$('dlText').addEventListener('click', () => {
+  const ext = { hex: 'txt', css: 'css', json: 'json', gpl: 'gpl' }[state.format];
+  download('unified-palette.' + ext, $('out').value);
+  toast('File saved');
+});
+$('dlPng').addEventListener('click', downloadSheet);
+
+/* ── boot ────────────────────────────────────────────────────────────────── */
+load();
+$('dom').value = Math.round(state.dominance * 100);
+$('domOut').textContent = Math.round(state.dominance * 100) + ' / ' + Math.round(100 - state.dominance * 100);
+$('varSteps').value = state.varSteps;  $('varStepsOut').textContent = state.varSteps;
+$('varLight').value = Math.round(state.varLight * 100); $('varLightOut').textContent = '±' + Math.round(state.varLight * 100) + '%';
+$('varSat').value = Math.round(state.varSat * 100);     $('varSatOut').textContent = Math.round(state.varSat * 100) + '%';
+$('labelsOn').setAttribute('aria-pressed', String(state.labels));
+$('labelsOn').textContent = state.labels ? 'Show hex' : 'Hide hex';
+$('inclVar').setAttribute('aria-pressed', String(state.includeVars));
+segSelect($('spaceSeg'), 'space', 'space');
+segSelect($('fmtSeg'), 'format', 'fmt');
+renderAll();
+</script>
+</body>
+</html>
