@@ -14,6 +14,7 @@ close it. Nothing is uploaded anywhere; every image, GIF and byte stays in your 
 | [`friends-interests.html`](friends-interests.html) | Force-directed map of people and their interests. Select several people to see what they share, or several interests to see who has all of them. Data lives in a `PEOPLE_DATA` object at the top of the file — edit it directly. |
 | [`gif-to-mcmeta.html`](gif-to-mcmeta.html) | Turns an animated GIF into a Minecraft vertical texture strip plus a matching `.mcmeta`, with frametimes read from the GIF's own timing. |
 | [`png-to-swirl-gif.html`](png-to-swirl-gif.html) | Spins a still image into a looping GIF. |
+| [`unzip.html`](unzip.html) | Opens a `.zip` and lists what's inside; click a name to save that file. Reads the archive's central directory directly and inflates with the browser's own `DecompressionStream`, so there's no library to load. |
 | [`image-to-svg.html`](image-to-svg.html) | Traces a bitmap into vector work — flat colour regions or centreline strokes — with palette control and a before/after wipe. |
 
 ## Theme

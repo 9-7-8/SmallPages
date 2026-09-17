@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>unzip</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  /* Layout and sizing only. Colour, type and component styling live in theme.css. */
+
+  body {
+    margin: 0;
+    padding: 3rem 1.5rem 5rem;
+  }
+
+  main { max-width: 640px; margin: 0 auto; }
+
+  p.lede { margin: 0 0 2.2rem; max-width: 46ch; }
+
+  .card { margin-bottom: 1.5rem; }
+
+  .dropzone {
+    padding: 2.5rem 1.5rem;
+    text-align: center;
+    cursor: pointer;
+  }
+  .dropzone input { display: none; }
+  .dropzone .hint { font-size: 0.85rem; margin-top: 0.4rem; }
+
+  .status { font-size: 0.85rem; margin-top: 0.8rem; min-height: 1.2em; }
+
+  .files { display: none; }
+  .files.ready { display: block; }
+
+  .row {
+    display: flex;
+    align-items: baseline;
+    gap: 1rem;
+    padding: 0.6rem 0;
+    border-top: 1px solid var(--line-soft);
+  }
+  .row:last-child { border-bottom: 1px solid var(--line-soft); }
+
+  .row .name { word-break: break-all; }
+  .row .size {
+    margin-left: auto;
+    white-space: nowrap;
+    font-size: 0.78rem;
+  }
+
+  @media (max-width: 620px) {
+    body { padding: 2rem 1rem 4rem; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>unzip</h1>
+  <p class="lede">Opens a <code>.zip</code> and lists what's inside. Click a name to save that file.</p>
+
+  <div class="card">
+    <div class="dropzone" id="dropzone">
+      <div>Drop a ZIP here, or click to choose one</div>
+      <div class="hint">unpacked entirely in your browser — nothing is uploaded anywhere</div>
+      <input type="file" id="fileInput" accept=".zip,application/zip">
+    </div>
+    <div class="status" id="status"></div>
+  </div>
+
+  <div class="card files download-list" id="files"></div>
+</main>
+
+<script>
+"use strict";
+
+const dropzone = document.getElementById("dropzone");
+const fileInput = document.getElementById("fileInput");
+const statusEl = document.getElementById("status");
+const filesEl = document.getElementById("files");
+
+dropzone.addEventListener("click", () => fileInput.click());
+dropzone.addEventListener("dragover", (e) => { e.preventDefault(); dropzone.classList.add("drag"); });
+dropzone.addEventListener("dragleave", () => dropzone.classList.remove("drag"));
+dropzone.addEventListener("drop", (e) => {
+  e.preventDefault();
+  dropzone.classList.remove("drag");
+  if (e.dataTransfer.files.length) openArchive(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener("change", () => {
+  if (fileInput.files.length) openArchive(fileInput.files[0]);
+});
+
+function setStatus(msg, isError = false) {
+  statusEl.textContent = msg;
+  statusEl.classList.toggle("error", isError);
+}
+
+async function openArchive(file) {
+  filesEl.classList.remove("ready");
+  filesEl.textContent = "";
+  setStatus(`Reading ${file.name}…`);
+
+  let entries;
+  try {
+    entries = readCentralDirectory(await file.arrayBuffer());
+  } catch (err) {
+    console.error(err);
+    setStatus(`Failed: ${err.message}`, true);
+    return;
+  }
+
+  const files = entries.filter((e) => !e.isDir);
+  if (!files.length) {
+    setStatus("That archive has no files in it.");
+    return;
+  }
+
+  for (const entry of files) filesEl.appendChild(rowFor(file, entry));
+  filesEl.classList.add("ready");
+
+  const total = files.reduce((sum, e) => sum + e.size, 0);
+  setStatus(`${files.length} file${files.length === 1 ? "" : "s"}, ${formatSize(total)} unpacked.`);
+}
+
+function rowFor(file, entry) {
+  const row = document.createElement("div");
+  row.className = "row";
+
+  const link = document.createElement("a");
+  link.className = "name";
+  link.href = "#";
+  link.textContent = entry.name;
+  link.addEventListener("click", async (e) => {
+    e.preventDefault();
+    try {
+      save(await extract(file, entry), entry.name.split("/").pop());
+      setStatus(`Saved ${entry.name}.`);
+    } catch (err) {
+      console.error(err);
+      setStatus(`Couldn't extract ${entry.name}: ${err.message}`, true);
+    }
+  });
+
+  const size = document.createElement("span");
+  size.className = "size";
+  size.textContent = formatSize(entry.size);
+
+  row.append(link, size);
+  return row;
+}
+
+// Walks the ZIP central directory at the end of the archive — that's the
+// authoritative index, so we never have to scan the file linearly.
+function readCentralDirectory(buffer) {
+  const view = new DataView(buffer);
+  const eocd = findEOCD(view);
+  const count = view.getUint16(eocd + 10, true);
+  let at = view.getUint32(eocd + 16, true);
+
+  if (at === 0xffffffff || count === 0xffff) {
+    throw new Error("Zip64 archives aren't supported.");
+  }
+
+  const entries = [];
+  for (let i = 0; i < count; i++) {
+    if (view.getUint32(at, true) !== 0x02014b50) throw new Error("Central directory is corrupt.");
+
+    const flags = view.getUint16(at + 8, true);
+    const nameLength = view.getUint16(at + 28, true);
+    const name = decodeName(buffer.slice(at + 46, at + 46 + nameLength), flags);
+
+    entries.push({
+      name,
+      isDir: name.endsWith("/"),
+      encrypted: (flags & 0x1) !== 0,
+      method: view.getUint16(at + 10, true),
+      packedSize: view.getUint32(at + 20, true),
+      size: view.getUint32(at + 24, true),
+      localOffset: view.getUint32(at + 42, true),
+    });
+
+    at += 46 + nameLength +
+      view.getUint16(at + 30, true) + // extra field
+      view.getUint16(at + 32, true);  // file comment
+  }
+  return entries;
+}
+
+// The end-of-central-directory record sits last, but a trailing comment of up
+// to 64 KB can follow it, so scan backwards for its signature.
+function findEOCD(view) {
+  const earliest = Math.max(0, view.byteLength - 0xffff - 22);
+  for (let at = view.byteLength - 22; at >= earliest; at--) {
+    if (view.getUint32(at, true) === 0x06054b50) return at;
+  }
+  throw new Error("That doesn't look like a ZIP file.");
+}
+
+function decodeName(bytes, flags) {
+  // Bit 11 promises UTF-8; older archives use CP437, but its ASCII range is
+  // identical and non-ASCII names are rare enough not to earn a lookup table.
+  return new TextDecoder(flags & 0x800 ? "utf-8" : "windows-1252").decode(bytes);
+}
+
+async function extract(file, entry) {
+  if (entry.encrypted) throw new Error("it's password-protected");
+
+  // The central directory's name and extra fields can differ in length from the
+  // local header's, so the data offset has to come from the local header itself.
+  const header = new DataView(await file.slice(entry.localOffset, entry.localOffset + 30).arrayBuffer());
+  if (header.getUint32(0, true) !== 0x04034b50) throw new Error("its local header is corrupt");
+
+  const start = entry.localOffset + 30 + header.getUint16(26, true) + header.getUint16(28, true);
+  const packed = file.slice(start, start + entry.packedSize);
+
+  if (entry.method === 0) return packed;                  // stored
+  if (entry.method !== 8) throw new Error(`compression method ${entry.method} isn't supported`);
+
+  const stream = packed.stream().pipeThrough(new DecompressionStream("deflate-raw"));
+  return await new Response(stream).blob();
+}
+
+function save(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = name;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
+function formatSize(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+</script>
+</body>
+</html>
