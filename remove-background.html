@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>remove background</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  /* Layout and sizing only. Colour, type and component styling live in theme.css. */
+
+  body { margin: 0; padding: 3rem 1.5rem 5rem; }
+
+  main { max-width: 760px; margin: 0 auto; }
+
+  p.lede { margin: 0 0 2.2rem; max-width: 52ch; }
+
+  .card { margin-bottom: 1.5rem; }
+
+  .dropzone {
+    padding: 2.5rem 1.5rem;
+    text-align: center;
+    cursor: pointer;
+  }
+  .dropzone input { display: none; }
+  .dropzone .hint { font-size: 0.85rem; margin-top: 0.4rem; }
+
+  .status { font-size: 0.85rem; margin-top: 0.8rem; min-height: 1.2em; }
+
+  .bar {
+    height: 2px;
+    margin-top: 0.7rem;
+    background: var(--line-soft);
+    display: none;
+  }
+  .bar.on { display: block; }
+  .bar i {
+    display: block;
+    height: 100%;
+    width: 0;
+    background: var(--neon);
+    box-shadow: var(--glow-soft);
+    transition: width 0.2s ease;
+  }
+
+  .out { display: none; }
+  .out.ready { display: block; }
+
+  .stage {
+    padding: 1rem;
+    text-align: center;
+    overflow: auto;
+    max-height: 60vh;
+  }
+  .stage canvas { max-width: 100%; height: auto; vertical-align: middle; }
+
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.2rem;
+    align-items: flex-end;
+    margin-top: 1.2rem;
+  }
+  .field { display: flex; flex-direction: column; gap: 0.35rem; }
+  .field label { font-size: 0.8rem; }
+
+  .acts { display: flex; gap: 0.6rem; margin-left: auto; }
+
+  .meta-line { font-size: 0.8rem; margin-top: 0.9rem; }
+
+  .note { font-size: 0.78rem; margin-top: 1.2rem; max-width: 60ch; }
+
+  @media (max-width: 620px) {
+    body { padding: 2rem 1rem 4rem; }
+    .acts { margin-left: 0; width: 100%; }
+    .acts button { flex: 1; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <a class="home" href="index.html">&larr; index</a>
+  <h1>remove background</h1>
+  <p class="lede">Drop in a photo and the subject comes out on transparency, cut by a segmentation model that runs on your own machine. Nothing is uploaded anywhere.</p>
+
+  <div class="card">
+    <div class="dropzone" id="dropzone" tabindex="0">
+      <div>Drop an image here, or click to choose one</div>
+      <div class="hint">you can paste one too &mdash; the model downloads once, then it's cached</div>
+      <input type="file" id="fileInput" accept="image/*">
+    </div>
+    <div class="status" id="status"></div>
+    <div class="bar" id="bar"><i id="barFill"></i></div>
+  </div>
+
+  <div class="out" id="out">
+    <div class="card">
+      <div class="stage" id="stage"></div>
+
+      <div class="controls">
+        <div class="field">
+          <label>Show</label>
+          <div class="seg" id="viewSeg">
+            <button data-view="cutout" aria-pressed="true">Cutout</button>
+            <button data-view="original" aria-pressed="false">Original</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Background</label>
+          <div class="seg" id="bgSeg">
+            <button data-bg="transparent" aria-pressed="true">None</button>
+            <button data-bg="#ffffff" aria-pressed="false">White</button>
+            <button data-bg="#000000" aria-pressed="false">Black</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Format</label>
+          <div class="seg" id="fmtSeg">
+            <button data-fmt="image/png" aria-pressed="true">PNG</button>
+            <button data-fmt="image/webp" aria-pressed="false">WebP</button>
+            <button data-fmt="image/jpeg" aria-pressed="false">JPEG</button>
+          </div>
+        </div>
+
+        <div class="acts">
+          <button id="copyBtn">Copy</button>
+          <button id="saveBtn">Download</button>
+        </div>
+      </div>
+
+      <div class="meta-line" id="meta"></div>
+    </div>
+  </div>
+
+  <p class="note">The cut is made by <a href="https://github.com/imgly/background-removal-js">@imgly/background-removal</a>, an ISNet segmentation model running under ONNX Runtime. This page asks it for the full-precision model rather than the quantized default, which is the sharpest of the three it offers and about 80&nbsp;MB to fetch the first time. Your browser caches it after that.</p>
+</main>
+
+<script>
+"use strict";
+
+const dropzone = document.getElementById("dropzone");
+const fileInput = document.getElementById("fileInput");
+const statusEl = document.getElementById("status");
+const barEl = document.getElementById("bar");
+const barFill = document.getElementById("barFill");
+const outEl = document.getElementById("out");
+const stageEl = document.getElementById("stage");
+const metaEl = document.getElementById("meta");
+const viewSeg = document.getElementById("viewSeg");
+const bgSeg = document.getElementById("bgSeg");
+const fmtSeg = document.getElementById("fmtSeg");
+const copyBtn = document.getElementById("copyBtn");
+const saveBtn = document.getElementById("saveBtn");
+
+let cutout = null;      // canvas, subject on transparency
+let original = null;    // canvas, what was fed in
+let sourceName = "image";
+let view = "cutout";
+let background = "transparent";
+let format = "image/png";
+let busy = false;
+
+const EXT = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" };
+
+// Two CDNs, because the whole page is dead if the import fails. esm.sh is
+// first: it resolves the onnxruntime-web peer dependency on its own.
+const SOURCES = [
+  "https://esm.sh/@imgly/background-removal@1.7.0",
+  "https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/+esm",
+];
+
+function setStatus(msg, isError = false) {
+  statusEl.textContent = msg;
+  statusEl.classList.toggle("error", isError);
+}
+
+function setProgress(fraction) {
+  if (fraction === null) {
+    barEl.classList.remove("on");
+    return;
+  }
+  barEl.classList.add("on");
+  barFill.style.width = `${Math.max(0, Math.min(1, fraction)) * 100}%`;
+}
+
+/* ---------------------------------------------------------------- input -- */
+
+dropzone.addEventListener("click", () => fileInput.click());
+dropzone.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInput.click(); }
+});
+fileInput.addEventListener("change", () => {
+  if (fileInput.files.length) run(fileInput.files[0]);
+});
+
+for (const type of ["dragover", "dragenter"]) {
+  document.addEventListener(type, (e) => { e.preventDefault(); dropzone.classList.add("drag"); });
+}
+document.addEventListener("dragleave", (e) => {
+  if (e.relatedTarget === null) dropzone.classList.remove("drag");
+});
+document.addEventListener("drop", (e) => {
+  e.preventDefault();
+  dropzone.classList.remove("drag");
+  const file = e.dataTransfer.files && e.dataTransfer.files[0];
+  if (file) run(file);
+});
+
+document.addEventListener("paste", (e) => {
+  for (const item of (e.clipboardData && e.clipboardData.items) || []) {
+    if (item.kind === "file" && item.type.startsWith("image/")) {
+      const file = item.getAsFile();
+      if (file) { e.preventDefault(); return run(file); }
+    }
+  }
+});
+
+/* ------------------------------------------------------------- the model -- */
+
+let libPromise = null;
+
+// Loaded on demand rather than at page load, so the drop zone works instantly
+// and a CDN outage can't stop the page from rendering.
+function loadRemover() {
+  if (libPromise) return libPromise;
+  libPromise = (async () => {
+    const failures = [];
+    for (const url of SOURCES) {
+      try {
+        const mod = await import(url);
+        const fn = mod.default || mod.removeBackground;
+        if (typeof fn !== "function") throw new Error("no removeBackground export");
+        return fn;
+      } catch (err) {
+        failures.push(`${new URL(url).hostname}: ${err.message}`);
+      }
+    }
+    libPromise = null;                      // let the next attempt try again
+    throw new Error(failures.join("; "));
+  })();
+  return libPromise;
+}
+
+async function run(file) {
+  if (busy) return;
+  if (!file.type.startsWith("image/")) {
+    setStatus("That isn't an image.", true);
+    return;
+  }
+
+  busy = true;
+  outEl.classList.remove("ready");
+  setStatus("Loading the model…");
+  setProgress(0);
+
+  try {
+    const removeBackground = await loadRemover();
+    original = await canvasFromBlob(file);
+    sourceName = file.name || "image";
+
+    setStatus("Cutting the subject out — this is the slow part.");
+    const result = await removeBackground(file, {
+      device: "gpu",                        // falls back to cpu on its own
+      model: "isnet",                       // full precision: the sharpest of the three
+      output: { format: "image/png", type: "foreground" },
+      progress: (key, current, total) => {
+        if (total) setProgress(current / total);
+        setStatus(`Fetching ${key.includes("onnx") ? "the model" : "runtime files"} — ${Math.round((current / total) * 100)}%`);
+      },
+    });
+
+    cutout = await canvasFromBlob(result);
+    view = "cutout";
+    syncSeg(viewSeg, "view", view);
+    show();
+    setStatus(`Done — ${cutout.width} × ${cutout.height}.`);
+  } catch (err) {
+    console.error(err);
+    setStatus(`Couldn't remove the background (${err.message}). The model is fetched from a CDN on first use, so this needs a connection the first time.`, true);
+  } finally {
+    busy = false;
+    setProgress(null);
+  }
+}
+
+async function canvasFromBlob(blob) {
+  const bitmap = await createImageBitmap(blob);
+  const canvas = document.createElement("canvas");
+  canvas.width = bitmap.width;
+  canvas.height = bitmap.height;
+  canvas.getContext("2d").drawImage(bitmap, 0, 0);
+  bitmap.close();
+  return canvas;
+}
+
+/* --------------------------------------------------------------- output -- */
+
+function current() {
+  return view === "original" ? original : cutout;
+}
+
+function show() {
+  outEl.classList.add("ready");
+  stageEl.textContent = "";
+  stageEl.appendChild(compose());
+  const c = current();
+  metaEl.textContent = `${c.width} × ${c.height} px, from ${sourceName}`;
+}
+
+// The background is applied on the way out, so switching it never costs a
+// re-run of the model.
+function compose() {
+  const src = current();
+  const out = document.createElement("canvas");
+  out.width = src.width;
+  out.height = src.height;
+  const ctx = out.getContext("2d");
+
+  // JPEG has no alpha: without a fill, cut-away pixels come out black.
+  const fill = background !== "transparent" ? background
+    : (format === "image/jpeg" ? "#ffffff" : null);
+  if (fill) {
+    ctx.fillStyle = fill;
+    ctx.fillRect(0, 0, out.width, out.height);
+  }
+  ctx.drawImage(src, 0, 0);
+  return out;
+}
+
+function encode(type, quality) {
+  return new Promise((resolve, reject) => {
+    compose().toBlob((blob) => {
+      if (!blob) return reject(new Error(`this browser can't write ${type}`));
+      // A browser that doesn't know the type quietly hands back a PNG.
+      if (blob.type !== type) return reject(new Error(`this browser can't write ${type}`));
+      resolve(blob);
+    }, type, quality);
+  });
+}
+
+function baseName() {
+  const stem = sourceName.replace(/\.[^.]+$/, "").replace(/[^\w.-]+/g, "-");
+  return `${stem || "image"}-cutout`.slice(0, 60);
+}
+
+saveBtn.addEventListener("click", async () => {
+  if (!cutout) return;
+  try {
+    const blob = await encode(format, format === "image/png" ? undefined : 0.92);
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${baseName()}.${EXT[format]}`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    setStatus(`Saved ${link.download} (${(blob.size / 1024).toFixed(1)} KB).`);
+  } catch (err) {
+    console.error(err);
+    setStatus(`Couldn't save: ${err.message}`, true);
+  }
+});
+
+copyBtn.addEventListener("click", async () => {
+  if (!cutout) return;
+  try {
+    if (!navigator.clipboard || !window.ClipboardItem) {
+      throw new Error("this browser has no clipboard image support");
+    }
+    // PNG is the only image type every clipboard implementation accepts, and
+    // the only one of the three that carries the transparency through.
+    const png = await encode("image/png");
+    await navigator.clipboard.write([new ClipboardItem({ "image/png": png })]);
+    setStatus(background === "transparent"
+      ? "Copied as PNG. Transparency survives only if what you paste into keeps it."
+      : "Copied as PNG.");
+  } catch (err) {
+    console.error(err);
+    setStatus(`Couldn't copy: ${err.message}`, true);
+  }
+});
+
+/* ------------------------------------------------------------- controls -- */
+
+function syncSeg(seg, attr, value) {
+  for (const btn of seg.querySelectorAll("button")) {
+    btn.setAttribute("aria-pressed", String(btn.dataset[attr] === value));
+  }
+}
+
+viewSeg.addEventListener("click", (e) => {
+  const btn = e.target.closest("button");
+  if (!btn || !cutout) return;
+  view = btn.dataset.view;
+  syncSeg(viewSeg, "view", view);
+  show();
+});
+
+bgSeg.addEventListener("click", (e) => {
+  const btn = e.target.closest("button");
+  if (!btn || !cutout) return;
+  background = btn.dataset.bg;
+  syncSeg(bgSeg, "bg", background);
+  show();
+});
+
+fmtSeg.addEventListener("click", (e) => {
+  const btn = e.target.closest("button");
+  if (!btn || !cutout) return;
+  format = btn.dataset.fmt;
+  syncSeg(fmtSeg, "fmt", format);
+  show();
+});
+</script>
+</body>
+</html>
