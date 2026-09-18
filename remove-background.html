@@ -103,6 +103,11 @@
   }
   .field { display: flex; flex-direction: column; gap: 0.35rem; }
   .field label { font-size: 0.8rem; }
+  .field.off { display: none; }
+
+  .tol-row { display: flex; align-items: center; gap: 0.6rem; height: 100%; }
+  .tol-row input[type="range"] { width: 9rem; }
+  .tol-row output { font-size: 0.8rem; min-width: 3ch; }
 
   .acts { display: flex; gap: 0.6rem; margin-left: auto; }
 
@@ -131,12 +136,12 @@
 <main>
   <a class="home" href="index.html">&larr; index</a>
   <h1>remove background</h1>
-  <p class="lede">Drop in a photo and the subject comes out on transparency, cut by a segmentation model that runs on your own machine. Nothing is uploaded anywhere.</p>
+  <p class="lede">Drop in an image and the subject comes out on transparency. A backdrop that's one flat colour is flooded away from the edges inwards, which leaves the white inside a line drawing alone; anything busier goes to a segmentation model. Both run on your own machine, and nothing is uploaded anywhere.</p>
 
   <div class="card">
     <div class="dropzone" id="dropzone" tabindex="0">
       <div>Drop an image here, or click to choose one</div>
-      <div class="hint">you can paste one too &mdash; the model downloads once, then it's cached</div>
+      <div class="hint">you can paste one too &mdash; a flat backdrop is cut here and now, anything else downloads the model once</div>
       <input type="file" id="fileInput" accept="image/*">
     </div>
 
@@ -157,6 +162,22 @@
       <div class="stage" id="stage"></div>
 
       <div class="controls">
+        <div class="field">
+          <label>Method</label>
+          <div class="seg" id="methodSeg">
+            <button data-method="flat" aria-pressed="true">Flat colour</button>
+            <button data-method="model" aria-pressed="false">Subject model</button>
+          </div>
+        </div>
+
+        <div class="field off" id="tolField">
+          <label for="tolerance">Colour tolerance</label>
+          <div class="tol-row">
+            <input type="range" id="tolerance" min="0" max="120" step="1" value="32">
+            <output id="tolOut">32</output>
+          </div>
+        </div>
+
         <div class="field">
           <label>Show</label>
           <div class="seg" id="viewSeg">
@@ -212,7 +233,9 @@
     </div>
   </div>
 
-  <p class="note">The cut is made by <a href="https://github.com/imgly/background-removal-js">@imgly/background-removal</a>, an ISNet segmentation model running under ONNX Runtime, <a href="vendor/">bundled into this repo</a> so the page doesn't depend on anyone else's script host. This page asks it for the full-precision model rather than the quantized default: it's the sharpest of the three, and about 80&nbsp;MB to fetch the first time. Your browser caches it after that, and the picture itself never leaves the page.</p>
+  <p class="note"><strong>Flat colour</strong> reads the colour off the one-pixel ring around the image and floods it inwards from the edges. Because the flood can only start at the border, colour walled in by an outline &mdash; the white inside a line drawing, the sky through a window &mdash; is never reached, and stays. Raise the tolerance for a noisy or JPEG-compressed backdrop, lower it when something in the picture is close to the backdrop colour. It needs no model and no download.</p>
+
+  <p class="note"><strong>Subject model</strong> is <a href="https://github.com/imgly/background-removal-js">@imgly/background-removal</a>, an ISNet segmentation model running under ONNX Runtime, <a href="vendor/">bundled into this repo</a> so the page doesn't depend on anyone else's script host. It's the one for photographs, where there is no single backdrop colour to pull. This page asks it for the full-precision model rather than the quantized default: it's the sharpest of the three, and about 80&nbsp;MB to fetch the first time. Your browser caches it after that, and the picture itself never leaves the page.</p>
 </main>
 
 <script>
@@ -228,6 +251,10 @@ const stepDetail = document.getElementById("stepDetail");
 const outEl = document.getElementById("out");
 const stageEl = document.getElementById("stage");
 const metaEl = document.getElementById("meta");
+const methodSeg = document.getElementById("methodSeg");
+const tolField = document.getElementById("tolField");
+const tolInput = document.getElementById("tolerance");
+const tolOut = document.getElementById("tolOut");
 const viewSeg = document.getElementById("viewSeg");
 const bgSeg = document.getElementById("bgSeg");
 const fmtSeg = document.getElementById("fmtSeg");
@@ -239,7 +266,11 @@ const saveBtn = document.getElementById("saveBtn");
 
 let cutout = null;      // canvas, subject on transparency
 let original = null;    // canvas, what was fed in
+let sourceFile = null;  // the blob itself, which the model needs a second time
 let sourceName = "image";
+let method = "flat";    // which of the two cuts is on screen
+let backdropInfo = null; // what the border ring said about the backdrop
+let tolerance = 32;
 let view = "cutout";
 let crop = "content";
 let contentBox = null;   // the cutout's opaque bounds, measured once per run
@@ -327,7 +358,10 @@ function setDetail(text) {
 
 function humanSeconds(s) {
   if (!isFinite(s) || s < 0) return null;
-  if (s < 60) return `${Math.max(1, Math.round(s))}s`;
+  // The flood finishes in well under a second, and rounding that up to "1s"
+  // undersells it.
+  if (s < 1) return `${Math.round(s * 1000)}ms`;
+  if (s < 60) return `${Math.round(s)}s`;
   return `${Math.floor(s / 60)}m ${String(Math.round(s % 60)).padStart(2, "0")}s`;
 }
 
@@ -410,6 +444,194 @@ document.addEventListener("paste", (e) => {
     }
   }
 });
+
+// Pixels barely above zero are the soft edge of a cut rather than content, in
+// the border ring, in a flood and in the crop measurement alike.
+const ALPHA_FLOOR = 10;
+
+/* ------------------------------------------------------- flat background -- */
+
+// Line art is the case the segmentation model gets wrong: a white page, a black
+// outline, white inside the shapes, and the model reads the enclosed white as
+// more background and punches holes through the middle of the drawing. When the
+// backdrop really is one flat colour there is a cheaper and exact answer — take
+// that colour off the border and flood it inwards. Only the region joined to
+// the edge goes; anything walled off by an outline is never reached.
+
+const BORDER = {
+  bits: 4,          // low bits dropped per channel when histogramming the border
+  match: 30,        // how close a border pixel counts as the same colour
+  coverage: 0.9,    // share of the border that has to match to call it flat
+};
+
+// A pixel between `tolerance` and `tolerance + FEATHER` of the backdrop colour is
+// part of the anti-aliased edge, and comes out part-transparent. The fade is
+// held to a couple of pixels deep on purpose: allowed to spread freely it walks
+// straight through a pale thin outline and empties the shape behind it.
+const FEATHER = 48;
+const FEATHER_DEPTH = 2;
+
+function colourDistance(r, g, b, c) {
+  const dr = r - c[0], dg = g - c[1], db = b - c[2];
+  return Math.sqrt(dr * dr + dg * dg + db * db);
+}
+
+function hex(c) {
+  return "#" + c.map((v) => v.toString(16).padStart(2, "0")).join("");
+}
+
+// Walks the one-pixel ring around the outside of the image.
+function eachBorderPixel(w, h, fn) {
+  for (let x = 0; x < w; x++) {
+    fn(x);
+    if (h > 1) fn((h - 1) * w + x);
+  }
+  for (let y = 1; y < h - 1; y++) {
+    fn(y * w);
+    if (w > 1) fn(y * w + w - 1);
+  }
+}
+
+// Is the backdrop one flat colour, and if so which? The border ring answers
+// both: the colour most of it agrees on is the backdrop, and how much of it
+// agrees says whether "flat" is a fair description.
+function analyseBackground(canvas) {
+  const w = canvas.width, h = canvas.height;
+  const data = canvas.getContext("2d").getImageData(0, 0, w, h).data;
+  const shift = BORDER.bits;
+
+  const buckets = new Map();
+  let ring = 0, clear = 0;
+
+  eachBorderPixel(w, h, (p) => {
+    const i = p * 4;
+    ring++;
+    if (data[i + 3] < ALPHA_FLOOR) { clear++; return; }   // already transparent
+    const key = ((data[i] >> shift) << 16) | ((data[i + 1] >> shift) << 8) | (data[i + 2] >> shift);
+    buckets.set(key, (buckets.get(key) || 0) + 1);
+  });
+
+  // The whole ring was transparent already, so there is no colour to pull off
+  // it — and nothing that needs removing either.
+  if (!buckets.size) {
+    return { colour: [255, 255, 255], coverage: 1, plain: true };
+  }
+
+  let mode = -1, modeCount = 0;
+  for (const [key, count] of buckets) {
+    if (count > modeCount) { modeCount = count; mode = key; }
+  }
+
+  // The bucket says roughly which colour; averaging its members says exactly,
+  // which matters when the backdrop carries a little sensor or JPEG noise.
+  let r = 0, g = 0, b = 0, n = 0;
+  eachBorderPixel(w, h, (p) => {
+    const i = p * 4;
+    if (data[i + 3] < ALPHA_FLOOR) return;
+    const key = ((data[i] >> shift) << 16) | ((data[i + 1] >> shift) << 8) | (data[i + 2] >> shift);
+    if (key !== mode) return;
+    r += data[i]; g += data[i + 1]; b += data[i + 2]; n++;
+  });
+  const colour = [Math.round(r / n), Math.round(g / n), Math.round(b / n)];
+
+  let matched = clear;
+  eachBorderPixel(w, h, (p) => {
+    const i = p * 4;
+    if (data[i + 3] < ALPHA_FLOOR) return;
+    if (colourDistance(data[i], data[i + 1], data[i + 2], colour) <= BORDER.match) matched++;
+  });
+
+  const coverage = ring ? matched / ring : 0;
+  return { colour, coverage, plain: coverage >= BORDER.coverage };
+}
+
+// The flood itself. Marks in `state`: 0 kept, 1 flooded away, 2 and up the
+// layers of the softened edge.
+function flatCutout(src, colour, tol) {
+  const w = src.width, h = src.height;
+  const image = src.getContext("2d").getImageData(0, 0, w, h);
+  const data = image.data;
+  const state = new Uint8Array(w * h);
+
+  let stack = new Int32Array(4096);
+  let top = 0;
+  const push = (p) => {
+    if (top === stack.length) {
+      const bigger = new Int32Array(stack.length * 2);
+      bigger.set(stack);
+      stack = bigger;
+    }
+    stack[top++] = p;
+  };
+
+  const isBackground = (p) => {
+    const i = p * 4;
+    if (data[i + 3] < ALPHA_FLOOR) return true;            // already transparent
+    return colourDistance(data[i], data[i + 1], data[i + 2], colour) <= tol;
+  };
+
+  const visit = (p) => {
+    if (!state[p] && isBackground(p)) { state[p] = 1; push(p); }
+  };
+
+  // Seeding only from the border is the whole trick: a white region in the
+  // middle of the drawing is the same colour but never on the queue.
+  eachBorderPixel(w, h, visit);
+
+  while (top > 0) {
+    const p = stack[--top];
+    const x = p % w;
+    if (x > 0) visit(p - 1);
+    if (x < w - 1) visit(p + 1);
+    if (p >= w) visit(p - w);
+    if (p < (h - 1) * w) visit(p + w);
+  }
+
+  // Grow the fade outwards from what was flooded, one bounded layer at a time.
+  const soft = tol + FEATHER;
+  for (let layer = 1; layer <= FEATHER_DEPTH; layer++) {
+    const next = layer + 1;
+    for (let p = 0; p < state.length; p++) {
+      if (state[p]) continue;
+      const x = p % w;
+      const touching = (x > 0 && state[p - 1] === layer)
+        || (x < w - 1 && state[p + 1] === layer)
+        || (p >= w && state[p - w] === layer)
+        || (p < (h - 1) * w && state[p + w] === layer);
+      if (!touching) continue;
+      const i = p * 4;
+      if (data[i + 3] < ALPHA_FLOOR) continue;
+      if (colourDistance(data[i], data[i + 1], data[i + 2], colour) >= soft) continue;
+      state[p] = next;
+    }
+  }
+
+  for (let p = 0; p < state.length; p++) {
+    const mark = state[p];
+    if (!mark) continue;
+    const i = p * 4;
+    if (mark === 1) { data[i + 3] = 0; continue; }
+
+    const d = colourDistance(data[i], data[i + 1], data[i + 2], colour);
+    const a = Math.min(1, Math.max(0, (d - tol) / FEATHER));
+    if (a <= 0) { data[i + 3] = 0; continue; }
+
+    // A half-covered pixel is a mix of subject and backdrop. Solving the mix
+    // back out keeps the cut edge from wearing a pale fringe of the colour
+    // that was just removed.
+    for (let c = 0; c < 3; c++) {
+      const solved = (data[i + c] - (1 - a) * colour[c]) / a;
+      data[i + c] = solved < 0 ? 0 : solved > 255 ? 255 : solved;
+    }
+    data[i + 3] = Math.min(data[i + 3], Math.round(a * 255));
+  }
+
+  const out = document.createElement("canvas");
+  out.width = w;
+  out.height = h;
+  out.getContext("2d").putImageData(image, 0, 0);
+  return out;
+}
 
 /* ------------------------------------------------------------- the model -- */
 
@@ -505,31 +727,70 @@ async function run(file) {
     return;
   }
 
+  outEl.classList.remove("ready");
+  sourceFile = file;
+  sourceName = file.name || "image";
+  setStatus(`Reading ${sourceName}`);
+
+  try {
+    original = await canvasFromBlob(file);
+    backdropInfo = analyseBackground(original);
+  } catch (err) {
+    console.error(err);
+    setStatus(`Couldn't read that image (${err.message}).`, true);
+    return;
+  }
+
+  // A flat backdrop gets the flood: it's exact where the model only guesses,
+  // it costs no download, and it's the one that leaves line art intact.
+  await apply(backdropInfo.plain ? "flat" : "model", true);
+}
+
+// Switches to one of the two cuts and runs it. `auto` marks the choice the
+// page made for itself, which is worth a word of explanation; a choice the
+// reader made isn't.
+async function apply(next, auto = false) {
+  if (busy || !original) return;
+  method = next;
+  syncSeg(methodSeg, "method", method);
+  tolField.classList.toggle("off", method !== "flat");
+  if (method === "flat") runFlat(auto);
+  else await runModel(auto);
+}
+
+function percent(fraction) {
+  return `${Math.round(fraction * 100)}%`;
+}
+
+function runFlat(auto = false) {
+  const start = performance.now();
+  cutout = flatCutout(original, backdropInfo.colour, tolerance);
+  const took = humanSeconds((performance.now() - start) / 1000);
+
+  let why = "";
+  if (auto) {
+    why = ` ${percent(backdropInfo.coverage)} of the border is that one colour, so nothing enclosed by the drawing was touched.`;
+  } else if (!backdropInfo.plain) {
+    why = ` Only ${percent(backdropInfo.coverage)} of the border is that colour, though, so the backdrop may not be flat — the subject model may read this one better.`;
+  }
+  presentCutout(`Flooded ${hex(backdropInfo.colour)} from the edges in ${took} — ${cutout.width} × ${cutout.height}.${why}`);
+}
+
+async function runModel(auto = false) {
   busy = true;
   const runStart = performance.now();
-  outEl.classList.remove("ready");
-  sourceName = file.name || "image";
   beginWork(sourceName);
   setWaiting();
 
   try {
-    original = await canvasFromBlob(file);
-
     // Everything may already be cached, in which case no download is reported
     // at all and this settles straight through to the last step.
-    const result = await cutOut(file);
+    const result = await cutOut(sourceFile);
 
     const took = humanSeconds((performance.now() - runStart) / 1000);
     cutout = await canvasFromBlob(result);
-    contentBox = measureContent(cutout);
-    if (!contentBox) {
-      crop = "original";                  // nothing left to crop to
-      syncSeg(cropSeg, "crop", crop);
-    }
-    view = "cutout";
-    syncSeg(viewSeg, "view", view);
-    show();
-    setStatus(`Done in ${took} — ${cutout.width} × ${cutout.height}.`);
+    presentCutout(`Done in ${took} — ${cutout.width} × ${cutout.height}.`
+      + (auto ? " The backdrop isn't one flat colour, so the segmentation model made the cut." : ""));
   } catch (err) {
     console.error(err);
     setStatus(`Couldn't remove the background (${err.message}). The model is fetched from a CDN on first use, so this needs a connection the first time.`, true);
@@ -537,6 +798,19 @@ async function run(file) {
     busy = false;
     endWork();
   }
+}
+
+// Everything both paths do once they have a cutout in hand.
+function presentCutout(message) {
+  contentBox = measureContent(cutout);
+  if (!contentBox && crop === "content") {
+    crop = "original";                    // nothing left to crop to
+    syncSeg(cropSeg, "crop", crop);
+  }
+  view = "cutout";
+  syncSeg(viewSeg, "view", view);
+  show();
+  setStatus(message);
 }
 
 async function canvasFromBlob(blob) {
@@ -555,10 +829,7 @@ function current() {
   return view === "original" ? original : cutout;
 }
 
-// The tightest rectangle holding anything the model kept. Pixels barely above
-// zero are the soft edge of a cut rather than content, so they don't count.
-const ALPHA_FLOOR = 10;
-
+// The tightest rectangle holding anything the cut kept.
 function measureContent(canvas) {
   const { width, height } = canvas;
   const data = canvas.getContext("2d").getImageData(0, 0, width, height).data;
@@ -683,6 +954,26 @@ function syncSeg(seg, attr, value) {
     btn.setAttribute("aria-pressed", String(btn.dataset[attr] === value));
   }
 }
+
+methodSeg.addEventListener("click", (e) => {
+  const btn = e.target.closest("button");
+  if (!btn || !original || busy || btn.dataset.method === method) return;
+  apply(btn.dataset.method);
+});
+
+// The flood is cheap enough to redo while the slider moves; one frame's worth
+// of coalescing keeps a big image from queueing up runs it will throw away.
+let tolPending = null;
+
+tolInput.addEventListener("input", () => {
+  tolerance = Number(tolInput.value);
+  tolOut.value = tolInput.value;
+  if (method !== "flat" || !original || tolPending) return;
+  tolPending = requestAnimationFrame(() => {
+    tolPending = null;
+    runFlat();
+  });
+});
 
 viewSeg.addEventListener("click", (e) => {
   const btn = e.target.closest("button");
