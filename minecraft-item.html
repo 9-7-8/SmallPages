@@ -51,7 +51,33 @@
     gap: 0.9rem;
     align-items: center;
   }
-  .pad-line button { font-size: 0.78rem; padding: 0.35rem 0.7rem; }
+  .pad-line .what { margin-left: auto; }
+  .pad-line .acts { margin-left: 0; }
+
+  /* Both actions are one glyph wide, so what they do has to come from the
+     label they carry rather than from words on the face. */
+  .acts { display: flex; gap: 0.4rem; }
+  .acts button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.4rem 0.55rem;
+  }
+  .acts svg {
+    display: block;
+    width: 15px;
+    height: 15px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  /* A copy leaves nothing on screen to show for itself, so the button says so
+     for a moment instead. */
+  .acts button.done { color: var(--neon); border-color: var(--neon); }
+
+  .sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
 
   .tiles {
     display: grid;
@@ -93,7 +119,7 @@
   .tile .cap { display: flex; align-items: baseline; gap: 0.5rem; }
   .tile .mult { font-size: 0.9rem; }
   .tile .px { font-size: 0.75rem; margin-left: auto; }
-  .tile button { width: 100%; font-size: 0.78rem; padding: 0.35rem 0.5rem; }
+  .tile .acts button { flex: 1; }
 
   @media (max-width: 620px) {
     body { padding: 2rem 1rem 4rem; }
@@ -102,6 +128,16 @@
 </style>
 </head>
 <body>
+<svg class="sprite" aria-hidden="true">
+  <symbol id="i-download" viewBox="0 0 16 16">
+    <path d="M8 2v8M4.5 7L8 10.5 11.5 7M2.5 13.5h11"/>
+  </symbol>
+  <symbol id="i-copy" viewBox="0 0 16 16">
+    <rect x="5.5" y="5.5" width="8" height="8" rx="1"/>
+    <path d="M10.5 3.5v-1h-8v8h1"/>
+  </symbol>
+</svg>
+
 <main>
   <a class="home" href="index.html">&larr; index</a>
   <h1>minecraft item</h1>
@@ -164,7 +200,15 @@
 
       <p class="pad-line">
         <span id="padNote"></span>
-        <button id="padBtn" class="ghost">Download the padded original</button>
+        <span class="what">the padded original</span>
+        <span class="acts">
+          <button id="padCopyBtn" class="ghost" title="Copy the padded original" aria-label="Copy the padded original">
+            <svg aria-hidden="true"><use href="#i-copy"/></svg>
+          </button>
+          <button id="padBtn" class="ghost" title="Download the padded original" aria-label="Download the padded original">
+            <svg aria-hidden="true"><use href="#i-download"/></svg>
+          </button>
+        </span>
       </p>
     </div>
 
@@ -191,6 +235,7 @@ const backdropSeg = document.getElementById("backdropSeg");
 const backdropColor = document.getElementById("backdropColor");
 const padNote = document.getElementById("padNote");
 const padBtn = document.getElementById("padBtn");
+const padCopyBtn = document.getElementById("padCopyBtn");
 
 const MULTIPLES = [1, 2, 4, 8, 12, 24];
 
@@ -492,13 +537,54 @@ function tileFor(mult, size, canvas) {
   canvas.classList.add("checker");
   frame.appendChild(canvas);
 
+  const name = `${sourceName}-${size}x${size}.png`;
+  const acts = document.createElement("div");
+  acts.className = "acts";
+  acts.append(
+    iconButton("copy", `Copy the ${size} × ${size} texture`, (btn) => copy(canvas, btn, `the ${size} × ${size} texture`)),
+    iconButton("download", `Download the ${size} × ${size} texture`, () => save(canvas, name)),
+  );
+
+  tile.append(cap, frame, acts);
+  return tile;
+}
+
+// One glyph, and the words that would have been on it moved into the label,
+// where a pointer and a screen reader can both still reach them.
+function iconButton(kind, label, onClick) {
   const button = document.createElement("button");
   button.className = "ghost";
-  button.textContent = "Download";
-  button.addEventListener("click", () => save(canvas, `${sourceName}-${size}x${size}.png`));
+  button.title = label;
+  button.setAttribute("aria-label", label);
+  button.innerHTML = `<svg aria-hidden="true"><use href="#i-${kind}"/></svg>`;
+  button.addEventListener("click", () => onClick(button));
+  return button;
+}
 
-  tile.append(cap, frame, button);
-  return tile;
+// PNG is the only image type every clipboard implementation takes, and the
+// only one of them that carries the transparency through. The item is handed
+// over as a promise rather than a finished blob because Safari drops the
+// write if anything is awaited between the click and the ClipboardItem.
+async function copy(canvas, button, what) {
+  try {
+    if (!navigator.clipboard || !window.ClipboardItem) {
+      throw new Error("this browser has no clipboard image support");
+    }
+    const png = new Promise((resolve, reject) => {
+      canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("couldn't encode that one")), "image/png");
+    });
+    await navigator.clipboard.write([new ClipboardItem({ "image/png": png })]);
+    flash(button);
+    setStatus(`Copied ${what}. Transparency survives only if what you paste into keeps it.`);
+  } catch (err) {
+    console.error(err);
+    setStatus(`Couldn't copy: ${err.message}`, true);
+  }
+}
+
+function flash(button) {
+  button.classList.add("done");
+  setTimeout(() => button.classList.remove("done"), 900);
 }
 
 function save(canvas, name) {
@@ -564,6 +650,10 @@ srcSeg.addEventListener("click", (e) => {
 
 padBtn.addEventListener("click", () => {
   if (padded) save(padded, `${sourceName}-padded-${padded.width}x${padded.height}.png`);
+});
+
+padCopyBtn.addEventListener("click", () => {
+  if (padded) copy(padded, padCopyBtn, `the padded original (${padded.width} × ${padded.height})`);
 });
 </script>
 </body>
