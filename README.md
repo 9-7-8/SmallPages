@@ -19,7 +19,7 @@ close it. Nothing is uploaded anywhere; every image, GIF and byte stays in your 
 | [`palette-to-gem.html`](palette-to-gem.html) | Grows a faceted gemstone out of a palette you pick or pull from an image — sharp plane changes, cool facets against warm ones, and whatever fire the cut carries. |
 | [`unified-palette.html`](unified-palette.html) | Takes colours that refuse to sit together, gives them a shared undertone, then cross-mixes them into a palette where every colour agrees with every other one. |
 | [`playlist-to-audio.html`](playlist-to-audio.html) | Turns a YouTube or YouTube Music playlist into a `yt-dlp` command you run yourself. The page builds the command only — no audio passes through it. |
-| [`anything-to-image.html`](anything-to-image.html) | Paste, drop or pick anything — a screenshot, spreadsheet cells, a slide shape, an SVG, plain text, a link — and it comes back as a PNG, JPEG or WebP to copy or save. |
+| [`anything-to-image.html`](anything-to-image.html) | Paste, drop or pick anything — a screenshot, spreadsheet cells, a slide shape, an SVG, plain text, a link — and it comes back as a PNG, JPEG or WebP to copy or save. Drop a whole `.xlsx` and every visible tab becomes its own page, cropped to the cells that hold something; the workbook is unzipped and read in the page itself, with no spreadsheet library behind it. |
 | [`unzip.html`](unzip.html) | Opens a `.zip` and lists what's inside; click a name to save that file, or take the lot one per second. Reads the archive's central directory directly and inflates with the browser's own `DecompressionStream`, so there's no library to load. |
 
 ## Theme

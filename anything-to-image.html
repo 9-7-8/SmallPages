@@ -56,6 +56,11 @@
   .field { display: flex; flex-direction: column; gap: 0.35rem; }
   .field label { font-size: 0.8rem; }
   .field.grow { flex: 1; min-width: 12rem; }
+  .field select { min-width: 12rem; max-width: 20rem; }
+
+  /* A one-page result hides the page picker, and .field's own display would
+     otherwise win over the attribute. */
+  [hidden] { display: none !important; }
 
   .acts { display: flex; gap: 0.6rem; margin-left: auto; }
 
@@ -80,13 +85,13 @@
 <main>
   <a class="home" href="index.html">&larr; index</a>
   <h1>anything → image</h1>
-  <p class="lede">Paste, drop, or pick anything at all — a screenshot, a cell range out of a spreadsheet, a shape off a slide, an SVG, a paragraph of text, a link — and it comes back as an image you can copy or save.</p>
+  <p class="lede">Paste, drop, or pick anything at all — a screenshot, a cell range out of a spreadsheet, a shape off a slide, an SVG, a paragraph of text, a link — and it comes back as an image you can copy or save. Drop a whole <code>.xlsx</code> and every tab comes back as its own page, trimmed to the cells that have something in them.</p>
 
   <div class="card">
     <div class="dropzone" id="dropzone" tabindex="0">
       <div>Hit <kbd>Ctrl</kbd>+<kbd>V</kbd> anywhere on this page</div>
-      <div class="hint">or drop a file here, or click to choose one — nothing leaves your browser</div>
-      <input type="file" id="fileInput" accept="image/*,.svg,.txt,.html">
+      <div class="hint">or drop a file here, or click to choose one — images, SVG, markup, text, a spreadsheet; nothing leaves your browser</div>
+      <input type="file" id="fileInput" accept="image/*,.svg,.txt,.html,.xlsx,.xlsm">
     </div>
     <div class="link-row">
       <input type="text" id="urlInput" placeholder="…or paste a link and press Enter">
@@ -100,6 +105,11 @@
       <div class="stage" id="stage"></div>
 
       <div class="controls">
+        <div class="field" id="pageField" hidden>
+          <label for="pageSel">Page</label>
+          <select id="pageSel"></select>
+        </div>
+
         <div class="field">
           <label>Format</label>
           <div class="seg" id="fmtSeg">
@@ -126,6 +136,7 @@
         <div class="acts">
           <button id="copyBtn">Copy</button>
           <button id="saveBtn">Download</button>
+          <button id="allBtn" class="ghost" hidden>Save all</button>
         </div>
       </div>
 
@@ -152,8 +163,15 @@ const quality = document.getElementById("quality");
 const qualityVal = document.getElementById("qualityVal");
 const copyBtn = document.getElementById("copyBtn");
 const saveBtn = document.getElementById("saveBtn");
+const allBtn = document.getElementById("allBtn");
+const pageField = document.getElementById("pageField");
+const pageSel = document.getElementById("pageSel");
 
-// The drawn source, before format and background are applied.
+// The drawn source, before format and background are applied. Most things
+// make one page; a workbook makes one per tab, and `source` is whichever of
+// them is on screen.
+let pages = [];
+let pageIndex = 0;
 let source = null;
 let format = "image/png";
 let background = "transparent";
@@ -234,6 +252,17 @@ async function fromFile(file) {
     if (file.type === "text/html" || /\.html?$/i.test(file.name || "")) {
       return await fromHtml(await file.text(), "");
     }
+
+    // What a spreadsheet actually is beats what it's called: an .xlsx renamed
+    // to .xls is still a ZIP, and a real .xls still isn't one.
+    const head = new Uint8Array(await file.slice(0, 4).arrayBuffer());
+    if (looksLegacy(head)) {
+      throw new Error("that's the old binary .xls format, which this page can't read — "
+        + "re-saving it as .xlsx is all it takes");
+    }
+    if (looksZipped(head)) {
+      return await fromWorkbook(file, file.name || "workbook.xlsx");
+    }
     // Anything else readable becomes a text image; binary would render as
     // mojibake, so refuse it rather than draw noise.
     const text = await file.text();
@@ -289,6 +318,472 @@ async function fromUrl(url) {
   }
 }
 
+
+/* ---------------------------------------------------------- spreadsheets -- */
+
+// An .xlsx is a ZIP of XML, and a browser can already inflate and parse both,
+// so the workbook is read here rather than by shipping a spreadsheet library
+// with the page. Only what an image of a tab needs is read: the cells, and
+// enough of the number formats that a date doesn't come out as 45292.
+
+const SHEET_MAX_ROWS = 300;     // an image taller than this is unreadable anyway
+const SHEET_MAX_COLS = 60;
+const CELL_MAX_CHARS = 120;     // one long cell shouldn't set the page width
+const PAGE_MAX_CSS_PX = 3600;   // before the 2× draw, so the canvas stays sane
+
+// Wide enough that sixty columns aren't crushed into wrapping their digits,
+// and still inside what a canvas will take once it's drawn at twice the size.
+const PAGE_STYLE = "display:inline-block;padding:18px;background:#ffffff;color:#111111;"
+  + "max-width:3600px;font-family:Helvetica,Arial,sans-serif;font-size:14px;line-height:1.4";
+const TITLE_STYLE = "font:600 15px Helvetica,Arial,sans-serif;color:#111111;margin:0 0 10px";
+const TABLE_STYLE = "border-collapse:collapse;font:14px Helvetica,Arial,sans-serif;color:#111111";
+const CELL_STYLE = "border:1px solid #d8d8d8;padding:4px 9px;vertical-align:top;"
+  + "white-space:pre-wrap;overflow-wrap:anywhere;max-width:340px;";
+const NOTE_STYLE = "font:12px Helvetica,Arial,sans-serif;color:#666666;margin-top:10px";
+
+/* ------------------------------------------------------------------- zip -- */
+
+function looksZipped(head) {
+  return head[0] === 0x50 && head[1] === 0x4b && head[2] === 0x03 && head[3] === 0x04;
+}
+
+// The old binary .xls is an OLE compound document — a different format
+// entirely, not a ZIP, and not something this page can read.
+function looksLegacy(head) {
+  return head[0] === 0xd0 && head[1] === 0xcf && head[2] === 0x11 && head[3] === 0xe0;
+}
+
+// The central directory sits at the end, behind a record that a comment of up
+// to 64 KB can follow, so the tail is scanned backwards for its signature.
+async function zipIndex(file) {
+  const from = Math.max(0, file.size - 0xffff - 22);
+  const tail = new DataView(await file.slice(from).arrayBuffer());
+
+  let eocd = -1;
+  for (let at = tail.byteLength - 22; at >= 0; at--) {
+    if (tail.getUint32(at, true) === 0x06054b50) { eocd = at; break; }
+  }
+  if (eocd < 0) throw new Error("that ZIP has no directory in it");
+
+  const count = tail.getUint16(eocd + 10, true);
+  const size = tail.getUint32(eocd + 12, true);
+  const start = tail.getUint32(eocd + 16, true);
+  const dir = new DataView(await file.slice(start, start + size).arrayBuffer());
+
+  const entries = new Map();
+  let at = 0;
+  for (let i = 0; i < count && at + 46 <= dir.byteLength; i++) {
+    if (dir.getUint32(at, true) !== 0x02014b50) break;
+    const flags = dir.getUint16(at + 8, true);
+    const nameLength = dir.getUint16(at + 28, true);
+    const name = new TextDecoder(flags & 0x800 ? "utf-8" : "windows-1252")
+      .decode(new Uint8Array(dir.buffer, dir.byteOffset + at + 46, nameLength));
+    entries.set(name, {
+      encrypted: (flags & 0x1) !== 0,
+      method: dir.getUint16(at + 10, true),
+      packedSize: dir.getUint32(at + 20, true),
+      localOffset: dir.getUint32(at + 42, true),
+    });
+    at += 46 + nameLength + dir.getUint16(at + 30, true) + dir.getUint16(at + 32, true);
+  }
+  return entries;
+}
+
+async function zipText(file, entry) {
+  if (!entry) return null;
+  if (entry.encrypted) throw new Error("it's password-protected");
+
+  // The local header's name and extra fields can be sized differently from the
+  // directory's, so where the data starts has to come from the header itself.
+  const header = new DataView(await file.slice(entry.localOffset, entry.localOffset + 30).arrayBuffer());
+  if (header.getUint32(0, true) !== 0x04034b50) throw new Error("one of its parts is corrupt");
+  const start = entry.localOffset + 30 + header.getUint16(26, true) + header.getUint16(28, true);
+  const packed = file.slice(start, start + entry.packedSize);
+
+  if (entry.method === 0) return await packed.text();
+  if (entry.method !== 8) throw new Error(`compression method ${entry.method} isn't supported`);
+  return await new Response(packed.stream().pipeThrough(new DecompressionStream("deflate-raw"))).text();
+}
+
+function parseXml(text, what) {
+  const doc = new DOMParser().parseFromString(text, "application/xml");
+  if (doc.querySelector("parsererror")) throw new Error(`its ${what} doesn't parse`);
+  return doc;
+}
+
+/* -------------------------------------------------------------- the book -- */
+
+// A custom format carries its own code; the built-in ones are referred to by
+// number alone, so the numbers have to be known. These are the ones that
+// change how a value reads — the rest are General by another name.
+const BUILTIN_FORMATS = new Map([
+  [1, "0"], [2, "0.00"], [3, "#,##0"], [4, "#,##0.00"],
+  [9, "0%"], [10, "0.00%"], [11, "0.00E+00"], [12, "# ?/?"], [13, "# ??/??"],
+  [14, "m/d/yyyy"], [15, "d-mmm-yy"], [16, "d-mmm"], [17, "mmm-yy"],
+  [18, "h:mm AM/PM"], [19, "h:mm:ss AM/PM"], [20, "h:mm"], [21, "h:mm:ss"],
+  [22, "m/d/yy h:mm"],
+  [37, "#,##0 ;(#,##0)"], [38, "#,##0 ;[Red](#,##0)"],
+  [39, "#,##0.00;(#,##0.00)"], [40, "#,##0.00;[Red](#,##0.00)"],
+  [45, "mm:ss"], [46, "[h]:mm:ss"], [47, "mm:ss.0"], [48, "##0.0E+0"], [49, "@"],
+]);
+
+async function readWorkbook(file) {
+  const zip = await zipIndex(file);
+  const bookXml = await zipText(file, zip.get("xl/workbook.xml"));
+  if (!bookXml) throw new Error("that ZIP isn't a spreadsheet — there's no workbook inside it");
+
+  const book = parseXml(bookXml, "workbook");
+  const props = book.querySelector("workbookPr");
+  const epoch1904 = /^(1|true)$/i.test((props && props.getAttribute("date1904")) || "");
+
+  const relsXml = await zipText(file, zip.get("xl/_rels/workbook.xml.rels"));
+  const rels = new Map();
+  if (relsXml) {
+    for (const rel of parseXml(relsXml, "relationships").querySelectorAll("Relationship")) {
+      rels.set(rel.getAttribute("Id"), rel.getAttribute("Target") || "");
+    }
+  }
+
+  const shared = await readSharedStrings(file, zip);
+  const formats = await readFormats(file, zip);
+
+  const sheets = [];
+  let hidden = 0;
+  for (const node of book.querySelectorAll("sheets > sheet")) {
+    // A hidden tab isn't a tab anyone sees, so it doesn't become a page.
+    if ((node.getAttribute("state") || "visible") !== "visible") { hidden++; continue; }
+
+    const target = rels.get(node.getAttribute("r:id")) || "";
+    const path = target.startsWith("/") ? target.slice(1)
+      : target.startsWith("xl/") ? target : `xl/${target.replace(/^\.\//, "")}`;
+    const xml = await zipText(file, zip.get(path));
+    if (!xml) continue;
+
+    sheets.push({
+      name: node.getAttribute("name") || `Sheet ${sheets.length + 1}`,
+      cells: readCells(parseXml(xml, "sheet"), shared, formats, epoch1904),
+    });
+  }
+
+  if (!sheets.length) throw new Error("there are no visible tabs in it");
+  return { sheets, hidden };
+}
+
+async function readSharedStrings(file, zip) {
+  const xml = await zipText(file, zip.get("xl/sharedStrings.xml"));
+  if (!xml) return [];
+  return Array.from(parseXml(xml, "strings").querySelectorAll("sst > si")).map(textIn);
+}
+
+// Rich text arrives as a run per styled stretch; <rPh> is a phonetic gloss
+// sitting alongside the text rather than part of it.
+function textIn(node) {
+  return Array.from(node.querySelectorAll("t"))
+    .filter((t) => !t.closest("rPh"))
+    .map((t) => t.textContent)
+    .join("");
+}
+
+async function readFormats(file, zip) {
+  const codes = new Map(BUILTIN_FORMATS);
+  let styles = [];
+  const xml = await zipText(file, zip.get("xl/styles.xml"));
+  if (xml) {
+    const doc = parseXml(xml, "styles");
+    for (const fmt of doc.querySelectorAll("numFmts > numFmt")) {
+      codes.set(Number(fmt.getAttribute("numFmtId")), fmt.getAttribute("formatCode") || "");
+    }
+    styles = Array.from(doc.querySelectorAll("cellXfs > xf"))
+      .map((xf) => Number(xf.getAttribute("numFmtId") || 0));
+  }
+  return { codes, styles };
+}
+
+function formatFor(formats, styleIndex) {
+  const id = formats.styles[styleIndex];
+  return (id === undefined ? "" : formats.codes.get(id)) || "";
+}
+
+// A1 → { col: 0, row: 0 }.
+function cellAt(ref) {
+  const parts = /^([A-Z]+)(\d+)$/.exec(ref || "");
+  if (!parts) return null;
+  let col = 0;
+  for (const letter of parts[1]) col = col * 26 + (letter.charCodeAt(0) - 64);
+  return { col: col - 1, row: Number(parts[2]) - 1 };
+}
+
+function readCells(doc, shared, formats, epoch1904) {
+  const cells = [];
+  for (const node of doc.querySelectorAll("sheetData > row > c")) {
+    const at = cellAt(node.getAttribute("r"));
+    if (!at) continue;
+
+    const type = node.getAttribute("t") || "n";
+    const code = formatFor(formats, Number(node.getAttribute("s") || 0));
+    const value = node.querySelector("v");
+    let text = "";
+    let numeric = false;
+
+    if (type === "s") {
+      text = shared[Number(value ? value.textContent : NaN)] || "";
+    } else if (type === "inlineStr") {
+      text = textIn(node.querySelector("is") || node);
+    } else if (type === "b") {
+      text = value && value.textContent === "1" ? "TRUE" : "FALSE";
+    } else if (type === "e" || type === "str") {
+      text = value ? value.textContent : "";
+    } else if (value) {
+      text = formatNumber(Number(value.textContent), code, epoch1904);
+      numeric = true;                     // dates included: they line up right
+    }
+
+    if (text) cells.push({ row: at.row, col: at.col, text, numeric });
+  }
+  return cells;
+}
+
+/* ----------------------------------------------------------- the numbers -- */
+
+// Quoted runs, escaped characters and [colour]/[condition] sections are all
+// literal text, and none of them say anything about what the number is.
+function bareCode(code) {
+  return code.replace(/"[^"]*"/g, "").replace(/\\./g, "").replace(/\[[^\]]*\]/g, "");
+}
+
+// A format can hold up to four sections — positive, negative, zero, text —
+// and it's the first that describes the shape of the number. A negative comes
+// out with a minus rather than in the brackets some of the built-ins ask for.
+function shapeOf(code) {
+  return bareCode(code).split(";")[0];
+}
+
+function isDateCode(code) {
+  return /[ymdhs]/i.test(shapeOf(code));
+}
+
+function formatNumber(value, code, epoch1904) {
+  if (!isFinite(value)) return "";
+  if (isDateCode(code)) return formatSerialDate(value, code, epoch1904);
+
+  const shape = shapeOf(code);
+  const decimals = decimalsIn(code);
+  const { before, after } = marksIn(code);
+
+  if (/e\+/i.test(shape)) {
+    // Excel writes 1.23E+04 where JavaScript writes 1.23e+4.
+    return value.toExponential(decimals === null ? 2 : decimals)
+      .replace(/e([+-])(\d+)/i, (all, sign, power) => `E${sign}${power.padStart(2, "0")}`);
+  }
+
+  const scaled = shape.includes("%") ? value * 100 : value;
+  const digits = padded(grouped(trimNumber(scaled, decimals), shape), shape);
+  return `${before}${digits}${shape.includes("%") ? "%" : ""}${after}`;
+}
+
+function decimalsIn(code) {
+  const point = /\.(0+)/.exec(shapeOf(code));
+  return point ? point[1].length : null;
+}
+
+// "#,##0" is the code asking for thousands separators; nothing else does.
+function grouped(text, shape) {
+  if (!shape.includes(",")) return text;
+  const [whole, fraction] = text.split(".");
+  const sign = whole.startsWith("-") ? "-" : "";
+  const body = (sign ? whole.slice(1) : whole).replace(/\B(?=(\d{3})+$)/g, ",");
+  return `${sign}${body}${fraction ? `.${fraction}` : ""}`;
+}
+
+// "0000" asks for four digits whether or not the number has them.
+function padded(text, shape) {
+  const width = (shape.split(".")[0].match(/0/g) || []).length;
+  if (width < 2) return text;
+  const [whole, fraction] = text.split(".");
+  const sign = whole.startsWith("-") ? "-" : "";
+  const body = (sign ? whole.slice(1) : whole).padStart(width, "0");
+  return `${sign}${body}${fraction ? `.${fraction}` : ""}`;
+}
+
+// Quoted runs and [bracketed] sections hold literal text, and a digit inside
+// one — the 409 of [$$-409] — is not the format's first placeholder. Blanking
+// them out first is what keeps the search honest, without moving anything.
+function maskLiterals(text) {
+  return text.replace(/"[^"]*"|\[[^\]]*\]|\\./g, (run) => "\u0000".repeat(run.length));
+}
+
+// A currency sits in the format as a quoted literal or a [$…] token, and a
+// column of money that loses its sign is a column that means something else.
+// Which side it goes on is decided by which side of the digits it was on.
+function marksIn(code) {
+  const section = code.split(";")[0];
+  const at = maskLiterals(section).search(/[#0?]/);
+  if (at < 0) return { before: "", after: "" };
+
+  const marks = (part) => {
+    const found = [];
+    const pattern = /\[\$([^\]\-]*)[^\]]*\]|"([^"]*)"|([$£€¥₹])/g;
+    let hit;
+    while ((hit = pattern.exec(part))) {
+      const mark = hit[1] || hit[2] || hit[3] || "";
+      // Symbols only, and with whatever spacing the format put around them: a
+      // word in quotes is a label rather than a unit worth carrying over.
+      if (mark.trim() && /^\s*[^\w\s]{1,3}\s*$/.test(mark)) found.push(mark);
+    }
+    return found.join("");
+  };
+
+  return { before: marks(section.slice(0, at)), after: marks(section.slice(at)) };
+}
+
+function trimNumber(value, decimals) {
+  if (decimals !== null) return value.toFixed(decimals);
+  // Binary floats leave 0.30000000000000004 lying about, and nobody wants that
+  // in a picture of a spreadsheet.
+  return String(Number(value.toPrecision(12)));
+}
+
+function formatSerialDate(serial, code, epoch1904) {
+  const base = epoch1904 ? Date.UTC(1904, 0, 1) : Date.UTC(1899, 11, 30);
+  // Excel believes 1900 had a 29th of February. Days before the phantom one
+  // land a day late unless it's taken back off them.
+  const days = !epoch1904 && serial < 60 ? serial + 1 : serial;
+  const at = new Date(base + Math.round(days * 86400) * 1000);
+  if (isNaN(at.getTime())) return String(serial);
+
+  const pad = (n) => String(n).padStart(2, "0");
+  const date = `${at.getUTCFullYear()}-${pad(at.getUTCMonth() + 1)}-${pad(at.getUTCDate())}`;
+  const seconds = at.getUTCSeconds();
+  const time = `${pad(at.getUTCHours())}:${pad(at.getUTCMinutes())}`
+    + (seconds ? `:${pad(seconds)}` : "");
+
+  const bare = bareCode(code).toLowerCase();
+  const wantsTime = /[hs]/.test(bare);
+  const wantsDate = /[yd]/.test(bare);
+  if (wantsTime && !wantsDate) return time;
+  if (wantsTime) return `${date} ${time}`;
+  return date;
+}
+
+/* ------------------------------------------------------------ the pages -- */
+
+// The tightest rectangle holding anything at all. A sheet's declared extent
+// counts cells that only ever carried formatting, which is where the band of
+// empty rows and columns around the edges comes from.
+function usedRange(cells) {
+  let top = Infinity, left = Infinity, bottom = -1, right = -1;
+  for (const cell of cells) {
+    if (!cell.text.trim()) continue;
+    if (cell.row < top) top = cell.row;
+    if (cell.row > bottom) bottom = cell.row;
+    if (cell.col < left) left = cell.col;
+    if (cell.col > right) right = cell.col;
+  }
+  return bottom < 0 ? null : { top, left, bottom, right };
+}
+
+function buildSheetTable(sheet) {
+  const box = usedRange(sheet.cells);
+  if (!box) return null;                          // the tab is empty
+
+  const rows = Math.min(box.bottom - box.top + 1, SHEET_MAX_ROWS);
+  const cols = Math.min(box.right - box.left + 1, SHEET_MAX_COLS);
+  const lost = {
+    rows: (box.bottom - box.top + 1) - rows,
+    cols: (box.right - box.left + 1) - cols,
+  };
+
+  const grid = new Map();
+  for (const cell of sheet.cells) grid.set(`${cell.row}:${cell.col}`, cell);
+
+  const table = document.createElement("table");
+  table.setAttribute("style", TABLE_STYLE);
+  for (let r = 0; r < rows; r++) {
+    const tr = table.insertRow();
+    for (let c = 0; c < cols; c++) {
+      const cell = grid.get(`${box.top + r}:${box.left + c}`);
+      const td = tr.insertCell();
+      td.setAttribute("style", CELL_STYLE + (cell && cell.numeric ? "text-align:right" : ""));
+      const text = cell ? cell.text : "";
+      td.textContent = text.length > CELL_MAX_CHARS ? text.slice(0, CELL_MAX_CHARS) + "…" : text;
+    }
+  }
+  return { table, box, lost };
+}
+
+async function renderSheet(sheet) {
+  const built = buildSheetTable(sheet);
+  if (!built) return null;
+
+  const holder = document.createElement("div");
+  holder.className = "measure";
+  holder.setAttribute("xmlns", "http://www.w3.org/1999/xhtml");
+  holder.setAttribute("style", PAGE_STYLE);
+
+  const title = document.createElement("div");
+  title.setAttribute("style", TITLE_STYLE);
+  title.textContent = sheet.name;
+  holder.append(title, built.table);
+
+  const lost = { rows: built.lost.rows, cols: built.lost.cols };
+
+  // Rows are dropped against the laid-out height rather than a guess, because
+  // how tall a row is depends on what wrapped inside it.
+  const canvas = await rasterize(holder, () => {
+    while (built.table.rows.length > 1 && holder.getBoundingClientRect().height > PAGE_MAX_CSS_PX) {
+      const height = holder.getBoundingClientRect().height;
+      const perRow = height / built.table.rows.length;
+      const over = height - PAGE_MAX_CSS_PX;
+      const drop = Math.max(1, Math.floor(over / perRow));
+      for (let i = 0; i < drop && built.table.rows.length > 1; i++) {
+        built.table.deleteRow(built.table.rows.length - 1);
+        lost.rows++;
+      }
+    }
+
+    if (lost.rows || lost.cols) {
+      const note = document.createElement("div");
+      note.setAttribute("style", NOTE_STYLE);
+      note.textContent = [
+        lost.rows ? `${lost.rows} more row${lost.rows === 1 ? "" : "s"}` : "",
+        lost.cols ? `${lost.cols} more column${lost.cols === 1 ? "" : "s"}` : "",
+      ].filter(Boolean).join(" and ") + " didn't fit on this page";
+      holder.appendChild(note);
+    }
+  });
+
+  const used = `${built.box.bottom - built.box.top + 1} × ${built.box.right - built.box.left + 1}`;
+  return { canvas, label: sheet.name, used, clipped: lost.rows || lost.cols };
+}
+
+async function fromWorkbook(file, name) {
+  setStatus(`Reading ${name}…`);
+  const { sheets, hidden } = await readWorkbook(file);
+
+  const stem = name.replace(/\.[^.]+$/, "").replace(/[^\w.-]+/g, "-") || "workbook";
+  const pages = [];
+  let empty = 0;
+
+  for (const sheet of sheets) {
+    setStatus(`Drawing ${sheet.name}…`);
+    const page = await renderSheet(sheet);
+    if (!page) { empty++; continue; }
+    page.name = `${stem}-${sheet.name.replace(/[^\w.-]+/g, "-")}`;
+    pages.push(page);
+  }
+
+  if (!pages.length) throw new Error("every tab in it is empty");
+
+  const aside = [
+    empty ? `${empty} empty tab${empty === 1 ? "" : "s"} skipped` : "",
+    hidden ? `${hidden} hidden` : "",
+    pages.some((page) => page.clipped) ? "some pages were cut to fit" : "",
+  ].filter(Boolean).join(" · ");
+
+  showPages(pages, "#ffffff",
+    `${pages.length} page${pages.length === 1 ? "" : "s"} from ${name}${aside ? ` — ${aside}` : ""}.`);
+}
+
 /* ------------------------------------------------------------- renderers -- */
 
 function themeInk() {
@@ -320,8 +815,7 @@ async function drawSvg(svgText, label) {
   h = Math.round(h || 512);
 
   const scale = Math.min(2, Math.max(1, 1200 / w));   // it's vector, so render it crisp
-  const blob = new Blob([svgText], { type: "image/svg+xml;charset=utf-8" });
-  const bitmap = await bitmapFromBlob(blob, Math.round(w * scale), Math.round(h * scale));
+  const bitmap = await bitmapFromSvg(svgText, Math.round(w * scale), Math.round(h * scale));
   await drawBitmap(bitmap, label, "transparent");
 }
 
@@ -339,8 +833,49 @@ async function fromHtml(html, fallbackText) {
   }
 }
 
-// Pasted markup is drawn by laying it out in a real element, then handing
-// that element to an SVG <foreignObject>, which a canvas can rasterise.
+// Markup is drawn by laying it out in a real element, then handing that
+// element to an SVG <foreignObject>, which a canvas can rasterise. `settle`
+// runs once it's laid out and before it's measured, for anything that has to
+// see its real size first.
+async function rasterize(holder, settle) {
+  document.body.appendChild(holder);
+  try {
+    if (!holder.textContent.trim() && !holder.querySelector("*")) {
+      throw new Error("it came through empty");
+    }
+    if (settle) settle();
+
+    const rect = holder.getBoundingClientRect();
+    const w = Math.max(1, Math.ceil(rect.width));
+    const h = Math.max(1, Math.ceil(rect.height));
+    if (w > MAX_CANVAS_SIDE || h > MAX_CANVAS_SIDE) throw new Error("it's too big to draw");
+
+    // Twice the size keeps the text crisp, but a canvas has limits a long
+    // sheet can reach, so the big ones are drawn at life size instead.
+    const room = w * 2 <= MAX_CANVAS_SIDE && h * 2 <= MAX_CANVAS_SIDE
+      && w * h * 4 <= MAX_CANVAS_AREA;
+    const scale = room ? 2 : 1;
+
+    const xml = new XMLSerializer().serializeToString(holder);
+    const svg =
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">` +
+      `<foreignObject x="0" y="0" width="${w}" height="${h}">${xml}</foreignObject></svg>`;
+
+    const bitmap = await bitmapFromSvg(svg, w * scale, h * scale);
+    const canvas = document.createElement("canvas");
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    canvas.getContext("2d").drawImage(bitmap, 0, 0);
+    bitmap.close();
+    return canvas;
+  } finally {
+    holder.remove();
+  }
+}
+
+const MAX_CANVAS_SIDE = 8000;
+const MAX_CANVAS_AREA = 40e6;
+
 async function drawHtml(html) {
   const doc = new DOMParser().parseFromString(html, "text/html");
 
@@ -362,27 +897,8 @@ async function drawHtml(html) {
     "font-family:Helvetica,Arial,sans-serif;font-size:14px;line-height:1.4");
   for (const node of Array.from(doc.head.childNodes)) holder.appendChild(node.cloneNode(true));
   for (const node of Array.from(doc.body.childNodes)) holder.appendChild(node.cloneNode(true));
-  document.body.appendChild(holder);
 
-  try {
-    if (!holder.textContent.trim() && !holder.querySelector("*")) {
-      throw new Error("it came through empty");
-    }
-    const rect = holder.getBoundingClientRect();
-    const w = Math.max(1, Math.ceil(rect.width));
-    const h = Math.max(1, Math.ceil(rect.height));
-
-    const xml = new XMLSerializer().serializeToString(holder);
-    const svg =
-      `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">` +
-      `<foreignObject x="0" y="0" width="${w}" height="${h}">${xml}</foreignObject></svg>`;
-
-    const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
-    const bitmap = await bitmapFromBlob(blob, w * 2, h * 2);
-    await drawBitmap(bitmap, "markup", "#ffffff");
-  } finally {
-    holder.remove();
-  }
+  show({ canvas: await rasterize(holder), label: "markup", suggestedBg: "#ffffff" });
 }
 
 async function drawText(text, label) {
@@ -470,38 +986,70 @@ async function drawLinkCard(url) {
 
 // Decoding through an <img> is the only way to rasterise an SVG, and it is
 // what lets the result be drawn at a chosen size.
-function bitmapFromBlob(blob, width, height) {
+//
+// How that <img> is addressed decides whether the picture can leave the page.
+// Chromium treats a blob: URL holding a <foreignObject> as untrusted and
+// taints the canvas it's drawn into — the result can be looked at but never
+// copied or saved, which is most of the point of this page. The identical
+// markup behind a data: URL comes through clean, so that's the way in.
+function bitmapFromSvg(svgText, width, height) {
   return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(blob);
     const img = new Image();
     img.onload = () => {
       const canvas = document.createElement("canvas");
       canvas.width = width;
       canvas.height = height;
       canvas.getContext("2d").drawImage(img, 0, 0, width, height);
-      URL.revokeObjectURL(url);
       createImageBitmap(canvas).then(resolve, reject);
     };
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error("it wouldn't render"));
-    };
-    img.src = url;
+    img.onerror = () => reject(new Error("it wouldn't render"));
+    img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgText)}`;
   });
 }
 
 /* ---------------------------------------------------------------- output -- */
 
 function show({ canvas, label, suggestedBg }) {
-  source = { canvas, label };
+  showPages([{ canvas, label }], suggestedBg);
+}
+
+function showPages(list, suggestedBg, note = "") {
+  pages = list;
   background = suggestedBg;
   syncSeg(bgSeg, "bg", background);
 
-  refreshPreview();
+  pageSel.textContent = "";
+  list.forEach((page, i) => {
+    const option = document.createElement("option");
+    option.value = String(i);
+    option.textContent = `${i + 1}. ${page.label}`;
+    pageSel.appendChild(option);
+  });
+
+  const many = list.length > 1;
+  pageField.hidden = !many;
+  allBtn.hidden = !many;
+  allBtn.textContent = `Save all ${list.length}`;
+  allBtn.disabled = false;
+
   outEl.classList.add("ready");
-  metaEl.textContent = `${canvas.width} × ${canvas.height} px, from ${label}`;
-  setStatus(`Ready — ${canvas.width} × ${canvas.height}.`);
+  selectPage(0, note);
 }
+
+function selectPage(index, note = "") {
+  pageIndex = index;
+  source = pages[index];
+  pageSel.value = String(index);
+  refreshPreview();
+
+  const { canvas, label, used } = source;
+  metaEl.textContent = `${canvas.width} × ${canvas.height} px, from ${label}`
+    + (used ? ` · ${used} cells` : "")
+    + (pages.length > 1 ? ` · page ${index + 1} of ${pages.length}` : "");
+  setStatus(note || `Ready — ${canvas.width} × ${canvas.height}.`);
+}
+
+pageSel.addEventListener("change", () => selectPage(Number(pageSel.value)));
 
 // What the stage shows is what gets written out, transparency included —
 // the checker behind it comes from the theme.
@@ -542,8 +1090,31 @@ function encode(type, q) {
 }
 
 function baseName() {
-  const stem = (source.label || "image").replace(/\.[^.]+$/, "").replace(/[^\w.-]+/g, "-");
+  const raw = source.name || source.label || "image";
+  const stem = raw.replace(/\.[^.]+$/, "").replace(/[^\w.-]+/g, "-");
   return (stem || "image").slice(0, 60);
+}
+
+function saveBlob(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = name;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
+// A page's file, whichever page it is — the composition reads whatever
+// `source` points at, so each one is made in turn.
+async function encodePage(index) {
+  const held = source;
+  source = pages[index];
+  try {
+    const lossy = format !== "image/png";
+    return await encode(format, lossy ? Number(quality.value) / 100 : undefined);
+  } finally {
+    source = held;
+  }
 }
 
 saveBtn.addEventListener("click", async () => {
@@ -551,16 +1122,40 @@ saveBtn.addEventListener("click", async () => {
   try {
     const lossy = format !== "image/png";
     const blob = await encode(format, lossy ? Number(quality.value) / 100 : undefined);
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `${baseName()}.${EXT[format]}`;
-    link.click();
-    setTimeout(() => URL.revokeObjectURL(url), 10000);
-    setStatus(`Saved ${link.download} (${(blob.size / 1024).toFixed(1)} KB).`);
+    const name = `${baseName()}.${EXT[format]}`;
+    saveBlob(blob, name);
+    setStatus(`Saved ${name} (${(blob.size / 1024).toFixed(1)} KB).`);
   } catch (err) {
     console.error(err);
     setStatus(`Couldn't save: ${err.message}`, true);
+  }
+});
+
+// Browsers cancel a burst of downloads fired off from one click, so the pages
+// go out one a second.
+allBtn.addEventListener("click", async () => {
+  if (!pages.length || allBtn.disabled) return;
+  allBtn.disabled = true;
+  const held = pageIndex;
+
+  try {
+    for (let i = 0; i < pages.length; i++) {
+      setStatus(`Saving page ${i + 1} of ${pages.length}…`);
+      const blob = await encodePage(i);
+      const page = pages[i];
+      const stem = (page.name || page.label || `page-${i + 1}`)
+        .replace(/\.[^.]+$/, "").replace(/[^\w.-]+/g, "-").slice(0, 60);
+      saveBlob(blob, `${stem}.${EXT[format]}`);
+      if (i < pages.length - 1) await new Promise((done) => setTimeout(done, 1000));
+    }
+    setStatus(`Saved all ${pages.length} pages.`);
+  } catch (err) {
+    console.error(err);
+    setStatus(`Couldn't save them all: ${err.message}`, true);
+  } finally {
+    pageIndex = held;
+    source = pages[held];
+    allBtn.disabled = false;
   }
 });
 
