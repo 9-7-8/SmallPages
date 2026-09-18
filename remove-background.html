@@ -289,6 +289,7 @@ let method = "flat";    // which of the two cuts is on screen
 let backdropInfo = null; // what the border ring said about the backdrop
 let tolerance = 32;
 let view = "cutout";
+let cutStamp = 0;       // bumps with every new cutout, so stale files age out
 let crop = "content";
 let contentBox = null;   // the cutout's opaque bounds, measured once per run
 let background = "transparent";
@@ -296,6 +297,9 @@ let format = "image/png";
 let busy = false;
 
 const EXT = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" };
+
+// See the getContext calls: these canvases are all read as well as drawn.
+const READBACK = { willReadFrequently: true };
 
 // The vendored bundle comes first: it has onnxruntime-web already resolved
 // inside it, so nothing has to work out a peer dependency at run time. The
@@ -521,7 +525,7 @@ function eachBorderPixel(w, h, fn) {
 // agrees says whether "flat" is a fair description.
 function analyseBackground(canvas) {
   const w = canvas.width, h = canvas.height;
-  const data = canvas.getContext("2d").getImageData(0, 0, w, h).data;
+  const data = canvas.getContext("2d", READBACK).getImageData(0, 0, w, h).data;
   const shift = BORDER.bits;
 
   const buckets = new Map();
@@ -573,7 +577,7 @@ function analyseBackground(canvas) {
 // layers of the softened edge.
 function flatCutout(src, colour, tol) {
   const w = src.width, h = src.height;
-  const image = src.getContext("2d").getImageData(0, 0, w, h);
+  const image = src.getContext("2d", READBACK).getImageData(0, 0, w, h);
   const data = image.data;
   const state = new Uint8Array(w * h);
 
@@ -653,7 +657,7 @@ function flatCutout(src, colour, tol) {
   const out = document.createElement("canvas");
   out.width = w;
   out.height = h;
-  out.getContext("2d").putImageData(image, 0, 0);
+  out.getContext("2d", READBACK).putImageData(image, 0, 0);
   return out;
 }
 
@@ -805,7 +809,19 @@ async function run(file) {
   busy = false;
   setMethod("flat");
   runFlat();
-  startModel(token);
+
+  // The flood is painted and its file written before the model is let loose on
+  // the machine, so the part anyone is actually waiting on happens in quiet.
+  // A hidden tab never paints, though, and shouldn't be a tab where the model
+  // never starts, so the frame is raced against a short wait.
+  let begun = false;
+  const begin = () => {
+    if (begun || token !== runToken) return;
+    begun = true;
+    startModel(token);
+  };
+  requestAnimationFrame(begin);
+  setTimeout(begin, 120);
 }
 
 function setMethod(next) {
@@ -902,6 +918,7 @@ function landModel() {
 // Everything both paths do once they have a cutout in hand.
 function present(canvas) {
   cutout = canvas;
+  cutStamp++;
   contentBox = measureContent(cutout);
   if (!contentBox && crop === "content") {
     crop = "original";                    // nothing left to crop to
@@ -936,7 +953,7 @@ async function canvasFromBlob(blob) {
   const canvas = document.createElement("canvas");
   canvas.width = bitmap.width;
   canvas.height = bitmap.height;
-  canvas.getContext("2d").drawImage(bitmap, 0, 0);
+  canvas.getContext("2d", READBACK).drawImage(bitmap, 0, 0);
   bitmap.close();
   return canvas;
 }
@@ -950,7 +967,7 @@ function current() {
 // The tightest rectangle holding anything the cut kept.
 function measureContent(canvas) {
   const { width, height } = canvas;
-  const data = canvas.getContext("2d").getImageData(0, 0, width, height).data;
+  const data = canvas.getContext("2d", READBACK).getImageData(0, 0, width, height).data;
 
   let top = -1, left = width, right = -1, bottom = -1;
   for (let y = 0; y < height; y++) {
@@ -988,6 +1005,8 @@ function show() {
   const cropped = box.width !== src.width || box.height !== src.height;
   metaEl.textContent = `${box.width} × ${box.height} px, from ${sourceName}`
     + (cropped ? ` · cropped from ${src.width} × ${src.height}` : "");
+
+  prewarm();
 }
 
 // The background is applied on the way out, so switching it never costs a
@@ -998,7 +1017,7 @@ function compose() {
   const out = document.createElement("canvas");
   out.width = box.width;
   out.height = box.height;
-  const ctx = out.getContext("2d");
+  const ctx = out.getContext("2d", READBACK);
 
   // JPEG has no alpha: without a fill, cut-away pixels come out black.
   const fill = background !== "transparent" ? background
@@ -1013,15 +1032,63 @@ function compose() {
   return out;
 }
 
+// Writing the file means reading the whole picture back out of the browser,
+// and while the model has the machine that read can take as long as the
+// inference does. A button that waits on it is a button that looks broken —
+// and by the time it finishes the click's user activation has expired, which
+// is a write the clipboard is entitled to refuse. So the file is made ahead
+// of the click, as soon as what's on screen settles, and the button spends
+// what is already sitting there.
+const encodeCache = new Map();          // key → { blob, ready }, oldest first
+const ENCODE_CACHE = 4;
+
+// Everything compose() reads, so a key that matches means a file that matches.
+function encodeKey(type, quality) {
+  return [type, quality, cutStamp, view, crop, background, format].join("|");
+}
+
 function encode(type, quality) {
-  return new Promise((resolve, reject) => {
-    compose().toBlob((blob) => {
-      if (!blob) return reject(new Error(`this browser can't write ${type}`));
+  const key = encodeKey(type, quality);
+  const held = encodeCache.get(key);
+  if (held) return held.blob;
+
+  const blob = new Promise((resolve, reject) => {
+    compose().toBlob((made) => {
+      if (!made) return reject(new Error(`this browser can't write ${type}`));
       // A browser that doesn't know the type quietly hands back a PNG.
-      if (blob.type !== type) return reject(new Error(`this browser can't write ${type}`));
-      resolve(blob);
+      if (made.type !== type) return reject(new Error(`this browser can't write ${type}`));
+      resolve(made);
     }, type, quality);
   });
+
+  // Whichever way it lands, the entry stops being one that's still coming —
+  // and watching it here is also what keeps a rejected pre-warm from being
+  // reported as an error nobody was listening for.
+  const entry = { blob, ready: false };
+  const settled = () => { entry.ready = true; };
+  blob.then(settled, settled);
+
+  encodeCache.set(key, entry);
+  while (encodeCache.size > ENCODE_CACHE) encodeCache.delete(encodeCache.keys().next().value);
+  return blob;
+}
+
+function saveQuality() {
+  return format === "image/png" ? undefined : 0.92;
+}
+
+function alreadyEncoded(type, quality) {
+  const held = encodeCache.get(encodeKey(type, quality));
+  return !!held && held.ready;
+}
+
+// Called whenever what's on screen changes, so the file is usually finished
+// before anyone reaches for a button. Copy always sends a PNG, so that one is
+// worth having ready too when it isn't what's being saved.
+function prewarm() {
+  if (!cutout) return;
+  encode(format, saveQuality());
+  if (format !== "image/png") encode("image/png");
 }
 
 function baseName() {
@@ -1032,7 +1099,9 @@ function baseName() {
 saveBtn.addEventListener("click", async () => {
   if (!cutout) return;
   try {
-    const blob = await encode(format, format === "image/png" ? undefined : 0.92);
+    const quality = saveQuality();
+    if (!alreadyEncoded(format, quality)) setStatus("Writing the file…");
+    const blob = await encode(format, quality);
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
@@ -1053,8 +1122,10 @@ copyBtn.addEventListener("click", async () => {
       throw new Error("this browser has no clipboard image support");
     }
     // PNG is the only image type every clipboard implementation accepts, and
-    // the only one of the three that carries the transparency through.
-    const png = await encode("image/png");
+    // the only one of the three that carries the transparency through. It goes
+    // over as a promise rather than a finished file: awaiting it first spends
+    // the click's activation, and a write that arrives without one is refused.
+    const png = encode("image/png");
     await navigator.clipboard.write([new ClipboardItem({ "image/png": png })]);
     setStatus(background === "transparent"
       ? "Copied as PNG. Transparency survives only if what you paste into keeps it."
