@@ -35,8 +35,21 @@
     padding: 2.5rem 1.5rem;
     border: 1px dashed var(--line);
   }
-  body.busy .dropzone { display: none; }
   body.busy .working { display: flex; }
+  /* A run that has nothing to show yet stands where the drop zone was, at the
+     same height, so the card doesn't jump the moment a file lands. */
+  body.busy:not(.behind) .dropzone { display: none; }
+  /* A run that's only warming the other cut up sits under the drop zone
+     instead, quieter and out of the way, so another image can still be
+     dropped while it works. */
+  body.behind .working {
+    margin-top: 1rem;
+    padding: 0.9rem 1.1rem;
+    border-style: dotted;
+    gap: 0.9rem;
+  }
+  body.behind .spinner { width: 22px; height: 22px; }
+  body.behind .step { font-size: 0.85rem; }
 
   .spinner {
     flex: none;
@@ -136,12 +149,12 @@
 <main>
   <a class="home" href="index.html">&larr; index</a>
   <h1>remove background</h1>
-  <p class="lede">Drop in an image and the subject comes out on transparency. A backdrop that's one flat colour is flooded away from the edges inwards, which leaves the white inside a line drawing alone; anything busier goes to a segmentation model. Both run on your own machine, and nothing is uploaded anywhere.</p>
+  <p class="lede">Drop in an image and the subject comes out on transparency. A backdrop that's one flat colour is flooded away from the edges inwards, which leaves the white inside a line drawing alone, and it lands straight away. The segmentation model runs behind it on every image, so the other cut is one click away when the flood isn't the right answer. Both run on your own machine, and nothing is uploaded anywhere.</p>
 
   <div class="card">
     <div class="dropzone" id="dropzone" tabindex="0">
       <div>Drop an image here, or click to choose one</div>
-      <div class="hint">you can paste one too &mdash; a flat backdrop is cut here and now, anything else downloads the model once</div>
+      <div class="hint">you can paste one too &mdash; the flood is instant, and the model loads behind it</div>
       <input type="file" id="fileInput" accept="image/*">
     </div>
 
@@ -233,9 +246,13 @@
     </div>
   </div>
 
-  <p class="note"><strong>Flat colour</strong> reads the colour off the one-pixel ring around the image and floods it inwards from the edges. Because the flood can only start at the border, colour walled in by an outline &mdash; the white inside a line drawing, the sky through a window &mdash; is never reached, and stays. Raise the tolerance for a noisy or JPEG-compressed backdrop, lower it when something in the picture is close to the backdrop colour. It needs no model and no download.</p>
+  <p class="note"><strong>Flat colour</strong> reads the colour off the one-pixel ring around the image and floods it inwards from the edges. Because the flood can only start at the border, colour walled in by an outline &mdash; the white inside a line drawing, the sky through a window &mdash; is never reached, and stays. Raise the tolerance for a noisy or JPEG-compressed backdrop, lower it when something in the picture is close to the backdrop colour. It needs no model and no download, and it's what you see first every time.</p>
 
-  <p class="note"><strong>Subject model</strong> is <a href="https://github.com/imgly/background-removal-js">@imgly/background-removal</a>, an ISNet segmentation model running under ONNX Runtime, <a href="vendor/">bundled into this repo</a> so the page doesn't depend on anyone else's script host. It's the one for photographs, where there is no single backdrop colour to pull. This page asks it for the full-precision model rather than the quantized default: it's the sharpest of the three, and about 80&nbsp;MB to fetch the first time. Your browser caches it after that, and the picture itself never leaves the page.</p>
+  <p class="note"><strong>Subject model</strong> is <a href="https://github.com/imgly/background-removal-js">@imgly/background-removal</a>, an ISNet segmentation model running under ONNX Runtime, <a href="vendor/">bundled into this repo</a> so the page doesn't depend on anyone else's script host. It's the one for photographs, where there is no single backdrop colour to pull, and it starts
+  the moment an image lands rather than waiting to be asked &mdash; on a backdrop the border says
+  isn't flat it takes the view as soon as it finishes, and on a flat one it waits under the Method
+  control for you to compare. The cost of that is the fetch below, on the first image of a
+  session rather than the first time you reach for it. This page asks it for the full-precision model rather than the quantized default: it's the sharpest of the three, and about 80&nbsp;MB to fetch the first time. Your browser caches it after that, and the picture itself never leaves the page.</p>
 </main>
 
 <script>
@@ -323,16 +340,16 @@ let fetchKey = null;
 let fetchFrom = 0;
 let fetchBytes = 0;
 
-function beginWork(name) {
+function beginWork(behind) {
   document.body.classList.add("busy");
+  document.body.classList.toggle("behind", behind);
   clearTimers();
   fetchKey = null;
   setStep(0);
-  setStatus(`Working on ${name}`);
 }
 
 function endWork() {
-  document.body.classList.remove("busy");
+  document.body.classList.remove("busy", "behind");
   clearTimers();
   setProgress(null);
 }
@@ -348,8 +365,15 @@ function setStep(index, detail = "") {
   tick = null;
   step = index;
   stepStart = performance.now();
-  stepLabel.textContent = STEPS[index];
+  renderStep();
   setDetail(detail);
+}
+
+// The same step reads differently depending on whether anyone is waiting on
+// it, so the label is rebuilt whenever that changes rather than written once.
+function renderStep() {
+  stepLabel.textContent = STEPS[step]
+    + (document.body.classList.contains("behind") ? ", in the background" : "");
 }
 
 function setDetail(text) {
@@ -679,8 +703,18 @@ function cutOutInWorker(libUrl, file) {
 
     let started = false;
     const fail = (message) => {
+      activeRun = null;
       worker.terminate();
       reject(Object.assign(new Error(message), { beforeStart: !started }));
+    };
+
+    // A second image shouldn't queue behind the first one's inference, so the
+    // run in flight can be cut short from outside.
+    activeRun = {
+      stop() {
+        worker.terminate();
+        reject(Object.assign(new Error("cancelled"), { cancelled: true }));
+      },
     };
 
     worker.onmessage = (e) => {
@@ -693,6 +727,7 @@ function cutOutInWorker(libUrl, file) {
         return;
       }
       if (msg.type === "progress") return onLibraryProgress(msg.key, msg.current, msg.total);
+      activeRun = null;
       worker.terminate();
       if (msg.type === "done") resolve(msg.blob);
       else reject(new Error(msg.message));
@@ -712,13 +747,31 @@ async function cutOut(file) {
     try {
       return await cutOutInWorker(absolute, file);
     } catch (err) {
-      if (!err.beforeStart) throw err;
+      if (!err.beforeStart) throw err;      // cancellation included: it's not a bad source
       const where = url.startsWith(".") ? "vendored copy" : new URL(absolute).hostname;
       failures.push(`${where}: ${err.message}`);
     }
   }
   throw new Error(failures.join("; "));
 }
+
+// The flood is done in milliseconds; the model takes seconds, or a minute the
+// first time it has to fetch its weights. So the flood is always what goes up
+// first, and the model runs behind it for every image whatever the border
+// said — by the time anyone reaches for the Method control the other cut is
+// usually already sitting there. On a backdrop that isn't flat, where the
+// flood was only ever a stand-in, the model takes the view when it lands.
+
+let runToken = 0;          // bumps per image, so a stale worker's result is dropped
+let flatCanvas = null;
+let modelCanvas = null;
+let flatMessage = "";
+let modelMessage = "";
+let modelState = "idle";   // idle · running · ready · failed
+let modelFault = "";
+let awaitingModel = false; // they asked for the model before it had arrived
+let chosenByHand = false;  // ... so it mustn't take the view from under them
+let activeRun = null;      // the worker in flight, if there is one
 
 async function run(file) {
   if (busy) return;
@@ -727,6 +780,13 @@ async function run(file) {
     return;
   }
 
+  busy = true;
+  const token = ++runToken;
+  cancelModel();
+  flatCanvas = modelCanvas = null;
+  modelState = "idle";
+  modelFault = "";
+  awaitingModel = chosenByHand = false;
   outEl.classList.remove("ready");
   sourceFile = file;
   sourceName = file.name || "image";
@@ -738,70 +798,110 @@ async function run(file) {
   } catch (err) {
     console.error(err);
     setStatus(`Couldn't read that image (${err.message}).`, true);
+    busy = false;
     return;
   }
 
-  // A flat backdrop gets the flood: it's exact where the model only guesses,
-  // it costs no download, and it's the one that leaves line art intact.
-  await apply(backdropInfo.plain ? "flat" : "model", true);
+  busy = false;
+  setMethod("flat");
+  runFlat();
+  startModel(token);
 }
 
-// Switches to one of the two cuts and runs it. `auto` marks the choice the
-// page made for itself, which is worth a word of explanation; a choice the
-// reader made isn't.
-async function apply(next, auto = false) {
-  if (busy || !original) return;
+function setMethod(next) {
   method = next;
   syncSeg(methodSeg, "method", method);
   tolField.classList.toggle("off", method !== "flat");
-  if (method === "flat") runFlat(auto);
-  else await runModel(auto);
 }
 
 function percent(fraction) {
   return `${Math.round(fraction * 100)}%`;
 }
 
-function runFlat(auto = false) {
+/* -------------------------------------------------------------- the flood -- */
+
+function runFlat() {
   const start = performance.now();
-  cutout = flatCutout(original, backdropInfo.colour, tolerance);
+  flatCanvas = flatCutout(original, backdropInfo.colour, tolerance);
   const took = humanSeconds((performance.now() - start) / 1000);
 
-  let why = "";
-  if (auto) {
-    why = ` ${percent(backdropInfo.coverage)} of the border is that one colour, so nothing enclosed by the drawing was touched.`;
-  } else if (!backdropInfo.plain) {
-    why = ` Only ${percent(backdropInfo.coverage)} of the border is that colour, though, so the backdrop may not be flat — the subject model may read this one better.`;
-  }
-  presentCutout(`Flooded ${hex(backdropInfo.colour)} from the edges in ${took} — ${cutout.width} × ${cutout.height}.${why}`);
+  flatMessage = `Flooded ${hex(backdropInfo.colour)} from the edges in ${took}`
+    + ` — ${flatCanvas.width} × ${flatCanvas.height}.`
+    + (backdropInfo.plain
+      ? ` ${percent(backdropInfo.coverage)} of the border is that one colour, so nothing enclosed by the drawing was touched.`
+      : ` Only ${percent(backdropInfo.coverage)} of the border is that colour, so the backdrop probably isn't flat.`);
+
+  if (method === "flat") present(flatCanvas);
+  else refreshStatus();
 }
 
-async function runModel(auto = false) {
-  busy = true;
-  const runStart = performance.now();
-  beginWork(sourceName);
-  setWaiting();
+/* -------------------------------------------------------------- the model -- */
 
+function cancelModel() {
+  if (!activeRun) return;
+  activeRun.stop();
+  activeRun = null;
+}
+
+async function startModel(token) {
+  modelState = "running";
+  modelMessage = "";
+  beginWork(true);
+  setWaiting();
+  refreshStatus();
+
+  const started = performance.now();
   try {
     // Everything may already be cached, in which case no download is reported
     // at all and this settles straight through to the last step.
-    const result = await cutOut(sourceFile);
-
-    const took = humanSeconds((performance.now() - runStart) / 1000);
-    cutout = await canvasFromBlob(result);
-    presentCutout(`Done in ${took} — ${cutout.width} × ${cutout.height}.`
-      + (auto ? " The backdrop isn't one flat colour, so the segmentation model made the cut." : ""));
+    const blob = await cutOut(sourceFile);
+    const canvas = await canvasFromBlob(blob);
+    if (token !== runToken) return;                 // a newer image owns the page
+    modelCanvas = canvas;
+    modelState = "ready";
+    modelMessage = `Cut by the subject model in ${humanSeconds((performance.now() - started) / 1000)}`
+      + ` — ${canvas.width} × ${canvas.height}.`;
   } catch (err) {
+    if (token !== runToken) return;
     console.error(err);
-    setStatus(`Couldn't remove the background (${err.message}). The model is fetched from a CDN on first use, so this needs a connection the first time.`, true);
+    modelState = "failed";
+    modelFault = err.message;
+    modelMessage = `The subject model couldn't run (${err.message}). It's fetched from a CDN`
+      + ` on first use, so this needs a connection the first time.`;
   } finally {
-    busy = false;
-    endWork();
+    if (token === runToken) endWork();
   }
+
+  landModel();
 }
 
+// What to do with a cut that arrived while something else was on screen.
+function landModel() {
+  const wanted = awaitingModel || method === "model";
+  awaitingModel = false;
+
+  if (modelState === "failed") {
+    if (wanted) setMethod("flat");                  // don't strand them on a cut that isn't there
+    if (wanted && flatCanvas) present(flatCanvas);
+    else refreshStatus();
+    return;
+  }
+
+  // On a backdrop the border says isn't flat, the flood was a stand-in for
+  // exactly this. Unless they've since picked a side themselves.
+  if (wanted || (!backdropInfo.plain && !chosenByHand)) {
+    setMethod("model");
+    present(modelCanvas);
+    return;
+  }
+  refreshStatus();
+}
+
+/* --------------------------------------------------------------- showing -- */
+
 // Everything both paths do once they have a cutout in hand.
-function presentCutout(message) {
+function present(canvas) {
+  cutout = canvas;
   contentBox = measureContent(cutout);
   if (!contentBox && crop === "content") {
     crop = "original";                    // nothing left to crop to
@@ -810,7 +910,25 @@ function presentCutout(message) {
   view = "cutout";
   syncSeg(viewSeg, "view", view);
   show();
-  setStatus(message);
+  refreshStatus();
+}
+
+// One line, assembled from whichever cut is on screen and whatever the other
+// one is up to, so the two never fight over the status.
+function refreshStatus() {
+  if (method === "model") {
+    if (modelCanvas) return setStatus(modelMessage);
+    if (modelState === "failed") return setStatus(modelMessage, true);
+    return setStatus("Waiting on the subject model — the flood is on screen until it lands.");
+  }
+  setStatus(`${flatMessage}${modelNote()}`);
+}
+
+function modelNote() {
+  if (modelState === "running") return " The subject model is running behind it.";
+  if (modelState === "ready") return " The subject model has finished too — switch to compare.";
+  if (modelState === "failed") return ` The subject model couldn't run (${modelFault}).`;
+  return "";
 }
 
 async function canvasFromBlob(blob) {
@@ -958,8 +1076,29 @@ function syncSeg(seg, attr, value) {
 methodSeg.addEventListener("click", (e) => {
   const btn = e.target.closest("button");
   if (!btn || !original || busy || btn.dataset.method === method) return;
-  apply(btn.dataset.method);
+  chosenByHand = true;
+  setMethod(btn.dataset.method);
+
+  if (method === "flat") {
+    awaitingModel = false;
+    present(flatCanvas);
+  } else if (modelCanvas) {
+    present(modelCanvas);
+  } else {
+    // Asked for before it exists: the run stops being a background one, and
+    // the panel steps forward to say how far along it is.
+    awaitingModel = modelState === "running";
+    refreshStatus();
+  }
+  syncWorkPanel();
 });
+
+// A background run is quiet; a run someone is waiting on takes the card.
+function syncWorkPanel() {
+  if (modelState !== "running") return;
+  document.body.classList.toggle("behind", !awaitingModel);
+  renderStep();
+}
 
 // The flood is cheap enough to redo while the slider moves; one frame's worth
 // of coalescing keeps a big image from queueing up runs it will throw away.
