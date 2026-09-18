@@ -261,7 +261,7 @@
     <div class="build">
       Minecraft <b>26.1.2</b><br>
       NeoForge <b>26.1.2.109</b><br>
-      320 mods
+      335 mods
     </div>
   </div>
 
@@ -279,36 +279,65 @@
   <!-- ===================== FIRST JOIN ===================== -->
   <section class="panel" id="panel-join" role="tabpanel" aria-labelledby="tab-join" tabindex="0">
     <h2>First join</h2>
-    <p class="lede">The one thing that will actually stop you connecting is a version mismatch. Get that right and the rest is ordinary Minecraft.</p>
+    <p class="lede">Four things to install before Minecraft will even let you knock: Tailscale, LocalSend, the exact NeoForge build, and the pack itself. Follow these in order &mdash; each one depends on the one above it.</p>
+
+    <h3>Getting on the network</h3>
+    <p>The server isn't on the open internet. It lives on a private <a href="https://tailscale.com/" target="_blank" rel="noopener">Tailscale</a> network, so there is nothing to port-forward and nothing for strangers to find &mdash; but you have to be let in first.</p>
 
     <ol class="steps">
-      <li><div><b>Install <a href="https://projects.neoforged.net/neoforged/neoforge" target="_blank" rel="noopener">NeoForge 26.1.2.109</a> — exactly that build.</b>
+      <li><div><b>Install Tailscale and sign in.</b>
+        <p>Get it from <a href="https://tailscale.com/download" target="_blank" rel="noopener">tailscale.com/download</a>. Sign in with whichever account you gave Isabel &mdash; Google, Microsoft, GitHub, whatever you told her. It has to be that one; the invite is tied to it.</p></div></li>
+      <li><div><b>Accept the invite to the network.</b>
+        <p>Isabel sends you a join link. Open it while signed in and accept. Tailscale's icon should then say <em>Connected</em>. Leave it running whenever you play &mdash; if Tailscale is off, the server simply won't appear.</p></div></li>
+      <li><div><b>Install <a href="https://localsend.org/" target="_blank" rel="noopener">LocalSend</a>.</b>
+        <p>This is how you'll get the pack &mdash; it's a 635&nbsp;MB folder of mods, too big to email and not something that can be posted publicly. LocalSend is free and open source, on every platform, and sends the file straight from her machine to yours.</p></div></li>
+      <li><div><b>Ask Isabel to send you the pack over LocalSend.</b>
+        <p>Open LocalSend and leave it on that screen. She should see your device appear and can send it straight across. If she doesn't see you, ask her for the address to add by hand &mdash; LocalSend's automatic discovery doesn't always cross a Tailscale network, but <em>Settings &rarr; Add device manually</em> always works.</p>
+        <p>You'll end up with <code>minecraft-client-pack-26.1.2.109.zip</code>. Don't unzip it yet.</p></div></li>
+    </ol>
+
+    <h3>Installing the pack</h3>
+
+    <ol class="steps">
+      <li><div><b>Launch plain Minecraft 26.1.2 once.</b>
+        <p>In the Minecraft Launcher, play version <code>26.1.2</code> with no mods, let it reach the title screen, then quit. This makes the launcher download the files NeoForge is about to build on top of. Skipping it is the most common reason the next step fails.</p></div></li>
+      <li><div><b>Install <a href="https://projects.neoforged.net/neoforged/neoforge" target="_blank" rel="noopener">NeoForge 26.1.2.109</a> &mdash; exactly that build.</b>
+        <p>On that page pick <b>26.1.2.109</b> and download the <b>Installer</b>. Run it (double-click, or <code>java -jar neoforge-26.1.2.109-installer.jar</code>), choose <b>Install client</b>, leave the path pointing at your <code>.minecraft</code> folder, and press OK.</p>
         <p>Not <code>.106</code>, not "whatever's newest." A client on a different NeoForge build is refused at the door, and the error is not helpful about why.</p></div></li>
-      <li><div><b>Drop the whole mod folder in.</b>
-        <p>Copy every jar from the pack into your <code>.minecraft/mods</code> folder. The server checks this — a missing or extra mod usually shows up as a connection error listing the mismatch.</p></div></li>
+      <li><div><b>Make a separate installation with its own folder.</b>
+        <p>This keeps 335 mods away from your existing worlds. In the launcher: <b>Installations &rarr; New installation</b>, set <b>Version</b> to <code>neoforge-26.1.2.109</code>, and set <b>Game directory</b> to a new empty folder &mdash; something like <code>C:\Minecraft\isabel-server</code>. Save it.</p>
+        <p>If you'd rather not bother, you can skip this and use your normal <code>.minecraft</code> &mdash; but move your existing <code>mods</code> folder somewhere safe first, because the pack has to be the only thing in there.</p></div></li>
+      <li><div><b>Unzip the pack into that folder.</b>
+        <p>Open the zip and copy the <code>mods</code> and <code>resourcepacks</code> folders into the game directory you just set. You want <code>&lt;game directory&gt;/mods/</code> full of jars &mdash; <b>not</b> <code>mods/mods/</code>, which is the classic mistake. There should be <b>335</b> files in there when you're done.</p></div></li>
       <li><div><b>Give Java more memory.</b>
-        <p>This pack is large. In your launcher's settings, allocate at least 6&nbsp;GB. The default 2&nbsp;GB will load, then stutter and eventually crash.</p></div></li>
-      <li><div><b>Connect, then be patient on the first load.</b>
-        <p>The first join builds a lot of caches and can sit on "Loading terrain" for a while. It's much faster afterwards.</p></div></li>
+        <p>Still in <b>Installations</b>, edit your new installation, open <b>More options</b>, and find the <b>JVM arguments</b> box. Change <code>-Xmx2G</code> to <code>-Xmx8G</code> (or <code>-Xmx6G</code> if your machine has 8&nbsp;GB of RAM total). Leave the rest of the line alone. The default 2&nbsp;GB will not load this pack.</p></div></li>
+      <li><div><b>Launch it, and expect to wait.</b>
+        <p>First startup takes several minutes and looks frozen more than once. That's normal for 335 mods. It's much quicker every time after.</p></div></li>
+      <li><div><b>Add the server and connect.</b>
+        <p><b>Multiplayer &rarr; Add Server</b>, then the address Isabel gives you. Check Tailscale says <em>Connected</em> first. The first join builds a lot of caches and can sit on "Loading terrain" for a while.</p></div></li>
       <li><div><b>Open the quest book.</b>
         <p>There's an <a href="https://docs.feed-the-beast.com/mod-docs/mods/suite/Quests/" target="_blank" rel="noopener">FTB Quests</a> book covering the tech and progression mods. It's the best map of the pack that exists, and it hands out starting gear. Find <em>Open Quests</em> in <kbd>Controls</kbd> if it isn't bound.</p></div></li>
     </ol>
 
-    <div class="callout"><p><b>Server address:</b> ask in chat — it isn't written down here on purpose.</p></div>
+    <div class="callout"><p><b>Server address:</b> ask Isabel &mdash; it isn't written down here on purpose.</p></div>
+
+    <div class="callout"><p><b>If something in the pack misbehaves:</b> two mods are known-shaky on some setups. If the game crashes naming <code>lambdynamiclights</code>, delete that one jar from <code>mods</code> and everything else still works. And the Shelf-Shrooms resource pack will warn that it's made for an older version &mdash; confirming past that is fine, it's optional either way.</p></div>
 
     <h3>Your first hour</h3>
     <p>Normal survival rules apply. Punch wood, make tools, don't dig straight down. The differences worth knowing on night one:</p>
     <ul>
       <li><b>Death is survivable.</b> <a href="https://www.curseforge.com/minecraft/mc-mods/epitaphs" target="_blank" rel="noopener">Epitaphs</a> places a grave where you died, holding your things. Walk back and collect it.</li>
       <li><b>Sleeping is a group activity.</b> You don't need everyone in bed to skip the night, but you do need enough people. Get in bed and wait a moment.</li>
-      <li><b>Check recipes in-game.</b> <a href="https://github.com/mezz/JustEnoughItems/wiki" target="_blank" rel="noopener">JEI</a> is the recipe viewer: hover any item and press <kbd>R</kbd> for how to make it, or <kbd>U</kbd> for what it's used for. With 320 mods this is the most useful key on your keyboard.</li>
+      <li><b>Check recipes in-game.</b> <a href="https://github.com/mezz/JustEnoughItems/wiki" target="_blank" rel="noopener">JEI</a> is the recipe viewer: hover any item and press <kbd>R</kbd> for how to make it, or <kbd>U</kbd> for what it's used for. With 335 mods this is the most useful key on your keyboard.</li>
       <li><b>Don't build anything permanent yet.</b> Claim first — see the next tab. Unclaimed land is not protected.</li>
     </ul>
 
     <div class="wikis">
       <h3>Where to read more</h3>
-      <p>The four mods this page leans on, each on its own documentation.</p>
+      <p>The tools and mods this page leans on, each on its own documentation.</p>
       <ul class="linklist full">
+        <li><span class="who"><a href="https://tailscale.com/kb/1017/install" target="_blank" rel="noopener">Tailscale</a></span><span class="what">Installing it and accepting an invite, on every platform <span class="host">tailscale kb</span></span></li>
+        <li><span class="who"><a href="https://localsend.org/" target="_blank" rel="noopener">LocalSend</a></span><span class="what">Sending a file device-to-device, including adding a device by hand <span class="host">localsend.org</span></span></li>
         <li><span class="who"><a href="https://projects.neoforged.net/neoforged/neoforge" target="_blank" rel="noopener">NeoForge</a></span><span class="what">Every 26.1.2 build listed, so you can pick <code>.109</code> exactly <span class="host">neoforged.net</span></span></li>
         <li><span class="who"><a href="https://docs.feed-the-beast.com/mod-docs/mods/suite/Quests/" target="_blank" rel="noopener">FTB Quests</a></span><span class="what">How the quest book works, and how to read what a quest is asking for <span class="host">ftb docs</span></span></li>
         <li><span class="who"><a href="https://github.com/mezz/JustEnoughItems/wiki" target="_blank" rel="noopener">Just Enough Items</a></span><span class="what">The recipe viewer behind <kbd>R</kbd> and <kbd>U</kbd>, including its search syntax <span class="host">github wiki</span></span></li>
