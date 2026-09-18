@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>minecraft item</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  /* Layout and sizing only. Colour, type and component styling live in theme.css. */
+
+  body { margin: 0; padding: 3rem 1.5rem 5rem; }
+
+  main { max-width: 900px; margin: 0 auto; }
+
+  p.lede { margin: 0 0 2.2rem; max-width: 54ch; }
+
+  .card { margin-bottom: 1.5rem; }
+
+  .dropzone {
+    padding: 2.5rem 1.5rem;
+    text-align: center;
+    cursor: pointer;
+  }
+  .dropzone input { display: none; }
+  .dropzone .hint { font-size: 0.85rem; margin-top: 0.4rem; }
+
+  .status { font-size: 0.85rem; margin-top: 0.8rem; min-height: 1.2em; }
+
+  .out { display: none; }
+  .out.ready { display: block; }
+
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.2rem 1.6rem;
+    align-items: flex-end;
+  }
+  .field { display: flex; flex-direction: column; gap: 0.35rem; }
+  .field label { font-size: 0.8rem; }
+  .field select { min-width: 13rem; }
+  .field input[type="number"] { width: 6.5rem; }
+  .field .unit { font-size: 0.72rem; margin-top: 0.1rem; }
+
+  .pad-line {
+    font-size: 0.8rem;
+    margin: 1.2rem 0 0;
+    padding-top: 1rem;
+    border-top: 1px solid var(--line-soft);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.9rem;
+    align-items: center;
+  }
+  .pad-line button { font-size: 0.78rem; padding: 0.35rem 0.7rem; }
+
+  .tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 1.4rem;
+  }
+
+  .tile { display: flex; flex-direction: column; gap: 0.5rem; }
+
+  /* The checker under each swatch comes from the theme's .preview. */
+  .tile .preview {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.7rem;
+    aspect-ratio: 1 / 1;
+  }
+  /* Every swatch is shown at the same size, whatever its real resolution, so
+     the only difference between them on screen is how they hold up. */
+  .tile canvas {
+    width: 100%;
+    height: auto;
+  }
+
+  .tile .cap { display: flex; align-items: baseline; gap: 0.5rem; }
+  .tile .mult { font-size: 0.9rem; }
+  .tile .px { font-size: 0.75rem; margin-left: auto; }
+  .tile button { width: 100%; font-size: 0.78rem; padding: 0.35rem 0.5rem; }
+
+  @media (max-width: 620px) {
+    body { padding: 2rem 1rem 4rem; }
+    .tiles { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
+  }
+</style>
+</head>
+<body>
+<main>
+  <a class="home" href="index.html">&larr; index</a>
+  <h1>minecraft item</h1>
+  <p class="lede">Turns any picture into an item texture. It gets padded out to a square with transparency first, since Minecraft's item textures are square, then resampled down to 16&times;16 and every resolution above it you might want.</p>
+
+  <div class="card">
+    <div class="dropzone" id="dropzone" tabindex="0">
+      <div>Drop an image here, or click to choose one</div>
+      <div class="hint">you can paste one too &mdash; everything happens in this tab</div>
+      <input type="file" id="fileInput" accept="image/*">
+    </div>
+    <div class="status" id="status"></div>
+  </div>
+
+  <div class="out" id="out">
+    <div class="card">
+      <div class="controls">
+        <div class="field">
+          <label for="algo">Resampling</label>
+          <select id="algo">
+            <option value="lanczos">Lanczos 3 — sharpest downscale</option>
+            <option value="bicubic">Bicubic — smooth, slight sharpening</option>
+            <option value="bilinear">Bilinear — plain and soft</option>
+            <option value="box">Box average — every source pixel counts</option>
+            <option value="nearest">Nearest neighbour — no blending at all</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="base">Base size</label>
+          <input type="number" id="base" min="1" max="512" step="1" value="16">
+          <span class="unit">16 is what the game ships</span>
+        </div>
+
+        <div class="field">
+          <label for="custom">Custom multiple</label>
+          <input type="number" id="custom" min="1" max="256" step="1" placeholder="e.g. 32">
+          <span class="unit" id="customNote">adds one more size</span>
+        </div>
+
+        <div class="field">
+          <label>Each size comes from</label>
+          <div class="seg" id="srcSeg">
+            <button data-src="original" aria-pressed="true">The original</button>
+            <button data-src="base" aria-pressed="false">The base texture</button>
+          </div>
+        </div>
+      </div>
+
+      <p class="pad-line">
+        <span id="padNote"></span>
+        <button id="padBtn" class="ghost">Download the padded original</button>
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="tiles" id="tiles"></div>
+    </div>
+  </div>
+</main>
+
+<script>
+"use strict";
+
+const dropzone = document.getElementById("dropzone");
+const fileInput = document.getElementById("fileInput");
+const statusEl = document.getElementById("status");
+const outEl = document.getElementById("out");
+const tilesEl = document.getElementById("tiles");
+const algoSel = document.getElementById("algo");
+const baseInput = document.getElementById("base");
+const customInput = document.getElementById("custom");
+const customNote = document.getElementById("customNote");
+const srcSeg = document.getElementById("srcSeg");
+const padNote = document.getElementById("padNote");
+const padBtn = document.getElementById("padBtn");
+
+const MULTIPLES = [1, 2, 4, 8, 12, 24];
+
+// Filtering a big photo straight down to 16px is wasted work past a point, and
+// the padded copy is held as ImageData, so the source gets capped.
+const MAX_SOURCE = 2048;
+
+let padded = null;        // canvas: the square, transparent-padded original
+let paddedInfo = "";
+let sourceName = "item";
+let scaleFrom = "original";
+
+function setStatus(msg, isError = false) {
+  statusEl.textContent = msg;
+  statusEl.classList.toggle("error", isError);
+}
+
+/* ---------------------------------------------------------------- input -- */
+
+dropzone.addEventListener("click", () => fileInput.click());
+dropzone.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInput.click(); }
+});
+fileInput.addEventListener("change", () => {
+  if (fileInput.files.length) load(fileInput.files[0]);
+});
+
+for (const type of ["dragover", "dragenter"]) {
+  document.addEventListener(type, (e) => { e.preventDefault(); dropzone.classList.add("drag"); });
+}
+document.addEventListener("dragleave", (e) => {
+  if (e.relatedTarget === null) dropzone.classList.remove("drag");
+});
+document.addEventListener("drop", (e) => {
+  e.preventDefault();
+  dropzone.classList.remove("drag");
+  const file = e.dataTransfer.files && e.dataTransfer.files[0];
+  if (file) load(file);
+});
+document.addEventListener("paste", (e) => {
+  for (const item of (e.clipboardData && e.clipboardData.items) || []) {
+    if (item.kind === "file" && item.type.startsWith("image/")) {
+      const file = item.getAsFile();
+      if (file) { e.preventDefault(); return load(file); }
+    }
+  }
+});
+
+async function load(file) {
+  if (!file.type.startsWith("image/")) return setStatus("That isn't an image.", true);
+  setStatus(`Reading ${file.name || "image"}…`);
+  try {
+    const bitmap = await createImageBitmap(file);
+    sourceName = (file.name || "item").replace(/\.[^.]+$/, "").replace(/[^\w.-]+/g, "-") || "item";
+    padded = padToSquare(bitmap);
+    bitmap.close();
+    outEl.classList.add("ready");
+    padNote.textContent = paddedInfo;
+    render();
+  } catch (err) {
+    console.error(err);
+    setStatus(`Couldn't read that image: ${err.message}`, true);
+  }
+}
+
+/* -------------------------------------------------------------- padding -- */
+
+// Item textures are square, so the picture is centred on a square of
+// transparency rather than stretched into one.
+function padToSquare(bitmap) {
+  const longest = Math.max(bitmap.width, bitmap.height);
+  const scale = longest > MAX_SOURCE ? MAX_SOURCE / longest : 1;
+
+  const w = Math.max(1, Math.round(bitmap.width * scale));
+  const h = Math.max(1, Math.round(bitmap.height * scale));
+  const side = Math.max(w, h);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = side;
+  canvas.height = side;
+  const ctx = canvas.getContext("2d");
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(bitmap, Math.round((side - w) / 2), Math.round((side - h) / 2), w, h);
+
+  const padX = side - w;
+  const padY = side - h;
+  paddedInfo = padX || padY
+    ? `${bitmap.width} × ${bitmap.height} padded to ${side} × ${side}` +
+      ` — ${padX ? `${Math.round(padX / 2)}px each side` : `${Math.round(padY / 2)}px top and bottom`}`
+    : `${bitmap.width} × ${bitmap.height}, already square — nothing to pad`;
+  if (scale < 1) paddedInfo += `, scaled down from ${bitmap.width} × ${bitmap.height} first`;
+
+  return canvas;
+}
+
+/* ------------------------------------------------------------ resampling -- */
+
+// Separable filters, each defined by a kernel and the radius it reaches over.
+const KERNELS = {
+  box: { support: 0.5, fn: (x) => (x > -0.5 && x <= 0.5 ? 1 : 0) },
+  bilinear: { support: 1, fn: (x) => { x = Math.abs(x); return x < 1 ? 1 - x : 0; } },
+  bicubic: {
+    // Catmull-Rom: the usual "bicubic", which overshoots slightly and so reads
+    // as a little sharper than bilinear.
+    support: 2,
+    fn: (x) => {
+      x = Math.abs(x);
+      const a = -0.5;
+      if (x < 1) return ((a + 2) * x - (a + 3)) * x * x + 1;
+      if (x < 2) return (((x - 5) * x + 8) * x - 4) * a;
+      return 0;
+    },
+  },
+  lanczos: {
+    support: 3,
+    fn: (x) => {
+      x = Math.abs(x);
+      if (x < 1e-6) return 1;
+      if (x >= 3) return 0;
+      const pix = Math.PI * x;
+      return (3 * Math.sin(pix) * Math.sin(pix / 3)) / (pix * pix);
+    },
+  },
+};
+
+// Weights for one output axis. When shrinking, the kernel is stretched to cover
+// the source pixels that fall into each output pixel; when growing, it isn't.
+function buildWeights(srcSize, dstSize, kernel) {
+  const ratio = dstSize / srcSize;
+  const spread = ratio < 1 ? 1 / ratio : 1;
+  const radius = kernel.support * spread;
+  const rows = [];
+
+  for (let i = 0; i < dstSize; i++) {
+    const centre = (i + 0.5) / ratio;
+    const from = Math.max(0, Math.floor(centre - radius));
+    const to = Math.min(srcSize - 1, Math.ceil(centre + radius));
+
+    const indices = [];
+    const weights = [];
+    let total = 0;
+    for (let j = from; j <= to; j++) {
+      const w = kernel.fn((j + 0.5 - centre) / spread);
+      if (w === 0) continue;
+      indices.push(j);
+      weights.push(w);
+      total += w;
+    }
+    if (!total) { indices.push(Math.min(srcSize - 1, Math.max(0, Math.round(centre - 0.5)))); weights.push(1); total = 1; }
+    for (let k = 0; k < weights.length; k++) weights[k] /= total;
+    rows.push({ indices, weights });
+  }
+  return rows;
+}
+
+// Alpha is premultiplied for the duration, so transparent pixels can't bleed
+// their colour into the edges of the sprite.
+function resample(src, dstW, dstH, name) {
+  if (name === "nearest") return resampleNearest(src, dstW, dstH);
+
+  const kernel = KERNELS[name] || KERNELS.lanczos;
+  const { width: srcW, height: srcH, data } = src;
+
+  const premul = new Float32Array(srcW * srcH * 4);
+  for (let i = 0; i < srcW * srcH; i++) {
+    const a = data[i * 4 + 3] / 255;
+    premul[i * 4] = data[i * 4] * a;
+    premul[i * 4 + 1] = data[i * 4 + 1] * a;
+    premul[i * 4 + 2] = data[i * 4 + 2] * a;
+    premul[i * 4 + 3] = data[i * 4 + 3];
+  }
+
+  // Horizontal pass into an intermediate of dstW × srcH.
+  const cols = buildWeights(srcW, dstW, kernel);
+  const mid = new Float32Array(dstW * srcH * 4);
+  for (let y = 0; y < srcH; y++) {
+    for (let x = 0; x < dstW; x++) {
+      const { indices, weights } = cols[x];
+      let r = 0, g = 0, b = 0, a = 0;
+      for (let k = 0; k < indices.length; k++) {
+        const p = (y * srcW + indices[k]) * 4;
+        const w = weights[k];
+        r += premul[p] * w; g += premul[p + 1] * w; b += premul[p + 2] * w; a += premul[p + 3] * w;
+      }
+      const q = (y * dstW + x) * 4;
+      mid[q] = r; mid[q + 1] = g; mid[q + 2] = b; mid[q + 3] = a;
+    }
+  }
+
+  // Vertical pass into the final size.
+  const rows = buildWeights(srcH, dstH, kernel);
+  const out = new ImageData(dstW, dstH);
+  for (let y = 0; y < dstH; y++) {
+    const { indices, weights } = rows[y];
+    for (let x = 0; x < dstW; x++) {
+      let r = 0, g = 0, b = 0, a = 0;
+      for (let k = 0; k < indices.length; k++) {
+        const p = (indices[k] * dstW + x) * 4;
+        const w = weights[k];
+        r += mid[p] * w; g += mid[p + 1] * w; b += mid[p + 2] * w; a += mid[p + 3] * w;
+      }
+      const q = (y * dstW + x) * 4;
+      const alpha = clamp255(a);
+      // Back out of premultiplied, guarding the fully transparent case.
+      const scale = alpha > 0 ? 255 / alpha : 0;
+      out.data[q] = clamp255(r * scale);
+      out.data[q + 1] = clamp255(g * scale);
+      out.data[q + 2] = clamp255(b * scale);
+      out.data[q + 3] = alpha;
+    }
+  }
+  return out;
+}
+
+function resampleNearest(src, dstW, dstH) {
+  const out = new ImageData(dstW, dstH);
+  for (let y = 0; y < dstH; y++) {
+    const sy = Math.min(src.height - 1, Math.floor(((y + 0.5) * src.height) / dstH));
+    for (let x = 0; x < dstW; x++) {
+      const sx = Math.min(src.width - 1, Math.floor(((x + 0.5) * src.width) / dstW));
+      const p = (sy * src.width + sx) * 4;
+      const q = (y * dstW + x) * 4;
+      out.data[q] = src.data[p];
+      out.data[q + 1] = src.data[p + 1];
+      out.data[q + 2] = src.data[p + 2];
+      out.data[q + 3] = src.data[p + 3];
+    }
+  }
+  return out;
+}
+
+const clamp255 = (v) => (v <= 0 ? 0 : v >= 255 ? 255 : Math.round(v));
+
+function imageDataToCanvas(data) {
+  const canvas = document.createElement("canvas");
+  canvas.width = data.width;
+  canvas.height = data.height;
+  canvas.getContext("2d").putImageData(data, 0, 0);
+  return canvas;
+}
+
+/* --------------------------------------------------------------- render -- */
+
+function multiples() {
+  const custom = parseInt(customInput.value, 10);
+  const list = [...MULTIPLES];
+  if (Number.isFinite(custom) && custom >= 1 && !list.includes(custom)) list.push(custom);
+  return list.sort((a, b) => a - b);
+}
+
+function render() {
+  if (!padded) return;
+  const base = Math.max(1, Math.min(512, parseInt(baseInput.value, 10) || 16));
+  const algo = algoSel.value;
+
+  const source = padded.getContext("2d").getImageData(0, 0, padded.width, padded.height);
+  // Every size can be cut from the original, or from the base texture so the
+  // bigger ones are honest blocky enlargements of the 16×16 itself.
+  const baseData = resample(source, base, base, algo);
+
+  tilesEl.textContent = "";
+  const started = performance.now();
+
+  for (const mult of multiples()) {
+    const size = base * mult;
+    const data = mult === 1
+      ? baseData
+      : scaleFrom === "base"
+        ? resample(baseData, size, size, "nearest")
+        : resample(source, size, size, algo);
+    tilesEl.appendChild(tileFor(mult, size, imageDataToCanvas(data)));
+  }
+
+  setStatus(`${multiples().length} sizes from a ${padded.width} × ${padded.height} square, `
+    + `in ${Math.round(performance.now() - started)}ms.`);
+}
+
+function tileFor(mult, size, canvas) {
+  const tile = document.createElement("div");
+  tile.className = "tile";
+
+  const cap = document.createElement("div");
+  cap.className = "cap";
+  const mults = document.createElement("span");
+  mults.className = "mult";
+  mults.textContent = `${mult}×`;
+  const px = document.createElement("span");
+  px.className = "px";
+  px.textContent = `${size} × ${size}`;
+  cap.append(mults, px);
+
+  const frame = document.createElement("div");
+  frame.className = "preview";
+  // Blown up, a texture should show its pixels; shrunk to fit the tile, nearest
+  // neighbour would just alias, so the browser's own filtering is kinder.
+  canvas.style.imageRendering = size <= 160 ? "pixelated" : "auto";
+  frame.appendChild(canvas);
+
+  const button = document.createElement("button");
+  button.className = "ghost";
+  button.textContent = "Download";
+  button.addEventListener("click", () => save(canvas, `${sourceName}-${size}x${size}.png`));
+
+  tile.append(cap, frame, button);
+  return tile;
+}
+
+function save(canvas, name) {
+  canvas.toBlob((blob) => {
+    if (!blob) return setStatus("Couldn't encode that one.", true);
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = name;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    setStatus(`Saved ${name}.`);
+  }, "image/png");
+}
+
+/* ------------------------------------------------------------- controls -- */
+
+algoSel.addEventListener("change", render);
+baseInput.addEventListener("change", render);
+
+let customTimer = null;
+customInput.addEventListener("input", () => {
+  const value = parseInt(customInput.value, 10);
+  customNote.textContent = customInput.value === ""
+    ? "adds one more size"
+    : Number.isFinite(value) && value >= 1
+      ? `${(parseInt(baseInput.value, 10) || 16) * value}px square`
+      : "whole numbers only";
+  clearTimeout(customTimer);
+  customTimer = setTimeout(render, 350);   // let them finish typing
+});
+
+srcSeg.addEventListener("click", (e) => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  scaleFrom = btn.dataset.src;
+  for (const b of srcSeg.querySelectorAll("button")) {
+    b.setAttribute("aria-pressed", String(b.dataset.src === scaleFrom));
+  }
+  render();
+});
+
+padBtn.addEventListener("click", () => {
+  if (padded) save(padded, `${sourceName}-padded-${padded.width}x${padded.height}.png`);
+});
+</script>
+</body>
+</html>

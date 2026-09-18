@@ -12,6 +12,7 @@ close it. Nothing is uploaded anywhere; every image, GIF and byte stays in your 
 | --- | --- |
 | [`index.html`](index.html) | The hub. Links to everything below. |
 | [`gif-to-mcmeta.html`](gif-to-mcmeta.html) | Turns an animated GIF into a Minecraft vertical texture strip plus a matching `.mcmeta`, with frametimes read from the GIF's own timing. |
+| [`minecraft-item.html`](minecraft-item.html) | Pads any picture out to a square with transparency, then resamples it to 16×16 and the 2×, 4×, 8×, 12×, 24× sizes above it, plus whatever multiple you type. Nearest neighbour, box, bilinear, bicubic and Lanczos are all implemented in the page rather than left to the browser's own smoothing, and filtering happens on premultiplied alpha so transparent padding can't darken the edges. |
 | [`png-to-swirl-gif.html`](png-to-swirl-gif.html) | Spins a still image into a looping GIF. |
 | [`image-to-svg.html`](image-to-svg.html) | Traces a bitmap into vector work — flat colour regions or centreline strokes — with palette control and a before/after wipe. |
 | [`remove-background.html`](remove-background.html) | Cuts the subject out of a photo and hands back a transparent PNG to copy or save, cropped to what's left by default. Runs an ISNet segmentation model locally through [@imgly/background-removal](https://github.com/imgly/background-removal-js), bundled into [`vendor/`](vendor/). The weights are fetched on first use (~80 MB, then cached by the browser); the image itself never leaves the page. |
