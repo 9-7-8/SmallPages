@@ -153,6 +153,14 @@
         </div>
 
         <div class="field">
+          <label>Canvas</label>
+          <div class="seg" id="cropSeg">
+            <button data-crop="content" aria-pressed="true">Crop to content</button>
+            <button data-crop="original" aria-pressed="false">Keep original</button>
+          </div>
+        </div>
+
+        <div class="field">
           <label>Background</label>
           <div class="seg" id="bgSeg">
             <button data-bg="transparent" aria-pressed="true">None</button>
@@ -199,6 +207,7 @@ const metaEl = document.getElementById("meta");
 const viewSeg = document.getElementById("viewSeg");
 const bgSeg = document.getElementById("bgSeg");
 const fmtSeg = document.getElementById("fmtSeg");
+const cropSeg = document.getElementById("cropSeg");
 const copyBtn = document.getElementById("copyBtn");
 const saveBtn = document.getElementById("saveBtn");
 
@@ -206,6 +215,8 @@ let cutout = null;      // canvas, subject on transparency
 let original = null;    // canvas, what was fed in
 let sourceName = "image";
 let view = "cutout";
+let crop = "content";
+let contentBox = null;   // the cutout's opaque bounds, measured once per run
 let background = "transparent";
 let format = "image/png";
 let busy = false;
@@ -484,6 +495,11 @@ async function run(file) {
 
     const took = humanSeconds((performance.now() - runStart) / 1000);
     cutout = await canvasFromBlob(result);
+    contentBox = measureContent(cutout);
+    if (!contentBox) {
+      crop = "original";                  // nothing left to crop to
+      syncSeg(cropSeg, "crop", crop);
+    }
     view = "cutout";
     syncSeg(viewSeg, "view", view);
     show();
@@ -513,21 +529,57 @@ function current() {
   return view === "original" ? original : cutout;
 }
 
+// The tightest rectangle holding anything the model kept. Pixels barely above
+// zero are the soft edge of a cut rather than content, so they don't count.
+const ALPHA_FLOOR = 10;
+
+function measureContent(canvas) {
+  const { width, height } = canvas;
+  const data = canvas.getContext("2d").getImageData(0, 0, width, height).data;
+
+  let top = -1, left = width, right = -1, bottom = -1;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (data[(y * width + x) * 4 + 3] < ALPHA_FLOOR) continue;
+      if (top === -1) top = y;
+      bottom = y;
+      if (x < left) left = x;
+      if (x > right) right = x;
+    }
+  }
+
+  // Nothing survived the cut, so there is no box to crop to.
+  if (top === -1) return null;
+  return { x: left, y: top, width: right - left + 1, height: bottom - top + 1 };
+}
+
+// The box to draw, which is the whole canvas unless a crop is on and there is
+// something to crop to.
+function frame(src) {
+  const box = crop === "content" && contentBox ? contentBox : null;
+  return box || { x: 0, y: 0, width: src.width, height: src.height };
+}
+
 function show() {
   outEl.classList.add("ready");
   stageEl.textContent = "";
   stageEl.appendChild(compose());
-  const c = current();
-  metaEl.textContent = `${c.width} × ${c.height} px, from ${sourceName}`;
+
+  const src = current();
+  const box = frame(src);
+  const cropped = box.width !== src.width || box.height !== src.height;
+  metaEl.textContent = `${box.width} × ${box.height} px, from ${sourceName}`
+    + (cropped ? ` · cropped from ${src.width} × ${src.height}` : "");
 }
 
 // The background is applied on the way out, so switching it never costs a
 // re-run of the model.
 function compose() {
   const src = current();
+  const box = frame(src);
   const out = document.createElement("canvas");
-  out.width = src.width;
-  out.height = src.height;
+  out.width = box.width;
+  out.height = box.height;
   const ctx = out.getContext("2d");
 
   // JPEG has no alpha: without a fill, cut-away pixels come out black.
@@ -537,7 +589,9 @@ function compose() {
     ctx.fillStyle = fill;
     ctx.fillRect(0, 0, out.width, out.height);
   }
-  ctx.drawImage(src, 0, 0);
+  // The crop is measured on the cutout, and the original is shown through the
+  // same window, so switching between them doesn't reframe the picture.
+  ctx.drawImage(src, box.x, box.y, box.width, box.height, 0, 0, box.width, box.height);
   return out;
 }
 
@@ -606,6 +660,18 @@ viewSeg.addEventListener("click", (e) => {
   if (!btn || !cutout) return;
   view = btn.dataset.view;
   syncSeg(viewSeg, "view", view);
+  show();
+});
+
+cropSeg.addEventListener("click", (e) => {
+  const btn = e.target.closest("button");
+  if (!btn || !cutout) return;
+  if (btn.dataset.crop === "content" && !contentBox) {
+    setStatus("Nothing came through the cut, so there's nothing to crop to.", true);
+    return;
+  }
+  crop = btn.dataset.crop;
+  syncSeg(cropSeg, "crop", crop);
   show();
 });
 
