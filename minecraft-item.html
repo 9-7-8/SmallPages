@@ -61,7 +61,8 @@
 
   .tile { display: flex; flex-direction: column; gap: 0.5rem; }
 
-  /* The checker under each swatch comes from the theme's .preview. */
+  /* The check behind each swatch is the theme's .checker, at a size that suits
+     a small tile rather than a full-width stage. */
   .tile .preview {
     display: flex;
     align-items: center;
@@ -69,12 +70,25 @@
     padding: 0.7rem;
     aspect-ratio: 1 / 1;
   }
+
+  /* Preview only — it says what sits behind the transparency on screen, and
+     never becomes part of what gets saved. */
+  .backdrop-row { display: flex; gap: 0.5rem; align-items: stretch; }
+  .backdrop-row input[type="color"] {
+    width: 2.4rem;
+    padding: 0.15rem;
+    display: none;
+  }
+  .backdrop-row.solid input[type="color"] { display: block; }
   /* Every swatch is shown at the same size, whatever its real resolution, so
      the only difference between them on screen is how they hold up. */
   .tile canvas {
     width: 100%;
     height: auto;
+    /* Checkered like the swatch itself, not like the box holding it. */
+    --check: 12px;
   }
+  .tile .preview { background-image: none; }
 
   .tile .cap { display: flex; align-items: baseline; gap: 0.5rem; }
   .tile .mult { font-size: 0.9rem; }
@@ -129,6 +143,17 @@
         </div>
 
         <div class="field">
+          <label>Behind the texture</label>
+          <div class="backdrop-row">
+            <div class="seg" id="backdropSeg">
+              <button data-backdrop="checker" aria-pressed="true">Checkerboard</button>
+              <button data-backdrop="solid" aria-pressed="false">Solid</button>
+            </div>
+            <input type="color" id="backdropColor" value="#808080" aria-label="Backdrop colour">
+          </div>
+        </div>
+
+        <div class="field">
           <label>Each size comes from</label>
           <div class="seg" id="srcSeg">
             <button data-src="original" aria-pressed="true">The original</button>
@@ -162,6 +187,8 @@ const baseInput = document.getElementById("base");
 const customInput = document.getElementById("custom");
 const customNote = document.getElementById("customNote");
 const srcSeg = document.getElementById("srcSeg");
+const backdropSeg = document.getElementById("backdropSeg");
+const backdropColor = document.getElementById("backdropColor");
 const padNote = document.getElementById("padNote");
 const padBtn = document.getElementById("padBtn");
 
@@ -437,6 +464,7 @@ function render() {
         : resample(source, size, size, algo);
     tilesEl.appendChild(tileFor(mult, size, imageDataToCanvas(data)));
   }
+  applyBackdrop();
 
   setStatus(`${multiples().length} sizes from a ${padded.width} × ${padded.height} square, `
     + `in ${Math.round(performance.now() - started)}ms.`);
@@ -461,6 +489,7 @@ function tileFor(mult, size, canvas) {
   // Blown up, a texture should show its pixels; shrunk to fit the tile, nearest
   // neighbour would just alias, so the browser's own filtering is kinder.
   canvas.style.imageRendering = size <= 160 ? "pixelated" : "auto";
+  canvas.classList.add("checker");
   frame.appendChild(canvas);
 
   const button = document.createElement("button");
@@ -501,6 +530,27 @@ customInput.addEventListener("input", () => {
   clearTimeout(customTimer);
   customTimer = setTimeout(render, 350);   // let them finish typing
 });
+
+// The backdrop is a viewing aid: it changes what sits behind each swatch on
+// screen, not a single pixel of what gets saved.
+function applyBackdrop() {
+  const solid = backdropSeg.querySelector('[aria-pressed="true"]').dataset.backdrop === "solid";
+  for (const canvas of tilesEl.querySelectorAll("canvas")) {
+    canvas.classList.toggle("solid", solid);
+    canvas.style.backgroundColor = solid ? backdropColor.value : "";
+  }
+  backdropSeg.parentElement.classList.toggle("solid", solid);
+}
+
+backdropSeg.addEventListener("click", (e) => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  for (const b of backdropSeg.querySelectorAll("button")) {
+    b.setAttribute("aria-pressed", String(b === btn));
+  }
+  applyBackdrop();
+});
+backdropColor.addEventListener("input", applyBackdrop);
 
 srcSeg.addEventListener("click", (e) => {
   const btn = e.target.closest("button");

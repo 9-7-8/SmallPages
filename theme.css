@@ -181,7 +181,9 @@ a:hover, a:focus-visible {
 
 .card { padding: 1.5rem; }
 
-/* Transparency-checker grids, re-cut from the hue so they read on black. */
+/* Transparency-checker grids, re-cut from the hue so they read on black.
+   The size matters: without it the gradients tile at the size of the element
+   and the check becomes one enormous diamond across the whole panel. */
 .preview, .stage {
   background-color: var(--sunken);
   background-image:
@@ -189,7 +191,24 @@ a:hover, a:focus-visible {
     linear-gradient(-45deg, hsl(var(--tint-deep)) 25%, transparent 25%),
     linear-gradient(45deg,  transparent 75%, hsl(var(--tint-deep)) 75%),
     linear-gradient(-45deg, transparent 75%, hsl(var(--tint-deep)) 75%);
+  background-size: 14px 14px;
+  background-position: 0 0, 0 7px, 7px -7px, -7px 0;
 }
+
+/* The neutral grey check every image editor puts behind transparency. It is
+   deliberately outside the page palette: it has to read as "there is nothing
+   here" rather than as part of the design. --check sets the square size, and
+   .solid swaps the whole thing for a flat colour set on the element. */
+.checker {
+  --check: 16px;
+  background-color: #8c8c8c;
+  background-image:
+    linear-gradient(45deg, #5f5f5f 25%, transparent 25%, transparent 75%, #5f5f5f 75%),
+    linear-gradient(45deg, #5f5f5f 25%, transparent 25%, transparent 75%, #5f5f5f 75%);
+  background-size: var(--check) var(--check);
+  background-position: 0 0, calc(var(--check) / 2) calc(var(--check) / 2);
+}
+.checker.solid { background-image: none; }
 
 .divider { background: var(--line-soft); }
 

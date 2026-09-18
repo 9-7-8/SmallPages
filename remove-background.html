@@ -88,6 +88,9 @@
     text-align: center;
     overflow: auto;
     max-height: 60vh;
+    /* The backdrop belongs to the picture, not to the panel around it, the way
+       an image editor only checkers the canvas itself. */
+    background-image: none;
   }
   .stage canvas { max-width: 100%; height: auto; vertical-align: middle; }
 
@@ -102,6 +105,16 @@
   .field label { font-size: 0.8rem; }
 
   .acts { display: flex; gap: 0.6rem; margin-left: auto; }
+
+  /* Preview only — it says what sits behind the transparency on screen, and
+     never becomes part of what gets saved. */
+  .backdrop-row { display: flex; gap: 0.5rem; align-items: stretch; }
+  .backdrop-row input[type="color"] {
+    width: 2.4rem;
+    padding: 0.15rem;
+    display: none;
+  }
+  .backdrop-row.solid input[type="color"] { display: block; }
 
   .meta-line { font-size: 0.8rem; margin-top: 0.9rem; }
 
@@ -161,6 +174,17 @@
         </div>
 
         <div class="field">
+          <label>Behind the image</label>
+          <div class="backdrop-row">
+            <div class="seg" id="backdropSeg">
+              <button data-backdrop="checker" aria-pressed="true">Checkerboard</button>
+              <button data-backdrop="solid" aria-pressed="false">Solid</button>
+            </div>
+            <input type="color" id="backdropColor" value="#808080" aria-label="Backdrop colour">
+          </div>
+        </div>
+
+        <div class="field">
           <label>Background</label>
           <div class="seg" id="bgSeg">
             <button data-bg="transparent" aria-pressed="true">None</button>
@@ -208,6 +232,8 @@ const viewSeg = document.getElementById("viewSeg");
 const bgSeg = document.getElementById("bgSeg");
 const fmtSeg = document.getElementById("fmtSeg");
 const cropSeg = document.getElementById("cropSeg");
+const backdropSeg = document.getElementById("backdropSeg");
+const backdropColor = document.getElementById("backdropColor");
 const copyBtn = document.getElementById("copyBtn");
 const saveBtn = document.getElementById("saveBtn");
 
@@ -563,7 +589,10 @@ function frame(src) {
 function show() {
   outEl.classList.add("ready");
   stageEl.textContent = "";
-  stageEl.appendChild(compose());
+  const canvas = compose();
+  canvas.classList.add("checker");
+  stageEl.appendChild(canvas);
+  applyBackdrop();
 
   const src = current();
   const box = frame(src);
@@ -662,6 +691,28 @@ viewSeg.addEventListener("click", (e) => {
   syncSeg(viewSeg, "view", view);
   show();
 });
+
+// The backdrop is a viewing aid: it changes what is behind the picture on
+// screen, not a single pixel of what is copied or saved.
+function applyBackdrop() {
+  const solid = backdropSeg.querySelector('[aria-pressed="true"]').dataset.backdrop === "solid";
+  const canvas = stageEl.querySelector("canvas");
+  if (canvas) {
+    canvas.classList.toggle("solid", solid);
+    canvas.style.backgroundColor = solid ? backdropColor.value : "";
+  }
+  backdropSeg.parentElement.classList.toggle("solid", solid);
+}
+
+backdropSeg.addEventListener("click", (e) => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  for (const b of backdropSeg.querySelectorAll("button")) {
+    b.setAttribute("aria-pressed", String(b === btn));
+  }
+  applyBackdrop();
+});
+backdropColor.addEventListener("input", applyBackdrop);
 
 cropSeg.addEventListener("click", (e) => {
   const btn = e.target.closest("button");
