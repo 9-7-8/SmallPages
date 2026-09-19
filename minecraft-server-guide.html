@@ -261,7 +261,7 @@
     <div class="build">
       Minecraft <b>26.1.2</b><br>
       NeoForge <b>26.1.2.109</b><br>
-      335 mods
+      336 mods
     </div>
   </div>
 
@@ -279,7 +279,9 @@
   <!-- ===================== FIRST JOIN ===================== -->
   <section class="panel" id="panel-join" role="tabpanel" aria-labelledby="tab-join" tabindex="0">
     <h2>First join</h2>
-    <p class="lede">Four things to install before Minecraft will even let you knock: Tailscale, LocalSend, the exact NeoForge build, and the pack itself. Follow these in order &mdash; each one depends on the one above it.</p>
+    <p class="lede">Four things to install before Minecraft will even let you knock: Tailscale, LocalSend, the right NeoForge build, and the pack itself. Follow these in order &mdash; each one depends on the one above it.</p>
+
+    <div class="callout lit"><p><b>NeoForge must be 26.1.2.109 or above.</b> This is the single most common reason a client won't start. Anything older is refused &mdash; and the error blames a mod rather than the version, so it is easy to misread.</p></div>
 
     <h3>Getting on the network</h3>
     <p>The server isn't on the open internet. It lives on a private <a href="https://tailscale.com/" target="_blank" rel="noopener">Tailscale</a> network, so there is nothing to port-forward and nothing for strangers to find &mdash; but you have to be let in first.</p>
@@ -301,18 +303,19 @@
     <ol class="steps">
       <li><div><b>Launch plain Minecraft 26.1.2 once.</b>
         <p>In the Minecraft Launcher, play version <code>26.1.2</code> with no mods, let it reach the title screen, then quit. This makes the launcher download the files NeoForge is about to build on top of. Skipping it is the most common reason the next step fails.</p></div></li>
-      <li><div><b>Install <a href="https://projects.neoforged.net/neoforged/neoforge" target="_blank" rel="noopener">NeoForge 26.1.2.109</a> &mdash; exactly that build.</b>
-        <p>On that page pick <b>26.1.2.109</b> and download the <b>Installer</b>. Run it (double-click, or <code>java -jar neoforge-26.1.2.109-installer.jar</code>), choose <b>Install client</b>, leave the path pointing at your <code>.minecraft</code> folder, and press OK.</p>
-        <p>Not <code>.106</code>, not "whatever's newest." A client on a different NeoForge build is refused at the door, and the error is not helpful about why.</p></div></li>
+      <li><div><b>Install <a href="https://projects.neoforged.net/neoforged/neoforge" target="_blank" rel="noopener">NeoForge 26.1.2.109</a> or newer &mdash; never older.</b>
+        <p><b>26.1.2.109 is a hard minimum.</b> Mods in this pack refuse to load below it. <code>.106</code> will not work, and neither will anything else under <code>.109</code>.</p>
+        <p>On that page pick <b>26.1.2.109</b> (or a higher <code>26.1.2.x</code> if one exists by the time you read this) and download the <b>Installer</b>. Run it &mdash; double-click, or <code>java -jar neoforge-26.1.2.109-installer.jar</code> &mdash; choose <b>Install client</b>, leave the path pointing at your <code>.minecraft</code> folder, and press OK.</p>
+        <p>If you are below the minimum the game stops during loading and names a <em>mod</em>, not a NeoForge version &mdash; something like "requires neoforge 26.1.2.109 or above". That message means this step, nothing else.</p></div></li>
       <li><div><b>Make a separate installation with its own folder.</b>
-        <p>This keeps 335 mods away from your existing worlds. In the launcher: <b>Installations &rarr; New installation</b>, set <b>Version</b> to <code>neoforge-26.1.2.109</code>, and set <b>Game directory</b> to a new empty folder &mdash; something like <code>C:\Minecraft\isabel-server</code>. Save it.</p>
+        <p>This keeps 336 mods away from your existing worlds. In the launcher: <b>Installations &rarr; New installation</b>, set <b>Version</b> to <code>neoforge-26.1.2.109</code>, and set <b>Game directory</b> to a new empty folder &mdash; something like <code>C:\Minecraft\isabel-server</code>. Save it.</p>
         <p>If you'd rather not bother, you can skip this and use your normal <code>.minecraft</code> &mdash; but move your existing <code>mods</code> folder somewhere safe first, because the pack has to be the only thing in there.</p></div></li>
       <li><div><b>Unzip the pack into that folder.</b>
-        <p>Open the zip and copy the <code>mods</code> and <code>resourcepacks</code> folders into the game directory you just set. You want <code>&lt;game directory&gt;/mods/</code> full of jars &mdash; <b>not</b> <code>mods/mods/</code>, which is the classic mistake. There should be <b>335</b> files in there when you're done.</p></div></li>
+        <p>Open the zip and copy the <code>mods</code> and <code>resourcepacks</code> folders into the game directory you just set. You want <code>&lt;game directory&gt;/mods/</code> full of jars &mdash; <b>not</b> <code>mods/mods/</code>, which is the classic mistake. There should be <b>336</b> files in there when you're done.</p></div></li>
       <li><div><b>Give Java more memory.</b>
         <p>Still in <b>Installations</b>, edit your new installation, open <b>More options</b>, and find the <b>JVM arguments</b> box. Change <code>-Xmx2G</code> to <code>-Xmx8G</code> (or <code>-Xmx6G</code> if your machine has 8&nbsp;GB of RAM total). Leave the rest of the line alone. The default 2&nbsp;GB will not load this pack.</p></div></li>
       <li><div><b>Launch it, and expect to wait.</b>
-        <p>First startup takes several minutes and looks frozen more than once. That's normal for 335 mods. It's much quicker every time after.</p></div></li>
+        <p>First startup takes several minutes and looks frozen more than once. That's normal for 336 mods. It's much quicker every time after.</p></div></li>
       <li><div><b>Add the server and connect.</b>
         <p><b>Multiplayer &rarr; Add Server</b>, then the address Isabel gives you. Check Tailscale says <em>Connected</em> first. The first join builds a lot of caches and can sit on "Loading terrain" for a while.</p></div></li>
       <li><div><b>Open the quest book.</b>
@@ -328,7 +331,7 @@
     <ul>
       <li><b>Death is survivable.</b> <a href="https://www.curseforge.com/minecraft/mc-mods/epitaphs" target="_blank" rel="noopener">Epitaphs</a> places a grave where you died, holding your things. Walk back and collect it.</li>
       <li><b>Sleeping is a group activity.</b> You don't need everyone in bed to skip the night, but you do need enough people. Get in bed and wait a moment.</li>
-      <li><b>Check recipes in-game.</b> <a href="https://github.com/mezz/JustEnoughItems/wiki" target="_blank" rel="noopener">JEI</a> is the recipe viewer: hover any item and press <kbd>R</kbd> for how to make it, or <kbd>U</kbd> for what it's used for. With 335 mods this is the most useful key on your keyboard.</li>
+      <li><b>Check recipes in-game.</b> <a href="https://github.com/mezz/JustEnoughItems/wiki" target="_blank" rel="noopener">JEI</a> is the recipe viewer: hover any item and press <kbd>R</kbd> for how to make it, or <kbd>U</kbd> for what it's used for. With 336 mods this is the most useful key on your keyboard.</li>
       <li><b>Don't build anything permanent yet.</b> Claim first — see the next tab. Unclaimed land is not protected.</li>
     </ul>
 
