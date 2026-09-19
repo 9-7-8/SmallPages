@@ -331,7 +331,13 @@
       <li><div><b>Copy all four folders in.</b>
         <p>Open the zip and copy <code>mods</code>, <code>config</code>, <code>kubejs</code> and <code>resourcepacks</code> into the game directory you just set. If you're asked whether to merge or replace, choose replace.</p>
         <p><b>All four matter.</b> <code>config</code> and <code>kubejs</code> are not optional extras &mdash; several mods build their item lists from those files, so a client without them knows about different items than the server does and gets refused on connect.</p>
-        <p>You want <code>&lt;game directory&gt;/mods/</code> full of jars &mdash; <b>not</b> <code>mods/mods/</code>, which is the classic mistake. There should be <b>352</b> files in there when you're done.</p></div></li>
+        <p>You want <code>&lt;game directory&gt;/mods/</code> full of jars &mdash; <b>not</b> <code>mods/mods/</code>, which is the classic mistake. There should be <b>352</b> files in there when you're done.</p>
+        <p>If you skipped the separate-installation step, the default game directory is:</p>
+        <ul>
+          <li><b>Windows</b> &mdash; <code>%APPDATA%\.minecraft</code></li>
+          <li><b>macOS</b> &mdash; <code>~/Library/Application Support/minecraft</code></li>
+          <li><b>Linux</b> &mdash; <code>~/.minecraft</code></li>
+        </ul></div></li>
       <li><div><b>Give Java more memory.</b>
         <p>Still in <b>Installations</b>, edit your new installation, open <b>More options</b>, and find the <b>JVM arguments</b> box. Change <code>-Xmx2G</code> to <code>-Xmx8G</code> (or <code>-Xmx6G</code> if your machine has 8&nbsp;GB of RAM total). Leave the rest of the line alone. The default 2&nbsp;GB will not load this pack.</p></div></li>
       <li><div><b>Launch it, and expect to wait.</b>
