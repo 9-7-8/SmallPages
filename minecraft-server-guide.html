@@ -281,7 +281,7 @@
   <!-- ===================== FIRST JOIN ===================== -->
   <section class="panel" id="panel-join" role="tabpanel" aria-labelledby="tab-join" tabindex="0">
     <h2>First join</h2>
-    <p class="lede">Four things to install before Minecraft will even let you knock: Tailscale, LocalSend, the right NeoForge build, and the pack itself. Follow these in order &mdash; each one depends on the one above it.</p>
+    <p class="lede">Four things to get in place before Minecraft will even let you knock: Tailscale, LocalSend, the right NeoForge build, and the pack itself. Follow these in order &mdash; each one depends on the one above it, and the Tailscale steps in particular only work in the order given.</p>
 
     <div class="callout lit"><p><b>NeoForge must be 26.1.2.109 or above.</b> This is the single most common reason a client won't start. Anything older is refused &mdash; and the error blames a mod rather than the version, so it is easy to misread.</p></div>
 
@@ -291,10 +291,22 @@
     <p>The server isn't on the open internet. It lives on a private <a href="https://tailscale.com/" target="_blank" rel="noopener">Tailscale</a> network, so there is nothing to port-forward and nothing for strangers to find &mdash; but you have to be let in first.</p>
 
     <ol class="steps">
-      <li><div><b>Install Tailscale and sign in.</b>
-        <p>Get it from <a href="https://tailscale.com/download" target="_blank" rel="noopener">tailscale.com/download</a>. Sign in with whichever account you gave Isabel &mdash; Google, Microsoft, GitHub, whatever you told her. It has to be that one; the invite is tied to it.</p></div></li>
-      <li><div><b>Accept the invite to the network.</b>
-        <p>Isabel sends you a join link. Open it while signed in and accept. Tailscale's icon should then say <em>Connected</em>. Leave it running whenever you play &mdash; if Tailscale is off, the server simply won't appear.</p></div></li>
+      <li><div><b>Make a Tailscale account first.</b>
+        <p>Sign up at <a href="https://login.tailscale.com/start" target="_blank" rel="noopener">tailscale.com</a> before you install anything. Use whichever account you gave Isabel &mdash; Google, Microsoft, GitHub, whatever you told her. <b>It has to be that one</b>, because the invite is tied to it.</p></div></li>
+      <li><div><b>Then download and install Tailscale.</b>
+        <p>Get it from <a href="https://tailscale.com/download" target="_blank" rel="noopener">tailscale.com/download</a> and sign in with the account you just made.</p></div></li>
+      <li><div><b>Open Isabel's invite link and join.</b>
+        <p>She sends you a join link. Open it while signed in and accept it.</p></div></li>
+      <li><div><b>Now log out of Tailscale, and log straight back in.</b>
+        <p>This is the step everyone misses, and nothing works without it. Joining someone else's network doesn't move you onto it &mdash; you stay on your own until you sign in again.</p>
+        <p>Quit Tailscale or use <em>Log out</em> from its menu, then log in again with the same account.</p></div></li>
+      <li><div><b>Pick Isabel's network when it asks.</b>
+        <p>Logging back in offers you a choice of networks, because you are now in two. Choose Isabel's &mdash; not your own. It's the one that looks like this:</p>
+        <p><b>isa*******rick@gmail.com</b> &nbsp;<span class="hint">&mdash; middle hidden here; Tailscale shows it in full, so match the start and the ending</span></p>
+        <p>Picking the wrong one leaves you connected to Tailscale and still unable to see the server, which looks identical to it being broken.</p></div></li>
+      <li><div><b>Launch Tailscale once more, and check it says Connected.</b>
+        <p>Leave it running whenever you play. If Tailscale is off, the server simply won't appear in your list.</p>
+        <p><b>The test:</b> open <a href="http://skyfaller.taild8de30.ts.net:8080/">the downloads page</a>. It exists only on Isabel's network, so <b>if that page loads, you are in the right place</b> and everything above worked. If it doesn't load, you are not on her network yet &mdash; go back to the log-out step.</p></div></li>
       <li><div><b>Install <a href="https://localsend.org/" target="_blank" rel="noopener">LocalSend</a> &mdash; optional, as a fallback.</b>
         <p>You will normally download the pack from the link in the next step. LocalSend is worth having anyway for when that is not an option: it is free, open source, on every platform, and sends a file straight from one machine to another with no upload in between.</p></div></li>
       <li><div><b>Download the pack.</b>
