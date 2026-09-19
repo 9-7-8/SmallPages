@@ -565,7 +565,7 @@
     </ol>
 
     <h3>How close do the chests need to be?</h3>
-    <p><b>They don't need to touch.</b> Nothing has to be adjacent to anything else &mdash; not the destination chests to the input chest, and not the destination chests to each other. Everything just has to be <b>within 64 blocks</b> of the input chest, which is a very large room.</p>
+    <p><b>They don't need to touch.</b> Nothing has to be adjacent to anything else &mdash; not the destination chests to the input chest, and not the destination chests to each other. Everything just has to be <b>within 16 blocks</b> of the input chest, which is a generous room.</p>
     <p>The only thing that must physically touch is <b>each sign and its own chest</b>. Beyond that, put the chests wherever they look good: two walls of a storage room, both floors of a tower, scattered around a basement. The input chest can sit by your front door with everything else a corridor away.</p>
 
     <div class="callout"><p><b>One sign per chest, one chest per category.</b> Double chests count as a single chest, so a double chest is the easy way to give a busy category more room.</p></div>
@@ -573,16 +573,45 @@
     <h3>What counts as a chest</h3>
     <p>Anything that holds items, not just wooden chests. Barrels work, <a href="https://github.com/P3pp3rF1y/SophisticatedStorage/wiki" target="_blank" rel="noopener">Sophisticated Storage</a> barrels and chests work, and <a href="https://www.curseforge.com/minecraft/mc-mods/functional-storage" target="_blank" rel="noopener">Functional Storage</a> drawers work &mdash; which makes drawers an excellent destination for bulk categories like cobblestone and dirt.</p>
 
-    <h3>Which category names can I use?</h3>
-    <p>Only the ones the server knows about. Signs have to match a real category name exactly, or that chest is simply ignored. The starting set is small:</p>
+    <h3>Start with six chests</h3>
+    <p>There are 57 categories, but you do not need to care about that yet. Sign six chests with these and you have covered nearly everything the game will throw at you:</p>
     <ul class="keylist full">
-      <li><span class="act"><code>[gear]</code></span><span class="desc">Tools, weapons, armour, arrows, shields, elytra</span></li>
-      <li><span class="act"><code>[food]</code></span><span class="desc">Anything edible, plus seeds and crops</span></li>
-      <li><span class="act"><code>[ores]</code></span><span class="desc">Ores, ingots, gems and raw metals</span></li>
-      <li><span class="act"><code>[bulk]</code></span><span class="desc">Stone, dirt, gravel &mdash; the stuff that fills your inventory fastest</span></li>
-      <li><span class="act"><code>[wood]</code></span><span class="desc">Logs, planks and wooden parts</span></li>
+      <li><span class="act"><code>[ores]</code></span><span class="desc">Ore, raw metal, ingots, nuggets, gems, dust, coal and metal blocks</span></li>
+      <li><span class="act"><code>[food]</code></span><span class="desc">Anything edible, plus drinks</span></li>
+      <li><span class="act"><code>[gear]</code></span><span class="desc">Every weapon, tool, shield and piece of armour</span></li>
+      <li><span class="act"><code>[bulk]</code></span><span class="desc">Stone, dirt, sand, wood, glass, stairs, slabs &mdash; building material</span></li>
+      <li><span class="act"><code>[farming]</code></span><span class="desc">Seeds, saplings, crops, bonemeal</span></li>
+      <li><span class="act"><code>[loot]</code></span><span class="desc">Mob drops, discs, sherds, heads and trinkets</span></li>
     </ul>
-    <p>More will be added as the pack's own items get sorted into categories, so this list will grow. If you're ever unsure where something will land, ask the server rather than guessing.</p>
+
+    <h3>Then split them when a chest fills up</h3>
+    <p>This is the part worth understanding, because it means <b>you never have to redo your storage room</b>. Categories are arranged in tiers, and an item takes the most specific chest that exists. If you have not built that chest, it rolls up to the general one instead.</p>
+    <p>So a diamond looks for <code>[gems]</code>, and if there is no such chest it settles for <code>[ores]</code>. The day <code>[ores]</code> gets too full, you put down a chest, write <code>[gems]</code> on it, and gems start going there by themselves. Nothing else changes.</p>
+
+    <div class="tablewrap">
+    <table>
+      <thead><tr><th scope="col">General chest</th><th scope="col">Split it into any of these</th></tr></thead>
+      <tbody>
+        <tr><td><code>[ores]</code></td><td><code>[raw_ore]</code> <code>[ingots]</code> <code>[nuggets]</code> <code>[gems]</code> <code>[dusts]</code> <code>[plates]</code> <code>[blocks]</code> <code>[coal]</code> &mdash; or <code>[metals]</code> for the worked ones together</td></tr>
+        <tr><td><code>[food]</code></td><td><code>[meat]</code> <code>[fish]</code> <code>[fruit]</code> <code>[vegetables]</code> <code>[drinks]</code> &mdash; or <code>[meat_raw]</code> and <code>[meat_cooked]</code> apart</td></tr>
+        <tr><td><code>[gear]</code></td><td><code>[weapons]</code> <code>[tools]</code> <code>[armor]</code> &mdash; then <code>[swords]</code> <code>[bows]</code> <code>[pickaxes]</code> <code>[axes]</code> <code>[shovels]</code> <code>[hoes]</code> <code>[shields]</code> <code>[utility_tools]</code> <code>[helmets]</code> <code>[chestplates]</code> <code>[leggings]</code> <code>[boots]</code></td></tr>
+        <tr><td><code>[bulk]</code></td><td><code>[stone]</code> <code>[wood]</code> <code>[earth]</code> <code>[glass]</code> <code>[shapes]</code> <code>[decoration]</code> <code>[containers]</code> &mdash; or <code>[building]</code> for all the worked blocks</td></tr>
+        <tr><td><code>[farming]</code></td><td><code>[seeds]</code> <code>[saplings]</code> <code>[crops]</code> <code>[fertiliser]</code></td></tr>
+        <tr><td><code>[loot]</code></td><td><code>[mob_drops]</code> <code>[trophies]</code> &mdash; and <code>[tech]</code> for redstone parts</td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <h3>Four that sort by what happened to an item</h3>
+    <p>These are checked before everything above, so they win over the ordinary category for that item type. Each one is inert until you build its chest.</p>
+    <ul class="keylist full">
+      <li><span class="act"><code>[named]</code></span><span class="desc"><b>Anything you renamed in an anvil.</b> The reason to bother: your favourite pickaxe stops vanishing into a chest with forty others. Name it once and it always comes home here</span></li>
+      <li><span class="act"><code>[damaged]</code></span><span class="desc">Tools, weapons and armour at 25% durability or less &mdash; the repair pile</span></li>
+      <li><span class="act"><code>[enchanted]</code></span><span class="desc">Any enchanted gear, kept away from the plain stuff</span></li>
+      <li><span class="act"><code>[enchanted_books]</code></span><span class="desc">Exactly what it says</span></li>
+    </ul>
+
+    <div class="callout"><p><b><code>[misc]</code> catches everything else.</b> Build that chest and nothing is ever left behind &mdash; but you also stop noticing what has no proper home. Leaving it out is the better default: unmatched items stay in the input chest where you can see them, and you can say so in chat.</p></div>
 
     <h3>Commands worth knowing</h3>
     <ul class="keylist full">
