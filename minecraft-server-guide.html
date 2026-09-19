@@ -261,7 +261,7 @@
     <div class="build">
       Minecraft <b>26.1.2</b><br>
       NeoForge <b>26.1.2.109</b><br>
-      337 mods
+      352 mods
     </div>
   </div>
 
@@ -274,6 +274,7 @@
       <button id="tab-sort" role="tab" aria-controls="panel-sort" aria-selected="false">Sorting Chests</button>
       <button id="tab-travel" role="tab" aria-controls="panel-travel" aria-selected="false">Getting Around</button>
       <button id="tab-qol" role="tab" aria-controls="panel-qol" aria-selected="false">Quality of Life</button>
+      <button id="tab-fix" role="tab" aria-controls="panel-fix" aria-selected="false">Troubleshooting</button>
     </div>
   </div>
 
@@ -311,16 +312,16 @@
         <p>On that page pick <b>26.1.2.109</b> (or a higher <code>26.1.2.x</code> if one exists by the time you read this) and download the <b>Installer</b>. Run it &mdash; double-click, or <code>java -jar neoforge-26.1.2.109-installer.jar</code> &mdash; choose <b>Install client</b>, leave the path pointing at your <code>.minecraft</code> folder, and press OK.</p>
         <p>If you are below the minimum the game stops during loading and names a <em>mod</em>, not a NeoForge version &mdash; something like "requires neoforge 26.1.2.109 or above". That message means this step, nothing else.</p></div></li>
       <li><div><b>Make a separate installation with its own folder.</b>
-        <p>This keeps 337 mods away from your existing worlds. In the launcher: <b>Installations &rarr; New installation</b>, set <b>Version</b> to <code>neoforge-26.1.2.109</code>, and set <b>Game directory</b> to a new empty folder &mdash; something like <code>C:\Minecraft\isabel-server</code>. Save it.</p>
+        <p>This keeps 352 mods away from your existing worlds. In the launcher: <b>Installations &rarr; New installation</b>, set <b>Version</b> to <code>neoforge-26.1.2.109</code>, and set <b>Game directory</b> to a new empty folder &mdash; something like <code>C:\Minecraft\isabel-server</code>. Save it.</p>
         <p>If you'd rather not bother, you can skip this and use your normal <code>.minecraft</code> &mdash; but move your existing <code>mods</code> folder somewhere safe first, because the pack has to be the only thing in there.</p></div></li>
       <li><div><b>Copy all four folders in.</b>
         <p>Open the zip and copy <code>mods</code>, <code>config</code>, <code>kubejs</code> and <code>resourcepacks</code> into the game directory you just set. If you're asked whether to merge or replace, choose replace.</p>
         <p><b>All four matter.</b> <code>config</code> and <code>kubejs</code> are not optional extras &mdash; several mods build their item lists from those files, so a client without them knows about different items than the server does and gets refused on connect.</p>
-        <p>You want <code>&lt;game directory&gt;/mods/</code> full of jars &mdash; <b>not</b> <code>mods/mods/</code>, which is the classic mistake. There should be <b>337</b> files in there when you're done.</p></div></li>
+        <p>You want <code>&lt;game directory&gt;/mods/</code> full of jars &mdash; <b>not</b> <code>mods/mods/</code>, which is the classic mistake. There should be <b>352</b> files in there when you're done.</p></div></li>
       <li><div><b>Give Java more memory.</b>
         <p>Still in <b>Installations</b>, edit your new installation, open <b>More options</b>, and find the <b>JVM arguments</b> box. Change <code>-Xmx2G</code> to <code>-Xmx8G</code> (or <code>-Xmx6G</code> if your machine has 8&nbsp;GB of RAM total). Leave the rest of the line alone. The default 2&nbsp;GB will not load this pack.</p></div></li>
       <li><div><b>Launch it, and expect to wait.</b>
-        <p>First startup takes several minutes and looks frozen more than once. That's normal for 337 mods. It's much quicker every time after.</p></div></li>
+        <p>First startup takes several minutes and looks frozen more than once. That's normal for 352 mods. It's much quicker every time after.</p></div></li>
       <li><div><b>Add the server and connect.</b>
         <p><b>Multiplayer &rarr; Add Server</b>, then the address Isabel gives you. Check Tailscale says <em>Connected</em> first. The first join builds a lot of caches and can sit on "Loading terrain" for a while.</p></div></li>
       <li><div><b>Open the quest book.</b>
@@ -329,16 +330,14 @@
 
     <div class="callout"><p><b>Server address:</b> ask Isabel &mdash; it isn't written down here on purpose.</p></div>
 
-    <div class="callout"><p><b>Kicked with "The server sent registries with unknown keys"?</b> That long list of item names means your <code>config</code> or <code>kubejs</code> folder is missing or incomplete &mdash; not that a mod is broken. Go back and copy all four folders across, then relaunch.</p></div>
-
-    <div class="callout"><p><b>If something in the pack misbehaves:</b> two mods are known-shaky on some setups. If the game crashes naming <code>lambdynamiclights</code>, delete that one jar from <code>mods</code> and everything else still works. And the Shelf-Shrooms resource pack will warn that it's made for an older version &mdash; confirming past that is fine, it's optional either way.</p></div>
+    <div class="callout"><p><b>Something went wrong?</b> Every error worth knowing about &mdash; refused connections, crashes on startup, the mods that misbehave &mdash; is on the <b>Troubleshooting</b> tab, each one with the exact message you'll see and what to do about it.</p></div>
 
     <h3>Your first hour</h3>
     <p>Normal survival rules apply. Punch wood, make tools, don't dig straight down. The differences worth knowing on night one:</p>
     <ul>
       <li><b>Death is survivable.</b> <a href="https://www.curseforge.com/minecraft/mc-mods/epitaphs" target="_blank" rel="noopener">Epitaphs</a> places a grave where you died, holding your things. Walk back and collect it.</li>
       <li><b>Sleeping is a group activity.</b> You don't need everyone in bed to skip the night, but you do need enough people. Get in bed and wait a moment.</li>
-      <li><b>Check recipes in-game.</b> <a href="https://github.com/mezz/JustEnoughItems/wiki" target="_blank" rel="noopener">JEI</a> is the recipe viewer: hover any item and press <kbd>R</kbd> for how to make it, or <kbd>U</kbd> for what it's used for. With 337 mods this is the most useful key on your keyboard.</li>
+      <li><b>Check recipes in-game.</b> <a href="https://github.com/mezz/JustEnoughItems/wiki" target="_blank" rel="noopener">JEI</a> is the recipe viewer: hover any item and press <kbd>R</kbd> for how to make it, or <kbd>U</kbd> for what it's used for. With 352 mods this is the most useful key on your keyboard.</li>
       <li><b>Don't build anything permanent yet.</b> Claim first — see the next tab. Unclaimed land is not protected.</li>
     </ul>
 
@@ -736,6 +735,152 @@
     <footer>
       This handbook covers the server's own rules and conventions. For any individual mod's mechanics, follow the links at the foot of each tab — a mod's own wiki or in-game guide book will always beat anything written here.
     </footer>
+  </section>
+
+  <!-- ===================== TROUBLESHOOTING ===================== -->
+  <section class="panel" id="panel-fix" role="tabpanel" aria-labelledby="tab-fix" tabindex="0" hidden>
+    <h2>Troubleshooting</h2>
+    <p class="lede">Nearly every failure here is a version mismatch wearing a disguise. The error text almost never names the real cause &mdash; so find your message below rather than trusting what it blames.</p>
+
+    <div class="callout lit"><p><b>Check these four first.</b> Most problems on this page are one of them being wrong. They are not interchangeable and "newer" is not always safer.</p></div>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>What</th><th>Must be</th><th>Why it bites</th></tr></thead>
+        <tbody>
+          <tr><td>Minecraft</td><td><code>26.1.2</code></td><td>Sets which graphics libraries the game loads</td></tr>
+          <tr><td>NeoForge</td><td><code>26.1.2.109</code> or newer</td><td>Below this, mods refuse to load</td></tr>
+          <tr><td>Java</td><td><b>25</b></td><td>26.1.2 asks for 25 &mdash; older Java won't launch it</td></tr>
+          <tr><td>Jars in <code>mods/</code></td><td><b>352</b></td><td>Any other number is refused at connect</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>It crashes while loading</h3>
+
+    <h4>"NoSuchMethodError ... Callback$Descriptor"</h4>
+    <ul>
+      <li><b>What you'll see</b> &mdash; a fatal error during mod loading, roughly:
+        <ul>
+          <li><code>java.lang.InternalError: java.lang.NoSuchMethodError: 'void org.lwjgl.system.Callback$Descriptor.&lt;init&gt;(java.lang.invoke.MethodHandles$Lookup, org.lwjgl.system.libffi.FFICIF)'</code></li>
+        </ul>
+      </li>
+      <li><b>What it actually means</b>
+        <ul>
+          <li>Your instance is running <b>LWJGL 3.3.3</b>. Minecraft 26.1.2 needs <b>3.4.1</b>.</li>
+          <li>In 3.3.3 that class does not exist at all, so the first mod to touch it dies &mdash; usually Sodium.</li>
+          <li><b>Nothing is wrong with the pack, and nothing is wrong with Sodium.</b> Deleting mods will not fix it.</li>
+        </ul>
+      </li>
+      <li><b>Why it happens</b>
+        <ul>
+          <li>The instance was <b>copied from an older Minecraft</b>. 1.21.8 and the 25w3x snapshots all use 3.3.3, and the old library setting comes along with the copy.</li>
+          <li>Or your launcher lets you <b>pin an LWJGL version</b>, and it is pinned low.</li>
+        </ul>
+      </li>
+      <li><b>How to fix it</b>
+        <ul>
+          <li><b>Prism or MultiMC</b> &mdash; Edit Instance &rarr; Version. "LWJGL 3" is its own line: set it to <code>3.4.1</code>, or remove the override so it follows the game.</li>
+          <li><b>Official launcher or CurseForge</b> &mdash; build a <b>fresh</b> 26.1.2 instance and install NeoForge into that. Do not copy or upgrade an older one. Failing that, make the launcher re-verify its files so 3.4.1 downloads.</li>
+          <li><b>To confirm before you start</b> &mdash; search your launch log for <code>lwjgl-3.3.3</code>. If it's on the classpath, this is your problem.</li>
+        </ul>
+      </li>
+      <li><b>Do not "fix" this by changing Java.</b>
+        <ul>
+          <li>Java 25 is correct here &mdash; 26.1.2 asks for it by name. Downgrading Java will only break something else.</li>
+        </ul>
+      </li>
+    </ul>
+
+    <h4>"... requires neoforge 26.1.2.109 or above"</h4>
+    <ul>
+      <li><b>It names a mod, but the mod is fine.</b>
+        <ul>
+          <li>Whichever mod is named is simply the first one to check. Your NeoForge build is too old.</li>
+          <li>This is the single most misleading message you can hit here, because it reads like a broken download.</li>
+        </ul>
+      </li>
+      <li><b>Fix</b>
+        <ul>
+          <li>Install <b>26.1.2.109</b> or newer. <code>.106</code> is not close enough.</li>
+        </ul>
+      </li>
+    </ul>
+
+    <h4>It crashes naming <code>lambdynamiclights</code></h4>
+    <ul>
+      <li><b>Known-shaky on some setups</b>
+        <ul>
+          <li>It packages its libraries in a layout NeoForge doesn't always accept.</li>
+          <li>Delete that one jar from <code>mods</code>. Nothing else depends on it and the rest of the pack is unaffected.</li>
+        </ul>
+      </li>
+    </ul>
+
+    <h4>It runs out of memory, or stutters then dies</h4>
+    <ul>
+      <li><b>The default 2&nbsp;GB will not load this pack</b>
+        <ul>
+          <li>Edit your installation &rarr; More options &rarr; JVM arguments.</li>
+          <li>Change <code>-Xmx2G</code> to <code>-Xmx8G</code>, or <code>-Xmx6G</code> if the machine only has 8&nbsp;GB total. Leave the rest of the line alone.</li>
+        </ul>
+      </li>
+    </ul>
+
+    <h3>It won't connect</h3>
+
+    <h4>"The server sent registries with unknown keys"</h4>
+    <ul>
+      <li><b>A long list of item names, and none of them are the problem</b>
+        <ul>
+          <li>Your <code>config</code> or <code>kubejs</code> folder is missing or incomplete.</li>
+          <li>Several mods build their item lists from those files, so a client without them genuinely knows about different items than the server does.</li>
+        </ul>
+      </li>
+      <li><b>Fix</b>
+        <ul>
+          <li>Copy <b>all four</b> folders across &mdash; <code>mods</code>, <code>config</code>, <code>kubejs</code>, <code>resourcepacks</code> &mdash; then relaunch.</li>
+        </ul>
+      </li>
+    </ul>
+
+    <h4>A mod-list mismatch, or the server never appears</h4>
+    <ul>
+      <li><b>Count your jars first</b>
+        <ul>
+          <li>There should be <b>352</b> files in <code>&lt;game directory&gt;/mods/</code>.</li>
+          <li>Check you don't have <code>mods/mods/</code> &mdash; unzipping one level too deep is the classic mistake.</li>
+          <li>Two versions of the same mod will also stop the game loading. One jar per mod.</li>
+        </ul>
+      </li>
+      <li><b>If the server isn't in the list at all</b>
+        <ul>
+          <li>Tailscale must say <em>Connected</em>. If it doesn't, nothing else matters.</li>
+          <li>The download page is the quickest test: it only resolves on the tailnet, so if it loads, you're on.</li>
+        </ul>
+      </li>
+    </ul>
+
+    <h3>It runs, but something looks wrong</h3>
+    <ul>
+      <li><b>Shelf-Shrooms warns it's for an older version</b>
+        <ul>
+          <li>Expected. Confirm past it &mdash; the pack is optional and cosmetic either way.</li>
+        </ul>
+      </li>
+      <li><b>A keybind does nothing</b>
+        <ul>
+          <li>KeybindsPurger may have stripped it. Re-bind it in <kbd>Controls</kbd> rather than assuming the mod is broken.</li>
+        </ul>
+      </li>
+      <li><b>The first launch looks frozen</b>
+        <ul>
+          <li>352 mods take several minutes the first time, and it will appear stuck more than once. Every launch after is much quicker.</li>
+        </ul>
+      </li>
+    </ul>
+
+    <div class="callout"><p><b>Still stuck?</b> Send Isabel the <b>log</b>, not a description &mdash; <code>&lt;game directory&gt;/logs/latest.log</code>. The real cause is usually a hundred lines above the part that looks like the error.</p></div>
   </section>
 
 </main>
