@@ -291,11 +291,13 @@
         <p>Get it from <a href="https://tailscale.com/download" target="_blank" rel="noopener">tailscale.com/download</a>. Sign in with whichever account you gave Isabel &mdash; Google, Microsoft, GitHub, whatever you told her. It has to be that one; the invite is tied to it.</p></div></li>
       <li><div><b>Accept the invite to the network.</b>
         <p>Isabel sends you a join link. Open it while signed in and accept. Tailscale's icon should then say <em>Connected</em>. Leave it running whenever you play &mdash; if Tailscale is off, the server simply won't appear.</p></div></li>
-      <li><div><b>Install <a href="https://localsend.org/" target="_blank" rel="noopener">LocalSend</a>.</b>
-        <p>This is how you'll get the pack &mdash; it's a 635&nbsp;MB folder of mods, too big to email and not something that can be posted publicly. LocalSend is free and open source, on every platform, and sends the file straight from her machine to yours.</p></div></li>
-      <li><div><b>Ask Isabel to send you the pack over LocalSend.</b>
-        <p>Open LocalSend and leave it on that screen. She should see your device appear and can send it straight across. If she doesn't see you, ask her for the address to add by hand &mdash; LocalSend's automatic discovery doesn't always cross a Tailscale network, but <em>Settings &rarr; Add device manually</em> always works.</p>
-        <p>You'll end up with <code>Ixoras-ATM11-26.1.2.109.zip</code>. Don't unzip it yet.</p></div></li>
+      <li><div><b>Install <a href="https://localsend.org/" target="_blank" rel="noopener">LocalSend</a> &mdash; optional, as a fallback.</b>
+        <p>You will normally download the pack from the link in the next step. LocalSend is worth having anyway for when that is not an option: it is free, open source, on every platform, and sends a file straight from one machine to another with no upload in between.</p></div></li>
+      <li><div><b>Download the pack.</b>
+        <p>Once Tailscale says <em>Connected</em>, open <a href="http://skyfaller.taild8de30.ts.net:8080/">the download page</a>. It only exists on the tailnet, so if it loads, your Tailscale is working &mdash; which makes it a useful test on its own.</p>
+        <p>Take the <b>full pack</b> the first time. Later, when the server changes, that same page carries a small <b>update pack</b> instead &mdash; a few MB rather than a few hundred, and the page always lists the current one.</p>
+        <p>If the page won't load, Tailscale isn't connected yet. Failing that, ask Isabel to send it over LocalSend instead.</p>
+        <p>Don't unzip it yet.</p></div></li>
     </ol>
 
     <h3>Installing the pack</h3>
