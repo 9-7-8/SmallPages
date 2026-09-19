@@ -359,7 +359,13 @@
     <p class="lede">Land protection is handled by <a href="https://docs.feed-the-beast.com/mod-docs/mods/suite/Chunks/" target="_blank" rel="noopener">FTB Chunks</a>. You claim whole chunks — the 16&times;16 columns Minecraft is built from — and everything inside becomes yours.</p>
 
     <h3>How to claim</h3>
-    <p>Open the map (<em>Open Map</em> in <kbd>Controls</kbd>, under the FTB Chunks category). The world appears overlaid with a chunk grid. Then:</p>
+    <p>Two keybinds open what you need, both under the <b>FTB Chunks</b> category in <kbd>Controls</kbd>:</p>
+    <ul>
+      <li><em>Open Map</em> &mdash; the full-screen map, overlaid with the chunk grid. This is where you claim.</li>
+      <li><em>Open Claim Manager</em> &mdash; goes straight to the same grid without the map first.</li>
+    </ul>
+    <p>Check they are actually bound before you go looking for them: this pack ships <b>KeybindsPurger</b>, which strips keybinds, so don't assume the defaults survived. If neither is bound, bind one and carry on.</p>
+    <p>With the grid open:</p>
 
     <ul class="keylist full">
       <li><span class="act">Left-drag</span><span class="desc">Claim the chunks you drag across</span></li>
@@ -369,15 +375,34 @@
       <li><span class="act">Hold Tab</span><span class="desc">Hide the grid to see the map underneath</span></li>
     </ul>
 
+    <p>Dragging has three shapes, switched in FTB Chunks' client settings under <em>Chunk claiming mode</em>: <b>Rectangular</b> (the default), <b>Circular</b>, and <b>Freehand</b>. Rectangular is what you want almost always; freehand is for tracing an awkward border.</p>
+
     <p><b>Claiming</b> protects land. <b>Force-loading</b> is different and more precious: it keeps your machines ticking when nobody is nearby. Spend those on farms and power generation, not on your house.</p>
 
     <h4>Your limits</h4>
     <div class="tablewrap">
       <table>
-        <thead><tr><th scope="col">Allowance</th><th scope="col">Per team</th><th scope="col">What it means</th></tr></thead>
+        <thead><tr><th scope="col">Allowance</th><th scope="col">Per player</th><th scope="col">What it means</th></tr></thead>
         <tbody>
-          <tr><td>Claimed chunks</td><td class="num">500</td><td>Roughly a 22&times;22 block of land — far more than a base needs</td></tr>
+          <tr><td>Claimed chunks</td><td class="num">500</td><td>A 22&times;22 patch of chunks, about 350 blocks square &mdash; far more than a base needs</td></tr>
           <tr><td>Force-loaded chunks</td><td class="num">25</td><td>The scarce one. Budget these deliberately</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p><b>These are per player, not per team.</b> When you join a team the members' allowances pool, so two people together can claim 1000 chunks and force-load 50. Claiming works in <b>every dimension</b> &mdash; this server sets no dimension restrictions on it.</p>
+
+    <div class="callout"><p><b>Do not claim the spawn village.</b> Nothing in FTB Chunks stops you, but spawn is separately protected and is meant to stay common ground &mdash; claiming it would only lock your friends out of the shop and the stables. Build your base somewhere else and claim that.</p></div>
+
+    <h3>Messages you will actually see</h3>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th scope="col">Message</th><th scope="col">Meaning</th></tr></thead>
+        <tbody>
+          <tr><td><code>Chunk limit reached</code></td><td>You are out of allowance &mdash; unclaim something, or team up to pool</td></tr>
+          <tr><td><code>Chunk is already claimed by …</code></td><td>Someone else got there first; the name tells you who to ask</td></tr>
+          <tr><td><code>Interaction prevented here by claim protection!</code></td><td>You are standing in someone else's claim</td></tr>
+          <tr><td><code>Chunks modified: N / M</code></td><td>Normal success &mdash; N of the M chunks you dragged over actually changed</td></tr>
         </tbody>
       </table>
     </div>
