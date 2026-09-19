@@ -285,6 +285,8 @@
 
     <div class="callout lit"><p><b>NeoForge must be 26.1.2.109 or above.</b> This is the single most common reason a client won't start. Anything older is refused &mdash; and the error blames a mod rather than the version, so it is easy to misread.</p></div>
 
+    <div class="callout"><p><b>These steps assume the official Minecraft Launcher.</b> A third-party launcher &mdash; HMCL, Prism, MultiMC, the CurseForge app &mdash; works too, but the menus differ and two things bite: HMCL will not open at all on a plain JDK, and launchers that copy or share instances can leave you on the wrong Minecraft. Both are on the <b>Troubleshooting</b> tab.</p></div>
+
     <h3>Getting on the network</h3>
     <p>The server isn't on the open internet. It lives on a private <a href="https://tailscale.com/" target="_blank" rel="noopener">Tailscale</a> network, so there is nothing to port-forward and nothing for strangers to find &mdash; but you have to be let in first.</p>
 
@@ -749,12 +751,48 @@
         <thead><tr><th>What</th><th>Must be</th><th>Why it bites</th></tr></thead>
         <tbody>
           <tr><td>Minecraft</td><td><code>26.1.2</code></td><td>Sets which graphics libraries the game loads</td></tr>
-          <tr><td>NeoForge</td><td><code>26.1.2.109</code> or newer</td><td>Below this, mods refuse to load</td></tr>
+          <tr><td>NeoForge</td><td><code>26.1.2.109</code> or newer &mdash; and it <b>must</b> start <code>26.1.2.</code></td><td>Too low and mods refuse to load; a build for another Minecraft launches the wrong game entirely</td></tr>
           <tr><td>Java</td><td><b>25</b></td><td>26.1.2 asks for 25 &mdash; older Java won't launch it</td></tr>
           <tr><td>Jars in <code>mods/</code></td><td><b>352</b></td><td>Any other number is refused at connect</td></tr>
         </tbody>
       </table>
     </div>
+
+    <h3>The launcher won't even open</h3>
+
+    <h4>"invalid JVM argument(s) ... --add-modules=javafx.controls,javafx.fxml"</h4>
+    <ul>
+      <li><b>This is not Minecraft, and not the pack</b>
+        <ul>
+          <li>The error names <code>org.jackhuang.hmcl.Main</code> &mdash; that's <b>HMCL</b> (Hello Minecraft! Launcher) failing to start.</li>
+          <li>The game never launches, so the pack is not involved. <b>Redownloading the pack cannot fix this</b>, and neither can any change to it.</li>
+        </ul>
+      </li>
+      <li><b>What it means</b>
+        <ul>
+          <li>HMCL is a JavaFX application. Those repeated <code>--add-modules=javafx...</code> lines are it trying several ways to find JavaFX, failing every time, and then failing to load its own main class.</li>
+          <li><b>A plain JDK has no JavaFX in it.</b> It was unbundled at Java 11, and the common builds &mdash; Temurin/Adoptium, Microsoft, Corretto &mdash; do not ship it.</li>
+        </ul>
+      </li>
+      <li><b>How to fix it</b> &mdash; either one works
+        <ul>
+          <li><b>Run HMCL's Windows <code>.exe</code>, not the <code>.jar</code>.</b> The <code>.exe</code> brings a runtime with it. Double-clicking the <code>.jar</code> hands it to whatever <code>java</code> is on your PATH, which is exactly the JDK that has no JavaFX.</li>
+          <li><b>Or install a JDK that includes JavaFX</b> and point HMCL at that: <a href="https://bell-sw.com/pages/downloads/" target="_blank" rel="noopener">BellSoft Liberica JDK</a> &mdash; the <b>Full</b> package &mdash; or <a href="https://www.azul.com/downloads/?package=jdk-fx" target="_blank" rel="noopener">Azul Zulu JDK FX</a>.</li>
+        </ul>
+      </li>
+      <li><b>The launcher's Java and the game's Java are two different settings</b>
+        <ul>
+          <li>Minecraft 26.1.2 wants <b>Java 25</b>. HMCL itself wants a <b>JavaFX-capable</b> Java.</li>
+          <li>Setting one does not set the other, and installing Java 25 for the game is what leaves HMCL unable to start.</li>
+        </ul>
+      </li>
+      <li><b>If you use HMCL, turn version isolation on</b>
+        <ul>
+          <li>By default it shares one <code>.minecraft</code> across every version you've installed, so another version's mods and libraries mix into this one.</li>
+          <li>That is a common route into the LWJGL error below.</li>
+        </ul>
+      </li>
+    </ul>
 
     <h3>It crashes while loading</h3>
 
@@ -772,9 +810,10 @@
           <li><b>Nothing is wrong with the pack, and nothing is wrong with Sodium.</b> Deleting mods will not fix it.</li>
         </ul>
       </li>
-      <li><b>Why it happens</b>
+      <li><b>Why it happens</b> &mdash; almost always the first of these
         <ul>
-          <li>The instance was <b>copied from an older Minecraft</b>. 1.21.8 and the 25w3x snapshots all use 3.3.3, and the old library setting comes along with the copy.</li>
+          <li><b>You installed NeoForge for a different Minecraft version.</b> NeoForge builds are tied to one Minecraft version, so the wrong one quietly launches that version instead &mdash; and 1.21.8 and the 25w3x snapshots all use LWJGL 3.3.3. The build you want starts <code>26.1.2.</code>; anything else is the wrong game. <b>This is the one that has actually bitten someone here.</b></li>
+          <li>Or the instance was <b>copied from an older Minecraft</b>, and the old library setting came along with the copy.</li>
           <li>Or your launcher lets you <b>pin an LWJGL version</b>, and it is pinned low.</li>
         </ul>
       </li>
