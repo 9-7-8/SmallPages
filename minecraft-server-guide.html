@@ -261,7 +261,7 @@
     <div class="build">
       Minecraft <b>26.1.2</b><br>
       NeoForge <b>26.1.2.109</b><br>
-      352 mods
+      366 mods
     </div>
   </div>
 
@@ -326,12 +326,12 @@
         <p>On that page pick <b>26.1.2.109</b> (or a higher <code>26.1.2.x</code> if one exists by the time you read this) and download the <b>Installer</b>. Run it &mdash; double-click, or <code>java -jar neoforge-26.1.2.109-installer.jar</code> &mdash; choose <b>Install client</b>, leave the path pointing at your <code>.minecraft</code> folder, and press OK.</p>
         <p>If you are below the minimum the game stops during loading and names a <em>mod</em>, not a NeoForge version &mdash; something like "requires neoforge 26.1.2.109 or above". That message means this step, nothing else.</p></div></li>
       <li><div><b>Make a separate installation with its own folder.</b>
-        <p>This keeps 352 mods away from your existing worlds. In the launcher: <b>Installations &rarr; New installation</b>, set <b>Version</b> to <code>neoforge-26.1.2.109</code>, and set <b>Game directory</b> to a new empty folder &mdash; something like <code>C:\Minecraft\isabel-server</code>. Save it.</p>
+        <p>This keeps 366 mods away from your existing worlds. In the launcher: <b>Installations &rarr; New installation</b>, set <b>Version</b> to <code>neoforge-26.1.2.109</code>, and set <b>Game directory</b> to a new empty folder &mdash; something like <code>C:\Minecraft\isabel-server</code>. Save it.</p>
         <p>If you'd rather not bother, you can skip this and use your normal <code>.minecraft</code> &mdash; but move your existing <code>mods</code> folder somewhere safe first, because the pack has to be the only thing in there.</p></div></li>
       <li><div><b>Copy all four folders in.</b>
         <p>Open the zip and copy <code>mods</code>, <code>config</code>, <code>kubejs</code> and <code>resourcepacks</code> into the game directory you just set. If you're asked whether to merge or replace, choose replace.</p>
         <p><b>All four matter.</b> <code>config</code> and <code>kubejs</code> are not optional extras &mdash; several mods build their item lists from those files, so a client without them knows about different items than the server does and gets refused on connect.</p>
-        <p>You want <code>&lt;game directory&gt;/mods/</code> full of jars &mdash; <b>not</b> <code>mods/mods/</code>, which is the classic mistake. There should be <b>352</b> files in there when you're done.</p>
+        <p>You want <code>&lt;game directory&gt;/mods/</code> full of jars &mdash; <b>not</b> <code>mods/mods/</code>, which is the classic mistake. There should be <b>366</b> files in there when you're done.</p>
         <p>If you skipped the separate-installation step, the default game directory is:</p>
         <ul>
           <li><b>Windows</b> &mdash; <code>%APPDATA%\.minecraft</code></li>
@@ -341,7 +341,7 @@
       <li><div><b>Give Java more memory.</b>
         <p>Still in <b>Installations</b>, edit your new installation, open <b>More options</b>, and find the <b>JVM arguments</b> box. Change <code>-Xmx2G</code> to <code>-Xmx8G</code> (or <code>-Xmx6G</code> if your machine has 8&nbsp;GB of RAM total). Leave the rest of the line alone. The default 2&nbsp;GB will not load this pack.</p></div></li>
       <li><div><b>Launch it, and expect to wait.</b>
-        <p>First startup takes several minutes and looks frozen more than once. That's normal for 352 mods. It's much quicker every time after.</p></div></li>
+        <p>First startup takes several minutes and looks frozen more than once. That's normal for 366 mods. It's much quicker every time after.</p></div></li>
       <li><div><b>Add the server and connect.</b>
         <p><b>Multiplayer &rarr; Add Server</b>, then the address Isabel gives you. Check Tailscale says <em>Connected</em> first. The first join builds a lot of caches and can sit on "Loading terrain" for a while.</p></div></li>
       <li><div><b>Open the quest book.</b>
@@ -357,7 +357,7 @@
     <ul>
       <li><b>Death is survivable.</b> <a href="https://www.curseforge.com/minecraft/mc-mods/epitaphs" target="_blank" rel="noopener">Epitaphs</a> places a grave where you died, holding your things. Walk back and collect it.</li>
       <li><b>Sleeping is a group activity.</b> You don't need everyone in bed to skip the night, but you do need enough people. Get in bed and wait a moment.</li>
-      <li><b>Check recipes in-game.</b> <a href="https://github.com/mezz/JustEnoughItems/wiki" target="_blank" rel="noopener">JEI</a> is the recipe viewer: hover any item and press <kbd>R</kbd> for how to make it, or <kbd>U</kbd> for what it's used for. With 352 mods this is the most useful key on your keyboard.</li>
+      <li><b>Check recipes in-game.</b> <a href="https://github.com/mezz/JustEnoughItems/wiki" target="_blank" rel="noopener">JEI</a> is the recipe viewer: hover any item and press <kbd>R</kbd> for how to make it, or <kbd>U</kbd> for what it's used for. With 366 mods this is the most useful key on your keyboard.</li>
       <li><b>Don't build anything permanent yet.</b> Claim first — see the next tab. Unclaimed land is not protected.</li>
     </ul>
 
@@ -771,7 +771,7 @@
           <tr><td>Minecraft</td><td><code>26.1.2</code></td><td>Sets which graphics libraries the game loads</td></tr>
           <tr><td>NeoForge</td><td><code>26.1.2.109</code> or newer &mdash; and it <b>must</b> start <code>26.1.2.</code></td><td>Too low and mods refuse to load; a build for another Minecraft launches the wrong game entirely</td></tr>
           <tr><td>Java</td><td><b>25</b></td><td>26.1.2 asks for 25 &mdash; older Java won't launch it</td></tr>
-          <tr><td>Jars in <code>mods/</code></td><td><b>352</b></td><td>Any other number is refused at connect</td></tr>
+          <tr><td>Jars in <code>mods/</code></td><td><b>366</b></td><td>Any other number is refused at connect</td></tr>
         </tbody>
       </table>
     </div>
@@ -905,7 +905,7 @@
     <ul>
       <li><b>Count your jars first</b>
         <ul>
-          <li>There should be <b>352</b> files in <code>&lt;game directory&gt;/mods/</code>.</li>
+          <li>There should be <b>366</b> files in <code>&lt;game directory&gt;/mods/</code>.</li>
           <li>Check you don't have <code>mods/mods/</code> &mdash; unzipping one level too deep is the classic mistake.</li>
           <li>Two versions of the same mod will also stop the game loading. One jar per mod.</li>
         </ul>
@@ -932,7 +932,7 @@
       </li>
       <li><b>The first launch looks frozen</b>
         <ul>
-          <li>352 mods take several minutes the first time, and it will appear stuck more than once. Every launch after is much quicker.</li>
+          <li>366 mods take several minutes the first time, and it will appear stuck more than once. Every launch after is much quicker.</li>
         </ul>
       </li>
     </ul>
