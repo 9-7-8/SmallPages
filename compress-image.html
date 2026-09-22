@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>compress image</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  body { margin: 0; padding: 3rem 1.5rem 5rem; }
+  main { max-width: 820px; margin: 0 auto; }
+  p.lede { margin: 0 0 2.2rem; max-width: 62ch; }
+  .card { margin-bottom: 1.5rem; }
+  .dropzone { padding: 2.5rem 1.5rem; text-align: center; cursor: pointer; }
+  .dropzone input { display: none; }
+  .dropzone .hint { font-size: 0.85rem; margin-top: 0.4rem; }
+  .status { font-size: 0.85rem; margin-top: 0.8rem; min-height: 1.2em; }
+  .target-row { display: flex; gap: 0.6rem; align-items: end; flex-wrap: wrap; }
+  .target-row .field { min-width: 10rem; }
+  .field { display: flex; flex-direction: column; gap: 0.35rem; }
+  .field label { font-size: 0.8rem; }
+  .target-row input { width: 9rem; }
+  .target-row select { width: 7rem; }
+  .target-row button { margin-left: auto; }
+  .source-line { font-size: 0.8rem; color: var(--text-faint); margin-top: 1rem; min-height: 1.2em; }
+  .format-choice { display: none; margin-top: 1.2rem; }
+  .format-choice.ready { display: block; }
+  .format-choice legend { color: var(--text-dim); font-size: 0.8rem; margin-bottom: 0.6rem; }
+  .format-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6rem; }
+  .format-option { display: block; min-width: 0; padding: 0.8rem; border: 1px solid var(--line-soft); background: var(--sunken); cursor: pointer; }
+  .format-option:has(input:checked) { border-color: var(--neon); box-shadow: var(--glow-soft); }
+  .format-option input { margin: 0 0.35rem 0 0; accent-color: var(--neon); }
+  .format-name { font-size: 0.9rem; font-weight: 400; }
+  .format-pros, .format-cons { color: var(--text-faint); font-size: 0.72rem; line-height: 1.45; margin-top: 0.45rem; }
+  .format-cons { color: var(--text-dim); }
+  .results { display: none; }
+  .results.ready { display: block; }
+  .results h2 { margin: 0 0 1rem; }
+  .stage-list { display: grid; gap: 0.7rem; }
+  .stage-option { display: grid; grid-template-columns: auto 1fr auto; gap: 0.8rem; align-items: start; padding: 0.9rem; border: 1px solid var(--line-soft); background: var(--sunken); }
+  .stage-option.selected { border-color: var(--neon); box-shadow: var(--glow-soft); }
+  .stage-option input { margin-top: 0.25rem; }
+  .stage-name { font-size: 0.9rem; font-weight: 400; }
+  .stage-detail, .warning { color: var(--text-faint); font-size: 0.76rem; margin-top: 0.2rem; }
+  .warning { color: var(--text-dim); }
+  .stage-size { font-family: var(--mono); font-size: 0.78rem; white-space: nowrap; }
+  .preview { margin-top: 1.2rem; padding: 1rem; text-align: center; overflow: auto; max-height: 55vh; }
+  .preview canvas { max-width: 100%; height: auto; vertical-align: middle; }
+  .result-actions { display: flex; gap: 0.6rem; align-items: center; margin-top: 1rem; flex-wrap: wrap; }
+  .result-actions .meta-line { margin: 0; margin-right: auto; }
+  .note { font-size: 0.78rem; color: var(--text-faint); margin-top: 1rem; }
+  [hidden] { display: none !important; }
+  @media (max-width: 620px) {
+    body { padding: 2rem 1rem 4rem; }
+    .target-row button { margin-left: 0; width: 100%; }
+    .stage-option { grid-template-columns: auto 1fr; }
+    .stage-size { grid-column: 2; }
+    .result-actions .meta-line { width: 100%; }
+    .format-options { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <a class="home" href="index.html">&larr; index</a>
+  <h1>compress image</h1>
+  <p class="lede">Set the largest file you can use, choose the format that fits the destination, and the page will compress it and reduce its dimensions until it reaches your target. Everything stays in your browser.</p>
+
+  <div class="card">
+    <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Choose an image">
+      <div id="dropLabel">Drop an image here, or click to choose</div>
+      <div class="hint">PNG, JPEG, WebP or GIF — nothing is uploaded anywhere</div>
+      <input type="file" id="fileInput" accept="image/*">
+    </div>
+    <fieldset class="format-choice" id="formatChoice">
+      <legend>What format should the output use?</legend>
+      <div class="format-options">
+        <label class="format-option">
+          <input type="radio" name="outputFormat" value="image/png">
+          <span class="format-name">PNG</span>
+          <div class="format-pros">Best for transparency, text, and crisp graphics. Lossless.</div>
+          <div class="format-cons">Usually largest for photographs.</div>
+        </label>
+        <label class="format-option">
+          <input type="radio" name="outputFormat" value="image/jpeg">
+          <span class="format-name">JPEG</span>
+          <div class="format-pros">Small files and excellent compatibility.</div>
+          <div class="format-cons">Lossy; transparency becomes solid white.</div>
+        </label>
+        <label class="format-option">
+          <input type="radio" name="outputFormat" value="image/webp">
+          <span class="format-name">WebP</span>
+          <div class="format-pros">Often the smallest option with good quality.</div>
+          <div class="format-cons">Some older apps and upload services do not accept it.</div>
+        </label>
+      </div>
+    </fieldset>
+    <div class="target-row" style="margin-top:1.2rem;">
+      <div class="field">
+        <label for="targetSize">Target file size</label>
+        <input id="targetSize" type="number" min="1" step="1" value="500">
+      </div>
+      <div class="field">
+        <label for="targetUnit">Unit</label>
+        <select id="targetUnit">
+          <option value="1000">KB</option>
+          <option value="1000000">MB</option>
+        </select>
+      </div>
+      <button id="compressBtn" disabled>Compress</button>
+    </div>
+    <div class="source-line" id="sourceLine" aria-live="polite"></div>
+    <div class="status" id="status" role="status" aria-live="polite"></div>
+  </div>
+
+  <section class="results" id="results" aria-live="polite">
+    <div class="card">
+      <h2>Compressed output</h2>
+      <div class="stage-list" id="stageList"></div>
+      <div class="preview" id="preview"><canvas id="canvas"></canvas></div>
+      <div class="result-actions">
+        <div class="meta-line" id="resultMeta"></div>
+        <button id="downloadBtn">Download</button>
+      </div>
+      <p class="note" id="resultNote"></p>
+    </div>
+  </section>
+</main>
+
+<script>
+"use strict";
+
+const dropzone = document.getElementById("dropzone");
+const fileInput = document.getElementById("fileInput");
+const dropLabel = document.getElementById("dropLabel");
+const targetSize = document.getElementById("targetSize");
+const targetUnit = document.getElementById("targetUnit");
+const formatChoice = document.getElementById("formatChoice");
+const compressBtn = document.getElementById("compressBtn");
+const sourceLine = document.getElementById("sourceLine");
+const statusEl = document.getElementById("status");
+const results = document.getElementById("results");
+const stageList = document.getElementById("stageList");
+const canvas = document.getElementById("canvas");
+const resultMeta = document.getElementById("resultMeta");
+const resultNote = document.getElementById("resultNote");
+const downloadBtn = document.getElementById("downloadBtn");
+
+const FORMAT = {
+  "image/png": { label: "PNG", ext: "png" },
+  "image/jpeg": { label: "JPEG", ext: "jpg" },
+  "image/webp": { label: "WebP", ext: "webp" }
+};
+let sourceFile = null;
+let sourceImage = null;
+let sourceFormat = "image/png";
+let selectedFormat = "image/png";
+let outputs = [];
+let selectedIndex = 0;
+
+function setStatus(message, error = false) {
+  statusEl.textContent = message;
+  statusEl.classList.toggle("error", error);
+}
+
+function bytesLabel(bytes) {
+  if (bytes >= 1000000) return `${(bytes / 1000000).toFixed(2)} MB`;
+  return `${Math.max(1, Math.round(bytes / 1000))} KB`;
+}
+
+function targetBytes() {
+  return Number(targetSize.value) * Number(targetUnit.value);
+}
+
+function formatForFile(file) {
+  if (FORMAT[file.type]) return file.type;
+  const name = (file.name || "").toLowerCase();
+  if (name.endsWith(".jpg") || name.endsWith(".jpeg")) return "image/jpeg";
+  if (name.endsWith(".webp")) return "image/webp";
+  return "image/png";
+}
+
+function readImage(file) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    const url = URL.createObjectURL(file);
+    image.onload = () => { URL.revokeObjectURL(url); resolve(image); };
+    image.onerror = () => { URL.revokeObjectURL(url); reject(new Error("That file could not be decoded as an image.")); };
+    image.src = url;
+  });
+}
+
+function blobFromCanvas(drawCanvas, type, quality) {
+  return new Promise((resolve, reject) => {
+    drawCanvas.toBlob(blob => blob ? resolve(blob) : reject(new Error(`${FORMAT[type].label} export is not supported by this browser.`)), type, quality);
+  });
+}
+
+function drawAt(width, height, type) {
+  const work = document.createElement("canvas");
+  work.width = Math.max(1, Math.round(width));
+  work.height = Math.max(1, Math.round(height));
+  const context = work.getContext("2d");
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = "high";
+  if (type === "image/jpeg") {
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, work.width, work.height);
+  }
+  context.drawImage(sourceImage, 0, 0, work.width, work.height);
+  return work;
+}
+
+async function bestQuality(width, height, type, minimum = 0.35) {
+  const work = drawAt(width, height, type);
+  if (type === "image/png") return { blob: await blobFromCanvas(work, type), quality: null, canvas: work };
+
+  let low = minimum;
+  let high = 0.98;
+  let best = await blobFromCanvas(work, type, low);
+  for (let attempt = 0; attempt < 7; attempt += 1) {
+    const quality = (low + high) / 2;
+    const blob = await blobFromCanvas(work, type, quality);
+    if (blob.size <= targetBytes()) {
+      best = blob;
+      low = quality;
+    } else {
+      high = quality;
+    }
+  }
+  return { blob: best, quality: low, canvas: work };
+}
+
+async function formatCandidate(type, width = sourceImage.naturalWidth, height = sourceImage.naturalHeight) {
+  const result = await bestQuality(width, height, type);
+  return { ...result, type, width: result.canvas.width, height: result.canvas.height };
+}
+
+function warningFor(type) {
+  if (type === "image/jpeg" && sourceFormat === "image/png") return "Warning: JPEG cannot keep transparency and introduces lossy compression. Some metadata may also be lost.";
+  if (type === "image/webp") return "WebP is smaller in many browsers, but older apps and some upload services may not accept it.";
+  if (type === "image/jpeg") return "JPEG is lossy and cannot keep transparency.";
+  return "PNG is lossless and broadly compatible, but often larger for photographs.";
+}
+
+function labelFor(candidate, stage) {
+  const name = stage === "same" ? `Keep ${FORMAT[candidate.type].label}` : stage === "format" ? `Try ${FORMAT[candidate.type].label}` : `Resize to ${candidate.width} × ${candidate.height}`;
+  const quality = candidate.quality ? ` · quality ${Math.round(candidate.quality * 100)}%` : "";
+  return `${name}${quality}`;
+}
+
+function addOutput(candidate, stage, detail, warning = "") {
+  outputs.push({ ...candidate, stage, detail, warning });
+}
+
+async function resizedCandidate(type, width, height) {
+  return formatCandidate(type, width, height);
+}
+
+async function analyze() {
+  const limit = targetBytes();
+  if (!sourceImage || !Number.isFinite(limit) || limit < 1) {
+    setStatus("Choose an image and enter a target size first.", true);
+    return;
+  }
+  compressBtn.disabled = true;
+  results.classList.remove("ready");
+  setStatus("Compressing in stages…");
+  outputs = [];
+
+  let output = await formatCandidate(selectedFormat);
+  if (output.blob.size > limit) {
+    let width = sourceImage.naturalWidth;
+    let height = sourceImage.naturalHeight;
+    for (let attempt = 0; attempt < 14 && output.blob.size > limit; attempt += 1) {
+      width *= 0.78;
+      height *= 0.78;
+      output = await resizedCandidate(selectedFormat, width, height);
+    }
+  }
+  addOutput(output, "format", `Selected ${FORMAT[selectedFormat].label} · started at ${sourceImage.naturalWidth} × ${sourceImage.naturalHeight}`, warningFor(selectedFormat));
+  setStatus(output.blob.size <= limit ? "Target reached." : "This is the smallest practical pass; try a larger target.");
+
+  renderOutputs(limit);
+  compressBtn.disabled = false;
+}
+
+function renderOutputs(limit) {
+  stageList.textContent = "";
+  const firstTarget = outputs.findIndex(output => output.blob.size <= limit);
+  selectedIndex = firstTarget >= 0 ? firstTarget : outputs.length - 1;
+  outputs.forEach((output, index) => {
+    const label = document.createElement("label");
+    label.className = "stage-option" + (index === selectedIndex ? " selected" : "");
+    const radio = document.createElement("input");
+    radio.type = "radio";
+    radio.name = "output";
+    radio.checked = index === selectedIndex;
+    radio.addEventListener("change", () => selectOutput(index));
+    const copy = document.createElement("div");
+    const title = document.createElement("div");
+    title.className = "stage-name";
+    title.textContent = labelFor(output, output.stage);
+    const detail = document.createElement("div");
+    detail.className = "stage-detail";
+    detail.textContent = output.detail + (output.blob.size <= limit ? " · meets target" : " · still over target");
+    copy.append(title, detail);
+    if (output.warning) {
+      const warning = document.createElement("div");
+      warning.className = "warning";
+      warning.textContent = output.warning;
+      copy.append(warning);
+    }
+    const size = document.createElement("div");
+    size.className = "stage-size";
+    size.textContent = bytesLabel(output.blob.size);
+    label.append(radio, copy, size);
+    stageList.append(label);
+  });
+  results.classList.add("ready");
+  selectOutput(selectedIndex);
+}
+
+function selectOutput(index) {
+  selectedIndex = index;
+  const output = outputs[index];
+  canvas.width = output.canvas.width;
+  canvas.height = output.canvas.height;
+  canvas.getContext("2d").drawImage(output.canvas, 0, 0);
+  [...stageList.children].forEach((item, itemIndex) => {
+    item.classList.toggle("selected", itemIndex === index);
+    item.querySelector("input").checked = itemIndex === index;
+  });
+  resultMeta.textContent = `${FORMAT[output.type].label} · ${bytesLabel(output.blob.size)} · ${output.width} × ${output.height}`;
+  resultNote.textContent = output.warning || (output.blob.size <= targetBytes() ? "This keeps the source file type and meets your requested size." : "No option reached the requested size without resizing more aggressively.");
+}
+
+function loadFile(file) {
+  if (!file || !file.type.startsWith("image/") && !/\.(png|jpe?g|webp|gif)$/i.test(file.name || "")) {
+    setStatus("Please choose an image file.", true);
+    return;
+  }
+  sourceFile = file;
+  sourceFormat = formatForFile(file);
+  selectedFormat = sourceFormat;
+  readImage(file).then(image => {
+    sourceImage = image;
+    const formatName = FORMAT[sourceFormat].label;
+    dropLabel.textContent = file.name || "Image ready";
+    sourceLine.textContent = `${file.name || "Image"} · ${bytesLabel(file.size)} · ${image.naturalWidth} × ${image.naturalHeight} · source format ${formatName}`;
+    document.querySelector(`input[name="outputFormat"][value="${selectedFormat}"]`).checked = true;
+    formatChoice.classList.add("ready");
+    compressBtn.disabled = false;
+    setStatus("Set a target, then compress.");
+  }).catch(error => setStatus(error.message, true));
+}
+
+document.querySelectorAll("input[name=outputFormat]").forEach(input => {
+  input.addEventListener("change", () => { selectedFormat = input.value; });
+});
+
+dropzone.addEventListener("click", () => fileInput.click());
+dropzone.addEventListener("keydown", event => {
+  if (event.key === "Enter" || event.key === " ") { event.preventDefault(); fileInput.click(); }
+});
+fileInput.addEventListener("change", () => fileInput.files[0] && loadFile(fileInput.files[0]));
+document.addEventListener("dragover", event => { event.preventDefault(); dropzone.classList.add("drag"); });
+document.addEventListener("dragleave", event => { if (!event.relatedTarget) dropzone.classList.remove("drag"); });
+document.addEventListener("drop", event => { event.preventDefault(); dropzone.classList.remove("drag"); if (event.dataTransfer.files[0]) loadFile(event.dataTransfer.files[0]); });
+compressBtn.addEventListener("click", analyze);
+downloadBtn.addEventListener("click", () => {
+  const output = outputs[selectedIndex];
+  if (!output) return;
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(output.blob);
+  link.download = `${(sourceFile.name || "image").replace(/\.[^.]+$/, "")}-compressed.${FORMAT[output.type].ext}`;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+});
+</script>
+</body>
+</html>
