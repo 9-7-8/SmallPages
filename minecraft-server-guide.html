@@ -646,22 +646,11 @@
     </ul>
 
     <h3>A chest for exactly one item</h3>
-    <p>Every single item in the pack is its own category. Sign a chest <code>[lead]</code> and it takes leads and nothing else. The full id works too: <code>[minecraft:lead]</code> is the same chest.</p>
+    <p>Every single item in the pack is its own category, named by its <b>full id</b> &mdash; the mod's name, a colon, then the item. Sign a chest <code>[minecraft:lead]</code> and it takes leads and nothing else.</p>
+    <p><b>It has to be the full id.</b> <code>[lead]</code> on its own is not a category and deliberately never will be. Short names go wrong the moment two mods both add something with the same one, and every short word spent this way is a word that could never be given to a proper category later.</p>
     <p><b>These beat everything.</b> A chest signed <code>[minecraft:diamond_pickaxe]</code> takes every diamond pickaxe, even a renamed, enchanted or nearly-broken one, ahead of <code>[named]</code>, <code>[damaged]</code> and <code>[pickaxes]</code>. That is the point of them &mdash; one thing you care about, always in the same place &mdash; but it does mean an item chest quietly outranks the rest of your sorting room for that one item.</p>
-    <p><b>Short name or full id.</b> The short form is just the id with the mod name taken off, and it exists whenever it fits on a sign line. Where two mods both add something with the same short name, that one chest collects both.</p>
-    <div class="tablewrap">
-    <table>
-      <thead><tr><th scope="col">Sign</th><th scope="col">Takes</th></tr></thead>
-      <tbody>
-        <tr><td><code>[lead]</code></td><td>Leads</td></tr>
-        <tr><td><code>[minecraft:lead]</code></td><td>The same thing, written the long way</td></tr>
-        <tr><td><code>[oak_sapling]</code></td><td>Oak saplings</td></tr>
-        <tr><td><code>[acacia_chair]</code></td><td>Acacia chairs from <em>both</em> furniture mods</td></tr>
-      </tbody>
-    </table>
-    </div>
-    <p><b>Don't type long ids by hand.</b> A sign line only holds about fifteen characters, which is not enough for most modded item ids. Hold the item, look at the sign and run <code>/signitem</code> &mdash; it writes the name for you, split across the sign's lines so it still fits inside the sign. A name split that way sorts exactly as if it were on one line.</p>
-    <p>Unsure what an item is called? <code>/sort category &lt;item&gt;</code> lists every chest name that would take it.</p>
+    <p><b>Don't type them by hand.</b> A sign line holds about fifteen characters, nowhere near enough for most modded ids. Hold the item, look at the sign, and run <code>/signitem</code> &mdash; it writes the id for you, split across the sign's lines so it still sits inside the sign. A name split that way sorts exactly as if it were on one line.</p>
+    <p>Not sure what something is called? <code>/sort category &lt;item&gt;</code> lists every chest name that would take it, and <b>F3 + H</b> turns on tooltips that show an item's id.</p>
 
     <h3>A chest for one mod</h3>
     <p>Any mod's own name works as a category. Sign a chest <code>[horsegenetics]</code> and everything from Procedural Horse Coats lands in it; <code>[ae2]</code>, <code>[mekanism]</code>, <code>[occultism]</code>, <code>[railcraft]</code> and 182 others all work the same way.</p>
