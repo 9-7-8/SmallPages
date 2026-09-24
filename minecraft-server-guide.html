@@ -147,6 +147,42 @@
   .callout.lit { border-left-color: var(--neon-deep); }
   .callout.lit b { color: var(--neon); }
 
+  /* --------------------------------------------------- download box --- */
+
+  .grabpack {
+    display: block;
+    margin: 1.8rem 0 0;
+    padding: 1.3rem 1.5rem;
+    border: 1px solid var(--neon-deep);
+    box-shadow: inset var(--glow-soft);
+  }
+  .grabpack:hover, .grabpack:focus-visible {
+    border-color: var(--neon-hot);
+    box-shadow: inset var(--glow);
+  }
+  .grabpack .k {
+    display: block;
+    font-size: 1.35rem;
+    line-height: 1.2;
+    color: var(--neon);
+  }
+  .grabpack .t {
+    display: block;
+    margin-top: 0.4rem;
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    word-break: break-all;
+  }
+  .grabpack .n {
+    display: block;
+    margin-top: 0.75rem;
+    font-size: 0.85rem;
+    line-height: 1.6;
+    color: var(--text-faint);
+    max-width: 54ch;
+  }
+
   /* Monochrome theme, so state is intensity, not hue. */
   .tag {
     display: inline-block;
@@ -264,6 +300,12 @@
       361 mods
     </div>
   </div>
+
+  <a class="grabpack" href="http://skyfaller.taild8de30.ts.net:8080/">
+    <span class="k">Download the pack &rarr;</span>
+    <span class="t">skyfaller.taild8de30.ts.net:8080</span>
+    <span class="n">The full pack and the latest update pack, always current. It only loads while Tailscale is connected &mdash; which makes opening it the quickest way to check that it is.</span>
+  </a>
 
   <div class="tabscroll">
     <div class="seg" role="tablist" aria-label="Handbook sections">
