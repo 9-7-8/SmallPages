@@ -134,6 +134,27 @@
   }
   .backdrop-row.solid input[type="color"] { display: block; }
 
+  /* A model button says how far that model has got with this image: faint
+     until it has a cut to show, with a pulse while it works on one, and red
+     when it couldn't run. It stays clickable throughout — clicking is how a
+     model that hasn't started is asked to. */
+  .seg button[data-state="idle"],
+  .seg button[data-state="running"] { color: var(--text-faint); }
+  .seg button[data-state="running"]::after {
+    content: "";
+    display: inline-block;
+    width: 0.4em;
+    height: 0.4em;
+    margin-left: 0.45em;
+    vertical-align: middle;
+    border-radius: 50%;
+    background: currentColor;
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+  @keyframes pulse { 50% { opacity: 0.25; } }
+  .seg button[data-state="failed"] { color: #ff5c5c; }
+  .seg button[data-state="failed"][aria-pressed="true"] { border-color: #ff5c5c; }
+
   .meta-line { font-size: 0.8rem; margin-top: 0.9rem; }
 
   .note { font-size: 0.78rem; margin-top: 1.2rem; max-width: 60ch; }
@@ -179,8 +200,8 @@
           <label>Method</label>
           <div class="seg" id="methodSeg">
             <button data-method="flat" aria-pressed="true">Flat / checker</button>
-            <button data-method="model" aria-pressed="false">Subject model</button>
-            <button data-method="detailed" aria-pressed="false">Detailed model</button>
+            <button data-method="model" data-state="idle" aria-pressed="false">Subject model</button>
+            <button data-method="detailed" data-state="idle" aria-pressed="false">Detailed model</button>
           </div>
         </div>
 
@@ -255,7 +276,7 @@
     </div>
   </div>
 
-  <p class="note"><strong>Flat colour</strong> reads the colour off the one-pixel ring around the image and floods it inwards from the edges. Because the flood can only start at the border, colour walled in by an outline &mdash; the white inside a line drawing, the sky through a window &mdash; is never reached, and stays. A fake-transparency checkerboard baked into the pixels (the kind that comes with a &ldquo;transparent PNG&rdquo; that isn't) is recognised too: when the border is two greys taking turns, both of them and every blend between them are flooded, and any walled-in patch that is clearly squares of both greys goes as well, while a patch of just one of them stays. Raise the tolerance for a noisy or JPEG-compressed backdrop, lower it when something in the picture is close to the backdrop colour. It needs no model and no download, and it's what you see first every time.</p>
+  <p class="note"><strong>Flat colour</strong> reads the colour off the one-pixel ring around the image and floods it inwards from the edges. Because the flood can only start at the border, colour walled in by an outline &mdash; the white inside a line drawing, the sky through a window &mdash; is never reached, and stays. A fake-transparency checkerboard baked into the pixels (the kind that comes with a &ldquo;transparent PNG&rdquo; that isn't) is recognised too: when the border is two greys taking turns, the page works out the size and position of the squares from it, so it knows which grey every pixel <em>should</em> be. Checkerboard matches that almost everywhere; a white part of the picture only matches on the white squares. So checkerboard walled in by the drawing &mdash; the loop of a tail, the gap under an arm &mdash; goes however small it is, and white in the picture stays even where it touches the backdrop with no outline between them. Raise the tolerance for a noisy or JPEG-compressed backdrop, lower it when something in the picture is close to the backdrop colour. It needs no model and no download, and it's what you see first every time.</p>
 
   <p class="note"><strong>Subject model</strong> is <a href="https://github.com/imgly/background-removal-js">@imgly/background-removal</a>, an ISNet segmentation model running under ONNX Runtime, <a href="vendor/">bundled into this repo</a> so the page doesn't depend on anyone else's script host. It's the one for photographs, where there is no single backdrop colour to pull, and unless you've picked the detailed model it starts the moment an image lands rather than waiting to be asked &mdash; on a backdrop the border says isn't flat it takes the view as soon as it finishes, and on a flat one it waits under the Method control for you to compare. This page asks it for the full-precision model rather than the quantized default: about 80&nbsp;MB to fetch the first time, cached by your browser after that.</p>
 
@@ -630,19 +651,194 @@ function analyseBackground(canvas) {
     const pairCoverage = coverageOf(pair);
     const share = (c) => coverageOf(makeBackdrop(c)) - (ring ? clear / ring : 0);
     if (pairCoverage >= BORDER.coverage && share(colour) >= CHECKER.share && share(second) >= CHECKER.share) {
-      return { ...pair, coverage: pairCoverage, plain: true, checker: true };
+      return { ...pair, coverage: pairCoverage, plain: true, checker: true, grid: findGrid(data, w, h, pair) };
     }
   }
 
   return { ...flat, coverage, plain: false, checker: false };
 }
 
+// Where the squares are. A checkerboard is two greys taking turns on a regular
+// grid, and once the grid is known every pixel has a grey it *should* be:
+// real checkerboard matches that almost everywhere, while a white patch of
+// the picture only matches on the white squares and fails on every grey one.
+// That difference is what lets the flood tell a pocket of checkerboard from
+// the white inside a drawing, whatever their size and whether or not an
+// outline separates them.
+//
+// The grid is read off the border like the colours were: every change of tone
+// along the edge is a square boundary, and the spacing and offset that line
+// the most of them up are the square size and phase. Returns null when the
+// border doesn't agree on one — a grid that's wrong would do more harm than
+// no grid at all.
+function findGrid(data, w, h, bg) {
+  const tone = (p) => {
+    const i = p * 4;
+    if (data[i + 3] < ALPHA_FLOOR) return -1;
+    if (backdropDistance(data[i], data[i + 1], data[i + 2], bg) > BORDER.match) return -1;
+    const t = backdropT(data[i], data[i + 1], data[i + 2], bg);
+    return t < 0.3 ? 0 : t > 0.7 ? 1 : 2;              // 2: a blend where squares meet
+  };
+
+  // Square boundaries along one line of pixels, in pixel-edge coordinates.
+  const edgesAlong = (count, at, out) => {
+    let last = -1, lastAt = -1;
+    for (let k = 0; k < count; k++) {
+      const c = tone(at(k));
+      if (c === -1) { last = -1; continue; }           // something in the way
+      if (c === 2) continue;
+      if (last !== -1 && c !== last && k - lastAt <= 3) out.push((lastAt + 1 + k) / 2);
+      last = c;
+      lastAt = k;
+    }
+  };
+  const xs = [], ys = [], xRuns = [], yRuns = [];
+  for (const y of [0, 1, h - 2, h - 1]) {
+    if (y < 0 || y >= h) continue;
+    const line = [];
+    edgesAlong(w, (k) => y * w + k, line);
+    xs.push(...line);
+    for (let k = 1; k < line.length; k++) xRuns.push(line[k] - line[k - 1]);
+  }
+  for (const x of [0, 1, w - 2, w - 1]) {
+    if (x < 0 || x >= w) continue;
+    const line = [];
+    edgesAlong(h, (k) => k * w + x, line);
+    ys.push(...line);
+    for (let k = 1; k < line.length; k++) yRuns.push(line[k] - line[k - 1]);
+  }
+  const runs = xRuns.concat(yRuns).sort((a, b) => a - b);
+  if (xs.length < 4 || ys.length < 4 || runs.length < 4) return null;
+
+  // The commonest run is one square; refine it by how tightly it lines every
+  // boundary up, and take the phase from where they line up.
+  const guess = runs[runs.length >> 1];
+  if (guess < 3) return null;                          // too fine to tell squares from noise
+  const pull = (list, size) => {
+    let c = 0, s = 0;
+    for (const v of list) { const a = 2 * Math.PI * v / size; c += Math.cos(a); s += Math.sin(a); }
+    return { strength: Math.hypot(c, s) / list.length, angle: Math.atan2(s, c) };
+  };
+  let best = null;
+  for (let size = guess * 0.85; size <= guess * 1.15; size += guess / 600) {
+    const px = pull(xs, size), py = pull(ys, size);
+    const score = px.strength + py.strength;
+    if (!best || score > best.score) best = { score, size, px, py };
+  }
+  if (best.px.strength < 0.85 || best.py.strength < 0.85) return null;
+
+  const size = best.size;
+  const wrap = (v) => ((v % size) + size) % size;
+  const grid = {
+    size,
+    x0: wrap(best.px.angle / (2 * Math.PI) * size),
+    y0: wrap(best.py.angle / (2 * Math.PI) * size),
+    even: 0,
+  };
+
+  // Which grey the even squares are, by a vote of the border pixels away from
+  // the boundaries that cross the border — and if the vote isn't close to
+  // unanimous, no grid. (The image's own edge often lies along a boundary
+  // too, which is why only the crossing ones count.)
+  let agree = 0, votes = 0;
+  eachBorderPixel(w, h, (p) => {
+    const c = tone(p);
+    if (c !== 0 && c !== 1) return;
+    const x = p % w, y = (p / w) | 0;
+    const cell = gridCell(grid, x, y);
+    const across = y === 0 || y === h - 1 ? cell.edgeX : cell.edgeY;
+    if (across < 1) return;
+    votes++;
+    if ((cell.parity === 0) === (c === 0)) agree++;
+  });
+  if (votes < 16) return null;
+  if (agree / votes < 0.5) { grid.even = 1; agree = votes - agree; }
+  return agree / votes >= 0.9 ? grid : null;
+}
+
+// Which square a pixel's centre falls in (by parity) and how far, in pixels,
+// that centre is from the nearest square boundary — overall, and across x and y.
+function gridCell(grid, x, y) {
+  const u = (x + 0.5 - grid.x0) / grid.size, v = (y + 0.5 - grid.y0) / grid.size;
+  const cu = Math.floor(u), cv = Math.floor(v);
+  const edgeX = Math.min(u - cu, cu + 1 - u) * grid.size;
+  const edgeY = Math.min(v - cv, cv + 1 - v) * grid.size;
+  return { parity: (cu + cv) & 1, edge: Math.min(edgeX, edgeY), edgeX, edgeY };
+}
+
+// Share of the backdrop-coloured pixels around each pixel that are the grey
+// the grid says belongs there. Checkerboard scores close to 1; a white patch
+// of the picture, matching on only half its squares, scores well under.
+function checkerScore(data, w, h, bg, tol) {
+  const n = w * h, grid = bg.grid;
+  const match = new Float32Array(n), colour = new Float32Array(n);
+
+  // The grid is separable, so each column's and each row's square parity and
+  // distance to a boundary are worked out once rather than per pixel.
+  const axis = (count, origin) => {
+    const parity = new Uint8Array(count), edge = new Float32Array(count);
+    for (let k = 0; k < count; k++) {
+      const u = (k + 0.5 - origin) / grid.size, c = Math.floor(u);
+      parity[k] = c & 1;
+      edge[k] = Math.min(u - c, c + 1 - u) * grid.size;
+    }
+    return { parity, edge };
+  };
+  const cols = axis(w, grid.x0), rows = axis(h, grid.y0);
+
+  const c0 = bg.colour, sp = bg.span, len2 = bg.len2, tol2 = tol * tol;
+  for (let y = 0; y < h; y++) {
+    const rowParity = rows.parity[y], rowEdge = rows.edge[y];
+    for (let x = 0; x < w; x++) {
+      const p = y * w + x, i = p * 4;
+      if (data[i + 3] < ALPHA_FLOOR) { match[p] = colour[p] = 1; continue; }
+      // backdropT and backdropDistance, inlined: this runs per pixel on every
+      // move of the tolerance slider.
+      const r = data[i] - c0[0], g = data[i + 1] - c0[1], b = data[i + 2] - c0[2];
+      let t = (r * sp[0] + g * sp[1] + b * sp[2]) / len2;
+      t = t < 0 ? 0 : t > 1 ? 1 : t;
+      const dr = r - t * sp[0], dg = g - t * sp[1], db = b - t * sp[2];
+      if (dr * dr + dg * dg + db * db > tol2) continue;
+      colour[p] = 1;
+      // Right on a boundary either grey, or any blend of them, is fair.
+      if (rowEdge < 0.5 || cols.edge[x] < 0.5) { match[p] = 1; continue; }
+      const want = (rowParity ^ cols.parity[x]) === 0 ? grid.even : 1 - grid.even;
+      match[p] = (want === 0 ? t < 0.5 : t > 0.5) ? 1 : 0;
+    }
+  }
+  const radius = Math.max(2, Math.round(grid.size));
+  const tmp = new Float32Array(n);
+  const mMatch = boxMean(match, w, h, radius, new Float32Array(n), tmp);
+  const mColour = boxMean(colour, w, h, radius, new Float32Array(n), tmp);
+  for (let p = 0; p < n; p++) mMatch[p] = mColour[p] > 0 ? mMatch[p] / mColour[p] : 0;
+  return mMatch;
+}
+
+// The score reads the pattern, not the cut, so it's taken at a fixed, fairly
+// generous tolerance and kept per image: moving the tolerance slider re-runs
+// the flood, and a second's worth of scoring each time would make it drag.
+const SCORE_TOLERANCE = 48;
+const scoreCache = new WeakMap();
+
+function cachedCheckerScore(src, data, w, h, bg) {
+  const held = scoreCache.get(src);
+  if (held && held.grid === bg.grid) return held.score;
+  const score = checkerScore(data, w, h, bg, SCORE_TOLERANCE);
+  scoreCache.set(src, { grid: bg.grid, score });
+  return score;
+}
+
+const CHECKER_SCORE = {
+  keep: 0.75,       // a flooded pixel scoring under this is picture, and stays
+  pocket: 0.85,     // an enclosed pixel scoring at least this is checkerboard, and goes
+};
+
 // Enclosed pockets of checkerboard — the gap between an arm and a body, the
 // hole in a letter — are walled off from the edge like the white inside a line
-// drawing, but unlike it they are never part of the picture. A pocket is taken
-// for checkerboard when both tones are well represented in it and little of it
-// sits in between them, which is what sets squares apart from a smooth grey
-// gradient in the subject.
+// drawing, but unlike it they are never part of the picture. When the grid
+// couldn't be read off the border, a pocket is taken for checkerboard when both
+// tones are well represented in it and little of it sits in between them,
+// which is what sets squares apart from a smooth grey gradient in the subject.
 const POCKET = {
   share: 0.15,      // each tone's minimum share of the pocket
   blend: 0.3,       // most of the pocket allowed to be halfway between the tones
@@ -691,10 +887,43 @@ function flatCutout(src, bg, tol) {
     if (p < (h - 1) * w) visit(p + w);
   }
 
-  // On a checkerboard, go looking for the pockets the flood couldn't reach.
-  // Each is gathered, judged, and either flooded away or left alone.
+  // With the grid known, every pixel can be asked whether it looks like
+  // checkerboard where it stands. The flood gives back anything that doesn't —
+  // a white patch of the picture that touches the backdrop with no outline
+  // between them — and anything walled off that does is a pocket, and goes.
   let pockets = 0;
-  if (bg.second) {
+  if (bg.second && bg.grid) {
+    const score = cachedCheckerScore(src, data, w, h, bg);
+    const POCKET_MARK = 3;
+    for (let p = 0; p < state.length; p++) {
+      if (state[p] === 1) {
+        if (score[p] < CHECKER_SCORE.keep) state[p] = 0;
+      } else if (score[p] >= CHECKER_SCORE.pocket && isBackground(p)) {
+        state[p] = POCKET_MARK;
+      }
+    }
+    // Count the pockets for the status line while clearing their marks. Slivers
+    // along an outline that the flood just missed go too, but aren't worth
+    // counting: a pocket is at least half a square.
+    const worthCounting = Math.max(16, bg.grid.size * bg.grid.size / 2);
+    for (let seed = 0; seed < state.length; seed++) {
+      if (state[seed] !== POCKET_MARK) continue;
+      let size = 0;
+      state[seed] = 1;
+      push(seed);
+      while (top > 0) {
+        const p = stack[--top];
+        size++;
+        const x = p % w;
+        if (x > 0 && state[p - 1] === POCKET_MARK) { state[p - 1] = 1; push(p - 1); }
+        if (x < w - 1 && state[p + 1] === POCKET_MARK) { state[p + 1] = 1; push(p + 1); }
+        if (p >= w && state[p - w] === POCKET_MARK) { state[p - w] = 1; push(p - w); }
+        if (p < (h - 1) * w && state[p + w] === POCKET_MARK) { state[p + w] = 1; push(p + w); }
+      }
+      if (size >= worthCounting) pockets++;
+    }
+  } else if (bg.second) {
+    // No grid to go by, so each walled-off pocket is judged as a whole.
     const POCKET_MARK = 255;           // "looked at", cleared once judging is done
     const members = [];
     for (let seed = 0; seed < state.length; seed++) {
@@ -1502,6 +1731,7 @@ function present(canvas) {
 // One line, assembled from whichever cut is on screen and whatever the
 // models are up to, so they never fight over the status.
 function refreshStatus() {
+  syncModelButtons();
   if (method !== "flat") {
     const cut = cuts[method];
     if (cut.state === "ready") return setStatus(cut.message);
@@ -1509,6 +1739,25 @@ function refreshStatus() {
     return setStatus(`Waiting on ${MODEL_NAMES[method]} — the flood is on screen until it lands.`);
   }
   setStatus(`${flatMessage}${modelNote()}`);
+}
+
+const MODEL_HINTS = {
+  model: "about 80 MB the first time",
+  detailed: "about 224 MB the first time",
+};
+
+function syncModelButtons() {
+  for (const btn of methodSeg.querySelectorAll("button[data-method]")) {
+    const key = btn.dataset.method;
+    if (key === "flat") continue;
+    const cut = cuts[key];
+    const state = cut ? cut.state : "idle";
+    btn.dataset.state = state;
+    btn.title = state === "ready" ? "Ready — this image's cut is done"
+      : state === "running" ? "Working on this image"
+      : state === "failed" ? `Couldn't run: ${cut.fault} — click to try again`
+      : `Not loaded yet — click to run it (${MODEL_HINTS[key]})`;
+  }
 }
 
 function modelNote() {
