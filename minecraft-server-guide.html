@@ -324,7 +324,7 @@
   <!-- ===================== FIRST JOIN ===================== -->
   <section class="panel" id="panel-join" role="tabpanel" aria-labelledby="tab-join" tabindex="0">
     <h2>First join</h2>
-    <p class="lede">Four things to get in place before Minecraft will even let you knock: Tailscale, LocalSend, the right NeoForge build, and the pack itself. Follow these in order &mdash; each one depends on the one above it, and the Tailscale steps in particular only work in the order given.</p>
+    <p class="lede">Four things to get in place before Minecraft will even let you knock: Tailscale, LocalSend, the right NeoForge build, and the pack itself. Follow these in order &mdash; each one depends on the one above it.</p>
 
     <div class="callout lit"><p><b>NeoForge must be 26.1.2.109 or above.</b> This is the single most common reason a client won't start. Anything older is refused &mdash; and the error blames a mod rather than the version, so it is easy to misread.</p></div>
 
@@ -332,24 +332,20 @@
 
     <h3>Getting on the network</h3>
     <p>The server isn't on the open internet. It lives on a private <a href="https://tailscale.com/" target="_blank" rel="noopener">Tailscale</a> network, so there is nothing to port-forward and nothing for strangers to find &mdash; but you have to be let in first.</p>
+    <p>Isabel shares <b>one machine</b> with you: the server. You are not joining her network, and you cannot see anything else on it &mdash; which is why this is now four steps rather than the six it used to be.</p>
 
     <ol class="steps">
       <li><div><b>Make a Tailscale account first.</b>
-        <p>Sign up at <a href="https://login.tailscale.com/start" target="_blank" rel="noopener">tailscale.com</a> before you install anything. Use whichever account you gave Isabel &mdash; Google, Microsoft, GitHub, whatever you told her. <b>It has to be that one</b>, because the invite is tied to it.</p></div></li>
+        <p>Sign up at <a href="https://login.tailscale.com/start" target="_blank" rel="noopener">tailscale.com</a> before you install anything. <b>Any account will do</b> &mdash; Google, Microsoft, GitHub, a plain email address. It does not have to match anything you told Isabel.</p>
+        <p>You are making your own free account here, not joining hers, and it stays that way.</p></div></li>
       <li><div><b>Then download and install Tailscale.</b>
         <p>Get it from <a href="https://tailscale.com/download" target="_blank" rel="noopener">tailscale.com/download</a> and sign in with the account you just made.</p></div></li>
-      <li><div><b>Open Isabel's invite link and join.</b>
-        <p>She sends you a join link. Open it while signed in and accept it.</p></div></li>
-      <li><div><b>Now log out of Tailscale, and log straight back in.</b>
-        <p>This is the step everyone misses, and nothing works without it. Joining someone else's network doesn't move you onto it &mdash; you stay on your own until you sign in again.</p>
-        <p>Quit Tailscale or use <em>Log out</em> from its menu, then log in again with the same account.</p></div></li>
-      <li><div><b>Pick Isabel's network when it asks.</b>
-        <p>Logging back in offers you a choice of networks, because you are now in two. Choose Isabel's &mdash; not your own. It's the one that looks like this:</p>
-        <p><b>isa*******rick@gmail.com</b> &nbsp;<span class="hint">&mdash; middle hidden here; Tailscale shows it in full, so match the start and the ending</span></p>
-        <p>Picking the wrong one leaves you connected to Tailscale and still unable to see the server, which looks identical to it being broken.</p></div></li>
-      <li><div><b>Launch Tailscale once more, and check it says Connected.</b>
+      <li><div><b>Open Isabel's share link and accept it.</b>
+        <p>She sends you a link. Open it while signed in to Tailscale, and accept. That hands you the server and nothing else.</p>
+        <p>There is <b>no network to switch to</b>, nothing to log out of, and nothing to pick from a list. If anyone talks you through those steps, they are describing the old way.</p></div></li>
+      <li><div><b>Check Tailscale says Connected.</b>
         <p>Leave it running whenever you play. If Tailscale is off, the server simply won't appear in your list.</p>
-        <p><b>The test:</b> open <a href="http://skyfaller.taild8de30.ts.net:8080/">the downloads page</a>. It exists only on Isabel's network, so <b>if that page loads, you are in the right place</b> and everything above worked. If it doesn't load, you are not on her network yet &mdash; go back to the log-out step.</p></div></li>
+        <p><b>The test:</b> open <a href="http://skyfaller.taild8de30.ts.net:8080/">the downloads page</a>. It lives on the shared machine and nowhere else, so <b>if that page loads, everything above worked</b>. If it doesn't, open the share link again and check that it really says accepted.</p></div></li>
       <li><div><b>Install <a href="https://localsend.org/" target="_blank" rel="noopener">LocalSend</a> &mdash; optional, as a fallback.</b>
         <p>You will normally download the pack from the link in the next step. LocalSend is worth having anyway for when that is not an option: it is free, open source, on every platform, and sends a file straight from one machine to another with no upload in between.</p></div></li>
       <li><div><b>Download the pack.</b>
@@ -408,7 +404,7 @@
       <h3>Where to read more</h3>
       <p>The tools and mods this page leans on, each on its own documentation.</p>
       <ul class="linklist full">
-        <li><span class="who"><a href="https://tailscale.com/kb/1017/install" target="_blank" rel="noopener">Tailscale</a></span><span class="what">Installing it and accepting an invite, on every platform <span class="host">tailscale kb</span></span></li>
+        <li><span class="who"><a href="https://tailscale.com/kb/1017/install" target="_blank" rel="noopener">Tailscale</a></span><span class="what">Installing it and accepting a shared machine, on every platform <span class="host">tailscale kb</span></span></li>
         <li><span class="who"><a href="https://localsend.org/" target="_blank" rel="noopener">LocalSend</a></span><span class="what">Sending a file device-to-device, including adding a device by hand <span class="host">localsend.org</span></span></li>
         <li><span class="who"><a href="https://projects.neoforged.net/neoforged/neoforge" target="_blank" rel="noopener">NeoForge</a></span><span class="what">Every 26.1.2 build listed, so you can pick <code>.109</code> exactly <span class="host">neoforged.net</span></span></li>
         <li><span class="who"><a href="https://docs.feed-the-beast.com/mod-docs/mods/suite/Quests/" target="_blank" rel="noopener">FTB Quests</a></span><span class="what">How the quest book works, and how to read what a quest is asking for <span class="host">ftb docs</span></span></li>
