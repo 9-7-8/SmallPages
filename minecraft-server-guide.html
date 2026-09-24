@@ -636,7 +636,9 @@
     </table>
     </div>
 
-    <p><b><code>[wood]</code> takes more than logs and planks.</b> Wooden stairs, wooden slabs, sticks and ladders all go there too, ahead of <code>[shapes]</code> &mdash; so a wood chest collects a whole tree's worth of material instead of leaving the stairs in with the stone ones. Wooden doors, fences and trapdoors stay in <code>[shapes]</code>. If you have not built a <code>[wood]</code> chest none of this changes anything: they fall through to <code>[shapes]</code> exactly as before.</p>
+    <p><b><code>[wood]</code> and <code>[stone]</code> go by what a thing is made of.</b> Anything made <b>entirely</b> of wood lands in <code>[wood]</code> &mdash; planks and logs, but also doors, fences, gates, trapdoors, buttons, pressure plates, stairs, slabs, signs, boats, bowls, ladders and sticks. Anything made entirely of stone or cobblestone lands in <code>[stone]</code> the same way &mdash; walls, stone stairs and slabs, furnaces. Both beat <code>[shapes]</code>.</p>
+    <p><b>What a thing is FOR still beats what it is made of.</b> A wooden pickaxe is still <code>[pickaxes]</code>, a chest and a barrel are still <code>[containers]</code>, and charcoal is still <code>[coal]</code> even though it is smelted from logs and so counts as wood quite literally. Mixed things belong to neither: a lever is cobblestone and a stick, so it stays where it was.</p>
+    <p>If you have not built a <code>[wood]</code> or <code>[stone]</code> chest, none of this changes anything &mdash; those items fall through to <code>[shapes]</code> and <code>[bulk]</code> exactly as before.</p>
 
     <h3>Four that sort by what happened to an item</h3>
     <p>These are checked before everything above, so they win over the ordinary category for that item type. Each one is inert until you build its chest.</p>
