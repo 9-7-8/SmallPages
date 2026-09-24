@@ -574,8 +574,9 @@
 
     <ol class="steps">
       <li><div><b>Put chests down and label each one with a sign.</b>
-        <p>Place a chest, then put a sign on it &mdash; on the front, on top, either is fine. On the <b>first line</b> write a category name in square brackets: <code>[ores]</code>, <code>[food]</code>, <code>[wood]</code>.</p>
-        <p>The sign has to be <b>on its own chest</b>, because that's how SortCraft knows which chest you meant. A wall sign reads the block it's stuck to.</p></div></li>
+        <p>Place a chest, then put a <b>wall sign</b> on the side of it, and write a category name in square brackets on any line: <code>[ores]</code>, <code>[food]</code>, <code>[wood]</code>.</p>
+        <p>It has to be a <b>wall sign</b> &mdash; one stuck to the side of the block. A standing sign on top of the chest does nothing, and neither does a hanging sign: SortCraft finds the chest by looking at what the wall sign is attached to, and those two aren't attached to anything. This is the single most common reason a chest never fills.</p>
+        <p>All four lines are read, front and back, so the other lines are yours to label with.</p></div></li>
       <li><div><b>Put down one more chest and label it <code>[input]</code>.</b>
         <p>This is the bucket you dump everything into when you get home. It doesn't need to be next to the others &mdash; see the range note below.</p></div></li>
       <li><div><b>Dump your loot in, then right-click the <code>[input]</code> sign.</b>
@@ -590,7 +591,21 @@
     <div class="callout"><p><b>One sign per chest, one chest per category.</b> Double chests count as a single chest, so a double chest is the easy way to give a busy category more room.</p></div>
 
     <h3>What counts as a chest</h3>
-    <p>Anything that holds items, not just wooden chests. Barrels work, <a href="https://github.com/P3pp3rF1y/SophisticatedStorage/wiki" target="_blank" rel="noopener">Sophisticated Storage</a> barrels and chests work, and <a href="https://www.curseforge.com/minecraft/mc-mods/functional-storage" target="_blank" rel="noopener">Functional Storage</a> drawers work &mdash; which makes drawers an excellent destination for bulk categories like cobblestone and dirt.</p>
+    <p>Anything that holds items, not just wooden chests. Barrels work, <a href="https://github.com/P3pp3rF1y/SophisticatedStorage/wiki" target="_blank" rel="noopener">Sophisticated Storage</a> barrels and chests work, and <a href="https://www.curseforge.com/minecraft/mc-mods/functional-storage" target="_blank" rel="noopener">Functional Storage</a> drawers work &mdash; and drawers are worth a section of their own, below.</p>
+
+    <h3>Drawers, and one sign for a whole column</h3>
+    <p>A sign labels the container it is stuck to <b>and every storage block directly underneath it</b>. SortCraft walks straight down from the signed container and keeps going until it hits something that isn't storage, or a container that carries a sign of its own.</p>
+    <p>That is what makes drawers work properly. Put a <a href="https://www.curseforge.com/minecraft/mc-mods/functional-storage" target="_blank" rel="noopener">Functional Storage</a> drawer down, sign it <code>[ingots]</code>, then stack five more drawers below it &mdash; no more signs &mdash; and that one category now has six drawers' worth of room. A drawer holds one item type per slot in enormous quantity, so this is far and away the best home for the bulk categories: <code>[ingots]</code>, <code>[stone]</code>, <code>[wood]</code>, <code>[crops]</code>.</p>
+    <ol class="steps">
+      <li><div><b>Build the column downward, not sideways.</b><p>The sign goes on the top container. Anything beside it is a separate chest that needs its own sign.</p></div></li>
+      <li><div><b>Seed the drawers before the first big sort, or lock them.</b><p>An empty drawer slot takes whatever arrives first and then only accepts that one item. SortCraft asks each slot whether it will take an item and never forces a wrong one in &mdash; but it does mean the first sort decides what each slot becomes. If you want a particular layout, put one of each item in by hand first, and a lock upgrade keeps it that way even when the drawer empties.</p></div></li>
+      <li><div><b>If it's full, nothing is lost.</b><p>Items with nowhere to go stay in the input chest. They are never dropped or destroyed.</p></div></li>
+    </ol>
+    <p>Barrels and <a href="https://github.com/P3pp3rF1y/SophisticatedStorage/wiki" target="_blank" rel="noopener">Sophisticated Storage</a> chests stack the same way, so you can mix them in a column.</p>
+
+    <h3>Shulker boxes in the input</h3>
+    <p>Drop a shulker box or a bundle into the input chest and SortCraft <b>empties it and sorts what was inside</b>, which makes a shulker box the natural way to carry a mining trip home in one slot.</p>
+    <p>The exception is a box that holds <b>ten or more stacks of the same thing</b>. That reads as deliberate storage rather than luggage, so the box is filed whole, as an item, instead of being unpacked.</p>
 
     <h3>Start with six chests</h3>
     <p>There are 57 categories, plus one for every mod in the pack, but you do not need to care about that yet. Sign six chests with these and you have covered nearly everything the game will throw at you:</p>
@@ -630,6 +645,24 @@
       <li><span class="act"><code>[enchanted_books]</code></span><span class="desc">Exactly what it says</span></li>
     </ul>
 
+    <h3>A chest for exactly one item</h3>
+    <p>Every single item in the pack is its own category. Sign a chest <code>[lead]</code> and it takes leads and nothing else. The full id works too: <code>[minecraft:lead]</code> is the same chest.</p>
+    <p><b>These beat everything.</b> A chest signed <code>[minecraft:diamond_pickaxe]</code> takes every diamond pickaxe, even a renamed, enchanted or nearly-broken one, ahead of <code>[named]</code>, <code>[damaged]</code> and <code>[pickaxes]</code>. That is the point of them &mdash; one thing you care about, always in the same place &mdash; but it does mean an item chest quietly outranks the rest of your sorting room for that one item.</p>
+    <p><b>Short name or full id.</b> The short form is just the id with the mod name taken off, and it exists whenever it fits on a sign line. Where two mods both add something with the same short name, that one chest collects both.</p>
+    <div class="tablewrap">
+    <table>
+      <thead><tr><th scope="col">Sign</th><th scope="col">Takes</th></tr></thead>
+      <tbody>
+        <tr><td><code>[lead]</code></td><td>Leads</td></tr>
+        <tr><td><code>[minecraft:lead]</code></td><td>The same thing, written the long way</td></tr>
+        <tr><td><code>[oak_sapling]</code></td><td>Oak saplings</td></tr>
+        <tr><td><code>[acacia_chair]</code></td><td>Acacia chairs from <em>both</em> furniture mods</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p><b>Don't type long ids by hand.</b> A sign line only holds about fifteen characters, which is not enough for most modded item ids. Hold the item, look at the sign and run <code>/signitem</code> &mdash; it writes the name for you, split across the sign's lines so it still fits inside the sign. A name split that way sorts exactly as if it were on one line.</p>
+    <p>Unsure what an item is called? <code>/sort category &lt;item&gt;</code> lists every chest name that would take it.</p>
+
     <h3>A chest for one mod</h3>
     <p>Any mod's own name works as a category. Sign a chest <code>[horsegenetics]</code> and everything from Procedural Horse Coats lands in it; <code>[ae2]</code>, <code>[mekanism]</code>, <code>[occultism]</code>, <code>[railcraft]</code> and 182 others all work the same way.</p>
     <p>The name to write is the mod's <b>id</b>, which is the part before the colon in an item's id rather than its pretty name. Press <b>F3 + H</b> once to turn on advanced tooltips and every item shows you its id; <code>/sort category &lt;item&gt;</code> will also tell you, and it names the mod chest along with the normal one.</p>
@@ -643,12 +676,13 @@
       <li><span class="act"><code>/sort category &lt;item&gt;</code></span><span class="desc">Tells you which category an item belongs to, so you know which chest to build</span></li>
       <li><span class="act"><code>/sort whereis &lt;item&gt;</code></span><span class="desc">Finds where something is already stored and <b>highlights those chests with a glowing outline you can see through walls</b></span></li>
       <li><span class="act"><code>/sort input</code></span><span class="desc">Sorts the nearest input chest, if reaching the sign is awkward</span></li>
+      <li><span class="act"><code>/signitem</code></span><span class="desc"><b>Hold an item, look at a sign, run this and the sign labels itself for that item.</b> Saves typing a long id by hand. <code>/signitem add</code> writes into the sign's empty lines instead of clearing it</span></li>
       <li><span class="act"><code>/sort help</code></span><span class="desc">The full list</span></li>
     </ul>
 
     <h3>When it doesn't work</h3>
     <ul>
-      <li><b>Nothing moved.</b> The sign text has to match a category name exactly, brackets included, and it has to be on the <b>first line</b> of the front of the sign.</li>
+      <li><b>Nothing moved.</b> The sign text has to match a category name exactly, brackets included &mdash; though it can be on any line, front or back. If the whole chest is ignored, check the sign is a <b>wall sign on the side</b> and not a standing sign on top.</li>
       <li><b>Some items stayed behind.</b> That's correct behaviour &mdash; they don't match any category yet. Run <code>/sort category</code> on one and say so in chat if it looks like it should have a home.</li>
       <li><b>One chest never fills.</b> Check that its sign is actually attached to that chest and not to the block beside it.</li>
       <li><b>A chest filled up.</b> Items that don't fit stay in the input. Make it a double chest, or point that category at a drawer.</li>
