@@ -593,7 +593,7 @@
     <p>Anything that holds items, not just wooden chests. Barrels work, <a href="https://github.com/P3pp3rF1y/SophisticatedStorage/wiki" target="_blank" rel="noopener">Sophisticated Storage</a> barrels and chests work, and <a href="https://www.curseforge.com/minecraft/mc-mods/functional-storage" target="_blank" rel="noopener">Functional Storage</a> drawers work &mdash; which makes drawers an excellent destination for bulk categories like cobblestone and dirt.</p>
 
     <h3>Start with six chests</h3>
-    <p>There are 57 categories, but you do not need to care about that yet. Sign six chests with these and you have covered nearly everything the game will throw at you:</p>
+    <p>There are 57 categories, plus one for every mod in the pack, but you do not need to care about that yet. Sign six chests with these and you have covered nearly everything the game will throw at you:</p>
     <ul class="keylist full">
       <li><span class="act"><code>[ores]</code></span><span class="desc">Ore, raw metal, ingots, nuggets, gems, dust, coal and metal blocks</span></li>
       <li><span class="act"><code>[food]</code></span><span class="desc">Anything edible, plus drinks</span></li>
@@ -629,6 +629,11 @@
       <li><span class="act"><code>[enchanted]</code></span><span class="desc">Any enchanted gear, kept away from the plain stuff</span></li>
       <li><span class="act"><code>[enchanted_books]</code></span><span class="desc">Exactly what it says</span></li>
     </ul>
+
+    <h3>A chest for one mod</h3>
+    <p>Any mod's own name works as a category. Sign a chest <code>[horsegenetics]</code> and everything from Procedural Horse Coats lands in it; <code>[ae2]</code>, <code>[mekanism]</code>, <code>[occultism]</code>, <code>[railcraft]</code> and 182 others all work the same way.</p>
+    <p>The name to write is the mod's <b>id</b>, which is the part before the colon in an item's id rather than its pretty name. Press <b>F3 + H</b> once to turn on advanced tooltips and every item shows you its id; <code>/sort category &lt;item&gt;</code> will also tell you, and it names the mod chest along with the normal one.</p>
+    <p><b>Mod chests are checked last</b>, just ahead of <code>[misc]</code>, so everything above beats them. If you have an <code>[ingots]</code> chest and a <code>[mekanism]</code> chest, Mekanism's ingots still go to <code>[ingots]</code>. A mod chest is for the things a mod adds that fit nowhere else &mdash; machine parts, ritual components, its own oddities &mdash; not a way to pull a whole mod out of your sorting room.</p>
 
     <div class="callout"><p><b><code>[misc]</code> catches everything else.</b> Build that chest and nothing is ever left behind &mdash; but you also stop noticing what has no proper home. Leaving it out is the better default: unmatched items stay in the input chest where you can see them, and you can say so in chat.</p></div>
 
@@ -678,7 +683,7 @@
     <p>Walk on a path block and you move noticeably quicker &mdash; about 40% faster, and it applies the moment you step on. It works for <b>horses too</b>, and a horse pulling a cart drags the cart along at the same speed, so a proper road is the cheapest travel upgrade in the pack.</p>
     <ol class="steps">
       <li><div><b>Join up the places you actually walk between.</b><p>House to mine, base to farm, spawn to your build. Short hops you make twenty times a day are worth more than one long scenic highway.</p></div></li>
-      <li><div><b>Any path block counts.</b><p>Plain dirt paths work, and so does everything from <a href="https://www.curseforge.com/minecraft/mc-mods/macaws-paths" target="_blank" rel="noopener">Macaw's Paths</a> &mdash; stone paths, paving, flagstone, cobble walkways. Build whatever looks right; the speed is the same.</p></div></li>
+      <li><div><b>Real paths count. Bare ground does not.</b><p>The vanilla dirt path &mdash; the one you scrape out with a shovel &mdash; works, and so does every one of the 316 blocks in <a href="https://www.curseforge.com/minecraft/mc-mods/macaws-paths" target="_blank" rel="noopener">Macaw's Paths</a>: stone paths, paving, flagstone, cobble walkways, crystal floors, and the slabs and stairs of all of them. Same speed from every one, so build whatever looks right.</p><p><b>Plain dirt and coarse dirt give you nothing</b>, and burying coarse dirt under the surface to make a hidden fast lane does nothing either &mdash; that was switched off on 24 September, because natural coarse dirt underground was handing out the boost at random in badlands and taiga.</p></div></li>
       <li><div><b>Two blocks wide is plenty.</b><p>Enough that you stay on it without steering. Widen it later if you are riding with someone.</p></div></li>
     </ol>
     <div class="callout lit">
@@ -734,6 +739,14 @@
 
     <h3>Building and decorating</h3>
     <p>There's a deep set of decoration mods here — <a href="https://modrinth.com/user/sketchmacaw" target="_blank" rel="noopener">Macaw's</a> furniture, windows, doors, roofs, fences, paths, bridges, stairs and lights, plus <a href="https://github.com/XFactHD/FramedBlocks/wiki" target="_blank" rel="noopener">FramedBlocks</a>, which take on the appearance of anything else. If you enjoy the building side, browse these in the recipe viewer; there is far more available than the vanilla palette suggests.</p>
+
+    <h3>The server tidies up every hour</h3>
+    <p>On the hour, every hour, two things are removed. A warning goes out in chat two minutes before and again at thirty seconds, so there is always time to react.</p>
+    <ul>
+      <li><b>Items lying on the ground</b>, in every dimension. <b>Death drops are safe</b> &mdash; dying puts your inventory into a grave block, not loose items on the floor &mdash; but anything you deliberately left lying about to deal with later does go. Put it in a chest.</li>
+      <li><b>Zombies, skeletons and creepers more than 128 blocks from every player online.</b> That is further than you can see, so you will never watch one vanish. Husks, drowned, strays, bogged and wither skeletons go too; <b>zombie villagers never do</b>, so a cure in progress is safe, and neither does anything you have name-tagged.</li>
+    </ul>
+    <p>This is a performance measure rather than a rule. Thousands of forgotten items and mobs ticking away in chunks nobody is standing in is the main thing that makes the server stutter. One thing to know if you build a mob farm: a chamber that holds mobs alive will empty itself once you walk away from it, while a farm that kills them into a chest is fine.</p>
 
     <h3>Getting unstuck</h3>
     <ul>
