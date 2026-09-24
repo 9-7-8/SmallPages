@@ -273,6 +273,7 @@
       <button id="tab-ore" role="tab" aria-controls="panel-ore" aria-selected="false">Mining</button>
       <button id="tab-sort" role="tab" aria-controls="panel-sort" aria-selected="false">Sorting Chests</button>
       <button id="tab-travel" role="tab" aria-controls="panel-travel" aria-selected="false">Getting Around</button>
+      <button id="tab-horses" role="tab" aria-controls="panel-horses" aria-selected="false">Horses</button>
       <button id="tab-qol" role="tab" aria-controls="panel-qol" aria-selected="false">Quality of Life</button>
       <button id="tab-fix" role="tab" aria-controls="panel-fix" aria-selected="false">Troubleshooting</button>
     </div>
@@ -744,6 +745,43 @@
         <li><span class="who"><a href="https://modrinth.com/mod/tectonic" target="_blank" rel="noopener">Tectonic</a></span><span class="what">Taller mountains, deeper canyons and far longer rivers <span class="host">modrinth</span></span></li>
         <li><span class="who"><a href="https://modrinth.com/mod/regions-unexplored" target="_blank" rel="noopener">Regions Unexplored</a></span><span class="what">Its own set of biomes, trees and flora, layered on top <span class="host">modrinth</span></span></li>
         <li><span class="who"><a href="https://stardustlabs.miraheze.org/wiki/Nullscape" target="_blank" rel="noopener">Nullscape</a></span><span class="what">What the End looks like here, once you get there <span class="host">stardust labs</span></span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-horses" role="tabpanel" aria-labelledby="tab-horses" tabindex="0" hidden>
+    <h2>Horses</h2>
+    <p class="lede">The horses here are not vanilla horses. <a href="https://9-7-8.github.io/Procedural-Horse-Coats/" target="_blank" rel="noopener">Procedural Horse Coats</a> gives every one of them a real genome &mdash; coat, build, temperament and stats, all of it inherited by its foals. It's written by the person running this server and it updates most days, so <b>the mod's own wiki is the source of truth</b>, not this page. This tab is just enough to get you started.</p>
+
+    <h3>The controls</h3>
+    <ul class="keylist full">
+      <li><span class="act">E, from the saddle</span><span class="desc">That horse's own menu &mdash; genes, family, gear. Press it again to close</span></li>
+      <li><span class="act">H</span><span class="desc">The horse browser: every horse you own</span></li>
+      <li><span class="act">R</span><span class="desc">Attach or detach a cart from the horse you're riding</span></li>
+    </ul>
+    <p>The saddle menu follows whatever your <b>Inventory</b> key is, so if you've moved it off <code>E</code>, use the key you moved it to. Donkeys and mules still open their ordinary inventory. If one of these does nothing at all it's more likely unbound than broken &mdash; <b>KeybindsPurger</b> strips conflicting defaults, so check Options &rarr; Controls first.</p>
+
+    <h3>Keeping one alive</h3>
+    <p>Two things are worth knowing before you own a horse, because neither is vanilla:</p>
+    <ol class="steps">
+      <li><div><b>A hurt horse needs water nearby and a full stomach to heal.</b><p>Water within three blocks, and not starving. Vanilla's free trickle of regeneration is switched <b>off</b> for horses, so a hungry horse stays hurt until you feed it. Leave water and something to graze in the pen and it sorts itself out.</p></div></li>
+      <li><div><b>They graze, so fence your farm.</b><p>A horse eats crops whole and turns grass to dirt the way a sheep does. It won't reach <em>through</em> a fence, but an open gate is an open invitation.</p></div></li>
+    </ol>
+    <div class="callout lit">
+      <p><b>A horse is hard to lose now.</b> Nothing kills one in a single blow &mdash; a killing hit leaves it on half a heart with a few seconds of immunity instead. Below a fifth of its health it stops answering the reins and bolts, carrying you out rather than throwing you. Let it run.</p>
+    </div>
+    <p>Your own horses also talk to you in chat: what hurt one and what to do about it, who lost one and to what, and why a mare wasn't covered.</p>
+
+    <div class="wikis">
+      <h3>Where to read more</h3>
+      <p>Everything else &mdash; genetics, breeding, gear, carts &mdash; is documented properly by the mod itself.</p>
+      <ul class="linklist full">
+        <li><span class="who"><a href="https://9-7-8.github.io/Procedural-Horse-Coats/" target="_blank" rel="noopener">The wiki</a></span><span class="what">Start here. Everything the mod does, in detail <span class="host">procedural horse coats</span></span></li>
+        <li><span class="who"><a href="https://9-7-8.github.io/Procedural-Horse-Coats/wiki/horse-care.html" target="_blank" rel="noopener">Horse care</a></span><span class="what">Hunger, healing, bond and herds <span class="host">procedural horse coats</span></span></li>
+        <li><span class="who"><a href="https://9-7-8.github.io/Procedural-Horse-Coats/wiki/breeding.html" target="_blank" rel="noopener">Breeding</a></span><span class="what">Heat, covers, and what a foal actually gets <span class="host">procedural horse coats</span></span></li>
+        <li><span class="who"><a href="https://9-7-8.github.io/Procedural-Horse-Coats/wiki/horse-browser.html" target="_blank" rel="noopener">The horse browser</a></span><span class="what">Searching, sorting, and the family tree <span class="host">procedural horse coats</span></span></li>
+        <li><span class="who"><a href="https://9-7-8.github.io/Procedural-Horse-Coats/wiki/horse-gear.html" target="_blank" rel="noopener">Horse gear</a></span><span class="what">Tack, shoes, saddle pads and horse armour <span class="host">procedural horse coats</span></span></li>
+        <li><span class="who"><a href="https://9-7-8.github.io/Procedural-Horse-Coats/wiki/carts.html" target="_blank" rel="noopener">Carts</a></span><span class="what">Building them, hitching them, and what they'll carry <span class="host">procedural horse coats</span></span></li>
       </ul>
     </div>
   </section>
