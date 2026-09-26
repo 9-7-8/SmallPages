@@ -9,7 +9,8 @@
   /* Layout and sizing only. Colour, type and component styling live in theme.css. */
 
   :root {
-    /* Emerald, since that is what the economy runs on. */
+    /* Emerald green. Player shops pay in dollars as of 2026-09-26, but the Market
+       and the villagers still run on emeralds, and the hue is house style now. */
     --sat: 0.55;
     --h: 152;
   }
@@ -513,37 +514,56 @@
   <!-- ===================== SHOPS ===================== -->
   <section class="panel" id="panel-shops" role="tabpanel" aria-labelledby="tab-shops" tabindex="0" hidden>
     <h2>Money &amp; shops</h2>
-    <p class="lede">The currency is emeralds — actual emeralds, in your inventory. There is no balance, no <code>/pay</code>, and no way to buy anything from across the map. If you want to trade, you travel.</p>
+    <p class="lede">Money is a bank balance in dollars now, not something you carry - though you can withdraw it as cash if you like. Shops are ordinary chests with a sign on them. There is still no buying from across the map: if you want to trade, you travel.</p>
 
     <h3>Open your own shop</h3>
     <ol class="steps">
-      <li><div><b>Craft a <a href="https://modrinth.com/mod/ketkets-player-shops" target="_blank" rel="noopener">Shopcase</a>.</b><p>One emerald directly above one chest, in a crafting grid. You get an item called <em>Shopcase</em>.</p></div></li>
-      <li><div><b>Place it where you want the shop to stand.</b><p>Somewhere people can reach. A shop nobody can walk to sells nothing.</p></div></li>
-      <li><div><b>Right-click it to open the shop menu.</b><p>Set what you're selling, what you want for it, and how much is stocked. It's all in the menu — no commands to memorise.</p></div></li>
-      <li><div><b>Stock it and leave it running.</b><p>The shop keeps selling while you're offline, and the takings are waiting when you log back in.</p></div></li>
-      <li><div><b>Taking it down again.</b><p>Break it. You get the Shopcase back, along with anything still stocked and any takings you hadn't collected.</p></div></li>
+      <li><div><b>Put a chest down and fill it with what you're selling.</b><p>Any chest. Whatever is inside is your stock, so put in as much as you're happy to part with.</p></div></li>
+      <li><div><b>Put a sign on it.</b><p>On the front of the chest, or on any block touching it.</p></div></li>
+      <li><div><b>Write three lines on the sign.</b><p>The shop starts working the moment you finish the sign. There is nothing else to set up and no commands to memorise.</p></div></li>
+      <li><div><b>Closing it down.</b><p>Break the sign. The chest and everything in it stays yours.</p></div></li>
     </ol>
 
-    <div class="callout lit">
-      <p><b>Nobody can rob your shop.</b> Only you can open its menu — anyone else clicking it just gets the buying screen. Claim the chunk it sits in and it can't be broken either.</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Line</th><th>What goes on it</th><th>Example</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td><code>[buy]</code> or <code>[sell]</code></td><td><code>[buy]</code></td></tr>
+          <tr><td>2</td><td>the price</td><td><code>12</code></td></tr>
+          <tr><td>3</td><td>the item</td><td><code>diamond</code></td></tr>
+          <tr><td>4</td><td>leave it empty</td><td>&nbsp;</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout">
+      <p><b><code>[buy]</code> and <code>[sell]</code> are named for what your visitor does, not what you do.</b> <code>[buy]</code> is the one you want almost always: you stock the chest, people buy out of it, and the money lands in your account. <code>[sell]</code> is the opposite - it pays people to hand items <em>in</em>, so it needs money in your account and free space in the chest, and it stops the moment either runs out.</p>
+    </div>
+
+    <div class="callout">
+      <p><b>Writing the item name.</b> Ordinary items can be written plainly, like <code>diamond</code> or <code>oak_log</code>. Anything from a mod needs its full id - press <b>F3 + H</b> to turn on advanced tooltips and the id appears in grey under the item's name.</p>
     </div>
 
     <h3>Buying from someone else</h3>
-    <p>Walk up to their Shopcase and click it. You'll see what's for sale and the price. If you have the goods you get the item; if the shop is out of stock, it says so.</p>
-    <p>Prices are set by whoever owns the shop, not by the server. Shop around — literally.</p>
+    <p>Right-click their sign. It tells you what's for sale and the price, and one right-click buys <b>one</b> item - there is no stack-at-a-time shortcut, so click away.</p>
+    <p>Prices are set by whoever owns the shop, not by the server. Shop around - literally.</p>
 
-    <h3>The server store</h3>
-    <p>There's also a <b><a href="https://mods.twelveiterations.com/mc/farming-for-blockheads" target="_blank" rel="noopener">Market</a></b>, a small wooden stall with a merchant in it. It sells at fixed prices in emeralds, never runs out, and isn't owned by anyone. Treat it as the price floor: if a player shop is charging more than the Market for the same thing, you're being had.</p>
-
-    <div class="callout">
-      <p><b>Where do emeralds come from?</b> The ordinary places — trading with villagers, mining, exploring. Villager trading is also where they leave circulation again, so the economy roughly balances itself without anyone managing it.</p>
+    <div class="callout lit">
+      <p><b>Nobody can rob your shop.</b> Only you can open the chest or break the sign, even if it is standing in the open. Claiming the chunk on top of that does no harm.</p>
     </div>
+
+    <h3>Cash, ATMs and paying people</h3>
+    <p><code>/money</code> shows your balance and <code>/pay &lt;player&gt; &lt;amount&gt;</code> sends money to someone. Neither needs you to be anywhere in particular.</p>
+    <p>The balance is the real thing, but it does not have to stay abstract: an <b>ATM</b> turns it into notes and coins and back again, a <b>Banker Table</b> does the same job, and wallets keep the cash tidy in your inventory. Cash in your pockets is not your balance - deposit it first if you want to spend it in a shop.</p>
+
+    <h3>The server store, and emeralds</h3>
+    <p>The <b><a href="https://mods.twelveiterations.com/mc/farming-for-blockheads" target="_blank" rel="noopener">Market</a></b> stall is still here, still sells at fixed prices, and still takes <b>emeralds</b> - it came before the new money and has not changed. So two currencies are in play: dollars between players, emeralds at the Market and with villagers. Treat the Market as the price floor: if a player shop asks more than the Market for the same thing, you are being had.</p>
 
     <div class="wikis">
       <h3>Where to read more</h3>
       <p>Two separate mods, covering the two halves of the economy.</p>
       <ul class="linklist full">
-        <li><span class="who"><a href="https://modrinth.com/mod/ketkets-player-shops" target="_blank" rel="noopener">Ketket's Player Shops</a></span><span class="what">The Shopcase — crafting it, pricing it, and the whole seller menu <span class="host">modrinth</span></span></li>
+        <li><span class="who"><a href="https://modrinth.com/mod/saros-money" target="_blank" rel="noopener">Saro's Money</a></span><span class="what">The sign shops, ATMs, wallets and the cash items <span class="host">modrinth</span></span></li>
         <li><span class="who"><a href="https://mods.twelveiterations.com/mc/farming-for-blockheads" target="_blank" rel="noopener">Farming for Blockheads</a></span><span class="what">The Market stall, plus the mod's kitchen and farming blocks <span class="host">twelve iterations</span></span></li>
       </ul>
     </div>
