@@ -285,6 +285,115 @@
   @media (prefers-reduced-motion: reduce) {
     * { transition: none !important; }
   }
+
+  /* ---- Server Stats tab -------------------------------------------------
+     Layout and sizing only, per theme.css's rule, with ONE exception: the
+     three uptime state colours. They cannot come from theme.css because it
+     carries a single accent hue and this needs three states that stay apart
+     for a colourblind reader on a true-black surface.
+
+     These exact values were not chosen by eye. They are the output of the
+     dataviz palette validator run against surface #000000 in dark mode, and
+     they pass every check: OKLCH lightness inside the 0.48-0.67 band, chroma
+     above the 0.10 floor, worst adjacent CVD separation 8.0 (protan) against
+     a target of 8, worst normal-vision separation 17.2 against a floor of 15,
+     and all three above 3:1 contrast on black. The house green #50bf8b and
+     the stock amber #fab219 BOTH failed the lightness band here, so do not
+     "correct" these back toward the page accent without re-running it.
+
+     CVD separation sitting exactly on the target means secondary encoding is
+     mandatory, not optional: every state is also named in the legend, and
+     "no data" additionally carries a diagonal hatch, so nothing is
+     distinguished by colour alone. */
+  #panel-stats {
+    --sp-up:      #2b9468;
+    --sp-partial: #bf880f;
+    --sp-down:    #cf4040;
+    --sp-none:    var(--line-soft);
+    --sp-ink:     var(--text-dim);
+  }
+
+  .sp-asof { color: var(--text-faint); font-size: 13px; margin: -6px 0 22px; }
+
+  .sp-tiles {
+    display: grid; gap: 1px; margin: 0 0 26px;
+    grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+    background: var(--line-soft);
+    border: 1px solid var(--line-soft);
+  }
+  .sp-tile { background: var(--bg); padding: 14px 16px; }
+  .sp-tile b {
+    display: block; font-size: 27px; font-weight: 300; line-height: 1.15;
+    letter-spacing: -0.015em; color: var(--text);
+  }
+  .sp-tile span { display: block; font-size: 12px; color: var(--text-faint); margin-top: 3px; }
+
+  /* Uptime grid: one row per day, one cell per hour. */
+  .sp-grid { overflow-x: auto; padding-bottom: 4px; }
+  .sp-row { display: flex; align-items: center; gap: 2px; margin-bottom: 2px; }
+  .sp-day {
+    flex: 0 0 74px; font-size: 11px; color: var(--text-faint);
+    font-family: var(--mono); letter-spacing: -0.02em;
+  }
+  .sp-cell { width: 15px; height: 15px; flex: 0 0 15px; background: var(--sp-none); }
+  .sp-cell.up { background: var(--sp-up); }
+  .sp-cell.partial { background: var(--sp-partial); }
+  .sp-cell.down { background: var(--sp-down); }
+  /* The hatch is the accessibility channel for "no data" - it must stay
+     distinguishable when the three colours above are not. */
+  .sp-cell.none {
+    background-color: transparent;
+    background-image: repeating-linear-gradient(45deg,
+      var(--line-soft) 0 2px, transparent 2px 5px);
+    box-shadow: inset 0 0 0 1px var(--line-soft);
+  }
+  .sp-cell:hover { outline: 1px solid var(--neon); outline-offset: 1px; }
+  .sp-hours { display: flex; gap: 2px; margin: 4px 0 0 74px; }
+  .sp-hours span {
+    width: 15px; flex: 0 0 15px; font-size: 9px; color: var(--text-faint);
+    text-align: center; font-family: var(--mono);
+  }
+
+  .sp-legend { display: flex; flex-wrap: wrap; gap: 16px; margin: 0 0 14px; font-size: 12px; }
+  .sp-legend i {
+    display: inline-block; width: 11px; height: 11px; margin-right: 6px;
+    vertical-align: -1px; font-style: normal;
+  }
+  .sp-legend .none-swatch {
+    background-image: repeating-linear-gradient(45deg,
+      var(--line-soft) 0 2px, transparent 2px 5px);
+    box-shadow: inset 0 0 0 1px var(--line-soft);
+  }
+
+  figure.sp-fig { margin: 0 0 26px; }
+  figure.sp-fig figcaption { font-size: 12px; color: var(--text-faint); margin-bottom: 8px; }
+  .sp-plot { position: relative; }
+  .sp-plot svg { display: block; width: 100%; height: auto; }
+
+  .sp-tip {
+    position: absolute; pointer-events: none; opacity: 0; transform: translate(-50%, -100%);
+    background: var(--raised); border: 1px solid var(--line);
+    padding: 5px 9px; font-size: 12px; white-space: nowrap; z-index: 5;
+    box-shadow: var(--glow-soft); color: var(--text);
+  }
+  .sp-tip b { font-weight: 500; }
+
+  .sp-bars { display: grid; gap: 7px; margin: 0 0 8px; }
+  .sp-bar { display: grid; grid-template-columns: 120px 1fr auto; gap: 10px; align-items: center; }
+  .sp-bar span { font-size: 13px; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; }
+  .sp-bar i { display: block; height: 11px; background: var(--sp-up); }
+  .sp-bar b { font-size: 13px; font-weight: 400; color: var(--text); font-family: var(--mono); }
+
+  .sp-tbl { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 10px; }
+  .sp-tbl th, .sp-tbl td { text-align: left; padding: 5px 10px 5px 0; border-bottom: 1px solid var(--line-soft); }
+  .sp-tbl th { color: var(--text-faint); font-weight: 400; font-size: 12px; }
+  .sp-tbl td.n { font-family: var(--mono); }
+
+  @media (max-width: 560px) {
+    .sp-day { flex-basis: 52px; }
+    .sp-hours { margin-left: 52px; }
+    .sp-bar { grid-template-columns: 88px 1fr auto; }
+  }
 </style>
 </head>
 <body>
@@ -319,6 +428,7 @@
       <button id="tab-horses" role="tab" aria-controls="panel-horses" aria-selected="false">Horses</button>
       <button id="tab-qol" role="tab" aria-controls="panel-qol" aria-selected="false">Quality of Life</button>
       <button id="tab-fix" role="tab" aria-controls="panel-fix" aria-selected="false">Troubleshooting</button>
+      <button id="tab-stats" role="tab" aria-controls="panel-stats" aria-selected="false">Server Stats</button>
     </div>
   </div>
 
@@ -1077,6 +1187,56 @@
     <div class="callout"><p><b>Still stuck?</b> Send Isabel the <b>log</b>, not a description &mdash; <code>&lt;game directory&gt;/logs/latest.log</code>. The real cause is usually a hundred lines above the part that looks like the error.</p></div>
   </section>
 
+  <!-- ===================== SERVER STATS ===================== -->
+  <section class="panel" id="panel-stats" role="tabpanel" aria-labelledby="tab-stats" tabindex="0" hidden>
+    <h2>Server Stats</h2>
+    <p class="lede">How the server has actually been running &mdash; when it was up, who was on, how it performed, and where the horses are. Rebuilt automatically at every nightly restart.</p>
+    <p class="sp-asof" id="sp-asof">No data has been published yet.</p>
+
+    <div class="sp-tiles" id="sp-tiles"></div>
+
+    <h3>Uptime</h3>
+    <p>One cell per hour, newest day last. Every cell is evidence rather than a guess: the server writes a performance sample every five minutes, so an hour is green only because something actually answered in it.</p>
+
+    <div class="sp-legend" aria-hidden="true">
+      <span><i style="background:var(--sp-up)"></i>Up</span>
+      <span><i style="background:var(--sp-partial)"></i>Up part of the hour</span>
+      <span><i style="background:var(--sp-down)"></i>Observed down</span>
+      <span><i class="none-swatch"></i>No data</span>
+    </div>
+
+    <div class="sp-grid" id="sp-uptime"></div>
+
+    <div class="callout"><p><b>&ldquo;No data&rdquo; is not the same as &ldquo;down&rdquo;.</b> The sampler runs on the same machine as the server, so when the machine is asleep or logged out nothing is recorded and nobody was watching. The server was certainly not reachable, but it was never seen to fail &mdash; so those hours are hatched rather than red. They still count against the uptime figure.</p></div>
+
+    <h3>The longest gaps</h3>
+    <p>Stretches with no sample at all, longest first. The routine ones &mdash; the sampler stands aside for the hourly item clear and the 2am restart &mdash; are filtered out.</p>
+    <div id="sp-gaps"></div>
+
+    <h3>Players</h3>
+    <figure class="sp-fig">
+      <figcaption>Most players online in each 15-minute window. Peak, not average &mdash; a quiet stretch either side should not flatten out the evening everyone logged on.</figcaption>
+      <div class="sp-plot" id="sp-players"></div>
+    </figure>
+
+    <h3>Performance</h3>
+    <figure class="sp-fig">
+      <figcaption>Worst ticks-per-second in each 15-minute window. 20 is the ceiling; the line dropping is the server working harder than it would like. Worst rather than average, because an average hides exactly the spike worth finding.</figcaption>
+      <div class="sp-plot" id="sp-tps"></div>
+    </figure>
+
+    <h3>Horses</h3>
+    <p>Counted straight out of the saved world rather than from the running game. An in-game count only ever sees horses in loaded chunks, so it collapses to almost nothing whenever the server is empty &mdash; which looks alarming and means nothing.</p>
+
+    <div class="sp-tiles" id="sp-horse-tiles"></div>
+    <div id="sp-owners"></div>
+
+    <details>
+      <summary>Show all of it as tables</summary>
+      <div id="sp-tables"></div>
+    </details>
+  </section>
+
 </main>
 
 <script>
@@ -1112,6 +1272,335 @@
     var target = document.getElementById('tab-' + hash);
     if (target) select(target, false);
   }
+})();
+</script>
+
+<script>
+window.SERVER_STATS =
+/* SERVER-STATS-DATA-BEGIN */
+{"generated":1790779814,"from":1790269614,"to":1790779695,"hours":[[1790269200,3],[1790272800,3],[1790276400,3],[1790280000,3],[1790283600,3],[1790287200,3],[1790290800,3],[1790294400,3],[1790298000,3],[1790301600,3],[1790305200,3],[1790308800,3],[1790312400,3],[1790316000,3],[1790319600,0],[1790323200,0],[1790326800,3],[1790330400,3],[1790334000,3],[1790337600,3],[1790341200,3],[1790344800,3],[1790348400,3],[1790352000,3],[1790355600,3],[1790359200,3],[1790362800,3],[1790366400,3],[1790370000,2],[1790373600,3],[1790377200,3],[1790380800,3],[1790384400,3],[1790388000,2],[1790391600,3],[1790395200,3],[1790398800,3],[1790402400,3],[1790406000,0],[1790409600,0],[1790413200,3],[1790416800,3],[1790420400,3],[1790424000,3],[1790427600,3],[1790431200,3],[1790434800,3],[1790438400,3],[1790442000,3],[1790445600,3],[1790449200,3],[1790452800,3],[1790456400,3],[1790460000,3],[1790463600,3],[1790467200,3],[1790470800,3],[1790474400,3],[1790478000,3],[1790481600,3],[1790485200,3],[1790488800,3],[1790492400,0],[1790496000,0],[1790499600,3],[1790503200,3],[1790506800,3],[1790510400,3],[1790514000,3],[1790517600,3],[1790521200,3],[1790524800,3],[1790528400,3],[1790532000,3],[1790535600,3],[1790539200,3],[1790542800,3],[1790546400,3],[1790550000,3],[1790553600,3],[1790557200,3],[1790560800,3],[1790564400,3],[1790568000,3],[1790571600,3],[1790575200,3],[1790578800,0],[1790582400,0],[1790586000,3],[1790589600,3],[1790593200,3],[1790596800,3],[1790600400,3],[1790604000,3],[1790607600,0],[1790611200,0],[1790614800,0],[1790618400,0],[1790622000,0],[1790625600,0],[1790629200,0],[1790632800,0],[1790636400,0],[1790640000,0],[1790643600,0],[1790647200,0],[1790650800,2],[1790654400,3],[1790658000,3],[1790661600,3],[1790665200,0],[1790668800,0],[1790672400,3],[1790676000,3],[1790679600,3],[1790683200,3],[1790686800,3],[1790690400,3],[1790694000,3],[1790697600,3],[1790701200,3],[1790704800,3],[1790708400,3],[1790712000,3],[1790715600,3],[1790719200,3],[1790722800,3],[1790726400,3],[1790730000,3],[1790733600,3],[1790737200,3],[1790740800,3],[1790744400,3],[1790748000,3],[1790751600,0],[1790755200,0],[1790758800,3],[1790762400,3],[1790766000,3],[1790769600,3],[1790773200,3],[1790776800,2]],"series":[[1790269200,0,19.3,10.2],[1790270100,0,19.3,10.2],[1790271000,0,19.3,10.2],[1790271900,0,19.3,10.2],[1790272800,0,19.3,10.2],[1790273700,0,19.3,10.2],[1790274600,0,19.3,10.2],[1790275500,0,19.3,10.2],[1790276400,0,19.3,10.2],[1790277300,0,19.3,10.2],[1790278200,0,19.3,10.2],[1790279100,0,19.3,10.2],[1790280000,0,19.3,10.2],[1790280900,0,19.3,10.2],[1790281800,0,19.3,10.2],[1790282700,0,19.3,10.2],[1790283600,0,19.3,10.2],[1790284500,0,19.3,10.2],[1790285400,0,19.3,10.2],[1790286300,0,20.0,1.3],[1790287200,0,20.0,1.3],[1790288100,0,20.0,1.3],[1790289000,0,20.0,1.3],[1790289900,0,20.0,1.3],[1790290800,0,20.0,1.3],[1790291700,0,20.0,1.3],[1790292600,0,18.5,1.3],[1790293500,1,20.0,18.0],[1790294400,2,19.9,40.2],[1790295300,2,20.0,33.6],[1790296200,2,20.0,33.0],[1790297100,1,20.0,26.3],[1790298000,2,18.6,46.7],[1790298900,2,20.0,38.1],[1790299800,2,20.0,37.4],[1790300700,2,20.0,36.8],[1790301600,2,20.0,41.7],[1790302500,2,20.0,38.6],[1790303400,2,20.0,38.9],[1790304300,1,20.0,23.9],[1790305200,1,20.0,24.9],[1790306100,1,20.0,32.3],[1790307000,1,20.0,28.7],[1790307900,1,20.0,38.6],[1790308800,1,20.0,42.0],[1790309700,1,20.0,32.1],[1790310600,0,20.0,15.8],[1790311500,0,20.0,15.8],[1790312400,0,20.0,15.8],[1790313300,0,20.0,15.8],[1790314200,0,20.0,15.8],[1790315100,0,20.0,15.8],[1790316000,0,20.0,15.8],[1790316900,0,20.0,15.8],[1790317800,0,20.0,15.8],[1790318700,0,20.0,15.8],[1790327700,0,18.8,0.9],[1790328600,0,18.8,0.9],[1790329500,0,18.8,0.9],[1790330400,0,18.8,0.9],[1790331300,0,18.8,0.9],[1790332200,0,18.8,0.9],[1790333100,0,18.8,0.9],[1790334000,0,18.8,0.9],[1790334900,0,18.8,0.9],[1790335800,0,18.8,0.9],[1790336700,0,18.8,0.9],[1790337600,0,18.8,0.9],[1790338500,0,18.8,0.9],[1790339400,0,18.8,0.9],[1790340300,0,18.8,0.9],[1790341200,0,18.8,0.9],[1790342100,0,18.8,0.9],[1790343000,0,18.8,0.9],[1790344800,0,20.0,0.9],[1790345700,0,20.0,0.9],[1790346600,0,20.0,0.9],[1790347500,0,20.0,0.9],[1790348400,1,20.0,15.0],[1790349300,1,20.0,16.6],[1790350200,1,20.0,15.4],[1790351100,1,20.0,14.7],[1790352000,1,20.0,19.9],[1790352900,1,20.0,20.7],[1790353800,0,20.0,1.7],[1790354700,0,20.0,1.7],[1790355600,0,20.0,1.7],[1790356500,0,20.0,1.7],[1790357400,0,20.0,1.7],[1790358300,0,20.0,1.7],[1790359200,0,20.0,1.7],[1790360100,0,20.0,1.7],[1790361000,0,20.0,1.7],[1790361900,0,20.0,1.7],[1790362800,0,18.8,1.0],[1790363700,0,20.0,0.9],[1790364600,0,20.0,0.9],[1790365500,0,20.0,0.9],[1790366400,0,20.0,0.9],[1790367300,0,20.0,0.9],[1790368200,0,20.0,0.9],[1790369100,0,20.0,0.9],[1790370000,0,20.0,0.9],[1790370900,1,20.0,25.2],[1790371800,1,20.0,18.7],[1790372700,1,20.0,13.9],[1790373600,1,20.0,17.9],[1790374500,1,20.0,16.6],[1790375400,1,20.0,17.6],[1790376300,1,20.0,20.6],[1790377200,1,20.0,18.0],[1790378100,0,20.0,2.0],[1790379000,0,20.0,2.0],[1790379900,1,20.0,9.2],[1790380800,2,18.8,25.6],[1790381700,4,15.6,61.6],[1790382600,5,10.0,94.3],[1790383500,4,14.2,64.8],[1790385300,3,20.0,40.5],[1790386200,2,20.0,21.9],[1790387100,1,20.0,20.8],[1790388000,4,13.9,66.8],[1790388900,4,12.9,72.6],[1790391600,5,11.8,78.2],[1790392500,6,8.0,112.5],[1790393400,6,7.3,117.8],[1790394300,6,5.5,136.9],[1790395200,6,4.5,152.4],[1790396100,6,6.5,119.0],[1790397000,6,8.1,103.6],[1790397900,6,10.2,92.0],[1790398800,6,10.3,87.0],[1790399700,5,13.8,72.2],[1790400600,5,11.7,79.2],[1790401500,5,13.1,75.2],[1790402400,4,19.6,48.7],[1790403300,3,19.8,46.0],[1790404200,3,19.1,54.2],[1790405100,3,20.0,38.9],[1790414100,0,18.7,0.9],[1790415000,0,18.7,0.9],[1790415900,0,18.7,0.9],[1790416800,0,18.7,0.9],[1790417700,0,18.7,0.9],[1790418600,0,18.7,0.9],[1790419500,0,18.7,0.9],[1790420400,0,18.7,0.9],[1790421300,0,18.7,0.9],[1790422200,0,18.7,0.9],[1790423100,0,18.7,0.9],[1790424000,0,18.7,0.9],[1790424900,0,18.7,0.9],[1790425800,0,18.7,0.9],[1790426700,0,18.7,0.9],[1790427600,0,18.7,0.9],[1790428500,0,18.7,0.9],[1790429400,0,18.7,0.9],[1790430300,0,18.7,0.9],[1790431200,0,18.7,0.9],[1790432100,0,18.7,0.9],[1790433000,0,18.7,0.9],[1790433900,1,20.0,14.9],[1790434800,1,20.0,14.8],[1790435700,1,20.0,15.5],[1790436600,1,20.0,16.7],[1790437500,1,20.0,15.7],[1790438400,2,20.0,30.6],[1790439300,2,20.0,30.5],[1790440200,2,20.0,32.2],[1790441100,2,20.0,30.5],[1790442000,2,20.0,25.6],[1790442900,2,20.0,26.9],[1790443800,2,20.0,27.8],[1790444700,1,19.0,16.5],[1790445600,1,20.0,17.0],[1790446500,0,20.0,2.4],[1790447400,0,20.0,2.4],[1790448300,1,20.0,14.6],[1790449200,1,20.0,15.2],[1790450100,1,20.0,15.7],[1790451000,1,20.0,16.8],[1790451900,1,20.0,18.0],[1790452800,2,19.5,49.7],[1790453700,3,20.0,42.3],[1790454600,3,19.7,45.3],[1790455500,2,20.0,31.8],[1790456400,3,17.8,51.1],[1790457300,3,16.5,58.7],[1790458200,3,19.0,51.7],[1790459100,3,19.9,47.7],[1790460000,2,20.0,30.8],[1790460900,1,20.0,22.6],[1790461800,1,20.0,19.7],[1790462700,2,20.0,37.3],[1790463600,1,20.0,22.3],[1790464500,1,20.0,22.5],[1790465400,1,20.0,19.8],[1790466300,1,20.0,17.8],[1790467200,1,20.0,21.1],[1790468100,0,20.0,7.4],[1790469000,0,20.0,7.4],[1790469900,0,20.0,7.4],[1790470800,0,20.0,7.4],[1790471700,1,20.0,19.8],[1790472600,1,20.0,20.0],[1790473500,2,20.0,34.8],[1790474400,2,20.0,33.1],[1790475300,2,20.0,32.5],[1790476200,2,20.0,34.6],[1790477100,2,20.0,30.3],[1790478000,2,20.0,34.3],[1790478900,2,20.0,34.8],[1790479800,2,20.0,34.7],[1790480700,1,20.0,23.0],[1790481600,1,20.0,15.7],[1790482500,1,20.0,20.2],[1790483400,1,18.6,22.3],[1790484300,1,20.0,16.0],[1790485200,1,20.0,20.0],[1790486100,1,20.0,23.7],[1790487000,1,19.2,21.4],[1790487900,1,20.0,23.0],[1790488800,0,20.0,7.6],[1790489700,0,18.8,2.1],[1790490600,0,18.8,2.1],[1790491500,0,18.8,2.1],[1790500500,0,20.0,1.7],[1790501400,0,20.0,1.7],[1790502300,0,20.0,1.7],[1790503200,0,20.0,1.7],[1790504100,0,20.0,1.7],[1790505000,0,20.0,1.7],[1790505900,0,20.0,1.7],[1790506800,0,20.0,1.7],[1790507700,0,20.0,1.7],[1790508600,0,20.0,1.7],[1790509500,0,20.0,1.7],[1790510400,0,20.0,1.7],[1790511300,0,20.0,1.7],[1790512200,0,20.0,1.7],[1790513100,0,20.0,1.7],[1790514000,0,20.0,1.7],[1790514900,1,20.0,17.8],[1790515800,1,20.0,17.4],[1790516700,1,20.0,15.8],[1790517600,0,20.0,4.7],[1790518500,0,20.0,4.7],[1790519400,0,20.0,4.7],[1790520300,0,20.0,4.7],[1790521200,0,20.0,4.7],[1790522100,0,20.0,4.7],[1790523000,0,20.0,4.7],[1790523900,1,20.0,5.2],[1790524800,1,20.0,16.7],[1790525700,1,20.0,15.4],[1790526600,0,20.0,4.9],[1790527500,0,20.0,4.9],[1790528400,0,20.0,4.9],[1790529300,0,20.0,4.9],[1790530200,1,20.0,14.8],[1790531100,1,20.0,16.3],[1790532000,1,20.0,17.8],[1790532900,1,20.0,16.7],[1790533800,1,20.0,17.8],[1790534700,1,20.0,17.6],[1790535600,2,20.0,34.8],[1790536500,2,20.0,31.8],[1790537400,2,20.0,35.6],[1790538300,1,20.0,19.4],[1790539200,2,20.0,34.4],[1790540100,2,20.0,32.5],[1790541000,2,20.0,33.2],[1790541900,2,20.0,30.6],[1790542800,2,20.0,33.6],[1790543700,2,20.0,33.8],[1790544600,3,20.0,50.1],[1790545500,3,19.9,45.9],[1790546400,3,17.5,54.8],[1790547300,3,17.3,55.6],[1790548200,1,20.0,21.7],[1790549100,1,20.0,19.5],[1790550000,1,20.0,21.4],[1790550900,3,20.0,44.0],[1790551800,3,18.8,51.2],[1790552700,3,19.9,45.5],[1790553600,3,18.6,49.9],[1790554500,3,19.2,50.1],[1790555400,3,20.0,45.3],[1790556300,3,20.0,41.3],[1790557200,3,20.0,41.1],[1790558100,3,19.2,49.6],[1790559000,3,20.0,46.7],[1790559900,3,17.0,50.4],[1790560800,3,19.4,48.7],[1790561700,3,18.1,52.7],[1790562600,3,18.9,45.3],[1790563500,2,20.0,32.4],[1790564400,1,20.0,19.5],[1790565300,0,20.0,10.7],[1790566200,0,20.0,10.7],[1790567100,0,20.0,10.7],[1790568000,0,20.0,10.7],[1790568900,0,20.0,10.7],[1790569800,0,20.0,10.7],[1790570700,0,20.0,10.7],[1790571600,0,20.0,10.7],[1790572500,0,20.0,10.7],[1790573400,0,20.0,10.7],[1790574300,0,20.0,10.7],[1790575200,0,20.0,10.7],[1790576100,0,20.0,10.7],[1790577000,0,20.0,10.7],[1790577900,0,20.0,10.7],[1790586900,0,20.0,1.7],[1790587800,0,20.0,1.7],[1790588700,0,20.0,1.7],[1790589600,0,20.0,1.7],[1790590500,0,20.0,1.7],[1790591400,0,20.0,1.7],[1790592300,0,20.0,1.7],[1790593200,0,20.0,1.7],[1790594100,0,20.0,1.7],[1790595000,0,20.0,1.7],[1790595900,0,20.0,1.7],[1790596800,0,20.0,1.7],[1790597700,0,20.0,1.7],[1790598600,0,20.0,1.7],[1790599500,0,20.0,1.7],[1790600400,0,20.0,1.7],[1790601300,0,20.0,1.7],[1790602200,0,20.0,1.7],[1790603100,0,20.0,1.7],[1790604000,0,20.0,1.7],[1790652600,0,20.0,0.9],[1790653500,0,20.0,0.9],[1790654400,0,20.0,0.9],[1790655300,0,20.0,0.9],[1790656200,0,20.0,0.9],[1790657100,0,20.0,0.9],[1790658000,0,20.0,0.9],[1790658900,0,20.0,0.9],[1790659800,0,20.0,0.9],[1790660700,0,20.0,0.9],[1790661600,0,20.0,0.9],[1790662500,0,20.0,0.9],[1790663400,0,20.0,0.9],[1790664300,0,20.0,0.9],[1790673300,0,20.0,0.9],[1790674200,0,20.0,0.9],[1790675100,0,20.0,0.9],[1790676000,0,20.0,0.9],[1790676900,0,20.0,0.9],[1790677800,0,20.0,0.9],[1790678700,0,20.0,0.9],[1790679600,0,20.0,0.9],[1790680500,0,20.0,0.9],[1790681400,0,20.0,0.9],[1790682300,0,20.0,0.9],[1790683200,0,20.0,0.9],[1790684100,0,20.0,0.9],[1790685000,0,20.0,0.9],[1790685900,0,20.0,0.9],[1790686800,0,20.0,0.9],[1790687700,0,20.0,0.9],[1790688600,0,20.0,0.9],[1790689500,0,20.0,0.9],[1790690400,0,20.0,0.9],[1790691300,0,20.0,0.9],[1790692200,0,20.0,0.9],[1790693100,0,20.0,0.9],[1790694000,0,20.0,0.9],[1790694900,0,20.0,0.9],[1790695800,0,20.0,0.9],[1790696700,0,20.0,0.9],[1790697600,0,20.0,0.9],[1790698500,0,20.0,0.9],[1790699400,0,20.0,0.9],[1790700300,0,20.0,0.9],[1790701200,0,20.0,0.9],[1790702100,0,20.0,0.9],[1790703000,0,20.0,0.9],[1790703900,0,20.0,0.9],[1790704800,0,20.0,0.9],[1790705700,0,20.0,0.9],[1790706600,0,20.0,0.9],[1790707500,0,20.0,0.9],[1790708400,0,20.0,0.9],[1790709300,0,20.0,0.9],[1790710200,0,18.6,1.0],[1790711100,0,18.6,1.0],[1790712000,0,18.6,1.0],[1790712900,0,18.6,1.0],[1790713800,0,18.6,1.0],[1790714700,0,18.6,1.0],[1790715600,0,18.6,1.0],[1790716500,0,18.6,1.0],[1790717400,0,18.6,1.0],[1790718300,0,18.6,1.0],[1790719200,0,18.6,1.0],[1790720100,0,18.6,1.0],[1790721000,0,18.6,1.0],[1790721900,0,18.6,1.0],[1790722800,0,18.6,1.0],[1790723700,0,18.6,1.0],[1790724600,1,20.0,20.4],[1790725500,1,20.0,17.3],[1790726400,1,20.0,17.2],[1790727300,1,20.0,18.2],[1790728200,2,20.0,33.4],[1790729100,4,15.3,61.9],[1790730000,4,16.4,58.2],[1790730900,2,20.0,34.6],[1790731800,2,17.3,56.2],[1790732700,2,17.6,54.5],[1790733600,2,17.4,56.2],[1790734500,2,17.9,54.6],[1790735400,2,16.8,56.5],[1790736300,2,17.3,56.3],[1790737200,0,20.0,4.5],[1790738100,0,20.0,4.5],[1790739000,0,20.0,4.5],[1790739900,0,20.0,4.5],[1790740800,0,20.0,4.5],[1790741700,0,20.0,4.5],[1790742600,0,20.0,4.5],[1790743500,0,20.0,4.5],[1790744400,0,20.0,4.5],[1790745300,0,20.0,4.5],[1790746200,0,20.0,4.5],[1790747100,0,20.0,4.5],[1790748000,0,20.0,4.5],[1790748900,0,20.0,4.5],[1790749800,0,20.0,4.5],[1790750700,0,20.0,4.5],[1790759700,0,20.0,1.0],[1790760600,0,20.0,1.0],[1790761500,0,20.0,1.0],[1790762400,0,20.0,1.0],[1790763300,0,20.0,1.0],[1790764200,0,20.0,1.0],[1790765100,0,20.0,1.0],[1790766000,0,20.0,1.0],[1790766900,0,20.0,1.0],[1790767800,0,20.0,1.0],[1790768700,0,20.0,1.0],[1790769600,0,20.0,1.0],[1790770500,0,20.0,1.0],[1790771400,0,20.0,1.0],[1790772300,0,20.0,1.0],[1790773200,0,20.0,1.0],[1790774100,0,20.0,1.0],[1790775000,0,20.0,1.0],[1790775900,0,20.0,1.0],[1790776800,0,20.0,1.0],[1790777700,0,20.0,0.9],[1790778600,0,20.0,0.9],[1790779500,0,20.0,0.9]],"gaps":[[1790604221,1790652821,810],[1790319221,1790327922,145],[1790405621,1790414321,145],[1790492021,1790500721,145],[1790578421,1790587121,145],[1790664821,1790673520,145],[1790751221,1790759921,145],[1790389723,1790391822,35],[1790343222,1790345022,30],[1790384024,1790385527,25]],"samples":1241,"observed_down_samples":7,"hours_up":114,"hours_partial":4,"hours_down":0,"hours_nodata":24,"uptime_pct":83.1,"peak_players":6,"horses":{"total":668,"tamed":126,"wild":542,"unclaimed":42,"by_owner":[["axolotlwyvern",28],["VolatileMatter",19],["Happenstancery",18],["NiceMeem",13],["Demon_Killer455",5],["Silverj0",1]],"breakdown":{"minecraft:horse":645,"minecraft:donkey":23},"scanned":106,"files":111,"at":1790779817},"horse_history":[[1790779295,668,126,542]]}
+/* SERVER-STATS-DATA-END */
+;
+</script>
+
+<script>
+/* Server Stats tab. Reads the payload injected by server-stats.py and draws
+   it with inline SVG - no chart library, because the page has no dependencies
+   and this is four simple forms.
+
+   Every chart here is a SINGLE series on its own axis. Players and TPS are
+   deliberately two charts rather than one with two y-scales: a dual axis lets
+   the author put any two lines in any relationship they like just by choosing
+   the scales, and the reader cannot tell. */
+(function () {
+  var D = window.SERVER_STATS;
+  var panel = document.getElementById('panel-stats');
+  if (!panel || !D || D.empty) { return; }
+
+  var NBSP = ' ';
+
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) { n.className = cls; }
+    if (text != null) { n.textContent = text; }
+    return n;
+  }
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function dt(epoch) { return new Date(epoch * 1000); }
+  function dayKey(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  function dayLabel(d) {
+    var M = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return M[d.getMonth()] + NBSP + pad(d.getDate());
+  }
+  function clock(d) { return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+  function stamp(epoch) { var d = dt(epoch); return dayLabel(d) + ' ' + clock(d); }
+  function dur(mins) {
+    if (mins < 90) { return mins + ' min'; }
+    var h = Math.floor(mins / 60), m = mins % 60;
+    return h + 'h' + (m ? ' ' + m + 'm' : '');
+  }
+
+  /* ---------------------------------------------------------------- tiles */
+  function tiles(host, rows) {
+    host.innerHTML = '';
+    rows.forEach(function (r) {
+      var t = el('div', 'sp-tile');
+      t.appendChild(el('b', null, r[0]));
+      t.appendChild(el('span', null, r[1]));
+      host.appendChild(t);
+    });
+  }
+
+  var upPct = D.uptime_pct == null ? '-' : D.uptime_pct + '%';
+  var lastTps = null, lastPlayers = 0;
+  (D.series || []).forEach(function (s) {
+    if (s[2] != null) { lastTps = s[2]; }
+    lastPlayers = s[1];
+  });
+
+  tiles(document.getElementById('sp-tiles'), [
+    [upPct, 'uptime, all ' + (D.hours || []).length + ' hours watched'],
+    [String(D.hours_nodata || 0), 'hours with no data'],
+    [String(D.peak_players || 0), 'most players at once'],
+    [lastTps == null ? '-' : lastTps.toFixed(1), 'TPS at the last sample']
+  ]);
+
+  document.getElementById('sp-asof').textContent =
+    'Covering ' + stamp(D.from) + ' to ' + stamp(D.to) + '. ' +
+    D.samples + ' samples. Rebuilt ' + stamp(D.generated) + '.';
+
+  /* --------------------------------------------------------------- uptime */
+  var STATE = [
+    { cls: 'none',    word: 'no data' },
+    { cls: 'down',    word: 'observed down' },
+    { cls: 'partial', word: 'up part of the hour' },
+    { cls: 'up',      word: 'up' }
+  ];
+
+  (function uptime() {
+    var host = document.getElementById('sp-uptime');
+    var days = [], index = {};
+    var all = D.hours || [];
+    if (!all.length) { return; }
+    /* Hours outside the recorded window become empty spacers, not "no data".
+       The tail of today has simply not happened yet, and hatching it claims an
+       outage that is really just the clock. */
+    var firstH = all[0][0], lastH = all[all.length - 1][0];
+    all.forEach(function (h) {
+      var d = dt(h[0]), k = dayKey(d);
+      if (!index[k]) {
+        index[k] = {
+          label: dayLabel(d), cells: {},
+          base: Math.floor(new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() / 1000)
+        };
+        days.push(k);
+      }
+      index[k].cells[d.getHours()] = h[1];
+    });
+
+    var tip = el('div', 'sp-tip');
+    host.style.position = 'relative';
+    host.appendChild(tip);
+
+    days.forEach(function (k) {
+      var row = el('div', 'sp-row');
+      row.appendChild(el('span', 'sp-day', index[k].label));
+      for (var h = 0; h < 24; h++) {
+        var at = index[k].base + h * 3600;
+        if (at < firstH || at > lastH) {
+          var blank = el('span', 'sp-cell');
+          blank.style.visibility = 'hidden';
+          row.appendChild(blank);
+          continue;
+        }
+        var st = index[k].cells[h];
+        var known = st !== undefined;
+        var s = STATE[known ? st : 0];
+        var c = el('span', 'sp-cell ' + s.cls);
+        /* Named in the accessible name too, so a screen reader and a
+           colourblind reader both get the state without the colour. */
+        c.setAttribute('role', 'img');
+        c.setAttribute('aria-label', index[k].label + ' ' + pad(h) + ':00 - ' + s.word);
+        c.dataset.txt = index[k].label + ' ' + pad(h) + ':00 - ' + s.word;
+        row.appendChild(c);
+      }
+      host.appendChild(row);
+    });
+
+    var hours = el('div', 'sp-hours');
+    for (var h = 0; h < 24; h++) {
+      hours.appendChild(el('span', null, h % 6 === 0 ? pad(h) : ''));
+    }
+    host.appendChild(hours);
+
+    host.addEventListener('mousemove', function (e) {
+      var t = e.target;
+      if (!t.classList || !t.classList.contains('sp-cell')) { tip.style.opacity = 0; return; }
+      var hb = host.getBoundingClientRect(), cb = t.getBoundingClientRect();
+      tip.textContent = t.dataset.txt;
+      tip.style.left = (cb.left - hb.left + cb.width / 2) + 'px';
+      tip.style.top = (cb.top - hb.top - 4) + 'px';
+      tip.style.opacity = 1;
+    });
+    host.addEventListener('mouseleave', function () { tip.style.opacity = 0; });
+  })();
+
+  /* ----------------------------------------------------------------- gaps */
+  (function gaps() {
+    var host = document.getElementById('sp-gaps');
+    var rows = D.gaps || [];
+    if (!rows.length) { host.appendChild(el('p', null, 'No gap longer than 20 minutes.')); return; }
+    var t = el('table', 'sp-tbl');
+    t.innerHTML = '<thead><tr><th>From</th><th>Until</th><th>Length</th></tr></thead>';
+    var tb = el('tbody');
+    rows.forEach(function (g) {
+      var tr = el('tr');
+      var a = el('td', 'n', stamp(g[0])); var b = el('td', 'n', stamp(g[1]));
+      var c = el('td', 'n', dur(g[2]));
+      tr.appendChild(a); tr.appendChild(b); tr.appendChild(c);
+      tb.appendChild(tr);
+    });
+    t.appendChild(tb);
+    host.appendChild(t);
+  })();
+
+  /* ---------------------------------------------------------------- lines */
+  function line(hostId, series, pick, yMax, fmt, unit) {
+    var host = document.getElementById(hostId);
+    var pts = [];
+    series.forEach(function (s) {
+      var v = pick(s);
+      if (v != null) { pts.push([s[0], v]); }
+    });
+    if (pts.length < 2) { host.appendChild(el('p', null, 'Not enough data yet.')); return; }
+
+    var W = 720, H = 190, L = 34, R = 8, T = 10, B = 22;
+    var x0 = pts[0][0], x1 = pts[pts.length - 1][0];
+    var top = yMax || Math.max.apply(null, pts.map(function (p) { return p[1]; })) || 1;
+    var px = function (t) { return L + (t - x0) / (x1 - x0 || 1) * (W - L - R); };
+    var py = function (v) { return T + (1 - v / top) * (H - T - B); };
+
+    var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" role="img" aria-label="' + unit + ' over time">';
+
+    /* Recessive gridlines and their labels. */
+    for (var i = 0; i <= 4; i++) {
+      var v = top * i / 4, y = py(v);
+      svg += '<line x1="' + L + '" y1="' + y + '" x2="' + (W - R) + '" y2="' + y +
+             '" stroke="var(--line-soft)" stroke-width="1"/>';
+      svg += '<text x="' + (L - 6) + '" y="' + (y + 3.5) +
+             '" text-anchor="end" font-size="10" fill="var(--text-faint)">' + fmt(v) + '</text>';
+    }
+
+    var d = pts.map(function (p, i) { return (i ? 'L' : 'M') + px(p[0]).toFixed(1) + ' ' + py(p[1]).toFixed(1); }).join(' ');
+    svg += '<path d="' + d + '" fill="none" stroke="var(--sp-up)" stroke-width="2" ' +
+           'stroke-linejoin="round" stroke-linecap="round"/>';
+
+    /* Date ticks at each local midnight - enough to place the line in time
+       without a label on every point. */
+    var seenDay = {};
+    pts.forEach(function (p) {
+      var dd = dt(p[0]), k = dayKey(dd);
+      if (seenDay[k] || dd.getHours() > 1) { return; }
+      seenDay[k] = 1;
+      var x = px(p[0]);
+      svg += '<line x1="' + x + '" y1="' + T + '" x2="' + x + '" y2="' + (H - B) +
+             '" stroke="var(--line-soft)" stroke-width="1"/>';
+      svg += '<text x="' + x + '" y="' + (H - B + 13) + '" text-anchor="middle" font-size="10" ' +
+             'fill="var(--text-faint)">' + dayLabel(dd) + '</text>';
+    });
+
+    svg += '<circle id="' + hostId + '-dot" r="4.5" fill="var(--sp-up)" stroke="var(--bg)" ' +
+           'stroke-width="2" opacity="0"/>';
+    svg += '<line id="' + hostId + '-cross" y1="' + T + '" y2="' + (H - B) +
+           '" stroke="var(--neon)" stroke-width="1" opacity="0"/>';
+    svg += '</svg>';
+    host.innerHTML = svg;
+
+    var tip = el('div', 'sp-tip');
+    host.appendChild(tip);
+    var node = host.querySelector('svg');
+    var dot = document.getElementById(hostId + '-dot');
+    var cross = document.getElementById(hostId + '-cross');
+
+    node.addEventListener('mousemove', function (e) {
+      var b = node.getBoundingClientRect();
+      var t = x0 + (e.clientX - b.left) / b.width * (x1 - x0);
+      var best = pts[0], bd = Infinity;
+      pts.forEach(function (p) { var dd = Math.abs(p[0] - t); if (dd < bd) { bd = dd; best = p; } });
+      var sx = px(best[0]), sy = py(best[1]);
+      dot.setAttribute('cx', sx); dot.setAttribute('cy', sy); dot.setAttribute('opacity', 1);
+      cross.setAttribute('x1', sx); cross.setAttribute('x2', sx); cross.setAttribute('opacity', 0.5);
+      tip.innerHTML = '<b>' + fmt(best[1]) + '</b> ' + unit + '<br>' + stamp(best[0]);
+      tip.style.left = (sx / W * b.width) + 'px';
+      tip.style.top = (sy / H * b.height - 8) + 'px';
+      tip.style.opacity = 1;
+    });
+    node.addEventListener('mouseleave', function () {
+      tip.style.opacity = 0; dot.setAttribute('opacity', 0); cross.setAttribute('opacity', 0);
+    });
+  }
+
+  line('sp-players', D.series || [], function (s) { return s[1]; },
+       Math.max(1, D.peak_players || 1), function (v) { return String(Math.round(v)); }, 'players');
+  line('sp-tps', D.series || [], function (s) { return s[2]; },
+       20, function (v) { return v.toFixed(0); }, 'TPS');
+
+  /* --------------------------------------------------------------- horses */
+  (function horses() {
+    var hz = D.horses;
+    if (!hz) { return; }
+    tiles(document.getElementById('sp-horse-tiles'), [
+      [String(hz.total), 'horses, donkeys and mules'],
+      [String(hz.wild), 'never tamed'],
+      [String(hz.tamed), 'tamed'],
+      [String(hz.unclaimed), 'tamed but unowned']
+    ]);
+
+    var host = document.getElementById('sp-owners');
+    var owners = hz.by_owner || [];
+    if (!owners.length) { return; }
+    host.appendChild(el('h4', null, 'Tamed horses by owner'));
+    var max = owners[0][1] || 1;
+    var wrap = el('div', 'sp-bars');
+    owners.forEach(function (o) {
+      var r = el('div', 'sp-bar');
+      r.appendChild(el('span', null, o[0]));
+      var barHost = el('span');
+      var bar = el('i');
+      bar.style.width = Math.max(2, o[1] / max * 100) + '%';
+      barHost.appendChild(bar);
+      r.appendChild(barHost);
+      r.appendChild(el('b', null, String(o[1])));   /* direct label on every bar */
+      wrap.appendChild(r);
+    });
+    host.appendChild(wrap);
+    if (hz.unclaimed) {
+      host.appendChild(el('p', 'sp-asof',
+        hz.unclaimed + ' more are tame but carry no owner, so they are not in the bars above.'));
+    }
+  })();
+
+  /* --------------------------------------------------------------- tables */
+  (function tables() {
+    var host = document.getElementById('sp-tables');
+    function table(caption, head, rows) {
+      var t = el('table', 'sp-tbl');
+      var cap = el('caption', null, caption);
+      cap.style.cssText = 'text-align:left;font-size:12px;color:var(--text-faint);padding:14px 0 4px';
+      t.appendChild(cap);
+      var h = el('thead'), hr = el('tr');
+      head.forEach(function (c) { hr.appendChild(el('th', null, c)); });
+      h.appendChild(hr); t.appendChild(h);
+      var tb = el('tbody');
+      rows.forEach(function (r) {
+        var tr = el('tr');
+        r.forEach(function (c) { tr.appendChild(el('td', 'n', String(c))); });
+        tb.appendChild(tr);
+      });
+      t.appendChild(tb);
+      host.appendChild(t);
+    }
+
+    table('Uptime by state', ['State', 'Hours'], [
+      ['Up', D.hours_up || 0],
+      ['Up part of the hour', D.hours_partial || 0],
+      ['Observed down', D.hours_down || 0],
+      ['No data', D.hours_nodata || 0]
+    ]);
+
+    if (D.horses) {
+      table('Horses by owner', ['Owner', 'Tamed'],
+            (D.horses.by_owner || []).concat([['(tamed, no owner)', D.horses.unclaimed]]));
+      var bd = D.horses.breakdown || {};
+      table('Horses by kind', ['Kind', 'Count'],
+            Object.keys(bd).map(function (k) { return [k.replace('minecraft:', ''), bd[k]]; }));
+    }
+
+    if ((D.horse_history || []).length) {
+      table('Horse census over time', ['When', 'Total', 'Tamed', 'Wild'],
+            D.horse_history.map(function (r) { return [stamp(r[0]), r[1], r[2], r[3]]; }));
+    }
+  })();
 })();
 </script>
 </body>
