@@ -676,8 +676,8 @@
     <p>Prices are set by whoever owns the shop, not by the server. Shop around - literally.</p>
 
     <h3>Selling in bulk</h3>
-    <p>The price on a sign is <b>per item</b>, and one click moves one item. There is no way to write "64 for $10" on a sign, and no modifier key that buys a stack &mdash; so a bulk deal has to be priced per item, and the buyer clicks.</p>
-    <p>For something as cheap as cobblestone that is hopeless: $10 a stack works out at <code>0.16</code> each (prices go to two decimals, and <code>0.01</code> is the floor), so sixty-four clicks for $10.24.</p>
+    <p>The price on a sign is <b>per item</b>. A plain click trades one item; <b>crouch and click to trade a whole stack</b> at once. A bulk trade stops early &mdash; and says why &mdash; when the shop runs out of stock, the buyer runs out of money, or somebody's inventory is full. There is still no way to write "64 for $10" on a sign, so a bulk deal is priced per item either way.</p>
+    <p>What crouch-clicking does not fix is the price floor. Prices go to two decimals and <code>0.01</code> is the smallest, so $10 a stack of cobblestone is <code>0.16</code> each and anything you want to sell for less than a cent an item cannot be priced at all.</p>
     <p><b>Trade the compressed block instead.</b> <a href="https://www.curseforge.com/minecraft/mc-mods/allthecompressed" target="_blank" rel="noopener">AllTheCompressed</a> turns a 3&times;3 of almost anything into one block, so one click can move a lot:</p>
     <div class="tablewrap">
       <table>
