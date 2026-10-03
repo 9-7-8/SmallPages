@@ -686,6 +686,49 @@
     <h3>The server store, and emeralds</h3>
     <p>The <b><a href="https://mods.twelveiterations.com/mc/farming-for-blockheads" target="_blank" rel="noopener">Market</a></b> stall is still here, still sells at fixed prices, and still takes <b>emeralds</b> - it came before the new money and has not changed. So two currencies are in play: dollars between players, emeralds at the Market and with villagers. Treat the Market as the price floor: if a player shop asks more than the Market for the same thing, you are being had.</p>
 
+    <h3>Admin shops</h3>
+    <p>An <b>admin shop</b> is a shop with the server behind it rather than a player. It never runs out of stock and never runs out of money &mdash; and nothing it sells comes from a chest, so nothing has to be restocked. Only an <b>operator</b> or someone in <b>creative mode</b> can make one.</p>
+
+    <p>They are for fixed prices that should always be available: a starter shop at spawn, a sink for something people have too much of, a reference price so nobody gets fleeced.</p>
+
+    <ol class="steps">
+      <li><div><b>Make an ordinary shop first.</b><p>Chest, sign placed by you, then <code>/shop sell 5</code> or <code>/shop buy 5</code> exactly as above. <code>/adminshop</code> does not write the sign &mdash; it only changes who owns it, so the shop has to work before you mark it.</p></div></li>
+      <li><div><b>Look at the sign and run <code>/adminshop</code>.</b><p>That's it. The shop now belongs to the server.</p></div></li>
+      <li><div><b>Or name the sign by position:</b> <code>/adminshop at &lt;x&gt; &lt;y&gt; &lt;z&gt;</code><p>Useful when you can't get line of sight on it, or when you are marking several.</p></div></li>
+      <li><div><b>Changed your mind:</b> <code>/adminshop off</code><p>Hands the shop back to you, as its ordinary owner. Same two ways of naming the sign.</p></div></li>
+    </ol>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Sign says</th><th>What the admin shop does</th><th>The chest</th></tr></thead>
+        <tbody>
+          <tr><td><code>[buy]</code></td><td>Sells to anyone, for ever. Stock never runs down.</td><td>Stays empty. Nothing is taken out of it.</td></tr>
+          <tr><td><code>[sell]</code></td><td>Buys from anyone, for ever. Never runs out of money.</td><td>Stays empty. Nothing is put into it.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout lit">
+      <p><b>The chest is still needed, and it still stays empty.</b> An admin shop reads nothing out of the chest and writes nothing into it, so there is no point stocking one &mdash; and no harm in the chest being there. The money the customer pays simply stops existing, and the money an admin shop pays out simply appears.</p>
+    </div>
+
+    <p>The customer side is unchanged: one right-click buys or sells <b>one</b> item, they are told the price and their new balance, and they are still refused if they can't afford it, don't have the item, or have a full inventory.</p>
+
+    <div class="callout">
+      <p><b>If <code>/adminshop</code> doesn't autocomplete after you switch to creative, rejoin.</b> The game sends your client the list of commands you're allowed when your <em>operator</em> status changes, but not when your <em>gamemode</em> does. The command still works if you type it out in full; rejoining just makes the tab-completion catch up.</p>
+    </div>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>If it says</th><th>It means</th></tr></thead>
+        <tbody>
+          <tr><td>Only an operator or a creative-mode player can mark an admin shop.</td><td>You are neither. Nothing was changed.</td></tr>
+          <tr><td>That sign is not a shop yet. Make it with <code>/shop</code> first, then run this.</td><td>Step one was skipped &mdash; the sign isn't a working shop.</td></tr>
+          <tr><td>Look at the sign, or name it with: <code>/adminshop at &lt;x y z&gt;</code></td><td>You weren't pointing at a sign.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
     <div class="wikis">
       <h3>Where to read more</h3>
       <p>Two separate mods, covering the two halves of the economy.</p>
@@ -1208,6 +1251,7 @@
   <section class="panel" id="panel-stats" role="tabpanel" aria-labelledby="tab-stats" tabindex="0" hidden>
     <h2>Server Stats</h2>
     <p class="lede">How the server has actually been running &mdash; when it was up, who was on, how it performed, and where the horses are. Rebuilt automatically at every nightly restart.</p>
+    <p>The <b>pack version</b> below is the one the server is on. The updater prints the same number when it runs, so if yours is behind, run it again from the <a href="http://skyfaller.taild8de30.ts.net:8080/">download page</a>.</p>
     <p class="sp-asof" id="sp-asof">No data has been published yet.</p>
 
     <div class="sp-tiles" id="sp-tiles"></div>
@@ -1363,6 +1407,7 @@ window.SERVER_STATS =
   ]);
 
   document.getElementById('sp-asof').textContent =
+    (D.pack_version ? 'Pack v' + D.pack_version + '. ' : '') +
     'Covering ' + stamp(D.from) + ' to ' + stamp(D.to) + '. ' +
     D.samples + ' samples. Rebuilt ' + stamp(D.generated) + '.';
 
