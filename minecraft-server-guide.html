@@ -629,10 +629,27 @@
     <h3>Open your own shop</h3>
     <ol class="steps">
       <li><div><b>Put a chest down and fill it with what you're selling.</b><p>Any chest. Whatever is inside is your stock, so put in as much as you're happy to part with.</p></div></li>
-      <li><div><b>Put a sign on it.</b><p>On the front of the chest, or on any block touching it.</p></div></li>
-      <li><div><b>Write three lines on the sign.</b><p>The shop starts working the moment you finish the sign. There is nothing else to set up and no commands to memorise.</p></div></li>
+      <li><div><b>Place the sign on it yourself.</b><p>On the front of the chest, or on any block touching it. It has to be <em>you</em> who places it - that is the moment the shop records you as its owner.</p></div></li>
+      <li><div><b>Hold the item, look at the sign, and run <code>/shop</code>.</b><p>The command writes every line for you, including modded ids far too long to type into a sign editor. The shop works the moment it finishes.</p></div></li>
       <li><div><b>Closing it down.</b><p>Break the sign. The chest and everything in it stays yours.</p></div></li>
     </ol>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>You are</th><th>Run this</th><th>The sign ends up saying</th></tr></thead>
+        <tbody>
+          <tr><td>selling an item at $5</td><td><code>/shop sell 5</code></td><td><code>[buy]</code></td></tr>
+          <tr><td>buying an item at $5</td><td><code>/shop buy 5</code></td><td><code>[sell]</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout">
+      <p><b>The command is named after what <em>you</em> are doing; the sign is named after what your visitor does.</b> So <code>/shop sell 5</code> correctly writes <code>[buy]</code> on the sign. That is not a bug - do not "fix" it by running the other one, because a <code>[sell]</code> shop pays money <em>out</em>.</p>
+    </div>
+
+    <h3>If you would rather write the sign by hand</h3>
+    <p>You do not need to - <code>/shop</code> exists precisely so nobody has to - but the four lines are:</p>
 
     <div class="tablewrap">
       <table>
@@ -641,7 +658,7 @@
           <tr><td>1</td><td><code>[buy]</code> or <code>[sell]</code></td><td><code>[buy]</code></td></tr>
           <tr><td>2</td><td>the price</td><td><code>12</code></td></tr>
           <tr><td>3</td><td>the item</td><td><code>diamond</code></td></tr>
-          <tr><td>4</td><td>leave it empty</td><td>&nbsp;</td></tr>
+          <tr><td>4</td><td>the rest of the item id, if it was too long for line 3 - otherwise empty</td><td>&nbsp;</td></tr>
         </tbody>
       </table>
     </div>
