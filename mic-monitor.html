@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>mic monitor</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  /* Layout and sizing only. Colour, type and component styling live in theme.css. */
+
+  body { margin: 0; padding: 3rem 1.5rem 5rem; }
+
+  main { max-width: 760px; margin: 0 auto; }
+
+  p.lede { margin: 0 0 2.2rem; max-width: 54ch; }
+
+  .card { margin-bottom: 1.5rem; }
+
+  /* Red is the one colour the theme doesn't carry, and it's reserved for the
+     two things that mean stop: a level against the ceiling, and a clip. */
+  :root { --hot: hsl(2 80% 62%); }
+
+  /* ----------------------------------------------------------- the board -- */
+
+  .headline {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    margin-bottom: 1.4rem;
+  }
+  .big {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 3.4rem;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    color: var(--neon);
+    text-shadow: var(--text-glow);
+  }
+  .big.quiet { color: var(--text-faint); text-shadow: none; }
+  .big.hot { color: var(--hot); text-shadow: 0 0 12px hsl(2 80% 62% / 0.5); }
+  .unit { font-size: 0.9rem; color: var(--text-dim); }
+  .unit .sub { color: var(--text-faint); }
+
+  .clip {
+    margin-left: auto;
+    align-self: center;
+    font-size: 0.7rem;
+    letter-spacing: 0.18em;
+    padding: 0.3rem 0.6rem;
+    border: 1px solid var(--line);
+    color: var(--text-faint);
+  }
+  .clip.on {
+    color: var(--hot);
+    border-color: var(--hot);
+    box-shadow: 0 0 12px hsl(2 80% 62% / 0.35);
+  }
+
+  .meter {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    margin-bottom: 0.6rem;
+  }
+  .meter .tag {
+    width: 2.2rem;
+    flex: none;
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    text-align: right;
+  }
+  .meter .num {
+    width: 5.4rem;
+    flex: none;
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    text-align: right;
+  }
+
+  .track {
+    position: relative;
+    flex: 1;
+    height: 20px;
+    background: var(--sunken);
+    border: 1px solid var(--line-soft);
+    overflow: hidden;
+  }
+  /* The fill is the level now; the marker is the loudest of the last breath,
+     which is the part a meter is actually read for. */
+  .track i {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 0;
+    background: var(--neon);
+    box-shadow: var(--glow-soft);
+  }
+  .track b {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    left: 0;
+    background: var(--neon-hot);
+    opacity: 0;
+  }
+  .track.live b { opacity: 1; }
+  .track.hot i { background: var(--hot); box-shadow: 0 0 10px hsl(2 80% 62% / 0.4); }
+  .track.hot b { background: var(--hot); }
+
+  .scale {
+    position: relative;
+    height: 1.1rem;
+    margin: 0.2rem 0 0 3rem;
+    margin-right: 6.2rem;
+    font-size: 0.68rem;
+    color: var(--text-faint);
+  }
+  .scale span {
+    position: absolute;
+    transform: translateX(-50%);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ---------------------------------------------------------- the knobs -- */
+
+  .rank {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.2rem;
+    align-items: flex-end;
+  }
+  .rank + .rank { margin-top: 1.4rem; }
+
+  .field { display: flex; flex-direction: column; gap: 0.35rem; }
+  .field label { font-size: 0.8rem; }
+  .field.grow { flex: 1; min-width: 15rem; }
+  .field select { min-width: 13rem; max-width: 22rem; }
+
+  .acts { display: flex; gap: 0.6rem; }
+  .acts.end { margin-left: auto; }
+
+  .vol-row { display: flex; align-items: center; gap: 0.6rem; }
+  .vol-row input[type="range"] { flex: 1; min-width: 8rem; }
+  .vol-row button { padding: 0.3rem 0.6rem; font-size: 0.9rem; line-height: 1; }
+  .vol-read {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    width: 7.5rem;
+    text-align: right;
+  }
+
+  .toggles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 1.2rem;
+    margin-top: 1.4rem;
+    padding-top: 1.2rem;
+    border-top: 1px solid var(--line-soft);
+    font-size: 0.82rem;
+  }
+  .toggles label {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    cursor: pointer;
+  }
+
+  .status { font-size: 0.85rem; margin-top: 1.2rem; min-height: 1.2em; }
+  .meta-line { font-size: 0.78rem; color: var(--text-faint); margin-top: 0.5rem; }
+
+  .note { font-size: 0.78rem; margin-top: 1.2rem; max-width: 62ch; }
+  .note strong { color: var(--text-dim); font-weight: 400; }
+
+  [hidden] { display: none !important; }
+
+  @media (max-width: 620px) {
+    body { padding: 2rem 1rem 4rem; }
+    .big { font-size: 2.6rem; }
+    .acts.end { margin-left: 0; width: 100%; }
+    .acts.end button { flex: 1; }
+    .scale { margin-right: 0; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <a class="home" href="index.html">&larr; index</a>
+  <h1>mic monitor</h1>
+  <p class="lede">Takes whatever the microphone hears and puts it straight back out of the speakers, with a meter for how loud it is and a volume you can ride. Nothing is recorded and nothing is sent anywhere &mdash; the sound goes from the input to the output and no further.</p>
+
+  <div class="card">
+    <div class="headline">
+      <div class="big quiet" id="bigRead">&mdash;</div>
+      <div class="unit">dB <span class="sub">out</span></div>
+      <div class="clip" id="clipLight">CLIP</div>
+    </div>
+
+    <div class="meter">
+      <span class="tag">in</span>
+      <div class="track" id="inTrack" role="meter" aria-label="Microphone level"
+           aria-valuemin="-60" aria-valuemax="0"><i id="inFill"></i><b id="inPeak"></b></div>
+      <span class="num" id="inRead">&mdash;</span>
+    </div>
+
+    <div class="meter">
+      <span class="tag">out</span>
+      <div class="track" id="outTrack" role="meter" aria-label="Broadcast level"
+           aria-valuemin="-60" aria-valuemax="0"><i id="outFill"></i><b id="outPeak"></b></div>
+      <span class="num" id="outRead">&mdash;</span>
+    </div>
+
+    <div class="scale" id="scale"></div>
+  </div>
+
+  <div class="card">
+    <div class="rank">
+      <div class="field grow">
+        <label for="volume">Broadcast volume</label>
+        <div class="vol-row">
+          <button id="downBtn" class="ghost" aria-label="Quieter" title="Quieter">&minus;</button>
+          <input type="range" id="volume" min="0" max="300" step="1" value="100"
+                 aria-describedby="volRead">
+          <button id="upBtn" class="ghost" aria-label="Louder" title="Louder">+</button>
+          <span class="vol-read" id="volRead">100% · 0.0 dB</span>
+        </div>
+      </div>
+
+      <div class="acts end">
+        <button id="muteBtn" class="ghost" disabled>Mute</button>
+        <button id="runBtn">Start</button>
+      </div>
+    </div>
+
+    <div class="rank">
+      <div class="field">
+        <label for="inSel">Microphone</label>
+        <select id="inSel" disabled>
+          <option value="">Default microphone</option>
+        </select>
+      </div>
+
+      <div class="field" id="outField">
+        <label for="outSel">Playing out of</label>
+        <select id="outSel" disabled>
+          <option value="">Default output</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="toggles">
+      <label><input type="checkbox" id="echo" checked> Echo cancellation</label>
+      <label><input type="checkbox" id="noise"> Noise suppression</label>
+      <label><input type="checkbox" id="auto"> Automatic gain</label>
+      <label><input type="checkbox" id="limit" checked> Limiter</label>
+    </div>
+
+    <div class="status" id="status" role="status">Press start &mdash; the browser will ask for the microphone.</div>
+    <div class="meta-line" id="meta"></div>
+  </div>
+
+  <p class="note"><strong>Wear headphones.</strong> A microphone and a speaker in the same room, with the one feeding the other, is the whole recipe for feedback &mdash; the howl builds in about a second and it builds loud. Echo cancellation is on to begin with, which mostly talks the loop out of starting, and the limiter catches what gets through; neither is a substitute for headphones, and mute is one press away.</p>
+
+  <p class="note">The meter reads in dBFS, where 0 is as loud as the signal can be before it clips and everything useful sits below it. <strong>in</strong> is what the microphone sends; <strong>out</strong> is that after the volume and the limiter, which is what's actually leaving the speakers. Speech wants to land around &minus;18, with peaks short of &minus;6. The marker on each bar holds the loudest moment of the last second and then slides back.</p>
+</main>
+
+<script>
+"use strict";
+
+const runBtn = document.getElementById("runBtn");
+const muteBtn = document.getElementById("muteBtn");
+const volume = document.getElementById("volume");
+const volRead = document.getElementById("volRead");
+const upBtn = document.getElementById("upBtn");
+const downBtn = document.getElementById("downBtn");
+const inSel = document.getElementById("inSel");
+const outSel = document.getElementById("outSel");
+const outField = document.getElementById("outField");
+const statusEl = document.getElementById("status");
+const metaEl = document.getElementById("meta");
+const bigRead = document.getElementById("bigRead");
+const clipLight = document.getElementById("clipLight");
+const scaleEl = document.getElementById("scale");
+const echo = document.getElementById("echo");
+const noise = document.getElementById("noise");
+const auto = document.getElementById("auto");
+const limit = document.getElementById("limit");
+
+const bars = {
+  in: {
+    track: document.getElementById("inTrack"),
+    fill: document.getElementById("inFill"),
+    peak: document.getElementById("inPeak"),
+    read: document.getElementById("inRead"),
+  },
+  out: {
+    track: document.getElementById("outTrack"),
+    fill: document.getElementById("outFill"),
+    peak: document.getElementById("outPeak"),
+    read: document.getElementById("outRead"),
+  },
+};
+
+// The meter's window. Everything below the floor is silence as far as the bar
+// is concerned, and the ceiling is where a sample runs out of room.
+const FLOOR = -60;
+const TICKS = [-60, -48, -36, -24, -18, -12, -6, 0];
+
+// How fast the peak marker gives up what it caught, in dB per second. Slow
+// enough to read, quick enough not to lie about what's happening now.
+const PEAK_FALL = 20;
+const HOT_DB = -3;           // where the bar turns red: close enough to warn
+
+let ctx = null;              // AudioContext, built on the first press
+let stream = null;           // the live microphone
+let source = null;
+let gain = null;
+let limiter = null;
+let trim = null;             // takes back what the limiter adds of its own accord
+let analysers = { in: null, out: null };
+let frames = { in: null, out: null };
+let meterLoop = null;
+let running = false;
+let muted = false;
+let lastFrame = 0;
+let spokeAt = 0;
+let held = { in: -Infinity, out: -Infinity };
+let clipUntil = 0;
+let silentSince = 0;
+let saidSilent = false;
+
+function setStatus(message, isError = false) {
+  statusEl.textContent = message;
+  statusEl.classList.toggle("error", isError);
+}
+
+/* ----------------------------------------------------------------- scale -- */
+
+// Where a level sits along the bar. The bottom half of the window is where
+// quiet speech lives, so a straight dB-to-width mapping is as good a reading
+// as any and keeps the ticks honest.
+function placeOf(db) {
+  return Math.max(0, Math.min(1, (db - FLOOR) / (0 - FLOOR)));
+}
+
+for (const db of TICKS) {
+  const tick = document.createElement("span");
+  tick.style.left = `${placeOf(db) * 100}%`;
+  tick.textContent = db === 0 ? "0" : String(db);
+  scaleEl.appendChild(tick);
+}
+
+/* ---------------------------------------------------------------- volume -- */
+
+// A percentage is what anyone reaching for a volume control means, and the
+// decibels beside it are what the meter is about to move by.
+function gainNow() {
+  return Number(volume.value) / 100;
+}
+
+function showVolume() {
+  const factor = gainNow();
+  const db = factor > 0 ? 20 * Math.log10(factor) : -Infinity;
+  volRead.textContent = factor > 0
+    ? `${volume.value}% · ${db >= 0 ? "+" : ""}${db.toFixed(1)} dB`
+    : `${volume.value}% · silent`;
+}
+
+// Jumping a gain stage straight to its new value is audible as a click, so
+// every change is a short ramp instead.
+function applyGain(seconds = 0.03) {
+  if (!gain || !ctx) return;
+  const target = muted ? 0 : gainNow();
+  gain.gain.cancelScheduledValues(ctx.currentTime);
+  gain.gain.setTargetAtTime(target, ctx.currentTime, seconds);
+}
+
+volume.addEventListener("input", () => {
+  showVolume();
+  applyGain();
+});
+
+const nudge = (by) => {
+  volume.value = String(Math.max(0, Math.min(300, Number(volume.value) + by)));
+  showVolume();
+  applyGain();
+};
+upBtn.addEventListener("click", () => nudge(5));
+downBtn.addEventListener("click", () => nudge(-5));
+
+muteBtn.addEventListener("click", () => {
+  muted = !muted;
+  muteBtn.textContent = muted ? "Unmute" : "Mute";
+  muteBtn.setAttribute("aria-pressed", String(muted));
+  applyGain(0.01);
+  setStatus(muted ? "Muted — the meter still reads the microphone." : "Running.");
+});
+
+showVolume();
+
+/* --------------------------------------------------------------- devices -- */
+
+// Labels only exist once permission has been given, so the lists are filled
+// after the first successful start and refreshed whenever they change.
+async function listDevices() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+
+  let devices = [];
+  try {
+    devices = await navigator.mediaDevices.enumerateDevices();
+  } catch {
+    return;
+  }
+
+  fill(inSel, devices.filter((d) => d.kind === "audioinput"), "Default microphone");
+  if (canPickOutput()) {
+    fill(outSel, devices.filter((d) => d.kind === "audiooutput"), "Default output");
+  }
+}
+
+function fill(select, devices, fallback) {
+  const chosen = select.value;
+  select.textContent = "";
+
+  const first = document.createElement("option");
+  first.value = "";
+  first.textContent = fallback;
+  select.appendChild(first);
+
+  devices.forEach((device, i) => {
+    if (device.deviceId === "default" || !device.deviceId) return;
+    const option = document.createElement("option");
+    option.value = device.deviceId;
+    option.textContent = device.label || `${fallback.split(" ")[1] || "device"} ${i + 1}`;
+    select.appendChild(option);
+  });
+
+  if (chosen && select.querySelector(`option[value="${CSS.escape(chosen)}"]`)) {
+    select.value = chosen;
+  }
+  select.disabled = false;
+}
+
+// Routing a page's audio to a chosen output is newer than the rest of this,
+// and where it's missing the sound simply goes wherever the system sends it.
+function canPickOutput() {
+  return typeof AudioContext !== "undefined"
+    && typeof AudioContext.prototype.setSinkId === "function";
+}
+
+async function applySink() {
+  if (!ctx || !canPickOutput()) return;
+  try {
+    await ctx.setSinkId(outSel.value || "");
+  } catch (err) {
+    console.error(err);
+    setStatus(`Couldn't play out of that device (${err.message}).`, true);
+  }
+}
+
+inSel.addEventListener("change", async () => {
+  if (!running) return;
+  setStatus("Switching microphone…");
+  try {
+    await openMic();
+    setStatus("Running.");
+  } catch (err) {
+    console.error(err);
+    stop();
+    setStatus(describe(err), true);
+  }
+});
+
+outSel.addEventListener("change", applySink);
+
+if (navigator.mediaDevices) {
+  navigator.mediaDevices.addEventListener("devicechange", () => {
+    if (running) listDevices();
+  });
+}
+
+/* ----------------------------------------------------------------- audio -- */
+
+function constraints() {
+  const wanted = {
+    echoCancellation: echo.checked,
+    noiseSuppression: noise.checked,
+    autoGainControl: auto.checked,
+  };
+  if (inSel.value) wanted.deviceId = { exact: inSel.value };
+  return { audio: wanted, video: false };
+}
+
+// Opens (or reopens) the microphone and hangs it on the front of the graph.
+// Everything downstream of `source` survives, so a device or processing change
+// doesn't interrupt what's already playing for longer than it takes to swap.
+async function openMic() {
+  const fresh = await navigator.mediaDevices.getUserMedia(constraints());
+
+  if (source) source.disconnect();
+  if (stream) for (const track of stream.getTracks()) track.stop();
+
+  stream = fresh;
+  source = ctx.createMediaStreamSource(stream);
+  source.connect(analysers.in);
+  source.connect(gain);
+
+  silentSince = performance.now();
+  saidSilent = false;
+  await listDevices();
+}
+
+// gain → limiter → trim → out, with the limiter spliced in or out as it's
+// toggled. The out analyser sits last so the bar reads what leaves, not what
+// was asked for: when the limiter is holding the peaks down, that's the point.
+function wireOutput() {
+  gain.disconnect();
+  limiter.disconnect();
+  trim.disconnect();
+  analysers.out.disconnect();
+
+  if (limit.checked) {
+    gain.connect(limiter);
+    limiter.connect(trim);
+    trim.connect(analysers.out);
+  } else {
+    gain.connect(analysers.out);
+  }
+  analysers.out.connect(ctx.destination);
+}
+
+function limiterSettings(node) {
+  node.threshold.value = -3;
+  node.knee.value = 0;
+  node.ratio.value = 20;
+  node.attack.value = 0.003;
+  node.release.value = 0.12;
+}
+
+// A browser's compressor quietly applies a makeup gain of its own, so a signal
+// nowhere near the threshold still comes out louder than it went in. For a
+// monitor, whose one job is to pass the room through at the volume it was
+// asked for, that's a lie on the meter and a surprise in the speakers. How
+// much it adds depends only on the settings, so it's rendered once against a
+// tone far too quiet to be limited, and taken straight back off.
+async function measureMakeup() {
+  const rate = 44100;
+  const frames = Math.round(rate * 0.4);
+  const probe = new OfflineAudioContext(1, frames, rate);
+
+  const tone = probe.createOscillator();
+  tone.frequency.value = 440;
+  const quiet = probe.createGain();
+  quiet.gain.value = 0.02;                  // −34 dBFS: nothing to limit here
+
+  const node = probe.createDynamicsCompressor();
+  limiterSettings(node);
+
+  tone.connect(quiet).connect(node).connect(probe.destination);
+  tone.start();
+
+  const rendered = await probe.startRendering();
+  // The first stretch is the compressor settling, which isn't the question.
+  const data = rendered.getChannelData(0).subarray(Math.round(frames / 2));
+  let sum = 0;
+  for (let i = 0; i < data.length; i++) sum += data[i] * data[i];
+
+  const out = Math.sqrt(sum / data.length);
+  const expected = 0.02 / Math.SQRT2;       // what a sine that size should read
+  const factor = out > 0 ? expected / out : 1;
+  // Only ever a correction, never a boost in its own right.
+  return factor > 0.2 && factor <= 1 ? factor : 1;
+}
+
+function buildGraph() {
+  ctx = new AudioContext({ latencyHint: "interactive" });
+
+  gain = ctx.createGain();
+  gain.gain.value = 0;             // comes up on the first ramp, not with a thud
+
+  // A limiter rather than a compressor: a hard ratio right under the ceiling,
+  // fast enough to catch a door slam, so nothing shrieks out at full scale.
+  limiter = ctx.createDynamicsCompressor();
+  limiterSettings(limiter);
+
+  // Until the measurement lands, a few milliseconds in, it passes straight
+  // through — the same thing it does if the measurement can't be made.
+  trim = ctx.createGain();
+  trim.gain.value = 1;
+  measureMakeup().then((factor) => { trim.gain.value = factor; }).catch(() => {});
+
+  for (const side of ["in", "out"]) {
+    const node = ctx.createAnalyser();
+    node.fftSize = 2048;
+    analysers[side] = node;
+    frames[side] = new Float32Array(node.fftSize);
+  }
+
+  wireOutput();
+}
+
+limit.addEventListener("change", () => {
+  if (!running) return;
+  wireOutput();
+  setStatus(limit.checked ? "Limiter on." : "Limiter off — peaks go out as they come in.");
+});
+
+for (const box of [echo, noise, auto]) {
+  box.addEventListener("change", async () => {
+    if (!running) return;
+    setStatus("Reopening the microphone…");
+    try {
+      await openMic();
+      setStatus("Running.");
+    } catch (err) {
+      console.error(err);
+      stop();
+      setStatus(describe(err), true);
+    }
+  });
+}
+
+/* -------------------------------------------------------------- the loop -- */
+
+function levelOf(side) {
+  const data = frames[side];
+  analysers[side].getFloatTimeDomainData(data);
+
+  let sum = 0;
+  let peak = 0;
+  for (let i = 0; i < data.length; i++) {
+    const sample = data[i];
+    sum += sample * sample;
+    const size = Math.abs(sample);
+    if (size > peak) peak = size;
+  }
+
+  return {
+    rms: 20 * Math.log10(Math.sqrt(sum / data.length) || 1e-7),
+    peak: 20 * Math.log10(peak || 1e-7),
+  };
+}
+
+function paint(side, level, fell, speakNow) {
+  const bar = bars[side];
+  held[side] = Math.max(level.peak, held[side] - fell);
+
+  bar.fill.style.width = `${placeOf(level.rms) * 100}%`;
+  bar.peak.style.left = `calc(${placeOf(held[side]) * 100}% - 1px)`;
+  bar.track.classList.toggle("live", held[side] > FLOOR);
+  bar.track.classList.toggle("hot", level.peak > HOT_DB);
+  bar.read.textContent = level.rms <= FLOOR ? "—" : `${level.rms.toFixed(1)} dB`;
+
+  // Every frame is the right pace for a bar and far too fast for anything
+  // reading it out, so the spoken value keeps a slower clock of its own.
+  if (speakNow) {
+    const value = Math.max(FLOOR, level.rms);
+    bar.track.setAttribute("aria-valuenow", value.toFixed(1));
+    bar.track.setAttribute("aria-valuetext",
+      level.rms <= FLOOR ? "silent" : `${level.rms.toFixed(0)} decibels`);
+  }
+  return level;
+}
+
+function tick(now) {
+  meterLoop = requestAnimationFrame(tick);
+
+  const elapsed = lastFrame ? (now - lastFrame) / 1000 : 0;
+  lastFrame = now;
+  const fell = Math.min(24, PEAK_FALL * elapsed);
+
+  const speakNow = now - spokeAt > 250;
+  if (speakNow) spokeAt = now;
+
+  const input = paint("in", levelOf("in"), fell, speakNow);
+  const output = paint("out", levelOf("out"), fell, speakNow);
+
+  const quiet = output.rms <= FLOOR;
+  bigRead.textContent = quiet ? "—" : output.rms.toFixed(1);
+  bigRead.classList.toggle("quiet", quiet);
+  bigRead.classList.toggle("hot", output.peak > HOT_DB);
+
+  // A sample that reaches full scale has almost certainly been cut off at the
+  // top, so the light stays on long enough to be seen rather than blinking
+  // past between frames.
+  if (output.peak > -0.1) clipUntil = now + 1200;
+  clipLight.classList.toggle("on", now < clipUntil);
+
+  // Silence that lasts is nearly always the wrong microphone rather than a
+  // quiet room, and it's worth saying so once.
+  if (input.peak > FLOOR) {
+    silentSince = now;
+    saidSilent = false;
+  } else if (!saidSilent && now - silentSince > 4000) {
+    saidSilent = true;
+    setStatus("Nothing is coming in. Check the microphone above, and that nothing else has it muted.");
+  }
+}
+
+function clearMeters() {
+  for (const side of ["in", "out"]) {
+    held[side] = -Infinity;
+    bars[side].fill.style.width = "0";
+    bars[side].track.classList.remove("live", "hot");
+    bars[side].read.textContent = "—";
+  }
+  bigRead.textContent = "—";
+  bigRead.classList.add("quiet");
+  bigRead.classList.remove("hot");
+  clipLight.classList.remove("on");
+}
+
+/* ------------------------------------------------------------ start/stop -- */
+
+function describe(err) {
+  const name = err && err.name;
+  if (name === "NotAllowedError" || name === "SecurityError") {
+    return "The microphone was blocked. The page needs permission from the browser's address bar to hear anything.";
+  }
+  if (name === "NotFoundError" || name === "OverconstrainedError") {
+    return "No microphone came back — if one is plugged in, try picking it from the list.";
+  }
+  if (name === "NotReadableError") {
+    return "The microphone is there but something else has hold of it. Close whatever else is listening and start again.";
+  }
+  return `Couldn't start: ${(err && err.message) || err}`;
+}
+
+async function start() {
+  if (running) return;
+  runBtn.disabled = true;
+  setStatus("Asking for the microphone…");
+
+  try {
+    if (!window.isSecureContext) {
+      throw new Error("a page has to be served over https before a browser will hand it a microphone");
+    }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      throw new Error("this browser has no microphone access");
+    }
+
+    if (!ctx) buildGraph();
+    if (ctx.state === "suspended") await ctx.resume();
+
+    await openMic();
+    await applySink();
+
+    running = true;
+    muted = false;
+    muteBtn.textContent = "Mute";
+    muteBtn.setAttribute("aria-pressed", "false");
+    muteBtn.disabled = false;
+    runBtn.textContent = "Stop";
+    applyGain(0.08);                 // fade up, so starting isn't a bang
+
+    lastFrame = 0;
+    meterLoop = requestAnimationFrame(tick);
+    setStatus("Running.");
+    showMeta();
+  } catch (err) {
+    console.error(err);
+    stop();
+    setStatus(describe(err), true);
+  } finally {
+    runBtn.disabled = false;
+  }
+}
+
+function stop() {
+  running = false;
+  cancelAnimationFrame(meterLoop);
+  meterLoop = null;
+
+  if (gain && ctx) {
+    gain.gain.cancelScheduledValues(ctx.currentTime);
+    gain.gain.setTargetAtTime(0, ctx.currentTime, 0.01);
+  }
+  if (source) { source.disconnect(); source = null; }
+  // Letting the tracks go is what puts the browser's recording light out.
+  if (stream) {
+    for (const track of stream.getTracks()) track.stop();
+    stream = null;
+  }
+
+  runBtn.textContent = "Start";
+  muteBtn.disabled = true;
+  muted = false;
+  muteBtn.textContent = "Mute";
+  clearMeters();
+  metaEl.textContent = "";
+}
+
+runBtn.addEventListener("click", () => {
+  if (running) {
+    stop();
+    setStatus("Stopped. The microphone is released.");
+  } else {
+    start();
+  }
+});
+
+// What the browser is actually doing, which is the first thing worth knowing
+// when a monitor feels late.
+function showMeta() {
+  if (!ctx) return;
+  const track = stream && stream.getAudioTracks()[0];
+  const lag = (ctx.baseLatency || 0) + (ctx.outputLatency || 0);
+  metaEl.textContent = [
+    track && track.label ? track.label : "microphone",
+    `${Math.round(ctx.sampleRate / 100) / 10} kHz`,
+    lag ? `about ${Math.round(lag * 1000)} ms behind the room` : "",
+    canPickOutput() ? "" : "this browser picks the output itself",
+  ].filter(Boolean).join(" · ");
+}
+
+if (!canPickOutput()) outField.hidden = true;
+
+// A tab that goes away with the microphone still open is a tab still holding
+// the microphone, and browsers are right to light that up. Leaving the page
+// hands it back.
+window.addEventListener("pagehide", stop);
+</script>
+</body>
+</html>
