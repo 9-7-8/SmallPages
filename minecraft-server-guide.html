@@ -3,13 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>minecraft server guide</title>
+<title>Ixora's ATM11</title>
 <link rel="stylesheet" href="theme.css">
 <style>
   /* Layout and sizing only. Colour, type and component styling live in theme.css. */
 
   :root {
-    /* Emerald, since that is what the economy runs on. */
+    /* Emerald green. Player shops pay in dollars as of 2026-09-26, but the Market
+       and the villagers still run on emeralds, and the hue is house style now. */
     --sat: 0.55;
     --h: 152;
   }
@@ -147,6 +148,42 @@
   .callout.lit { border-left-color: var(--neon-deep); }
   .callout.lit b { color: var(--neon); }
 
+  /* --------------------------------------------------- download box --- */
+
+  .grabpack {
+    display: block;
+    margin: 1.8rem 0 0;
+    padding: 1.3rem 1.5rem;
+    border: 1px solid var(--neon-deep);
+    box-shadow: inset var(--glow-soft);
+  }
+  .grabpack:hover, .grabpack:focus-visible {
+    border-color: var(--neon-hot);
+    box-shadow: inset var(--glow);
+  }
+  .grabpack .k {
+    display: block;
+    font-size: 1.35rem;
+    line-height: 1.2;
+    color: var(--neon);
+  }
+  .grabpack .t {
+    display: block;
+    margin-top: 0.4rem;
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    word-break: break-all;
+  }
+  .grabpack .n {
+    display: block;
+    margin-top: 0.75rem;
+    font-size: 0.85rem;
+    line-height: 1.6;
+    color: var(--text-faint);
+    max-width: 54ch;
+  }
+
   /* Monochrome theme, so state is intensity, not hue. */
   .tag {
     display: inline-block;
@@ -248,6 +285,115 @@
   @media (prefers-reduced-motion: reduce) {
     * { transition: none !important; }
   }
+
+  /* ---- Server Stats tab -------------------------------------------------
+     Layout and sizing only, per theme.css's rule, with ONE exception: the
+     three uptime state colours. They cannot come from theme.css because it
+     carries a single accent hue and this needs three states that stay apart
+     for a colourblind reader on a true-black surface.
+
+     These exact values were not chosen by eye. They are the output of the
+     dataviz palette validator run against surface #000000 in dark mode, and
+     they pass every check: OKLCH lightness inside the 0.48-0.67 band, chroma
+     above the 0.10 floor, worst adjacent CVD separation 8.0 (protan) against
+     a target of 8, worst normal-vision separation 17.2 against a floor of 15,
+     and all three above 3:1 contrast on black. The house green #50bf8b and
+     the stock amber #fab219 BOTH failed the lightness band here, so do not
+     "correct" these back toward the page accent without re-running it.
+
+     CVD separation sitting exactly on the target means secondary encoding is
+     mandatory, not optional: every state is also named in the legend, and
+     "no data" additionally carries a diagonal hatch, so nothing is
+     distinguished by colour alone. */
+  #panel-stats {
+    --sp-up:      #2b9468;
+    --sp-partial: #bf880f;
+    --sp-down:    #cf4040;
+    --sp-none:    var(--line-soft);
+    --sp-ink:     var(--text-dim);
+  }
+
+  .sp-asof { color: var(--text-faint); font-size: 13px; margin: -6px 0 22px; }
+
+  .sp-tiles {
+    display: grid; gap: 1px; margin: 0 0 26px;
+    grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+    background: var(--line-soft);
+    border: 1px solid var(--line-soft);
+  }
+  .sp-tile { background: var(--bg); padding: 14px 16px; }
+  .sp-tile b {
+    display: block; font-size: 27px; font-weight: 300; line-height: 1.15;
+    letter-spacing: -0.015em; color: var(--text);
+  }
+  .sp-tile span { display: block; font-size: 12px; color: var(--text-faint); margin-top: 3px; }
+
+  /* Uptime grid: one row per day, one cell per hour. */
+  .sp-grid { overflow-x: auto; padding-bottom: 4px; }
+  .sp-row { display: flex; align-items: center; gap: 2px; margin-bottom: 2px; }
+  .sp-day {
+    flex: 0 0 74px; font-size: 11px; color: var(--text-faint);
+    font-family: var(--mono); letter-spacing: -0.02em;
+  }
+  .sp-cell { width: 15px; height: 15px; flex: 0 0 15px; background: var(--sp-none); }
+  .sp-cell.up { background: var(--sp-up); }
+  .sp-cell.partial { background: var(--sp-partial); }
+  .sp-cell.down { background: var(--sp-down); }
+  /* The hatch is the accessibility channel for "no data" - it must stay
+     distinguishable when the three colours above are not. */
+  .sp-cell.none {
+    background-color: transparent;
+    background-image: repeating-linear-gradient(45deg,
+      var(--line-soft) 0 2px, transparent 2px 5px);
+    box-shadow: inset 0 0 0 1px var(--line-soft);
+  }
+  .sp-cell:hover { outline: 1px solid var(--neon); outline-offset: 1px; }
+  .sp-hours { display: flex; gap: 2px; margin: 4px 0 0 74px; }
+  .sp-hours span {
+    width: 15px; flex: 0 0 15px; font-size: 9px; color: var(--text-faint);
+    text-align: center; font-family: var(--mono);
+  }
+
+  .sp-legend { display: flex; flex-wrap: wrap; gap: 16px; margin: 0 0 14px; font-size: 12px; }
+  .sp-legend i {
+    display: inline-block; width: 11px; height: 11px; margin-right: 6px;
+    vertical-align: -1px; font-style: normal;
+  }
+  .sp-legend .none-swatch {
+    background-image: repeating-linear-gradient(45deg,
+      var(--line-soft) 0 2px, transparent 2px 5px);
+    box-shadow: inset 0 0 0 1px var(--line-soft);
+  }
+
+  figure.sp-fig { margin: 0 0 26px; }
+  figure.sp-fig figcaption { font-size: 12px; color: var(--text-faint); margin-bottom: 8px; }
+  .sp-plot { position: relative; }
+  .sp-plot svg { display: block; width: 100%; height: auto; }
+
+  .sp-tip {
+    position: absolute; pointer-events: none; opacity: 0; transform: translate(-50%, -100%);
+    background: var(--raised); border: 1px solid var(--line);
+    padding: 5px 9px; font-size: 12px; white-space: nowrap; z-index: 5;
+    box-shadow: var(--glow-soft); color: var(--text);
+  }
+  .sp-tip b { font-weight: 500; }
+
+  .sp-bars { display: grid; gap: 7px; margin: 0 0 8px; }
+  .sp-bar { display: grid; grid-template-columns: 120px 1fr auto; gap: 10px; align-items: center; }
+  .sp-bar span { font-size: 13px; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; }
+  .sp-bar i { display: block; height: 11px; background: var(--sp-up); }
+  .sp-bar b { font-size: 13px; font-weight: 400; color: var(--text); font-family: var(--mono); }
+
+  .sp-tbl { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 10px; }
+  .sp-tbl th, .sp-tbl td { text-align: left; padding: 5px 10px 5px 0; border-bottom: 1px solid var(--line-soft); }
+  .sp-tbl th { color: var(--text-faint); font-weight: 400; font-size: 12px; }
+  .sp-tbl td.n { font-family: var(--mono); }
+
+  @media (max-width: 560px) {
+    .sp-day { flex-basis: 52px; }
+    .sp-hours { margin-left: 52px; }
+    .sp-bar { grid-template-columns: 88px 1fr auto; }
+  }
 </style>
 </head>
 <body>
@@ -255,15 +401,21 @@
 
   <div class="mast">
     <div>
-      <h1>Server Handbook</h1>
+      <h1>Ixora's ATM11</h1>
       <p class="lede">Getting from "just joined" to "running a shop." Nothing here goes deep — every mod a page names links out to its own wiki, gathered again at the foot of that page.</p>
     </div>
     <div class="build">
       Minecraft <b>26.1.2</b><br>
       NeoForge <b>26.1.2.109</b><br>
-      320 mods
+      <span class="jarcount">370</span> mods
     </div>
   </div>
+
+  <a class="grabpack" href="http://skyfaller.taild8de30.ts.net:8080/">
+    <span class="k">Download the pack &rarr;</span>
+    <span class="t">skyfaller.taild8de30.ts.net:8080</span>
+    <span class="n">The full pack and the latest update pack, always current. It only loads while Tailscale is connected &mdash; which makes opening it the quickest way to check that it is.</span>
+  </a>
 
   <div class="tabscroll">
     <div class="seg" role="tablist" aria-label="Handbook sections">
@@ -271,44 +423,100 @@
       <button id="tab-land" role="tab" aria-controls="panel-land" aria-selected="false">Claiming Land</button>
       <button id="tab-shops" role="tab" aria-controls="panel-shops" aria-selected="false">Money &amp; Shops</button>
       <button id="tab-ore" role="tab" aria-controls="panel-ore" aria-selected="false">Mining</button>
+      <button id="tab-sort" role="tab" aria-controls="panel-sort" aria-selected="false">Sorting Chests</button>
       <button id="tab-travel" role="tab" aria-controls="panel-travel" aria-selected="false">Getting Around</button>
+      <button id="tab-horses" role="tab" aria-controls="panel-horses" aria-selected="false">Horses</button>
       <button id="tab-qol" role="tab" aria-controls="panel-qol" aria-selected="false">Quality of Life</button>
+      <button id="tab-fix" role="tab" aria-controls="panel-fix" aria-selected="false">Troubleshooting</button>
+      <button id="tab-stats" role="tab" aria-controls="panel-stats" aria-selected="false">Server Stats</button>
     </div>
   </div>
 
   <!-- ===================== FIRST JOIN ===================== -->
   <section class="panel" id="panel-join" role="tabpanel" aria-labelledby="tab-join" tabindex="0">
     <h2>First join</h2>
-    <p class="lede">The one thing that will actually stop you connecting is a version mismatch. Get that right and the rest is ordinary Minecraft.</p>
+    <p class="lede">Four things to get in place before Minecraft will even let you knock: Tailscale, LocalSend, the right NeoForge build, and the pack itself. Follow these in order &mdash; each one depends on the one above it.</p>
+
+    <div class="callout lit"><p><b>NeoForge must be 26.1.2.109 or above.</b> This is the single most common reason a client won't start. Anything older is refused &mdash; and the error blames a mod rather than the version, so it is easy to misread.</p></div>
+
+    <div class="callout"><p><b>These steps assume the official Minecraft Launcher.</b> A third-party launcher &mdash; HMCL, Prism, MultiMC, the CurseForge app &mdash; works too, but the menus differ and two things bite: HMCL will not open at all on a plain JDK, and launchers that copy or share instances can leave you on the wrong Minecraft. Both are on the <b>Troubleshooting</b> tab.</p></div>
+
+    <h3>Getting on the network</h3>
+    <p>The server isn't on the open internet. It lives on a private <a href="https://tailscale.com/" target="_blank" rel="noopener">Tailscale</a> network, so there is nothing to port-forward and nothing for strangers to find &mdash; but you have to be let in first.</p>
+    <p>Isabel shares <b>one machine</b> with you: the server. You are not joining her network, and you cannot see anything else on it &mdash; which is why this is now four steps rather than the six it used to be.</p>
 
     <ol class="steps">
-      <li><div><b>Install <a href="https://projects.neoforged.net/neoforged/neoforge" target="_blank" rel="noopener">NeoForge 26.1.2.109</a> — exactly that build.</b>
-        <p>Not <code>.106</code>, not "whatever's newest." A client on a different NeoForge build is refused at the door, and the error is not helpful about why.</p></div></li>
-      <li><div><b>Drop the whole mod folder in.</b>
-        <p>Copy every jar from the pack into your <code>.minecraft/mods</code> folder. The server checks this — a missing or extra mod usually shows up as a connection error listing the mismatch.</p></div></li>
+      <li><div><b>Make a Tailscale account first.</b>
+        <p>Sign up at <a href="https://login.tailscale.com/start" target="_blank" rel="noopener">tailscale.com</a> before you install anything. <b>Any account will do</b> &mdash; Google, Microsoft, GitHub, a plain email address. It does not have to match anything you told Isabel.</p>
+        <p>You are making your own free account here, not joining hers, and it stays that way.</p></div></li>
+      <li><div><b>Then download and install Tailscale.</b>
+        <p>Get it from <a href="https://tailscale.com/download" target="_blank" rel="noopener">tailscale.com/download</a> and sign in with the account you just made.</p></div></li>
+      <li><div><b>Open Isabel's share link and accept it.</b>
+        <p>She sends you a link. Open it while signed in to Tailscale, and accept. That hands you the server and nothing else.</p>
+        <p>There is <b>no network to switch to</b>, nothing to log out of, and nothing to pick from a list. If anyone talks you through those steps, they are describing the old way.</p></div></li>
+      <li><div><b>Check Tailscale says Connected.</b>
+        <p>Leave it running whenever you play. If Tailscale is off, the server simply won't appear in your list.</p>
+        <p><b>The test:</b> open <a href="http://skyfaller.taild8de30.ts.net:8080/">the downloads page</a>. It lives on the shared machine and nowhere else, so <b>if that page loads, everything above worked</b>. If it doesn't, open the share link again and check that it really says accepted.</p></div></li>
+      <li><div><b>Install <a href="https://localsend.org/" target="_blank" rel="noopener">LocalSend</a> &mdash; optional, as a fallback.</b>
+        <p>You will normally download the pack from the link in the next step. LocalSend is worth having anyway for when that is not an option: it is free, open source, on every platform, and sends a file straight from one machine to another with no upload in between.</p></div></li>
+      <li><div><b>Download the pack.</b>
+        <p>Once Tailscale says <em>Connected</em>, open <a href="http://skyfaller.taild8de30.ts.net:8080/">the download page</a>. It only exists on the tailnet, so if it loads, your Tailscale is working &mdash; which makes it a useful test on its own.</p>
+        <p>Take the <b>full pack</b> the first time. Later, when the server changes, that same page carries a small <b>update pack</b> instead &mdash; a few MB rather than a few hundred, and the page always lists the current one.</p>
+        <p>If the page won't load, Tailscale isn't connected yet. Failing that, ask Isabel to send it over LocalSend instead.</p>
+        <p>Don't unzip it yet.</p></div></li>
+    </ol>
+
+    <h3>Installing the pack</h3>
+
+    <ol class="steps">
+      <li><div><b>Launch plain Minecraft 26.1.2 once.</b>
+        <p>In the Minecraft Launcher, play version <code>26.1.2</code> with no mods, let it reach the title screen, then quit. This makes the launcher download the files NeoForge is about to build on top of. Skipping it is the most common reason the next step fails.</p></div></li>
+      <li><div><b>Install <a href="https://projects.neoforged.net/neoforged/neoforge" target="_blank" rel="noopener">NeoForge 26.1.2.109</a> or newer &mdash; never older.</b>
+        <p><b>26.1.2.109 is a hard minimum.</b> Mods in this pack refuse to load below it. <code>.106</code> will not work, and neither will anything else under <code>.109</code>.</p>
+        <p>On that page pick <b>26.1.2.109</b> (or a higher <code>26.1.2.x</code> if one exists by the time you read this) and download the <b>Installer</b>. Run it &mdash; double-click, or <code>java -jar neoforge-26.1.2.109-installer.jar</code> &mdash; choose <b>Install client</b>, leave the path pointing at your <code>.minecraft</code> folder, and press OK.</p>
+        <p>If you are below the minimum the game stops during loading and names a <em>mod</em>, not a NeoForge version &mdash; something like "requires neoforge 26.1.2.109 or above". That message means this step, nothing else.</p></div></li>
+      <li><div><b>Make a separate installation with its own folder.</b>
+        <p>This keeps <span class="jarcount">370</span> mods away from your existing worlds. In the launcher: <b>Installations &rarr; New installation</b>, set <b>Version</b> to <code>neoforge-26.1.2.109</code>, and set <b>Game directory</b> to a new empty folder &mdash; something like <code>C:\Minecraft\isabel-server</code>. Save it.</p>
+        <p>If you'd rather not bother, you can skip this and use your normal <code>.minecraft</code> &mdash; but move your existing <code>mods</code> folder somewhere safe first, because the pack has to be the only thing in there.</p></div></li>
+      <li><div><b>Copy all four folders in.</b>
+        <p>Open the zip and copy <code>mods</code>, <code>config</code>, <code>kubejs</code> and <code>resourcepacks</code> into the game directory you just set. If you're asked whether to merge or replace, choose replace.</p>
+        <p><b>All four matter.</b> <code>config</code> and <code>kubejs</code> are not optional extras &mdash; several mods build their item lists from those files, so a client without them knows about different items than the server does and gets refused on connect.</p>
+        <p>You want <code>&lt;game directory&gt;/mods/</code> full of jars &mdash; <b>not</b> <code>mods/mods/</code>, which is the classic mistake. There should be <b class="jarcount">370</b> files in there when you're done.</p>
+        <p>If you skipped the separate-installation step, the default game directory is:</p>
+        <ul>
+          <li><b>Windows</b> &mdash; <code>%APPDATA%\.minecraft</code></li>
+          <li><b>macOS</b> &mdash; <code>~/Library/Application Support/minecraft</code></li>
+          <li><b>Linux</b> &mdash; <code>~/.minecraft</code></li>
+        </ul></div></li>
       <li><div><b>Give Java more memory.</b>
-        <p>This pack is large. In your launcher's settings, allocate at least 6&nbsp;GB. The default 2&nbsp;GB will load, then stutter and eventually crash.</p></div></li>
-      <li><div><b>Connect, then be patient on the first load.</b>
-        <p>The first join builds a lot of caches and can sit on "Loading terrain" for a while. It's much faster afterwards.</p></div></li>
+        <p>Still in <b>Installations</b>, edit your new installation, open <b>More options</b>, and find the <b>JVM arguments</b> box. Change <code>-Xmx2G</code> to <code>-Xmx8G</code> (or <code>-Xmx6G</code> if your machine has 8&nbsp;GB of RAM total). Leave the rest of the line alone. The default 2&nbsp;GB will not load this pack.</p></div></li>
+      <li><div><b>Launch it, and expect to wait.</b>
+        <p>First startup takes several minutes and looks frozen more than once. That's normal for <span class="jarcount">370</span> mods. It's much quicker every time after.</p></div></li>
+      <li><div><b>Add the server and connect.</b>
+        <p><b>Multiplayer &rarr; Add Server</b>, then the address Isabel gives you. Check Tailscale says <em>Connected</em> first. The first join builds a lot of caches and can sit on "Loading terrain" for a while.</p></div></li>
       <li><div><b>Open the quest book.</b>
         <p>There's an <a href="https://docs.feed-the-beast.com/mod-docs/mods/suite/Quests/" target="_blank" rel="noopener">FTB Quests</a> book covering the tech and progression mods. It's the best map of the pack that exists, and it hands out starting gear. Find <em>Open Quests</em> in <kbd>Controls</kbd> if it isn't bound.</p></div></li>
     </ol>
 
-    <div class="callout"><p><b>Server address:</b> ask in chat — it isn't written down here on purpose.</p></div>
+    <div class="callout"><p><b>Server address:</b> ask Isabel &mdash; it isn't written down here on purpose.</p></div>
+
+    <div class="callout"><p><b>Something went wrong?</b> Every error worth knowing about &mdash; refused connections, crashes on startup, the mods that misbehave &mdash; is on the <b>Troubleshooting</b> tab, each one with the exact message you'll see and what to do about it.</p></div>
 
     <h3>Your first hour</h3>
     <p>Normal survival rules apply. Punch wood, make tools, don't dig straight down. The differences worth knowing on night one:</p>
     <ul>
       <li><b>Death is survivable.</b> <a href="https://www.curseforge.com/minecraft/mc-mods/epitaphs" target="_blank" rel="noopener">Epitaphs</a> places a grave where you died, holding your things. Walk back and collect it.</li>
       <li><b>Sleeping is a group activity.</b> You don't need everyone in bed to skip the night, but you do need enough people. Get in bed and wait a moment.</li>
-      <li><b>Check recipes in-game.</b> <a href="https://github.com/mezz/JustEnoughItems/wiki" target="_blank" rel="noopener">JEI</a> is the recipe viewer: hover any item and press <kbd>R</kbd> for how to make it, or <kbd>U</kbd> for what it's used for. With 320 mods this is the most useful key on your keyboard.</li>
+      <li><b>Check recipes in-game.</b> <a href="https://github.com/mezz/JustEnoughItems/wiki" target="_blank" rel="noopener">JEI</a> is the recipe viewer: hover any item and press <kbd>R</kbd> for how to make it, or <kbd>U</kbd> for what it's used for. With <span class="jarcount">370</span> mods this is the most useful key on your keyboard.</li>
       <li><b>Don't build anything permanent yet.</b> Claim first — see the next tab. Unclaimed land is not protected.</li>
     </ul>
 
     <div class="wikis">
       <h3>Where to read more</h3>
-      <p>The four mods this page leans on, each on its own documentation.</p>
+      <p>The tools and mods this page leans on, each on its own documentation.</p>
       <ul class="linklist full">
+        <li><span class="who"><a href="https://tailscale.com/kb/1017/install" target="_blank" rel="noopener">Tailscale</a></span><span class="what">Installing it and accepting a shared machine, on every platform <span class="host">tailscale kb</span></span></li>
+        <li><span class="who"><a href="https://localsend.org/" target="_blank" rel="noopener">LocalSend</a></span><span class="what">Sending a file device-to-device, including adding a device by hand <span class="host">localsend.org</span></span></li>
         <li><span class="who"><a href="https://projects.neoforged.net/neoforged/neoforge" target="_blank" rel="noopener">NeoForge</a></span><span class="what">Every 26.1.2 build listed, so you can pick <code>.109</code> exactly <span class="host">neoforged.net</span></span></li>
         <li><span class="who"><a href="https://docs.feed-the-beast.com/mod-docs/mods/suite/Quests/" target="_blank" rel="noopener">FTB Quests</a></span><span class="what">How the quest book works, and how to read what a quest is asking for <span class="host">ftb docs</span></span></li>
         <li><span class="who"><a href="https://github.com/mezz/JustEnoughItems/wiki" target="_blank" rel="noopener">Just Enough Items</a></span><span class="what">The recipe viewer behind <kbd>R</kbd> and <kbd>U</kbd>, including its search syntax <span class="host">github wiki</span></span></li>
@@ -320,10 +528,21 @@
   <!-- ===================== CLAIMING ===================== -->
   <section class="panel" id="panel-land" role="tabpanel" aria-labelledby="tab-land" tabindex="0" hidden>
     <h2>Claiming land</h2>
-    <p class="lede">Land protection is handled by <a href="https://docs.feed-the-beast.com/mod-docs/mods/suite/Chunks/" target="_blank" rel="noopener">FTB Chunks</a>. You claim whole chunks — the 16&times;16 columns Minecraft is built from — and everything inside becomes yours.</p>
+    <p class="lede">Land protection is handled by <a href="https://docs.feed-the-beast.com/mod-docs/mods/suite/Chunks/" target="_blank" rel="noopener">FTB Chunks</a>, but you drive it from the <a href="https://journeymap.info/" target="_blank" rel="noopener">JourneyMap</a> fullscreen map. You claim whole chunks — the 16&times;16 columns Minecraft is built from — and everything inside becomes yours.</p>
 
     <h3>How to claim</h3>
-    <p>Open the map (<em>Open Map</em> in <kbd>Controls</kbd>, under the FTB Chunks category). The world appears overlaid with a chunk grid. Then:</p>
+    <p><b>You claim from the JourneyMap fullscreen map</b>, not from a separate FTB Chunks screen. JourneyMap is the pack's map mod, and FTB Chunks hangs its claiming off it.</p>
+
+    <ol class="steps">
+      <li><div><b>Open the JourneyMap fullscreen map.</b>
+        <p>The key is <kbd>M</kbd>. If that does nothing, look for <em>Open JourneyMap Fullscreen Map</em> in <kbd>Controls</kbd> &mdash; this pack ships <b>KeybindsPurger</b>, which strips keybinds, so don't assume the default survived. Clicking the minimap works too.</p></div></li>
+      <li><div><b>Press the claim button in the UPPER LEFT of that screen.</b>
+        <p>That is the one that turns the map into the chunk grid. It is easy to miss among the other map buttons &mdash; it is in the top-left cluster, not with the map-type or waypoint controls.</p></div></li>
+      <li><div><b>Drag across the grid.</b>
+        <p>The controls are below. You stay inside JourneyMap the whole time; the grid is an overlay on the map you were already looking at.</p></div></li>
+    </ol>
+
+    <p>With the grid open:</p>
 
     <ul class="keylist full">
       <li><span class="act">Left-drag</span><span class="desc">Claim the chunks you drag across</span></li>
@@ -333,15 +552,34 @@
       <li><span class="act">Hold Tab</span><span class="desc">Hide the grid to see the map underneath</span></li>
     </ul>
 
+    <p>Dragging has three shapes, switched in FTB Chunks' client settings under <em>Chunk claiming mode</em>: <b>Rectangular</b> (the default), <b>Circular</b>, and <b>Freehand</b>. Rectangular is what you want almost always; freehand is for tracing an awkward border.</p>
+
     <p><b>Claiming</b> protects land. <b>Force-loading</b> is different and more precious: it keeps your machines ticking when nobody is nearby. Spend those on farms and power generation, not on your house.</p>
 
     <h4>Your limits</h4>
     <div class="tablewrap">
       <table>
-        <thead><tr><th scope="col">Allowance</th><th scope="col">Per team</th><th scope="col">What it means</th></tr></thead>
+        <thead><tr><th scope="col">Allowance</th><th scope="col">Per player</th><th scope="col">What it means</th></tr></thead>
         <tbody>
-          <tr><td>Claimed chunks</td><td class="num">500</td><td>Roughly a 22&times;22 block of land — far more than a base needs</td></tr>
+          <tr><td>Claimed chunks</td><td class="num">500</td><td>A 22&times;22 patch of chunks, about 350 blocks square &mdash; far more than a base needs</td></tr>
           <tr><td>Force-loaded chunks</td><td class="num">25</td><td>The scarce one. Budget these deliberately</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p><b>These are per player, not per team.</b> When you join a team the members' allowances pool, so two people together can claim 1000 chunks and force-load 50. Claiming works in <b>every dimension</b> &mdash; this server sets no dimension restrictions on it.</p>
+
+    <div class="callout"><p><b>Do not claim the spawn village.</b> Nothing in FTB Chunks stops you, but spawn is separately protected and is meant to stay common ground &mdash; claiming it would only lock your friends out of the shop and the stables. Build your base somewhere else and claim that.</p></div>
+
+    <h3>Messages you will actually see</h3>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th scope="col">Message</th><th scope="col">Meaning</th></tr></thead>
+        <tbody>
+          <tr><td><code>Chunk limit reached</code></td><td>You are out of allowance &mdash; unclaim something, or team up to pool</td></tr>
+          <tr><td><code>Chunk is already claimed by …</code></td><td>Someone else got there first; the name tells you who to ask</td></tr>
+          <tr><td><code>Interaction prevented here by claim protection!</code></td><td>You are standing in someone else's claim</td></tr>
+          <tr><td><code>Chunks modified: N / M</code></td><td>Normal success &mdash; N of the M chunks you dragged over actually changed</td></tr>
         </tbody>
       </table>
     </div>
@@ -386,36 +624,132 @@
   <!-- ===================== SHOPS ===================== -->
   <section class="panel" id="panel-shops" role="tabpanel" aria-labelledby="tab-shops" tabindex="0" hidden>
     <h2>Money &amp; shops</h2>
-    <p class="lede">The currency is emeralds — actual emeralds, in your inventory. There is no balance, no <code>/pay</code>, and no way to buy anything from across the map. If you want to trade, you travel.</p>
+    <p class="lede">Money is a bank balance in dollars now, not something you carry - though you can withdraw it as cash if you like. Shops are ordinary chests with a sign on them. There is still no buying from across the map: if you want to trade, you travel.</p>
 
     <h3>Open your own shop</h3>
     <ol class="steps">
-      <li><div><b>Craft a <a href="https://modrinth.com/mod/ketkets-player-shops" target="_blank" rel="noopener">Shopcase</a>.</b><p>One emerald directly above one chest, in a crafting grid. You get an item called <em>Shopcase</em>.</p></div></li>
-      <li><div><b>Place it where you want the shop to stand.</b><p>Somewhere people can reach. A shop nobody can walk to sells nothing.</p></div></li>
-      <li><div><b>Right-click it to open the shop menu.</b><p>Set what you're selling, what you want for it, and how much is stocked. It's all in the menu — no commands to memorise.</p></div></li>
-      <li><div><b>Stock it and leave it running.</b><p>The shop keeps selling while you're offline, and the takings are waiting when you log back in.</p></div></li>
+      <li><div><b>Put a chest down and fill it with what you're selling.</b><p>Any chest. Whatever is inside is your stock, so put in as much as you're happy to part with.</p></div></li>
+      <li><div><b>Place the sign on it yourself.</b><p>On the front of the chest, or on any block touching it. It has to be <em>you</em> who places it - that is the moment the shop records you as its owner.</p></div></li>
+      <li><div><b>Hold the item, look at the sign, and run <code>/shop</code>.</b><p>The command writes every line for you, including modded ids far too long to type into a sign editor. The shop works the moment it finishes.</p></div></li>
+      <li><div><b>Closing it down.</b><p>Break the sign. The chest and everything in it stays yours.</p></div></li>
     </ol>
 
-    <div class="callout lit">
-      <p><b>Nobody can rob your shop.</b> Only you can open its menu — anyone else clicking it just gets the buying screen. Claim the chunk it sits in and it can't be broken either.</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>You are</th><th>Run this</th><th>The sign ends up saying</th></tr></thead>
+        <tbody>
+          <tr><td>selling an item at $5</td><td><code>/shop sell 5</code></td><td><code>[buy]</code></td></tr>
+          <tr><td>buying an item at $5</td><td><code>/shop buy 5</code></td><td><code>[sell]</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout">
+      <p><b>The command is named after what <em>you</em> are doing; the sign is named after what your visitor does.</b> So <code>/shop sell 5</code> correctly writes <code>[buy]</code> on the sign. That is not a bug - do not "fix" it by running the other one, because a <code>[sell]</code> shop pays money <em>out</em>.</p>
+    </div>
+
+    <h3>If you would rather write the sign by hand</h3>
+    <p>You do not need to - <code>/shop</code> exists precisely so nobody has to - but the four lines are:</p>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Line</th><th>What goes on it</th><th>Example</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td><code>[buy]</code> or <code>[sell]</code></td><td><code>[buy]</code></td></tr>
+          <tr><td>2</td><td>the price</td><td><code>12</code></td></tr>
+          <tr><td>3</td><td>the item</td><td><code>diamond</code></td></tr>
+          <tr><td>4</td><td>the rest of the item id, if it was too long for line 3 - otherwise empty</td><td>&nbsp;</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout">
+      <p><b><code>[buy]</code> and <code>[sell]</code> are named for what your visitor does, not what you do.</b> <code>[buy]</code> is the one you want almost always: you stock the chest, people buy out of it, and the money lands in your account. <code>[sell]</code> is the opposite - it pays people to hand items <em>in</em>, so it needs money in your account and free space in the chest, and it stops the moment either runs out.</p>
+    </div>
+
+    <div class="callout">
+      <p><b>Writing the item name.</b> Ordinary items can be written plainly, like <code>diamond</code> or <code>oak_log</code>. Anything from a mod needs its full id - press <b>F3 + H</b> to turn on advanced tooltips and the id appears in grey under the item's name.</p>
     </div>
 
     <h3>Buying from someone else</h3>
-    <p>Walk up to their Shopcase and click it. You'll see what's for sale and the price. If you have the goods you get the item; if the shop is out of stock, it says so.</p>
-    <p>Prices are set by whoever owns the shop, not by the server. Shop around — literally.</p>
+    <p>Right-click their sign. It tells you what's for sale and the price, and one right-click buys <b>one</b> item - there is no stack-at-a-time shortcut, so click away.</p>
+    <p>Prices are set by whoever owns the shop, not by the server. Shop around - literally.</p>
 
-    <h3>The server store</h3>
-    <p>There's also a <b><a href="https://mods.twelveiterations.com/mc/farming-for-blockheads" target="_blank" rel="noopener">Market</a></b>, a small wooden stall with a merchant in it. It sells at fixed prices in emeralds, never runs out, and isn't owned by anyone. Treat it as the price floor: if a player shop is charging more than the Market for the same thing, you're being had.</p>
+    <h3>Selling in bulk</h3>
+    <p>The price on a sign is <b>per item</b>. A plain click trades one item; <b>crouch and click to trade a whole stack</b> at once. A bulk trade stops early &mdash; and says why &mdash; when the shop runs out of stock, the buyer runs out of money, or somebody's inventory is full. There is still no way to write "64 for $10" on a sign, so a bulk deal is priced per item either way.</p>
+    <p>What crouch-clicking does not fix is the price floor. Prices go to two decimals and <code>0.01</code> is the smallest, so $10 a stack of cobblestone is <code>0.16</code> each and anything you want to sell for less than a cent an item cannot be priced at all.</p>
+    <p><b>Trade the compressed block instead.</b> <a href="https://www.curseforge.com/minecraft/mc-mods/allthecompressed" target="_blank" rel="noopener">AllTheCompressed</a> turns a 3&times;3 of almost anything into one block, so one click can move a lot:</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Item</th><th>Plain cobble it holds</th><th>Price at $10 a stack</th></tr></thead>
+        <tbody>
+          <tr><td>Cobblestone 1x</td><td>9</td><td><code>1.41</code></td></tr>
+          <tr><td>Cobblestone 2x</td><td>81</td><td><code>12.66</code></td></tr>
+          <tr><td>Cobblestone 3x</td><td>729</td><td><code>113.91</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Each tier is nine of the one below, so the numbers climb fast &mdash; and compressed blocks still stack to 64 in the chest, so one chest holds an absurd amount of stone.</p>
+
+    <div class="callout lit">
+      <p><b>Nobody can rob your shop.</b> Only you can open the chest or break the sign, even if it is standing in the open. Claiming the chunk on top of that does no harm.</p>
+    </div>
+
+    <h3>Cash, ATMs and paying people</h3>
+    <p><code>/money</code> shows your balance and <code>/pay &lt;player&gt; &lt;amount&gt;</code> sends money to someone. Neither needs you to be anywhere in particular.</p>
+    <p>The balance is the real thing, but it does not have to stay abstract: an <b>ATM</b> turns it into notes and coins and back again, a <b>Banker Table</b> does the same job, and wallets keep the cash tidy in your inventory. Cash in your pockets is not your balance - deposit it first if you want to spend it in a shop.</p>
+
+    <h3>The server store, and emeralds</h3>
+    <p>The <b><a href="https://mods.twelveiterations.com/mc/farming-for-blockheads" target="_blank" rel="noopener">Market</a></b> stall is still here, still sells at fixed prices, and still takes <b>emeralds</b> - it came before the new money and has not changed. So two currencies are in play: dollars between players, emeralds at the Market and with villagers. Treat the Market as the price floor: if a player shop asks more than the Market for the same thing, you are being had.</p>
+
+    <h3>Admin shops</h3>
+    <p>An <b>admin shop</b> is a shop with the server behind it rather than a player. It never runs out of stock and never runs out of money &mdash; and nothing it sells comes from a chest, so nothing has to be restocked. Only an <b>operator</b> or someone in <b>creative mode</b> can make one.</p>
+
+    <p>They are for fixed prices that should always be available: a starter shop at spawn, a sink for something people have too much of, a reference price so nobody gets fleeced.</p>
+
+    <ol class="steps">
+      <li><div><b>Make an ordinary shop first.</b><p>Chest, sign placed by you, then <code>/shop sell 5</code> or <code>/shop buy 5</code> exactly as above. <code>/adminshop</code> does not write the sign &mdash; it only changes who owns it, so the shop has to work before you mark it.</p></div></li>
+      <li><div><b>Look at the sign and run <code>/adminshop</code>.</b><p>That's it. The shop now belongs to the server.</p></div></li>
+      <li><div><b>Or name the sign by position:</b> <code>/adminshop at &lt;x&gt; &lt;y&gt; &lt;z&gt;</code><p>Useful when you can't get line of sight on it, or when you are marking several.</p></div></li>
+      <li><div><b>Changed your mind:</b> <code>/adminshop off</code><p>Hands the shop back to you, as its ordinary owner. Same two ways of naming the sign.</p></div></li>
+    </ol>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Sign says</th><th>What the admin shop does</th><th>The chest</th></tr></thead>
+        <tbody>
+          <tr><td><code>[buy]</code></td><td>Sells to anyone, for ever. Stock never runs down.</td><td>Stays empty. Nothing is taken out of it.</td></tr>
+          <tr><td><code>[sell]</code></td><td>Buys from anyone, for ever. Never runs out of money.</td><td>Stays empty. Nothing is put into it.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout lit">
+      <p><b>The chest is still needed, and it still stays empty.</b> An admin shop reads nothing out of the chest and writes nothing into it, so there is no point stocking one &mdash; and no harm in the chest being there. The money the customer pays simply stops existing, and the money an admin shop pays out simply appears.</p>
+    </div>
+
+    <p>The customer side is unchanged: one right-click buys or sells <b>one</b> item, they are told the price and their new balance, and they are still refused if they can't afford it, don't have the item, or have a full inventory.</p>
 
     <div class="callout">
-      <p><b>Where do emeralds come from?</b> The ordinary places — trading with villagers, mining, exploring. Villager trading is also where they leave circulation again, so the economy roughly balances itself without anyone managing it.</p>
+      <p><b>If <code>/adminshop</code> doesn't autocomplete after you switch to creative, rejoin.</b> The game sends your client the list of commands you're allowed when your <em>operator</em> status changes, but not when your <em>gamemode</em> does. The command still works if you type it out in full; rejoining just makes the tab-completion catch up.</p>
+    </div>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>If it says</th><th>It means</th></tr></thead>
+        <tbody>
+          <tr><td>Only an operator or a creative-mode player can mark an admin shop.</td><td>You are neither. Nothing was changed.</td></tr>
+          <tr><td>That sign is not a shop yet. Make it with <code>/shop</code> first, then run this.</td><td>Step one was skipped &mdash; the sign isn't a working shop.</td></tr>
+          <tr><td>Look at the sign, or name it with: <code>/adminshop at &lt;x y z&gt;</code></td><td>You weren't pointing at a sign.</td></tr>
+        </tbody>
+      </table>
     </div>
 
     <div class="wikis">
       <h3>Where to read more</h3>
       <p>Two separate mods, covering the two halves of the economy.</p>
       <ul class="linklist full">
-        <li><span class="who"><a href="https://modrinth.com/mod/ketkets-player-shops" target="_blank" rel="noopener">Ketket's Player Shops</a></span><span class="what">The Shopcase — crafting it, pricing it, and the whole seller menu <span class="host">modrinth</span></span></li>
+        <li><span class="who"><a href="https://modrinth.com/mod/saros-money" target="_blank" rel="noopener">Saro's Money</a></span><span class="what">The sign shops, ATMs, wallets and the cash items <span class="host">modrinth</span></span></li>
         <li><span class="who"><a href="https://mods.twelveiterations.com/mc/farming-for-blockheads" target="_blank" rel="noopener">Farming for Blockheads</a></span><span class="what">The Market stall, plus the mod's kitchen and farming blocks <span class="host">twelve iterations</span></span></li>
       </ul>
     </div>
@@ -428,7 +762,18 @@
 
     <h3>Turn these on first</h3>
     <h4>Vein mining</h4>
-    <p>Hold the <em>Activate Ultimining</em> key (set it in <kbd>Controls</kbd> under <a href="https://docs.feed-the-beast.com/mod-docs/mods/suite/Ultimine/" target="_blank" rel="noopener">FTB Ultimine</a>) and break one block of an ore vein — the whole vein comes out at once. It works on trees and most gatherable blocks too. This single feature removes most of the tedium from mining here.</p>
+    <p><b>Hold <kbd>~</kbd> and break a block.</b> That is the tilde/backtick key immediately left of <kbd>1</kbd>, on the row above Tab. Everything connected to that block breaks with it.</p>
+
+    <p>This is <a href="https://docs.feed-the-beast.com/mod-docs/mods/suite/Ultimine/" target="_blank" rel="noopener">FTB Ultimine</a>, and it is the single biggest quality-of-life feature on the server:</p>
+    <ul>
+      <li><b>Whole trees</b> — one swing at the trunk and the entire tree comes down, leaves and all. No jumping, no leftover floating logs.</li>
+      <li><b>Whole ore veins</b> — hit one block of a vein and take all of it, including modded ores.</li>
+      <li><b>Tunnels, fast</b> — hold it while digging and you carve corridors far quicker than block by block.</li>
+    </ul>
+
+    <p>You will see the affected blocks highlight before you break anything, so you always know what you are about to take. It handles up to <b>64 blocks</b> at once here, and eats hunger in proportion — bring food if you are felling a jungle.</p>
+
+    <div class="callout"><p><b>If <kbd>~</kbd> does nothing,</b> it is almost certainly unbound rather than broken: this pack ships <b>KeybindsPurger</b>. Open <kbd>Controls</kbd>, find <em>Activate Ultimining</em> under the <b>FTB Ultimine</b> category, and set it to whatever you like.</p></div>
 
     <h4>The block tooltip</h4>
     <p>Look at any block and <a href="https://github.com/Snownee/Jade" target="_blank" rel="noopener">Jade</a> puts a small panel on screen telling you what it is, which mod it came from, and often what tool it needs. When you hit an unfamiliar ore three hundred blocks down, this is what tells you whether it's worth mining.</p>
@@ -464,6 +809,136 @@
     </div>
   </section>
 
+  <!-- ===================== SORTING ===================== -->
+  <section class="panel" id="panel-sort" role="tabpanel" aria-labelledby="tab-sort" tabindex="0" hidden>
+    <h2>Sorting chests</h2>
+    <p class="lede">The first real problem in a pack this size isn't finding things &mdash; it's that an hour of mining and looting leaves you with eleven chests of unsorted rubbish. <a href="https://modrinth.com/mod/sortcraft" target="_blank" rel="noopener">SortCraft</a> fixes that with signs. No redstone, no hoppers, no machines, and you can build it on your first day with wood and a few chests.</p>
+
+    <div class="callout"><p><b>This is a day-one tool, not an endgame one.</b> Once you have an <a href="https://guide.appliedenergistics.org/" target="_blank" rel="noopener">AE2</a> or <a href="https://refinedmods.com/refined-storage" target="_blank" rel="noopener">Refined Storage</a> network running, that replaces it completely. SortCraft is what gets you through the many hours before then.</p></div>
+
+    <h3>Build it in three steps</h3>
+
+    <ol class="steps">
+      <li><div><b>Put chests down and label each one with a sign.</b>
+        <p>Place a chest, then put a <b>wall sign</b> on the side of it, and write a category name in square brackets on any line: <code>[ores]</code>, <code>[food]</code>, <code>[wood]</code>.</p>
+        <p>It has to be a <b>wall sign</b> &mdash; one stuck to the side of the block. A standing sign on top of the chest does nothing, and neither does a hanging sign: SortCraft finds the chest by looking at what the wall sign is attached to, and those two aren't attached to anything. This is the single most common reason a chest never fills.</p>
+        <p>All four lines are read, front and back, so the other lines are yours to label with.</p></div></li>
+      <li><div><b>Put down one more chest and label it <code>[input]</code>.</b>
+        <p>This is the bucket you dump everything into when you get home. It doesn't need to be next to the others &mdash; see the range note below.</p></div></li>
+      <li><div><b>Dump your loot in, then right-click the <code>[input]</code> sign.</b>
+        <p>Everything that matches a category flies to the right chest. Anything with no matching category stays in the input chest, so nothing ever goes missing.</p>
+        <p><b>Shift + right-click</b> the same sign to <em>preview</em> instead &mdash; it tells you what would go where without moving anything. Worth doing the first time so you can see your layout working.</p></div></li>
+    </ol>
+
+    <h3>How close do the chests need to be?</h3>
+    <p><b>They don't need to touch.</b> Nothing has to be adjacent to anything else &mdash; not the destination chests to the input chest, and not the destination chests to each other. Everything just has to be <b>within 16 blocks</b> of the input chest, which is a generous room.</p>
+    <p>The only thing that must physically touch is <b>each sign and its own chest</b>. Beyond that, put the chests wherever they look good: two walls of a storage room, both floors of a tower, scattered around a basement. The input chest can sit by your front door with everything else a corridor away.</p>
+
+    <div class="callout"><p><b>One sign per chest, one chest per category.</b> Double chests count as a single chest, so a double chest is the easy way to give a busy category more room.</p></div>
+
+    <h3>What counts as a chest</h3>
+    <p>Anything that holds items, not just wooden chests. Barrels work, <a href="https://github.com/P3pp3rF1y/SophisticatedStorage/wiki" target="_blank" rel="noopener">Sophisticated Storage</a> barrels and chests work, and <a href="https://www.curseforge.com/minecraft/mc-mods/functional-storage" target="_blank" rel="noopener">Functional Storage</a> drawers work &mdash; and drawers are worth a section of their own, below.</p>
+
+    <h3>Drawers, and one sign for a whole column</h3>
+    <p>A sign labels the container it is stuck to <b>and every storage block directly underneath it</b>. SortCraft walks straight down from the signed container and keeps going until it hits something that isn't storage, or a container that carries a sign of its own.</p>
+    <p>That is what makes drawers work properly. Put a <a href="https://www.curseforge.com/minecraft/mc-mods/functional-storage" target="_blank" rel="noopener">Functional Storage</a> drawer down, sign it <code>[ingots]</code>, then stack five more drawers below it &mdash; no more signs &mdash; and that one category now has six drawers' worth of room. A drawer holds one item type per slot in enormous quantity, so this is far and away the best home for the bulk categories: <code>[ingots]</code>, <code>[stone]</code>, <code>[wood]</code>, <code>[crops]</code>.</p>
+    <ol class="steps">
+      <li><div><b>Build the column downward, not sideways.</b><p>The sign goes on the top container. Anything beside it is a separate chest that needs its own sign.</p></div></li>
+      <li><div><b>Seed the drawers before the first big sort, or lock them.</b><p>An empty drawer slot takes whatever arrives first and then only accepts that one item. SortCraft asks each slot whether it will take an item and never forces a wrong one in &mdash; but it does mean the first sort decides what each slot becomes. If you want a particular layout, put one of each item in by hand first, and a lock upgrade keeps it that way even when the drawer empties.</p></div></li>
+      <li><div><b>If it's full, nothing is lost.</b><p>Items with nowhere to go stay in the input chest. They are never dropped or destroyed.</p></div></li>
+    </ol>
+    <p>Barrels and <a href="https://github.com/P3pp3rF1y/SophisticatedStorage/wiki" target="_blank" rel="noopener">Sophisticated Storage</a> chests stack the same way, so you can mix them in a column.</p>
+
+    <h3>Shulker boxes in the input</h3>
+    <p>Drop a shulker box or a bundle into the input chest and SortCraft <b>empties it and sorts what was inside</b>, which makes a shulker box the natural way to carry a mining trip home in one slot.</p>
+    <p>The exception is a box that holds <b>ten or more stacks of the same thing</b>. That reads as deliberate storage rather than luggage, so the box is filed whole, as an item, instead of being unpacked.</p>
+
+    <h3>Start with six chests</h3>
+    <p>There are 57 categories, plus one for every mod in the pack, but you do not need to care about that yet. Sign six chests with these and you have covered nearly everything the game will throw at you:</p>
+    <ul class="keylist full">
+      <li><span class="act"><code>[ores]</code></span><span class="desc">Ore, raw metal, ingots, nuggets, gems, dust, coal and metal blocks</span></li>
+      <li><span class="act"><code>[food]</code></span><span class="desc">Anything edible, plus drinks</span></li>
+      <li><span class="act"><code>[gear]</code></span><span class="desc">Every weapon, tool, shield and piece of armour</span></li>
+      <li><span class="act"><code>[bulk]</code></span><span class="desc">Stone, dirt, sand, wood, glass, stairs, slabs &mdash; building material</span></li>
+      <li><span class="act"><code>[farming]</code></span><span class="desc">Seeds, saplings, crops, bonemeal</span></li>
+      <li><span class="act"><code>[loot]</code></span><span class="desc">Mob drops, discs, sherds, heads and trinkets</span></li>
+    </ul>
+
+    <h3>Then split them when a chest fills up</h3>
+    <p>This is the part worth understanding, because it means <b>you never have to redo your storage room</b>. Categories are arranged in tiers, and an item takes the most specific chest that exists. If you have not built that chest, it rolls up to the general one instead.</p>
+    <p>So a diamond looks for <code>[gems]</code>, and if there is no such chest it settles for <code>[ores]</code>. The day <code>[ores]</code> gets too full, you put down a chest, write <code>[gems]</code> on it, and gems start going there by themselves. Nothing else changes.</p>
+
+    <div class="tablewrap">
+    <table>
+      <thead><tr><th scope="col">General chest</th><th scope="col">Split it into any of these</th></tr></thead>
+      <tbody>
+        <tr><td><code>[ores]</code></td><td><code>[raw_ore]</code> <code>[ingots]</code> <code>[nuggets]</code> <code>[gems]</code> <code>[dusts]</code> <code>[plates]</code> <code>[blocks]</code> <code>[coal]</code> &mdash; or <code>[metals]</code> for the worked ones together</td></tr>
+        <tr><td><code>[food]</code></td><td><code>[meat]</code> <code>[fish]</code> <code>[fruit]</code> <code>[vegetables]</code> <code>[drinks]</code> &mdash; or <code>[meat_raw]</code> and <code>[meat_cooked]</code> apart</td></tr>
+        <tr><td><code>[gear]</code></td><td><code>[weapons]</code> <code>[tools]</code> <code>[armor]</code> &mdash; then <code>[swords]</code> <code>[bows]</code> <code>[pickaxes]</code> <code>[axes]</code> <code>[shovels]</code> <code>[hoes]</code> <code>[shields]</code> <code>[utility_tools]</code> <code>[helmets]</code> <code>[chestplates]</code> <code>[leggings]</code> <code>[boots]</code></td></tr>
+        <tr><td><code>[bulk]</code></td><td><code>[stone]</code> <code>[wood]</code> <code>[earth]</code> <code>[glass]</code> <code>[shapes]</code> <code>[decoration]</code> <code>[containers]</code> &mdash; or <code>[building]</code> for all the worked blocks</td></tr>
+        <tr><td><code>[farming]</code></td><td><code>[seeds]</code> <code>[saplings]</code> <code>[crops]</code> <code>[fertiliser]</code></td></tr>
+        <tr><td><code>[loot]</code></td><td><code>[mob_drops]</code> <code>[trophies]</code> &mdash; and <code>[tech]</code> for redstone parts</td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <p><b><code>[wood]</code> and <code>[stone]</code> go by what a thing is made of.</b> Anything made <b>entirely</b> of wood lands in <code>[wood]</code> &mdash; planks and logs, but also doors, fences, gates, trapdoors, buttons, pressure plates, stairs, slabs, signs, boats, bowls, ladders and sticks. Anything made entirely of stone or cobblestone lands in <code>[stone]</code> the same way &mdash; walls, stone stairs and slabs, furnaces. Both beat <code>[shapes]</code>.</p>
+    <p><b>What a thing is FOR still beats what it is made of.</b> A wooden pickaxe is still <code>[pickaxes]</code>, a chest and a barrel are still <code>[containers]</code>, and charcoal is still <code>[coal]</code> even though it is smelted from logs and so counts as wood quite literally. Mixed things belong to neither: a lever is cobblestone and a stick, so it stays where it was.</p>
+    <p>If you have not built a <code>[wood]</code> or <code>[stone]</code> chest, none of this changes anything &mdash; those items fall through to <code>[shapes]</code> and <code>[bulk]</code> exactly as before.</p>
+
+    <h3>Four that sort by what happened to an item</h3>
+    <p>These are checked before everything above, so they win over the ordinary category for that item type. Each one is inert until you build its chest.</p>
+    <ul class="keylist full">
+      <li><span class="act"><code>[named]</code></span><span class="desc"><b>Anything you renamed in an anvil.</b> The reason to bother: your favourite pickaxe stops vanishing into a chest with forty others. Name it once and it always comes home here</span></li>
+      <li><span class="act"><code>[damaged]</code></span><span class="desc">Tools, weapons and armour at 25% durability or less &mdash; the repair pile</span></li>
+      <li><span class="act"><code>[enchanted]</code></span><span class="desc">Any enchanted gear, kept away from the plain stuff</span></li>
+      <li><span class="act"><code>[enchanted_books]</code></span><span class="desc">Exactly what it says</span></li>
+    </ul>
+
+    <h3>A chest for exactly one item</h3>
+    <p>Every single item in the pack is its own category, named by its <b>full id</b> &mdash; the mod's name, a colon, then the item. Sign a chest <code>[minecraft:lead]</code> and it takes leads and nothing else.</p>
+    <p><b>It has to be the full id.</b> <code>[lead]</code> on its own is not a category and deliberately never will be. Short names go wrong the moment two mods both add something with the same one, and every short word spent this way is a word that could never be given to a proper category later.</p>
+    <p><b>These beat everything.</b> A chest signed <code>[minecraft:diamond_pickaxe]</code> takes every diamond pickaxe, even a renamed, enchanted or nearly-broken one, ahead of <code>[named]</code>, <code>[damaged]</code> and <code>[pickaxes]</code>. That is the point of them &mdash; one thing you care about, always in the same place &mdash; but it does mean an item chest quietly outranks the rest of your sorting room for that one item.</p>
+    <p><b>Don't type them by hand.</b> A sign line holds about fifteen characters, nowhere near enough for most modded ids. Hold the item, look at the sign, and run <code>/signitem</code> &mdash; it writes the id for you, split across the sign's lines so it still sits inside the sign. A name split that way sorts exactly as if it were on one line.</p>
+    <p>Not sure what something is called? <code>/sort category &lt;item&gt;</code> lists every chest name that would take it, and <b>F3 + H</b> turns on tooltips that show an item's id.</p>
+
+    <h3>A chest for one mod</h3>
+    <p>Any mod's own name works as a category. Sign a chest <code>[horsegenetics]</code> and everything from Procedural Horse Coats lands in it; <code>[ae2]</code>, <code>[mekanism]</code>, <code>[occultism]</code>, <code>[railcraft]</code> and 182 others all work the same way.</p>
+    <p>The name to write is the mod's <b>id</b>, which is the part before the colon in an item's id rather than its pretty name. Press <b>F3 + H</b> once to turn on advanced tooltips and every item shows you its id; <code>/sort category &lt;item&gt;</code> will also tell you, and it names the mod chest along with the normal one.</p>
+    <p><b>Mod chests are checked last</b>, just ahead of <code>[misc]</code>, so everything above beats them. If you have an <code>[ingots]</code> chest and a <code>[mekanism]</code> chest, Mekanism's ingots still go to <code>[ingots]</code>. A mod chest is for the things a mod adds that fit nowhere else &mdash; machine parts, ritual components, its own oddities &mdash; not a way to pull a whole mod out of your sorting room.</p>
+
+    <div class="callout"><p><b><code>[misc]</code> catches everything else.</b> Build that chest and nothing is ever left behind &mdash; but you also stop noticing what has no proper home. Leaving it out is the better default: unmatched items stay in the input chest where you can see them, and you can say so in chat.</p></div>
+
+    <h3>Commands worth knowing</h3>
+    <ul class="keylist full">
+      <li><span class="act"><code>/sort preview</code></span><span class="desc">Shows what would move where, without moving it. Same as shift + right-clicking the input sign</span></li>
+      <li><span class="act"><code>/sort category &lt;item&gt;</code></span><span class="desc">Tells you which category an item belongs to, so you know which chest to build</span></li>
+      <li><span class="act"><code>/sort whereis &lt;item&gt;</code></span><span class="desc">Finds where something is already stored and <b>highlights those chests with a glowing outline you can see through walls</b></span></li>
+      <li><span class="act"><code>/sort input</code></span><span class="desc">Sorts the nearest input chest, if reaching the sign is awkward</span></li>
+      <li><span class="act"><code>/signitem</code></span><span class="desc"><b>Hold an item, look at a sign, run this and the sign labels itself for that item.</b> Saves typing a long id by hand. <code>/signitem add</code> writes into the sign's empty lines instead of clearing it</span></li>
+      <li><span class="act"><code>/sort help</code></span><span class="desc">The full list</span></li>
+    </ul>
+
+    <h3>When it doesn't work</h3>
+    <ul>
+      <li><b>Nothing moved.</b> The sign text has to match a category name exactly, brackets included &mdash; though it can be on any line, front or back. If the whole chest is ignored, check the sign is a <b>wall sign on the side</b> and not a standing sign on top.</li>
+      <li><b>Some items stayed behind.</b> That's correct behaviour &mdash; they don't match any category yet. Run <code>/sort category</code> on one and say so in chat if it looks like it should have a home.</li>
+      <li><b>One chest never fills.</b> Check that its sign is actually attached to that chest and not to the block beside it.</li>
+      <li><b>A chest filled up.</b> Items that don't fit stay in the input. Make it a double chest, or point that category at a drawer.</li>
+    </ul>
+
+    <div class="wikis">
+      <h3>Where to read more</h3>
+      <p>SortCraft's own documentation, plus the two storage systems that eventually replace it.</p>
+      <ul class="linklist full">
+        <li><span class="who"><a href="https://modrinth.com/mod/sortcraft" target="_blank" rel="noopener">SortCraft</a></span><span class="what">The mod page, with a quickstart video and pictures of a working setup <span class="host">modrinth</span></span></li>
+        <li><span class="who"><a href="https://github.com/Nayruden/sortcraft/blob/master/docs/CONCEPTS.md" target="_blank" rel="noopener">SortCraft concepts</a></span><span class="what">How categories, priorities and filters actually work, if you want to suggest new ones <span class="host">github</span></span></li>
+        <li><span class="who"><a href="https://www.curseforge.com/minecraft/mc-mods/functional-storage" target="_blank" rel="noopener">Functional Storage</a></span><span class="what">Drawers — the best destination for bulk categories <span class="host">curseforge</span></span></li>
+        <li><span class="who"><a href="https://guide.appliedenergistics.org/" target="_blank" rel="noopener">Applied Energistics 2</a></span><span class="what">The digital storage network that makes all of this unnecessary, eventually <span class="host">ae2 guide</span></span></li>
+      </ul>
+    </div>
+  </section>
+
   <!-- ===================== TRAVEL ===================== -->
   <section class="panel" id="panel-travel" role="tabpanel" aria-labelledby="tab-travel" tabindex="0" hidden>
     <h2>Getting around</h2>
@@ -476,6 +951,17 @@
       <li><div><b>Right-click any other waystone to travel.</b><p>Pick a destination from everything you've discovered.</p></div></li>
       <li><div><b>Put one at home first.</b><p>Then activate every waystone you stumble across. The network is only as useful as the number of pins in it.</p></div></li>
     </ol>
+
+    <h3>Paths make you faster</h3>
+    <p>Walk on a path block and you move noticeably quicker &mdash; about 40% faster, and it applies the moment you step on. It works for <b>horses too</b>, and a horse pulling a cart drags the cart along at the same speed, so a proper road is the cheapest travel upgrade in the pack.</p>
+    <ol class="steps">
+      <li><div><b>Join up the places you actually walk between.</b><p>House to mine, base to farm, spawn to your build. Short hops you make twenty times a day are worth more than one long scenic highway.</p></div></li>
+      <li><div><b>Real paths count. Bare ground does not.</b><p>The vanilla dirt path &mdash; the one you scrape out with a shovel &mdash; works, and so does every one of the 316 blocks in <a href="https://www.curseforge.com/minecraft/mc-mods/macaws-paths" target="_blank" rel="noopener">Macaw's Paths</a>: stone paths, paving, flagstone, cobble walkways, crystal floors, and the slabs and stairs of all of them. Same speed from every one, so build whatever looks right.</p><p><b>Plain dirt and coarse dirt give you nothing</b>, and burying coarse dirt under the surface to make a hidden fast lane does nothing either &mdash; that was switched off on 24 September, because natural coarse dirt underground was handing out the boost at random in badlands and taiga.</p></div></li>
+      <li><div><b>Two blocks wide is plenty.</b><p>Enough that you stay on it without steering. Widen it later if you are riding with someone.</p></div></li>
+    </ol>
+    <div class="callout lit">
+      <p><b>Mobs get the speed boost too.</b> Anything standing on your path moves faster, including whatever is chasing you. Light your roads properly &mdash; an unlit path is a fast lane for creepers as much as for you.</p>
+    </div>
 
     <h3>Maps and waypoints</h3>
     <p>Two mapping systems are running, good at different things:</p>
@@ -508,6 +994,43 @@
     </div>
   </section>
 
+  <section class="panel" id="panel-horses" role="tabpanel" aria-labelledby="tab-horses" tabindex="0" hidden>
+    <h2>Horses</h2>
+    <p class="lede">The horses here are not vanilla horses. <a href="https://9-7-8.github.io/Procedural-Horse-Coats/" target="_blank" rel="noopener">Procedural Horse Coats</a> gives every one of them a real genome &mdash; coat, build, temperament and stats, all of it inherited by its foals. It's written by the person running this server and it updates most days, so <b>the mod's own wiki is the source of truth</b>, not this page. This tab is just enough to get you started.</p>
+
+    <h3>The controls</h3>
+    <ul class="keylist full">
+      <li><span class="act">E, from the saddle</span><span class="desc">That horse's own menu &mdash; genes, family, gear. Press it again to close</span></li>
+      <li><span class="act">H</span><span class="desc">The horse browser: every horse you own</span></li>
+      <li><span class="act">R</span><span class="desc">Attach or detach a cart from the horse you're riding</span></li>
+    </ul>
+    <p>The saddle menu follows whatever your <b>Inventory</b> key is, so if you've moved it off <code>E</code>, use the key you moved it to. Donkeys and mules still open their ordinary inventory. If one of these does nothing at all it's more likely unbound than broken &mdash; <b>KeybindsPurger</b> strips conflicting defaults, so check Options &rarr; Controls first.</p>
+
+    <h3>Keeping one alive</h3>
+    <p>Two things are worth knowing before you own a horse, because neither is vanilla:</p>
+    <ol class="steps">
+      <li><div><b>A hurt horse needs water nearby and a full stomach to heal.</b><p>Water within three blocks, and not starving. Vanilla's free trickle of regeneration is switched <b>off</b> for horses, so a hungry horse stays hurt until you feed it. Leave water and something to graze in the pen and it sorts itself out.</p></div></li>
+      <li><div><b>They graze, so fence your farm.</b><p>A horse eats crops whole and turns grass to dirt the way a sheep does. It won't reach <em>through</em> a fence, but an open gate is an open invitation.</p></div></li>
+    </ol>
+    <div class="callout lit">
+      <p><b>A horse is hard to lose now.</b> Nothing kills one in a single blow &mdash; a killing hit leaves it on half a heart with a few seconds of immunity instead. Below a fifth of its health it stops answering the reins and bolts, carrying you out rather than throwing you. Let it run.</p>
+    </div>
+    <p>Your own horses also talk to you in chat: what hurt one and what to do about it, who lost one and to what, and why a mare wasn't covered.</p>
+
+    <div class="wikis">
+      <h3>Where to read more</h3>
+      <p>Everything else &mdash; genetics, breeding, gear, carts &mdash; is documented properly by the mod itself.</p>
+      <ul class="linklist full">
+        <li><span class="who"><a href="https://9-7-8.github.io/Procedural-Horse-Coats/" target="_blank" rel="noopener">The wiki</a></span><span class="what">Start here. Everything the mod does, in detail <span class="host">procedural horse coats</span></span></li>
+        <li><span class="who"><a href="https://9-7-8.github.io/Procedural-Horse-Coats/wiki/horse-care.html" target="_blank" rel="noopener">Horse care</a></span><span class="what">Hunger, healing, bond and herds <span class="host">procedural horse coats</span></span></li>
+        <li><span class="who"><a href="https://9-7-8.github.io/Procedural-Horse-Coats/wiki/breeding.html" target="_blank" rel="noopener">Breeding</a></span><span class="what">Heat, covers, and what a foal actually gets <span class="host">procedural horse coats</span></span></li>
+        <li><span class="who"><a href="https://9-7-8.github.io/Procedural-Horse-Coats/wiki/horse-browser.html" target="_blank" rel="noopener">The horse browser</a></span><span class="what">Searching, sorting, and the family tree <span class="host">procedural horse coats</span></span></li>
+        <li><span class="who"><a href="https://9-7-8.github.io/Procedural-Horse-Coats/wiki/horse-gear.html" target="_blank" rel="noopener">Horse gear</a></span><span class="what">Tack, shoes, saddle pads and horse armour <span class="host">procedural horse coats</span></span></li>
+        <li><span class="who"><a href="https://9-7-8.github.io/Procedural-Horse-Coats/wiki/carts.html" target="_blank" rel="noopener">Carts</a></span><span class="what">Building them, hitching them, and what they'll carry <span class="host">procedural horse coats</span></span></li>
+      </ul>
+    </div>
+  </section>
+
   <!-- ===================== QOL ===================== -->
   <section class="panel" id="panel-qol" role="tabpanel" aria-labelledby="tab-qol" tabindex="0" hidden>
     <h2>Quality of life</h2>
@@ -526,6 +1049,14 @@
 
     <h3>Building and decorating</h3>
     <p>There's a deep set of decoration mods here — <a href="https://modrinth.com/user/sketchmacaw" target="_blank" rel="noopener">Macaw's</a> furniture, windows, doors, roofs, fences, paths, bridges, stairs and lights, plus <a href="https://github.com/XFactHD/FramedBlocks/wiki" target="_blank" rel="noopener">FramedBlocks</a>, which take on the appearance of anything else. If you enjoy the building side, browse these in the recipe viewer; there is far more available than the vanilla palette suggests.</p>
+
+    <h3>The server tidies up every hour</h3>
+    <p>On the hour, every hour, two things are removed. A warning goes out in chat two minutes before and again at thirty seconds, so there is always time to react.</p>
+    <ul>
+      <li><b>Items lying on the ground</b>, in every dimension. <b>Death drops are safe</b> &mdash; dying puts your inventory into a grave block, not loose items on the floor &mdash; but anything you deliberately left lying about to deal with later does go. Put it in a chest.</li>
+      <li><b>Zombies, skeletons and creepers more than 128 blocks from every player online.</b> That is further than you can see, so you will never watch one vanish. Husks, drowned, strays, bogged and wither skeletons go too; <b>zombie villagers never do</b>, so a cure in progress is safe, and neither does anything you have name-tagged.</li>
+    </ul>
+    <p>This is a performance measure rather than a rule. You will also see a one-line <b>[Perf]</b> summary in chat at five past the hour - TPS, tick time, entity and horse counts for the hour just gone - so it is obvious when the server is struggling and when it is fine. Thousands of forgotten items and mobs ticking away in chunks nobody is standing in is the main thing that makes the server stutter. One thing to know if you build a mob farm: a chamber that holds mobs alive will empty itself once you walk away from it, while a farm that kills them into a chest is fine.</p>
 
     <h3>Getting unstuck</h3>
     <ul>
@@ -547,6 +1078,240 @@
     <footer>
       This handbook covers the server's own rules and conventions. For any individual mod's mechanics, follow the links at the foot of each tab — a mod's own wiki or in-game guide book will always beat anything written here.
     </footer>
+  </section>
+
+  <!-- ===================== TROUBLESHOOTING ===================== -->
+  <section class="panel" id="panel-fix" role="tabpanel" aria-labelledby="tab-fix" tabindex="0" hidden>
+    <h2>Troubleshooting</h2>
+    <p class="lede">Nearly every failure here is a version mismatch wearing a disguise. The error text almost never names the real cause &mdash; so find your message below rather than trusting what it blames.</p>
+
+    <div class="callout lit"><p><b>Check these four first.</b> Most problems on this page are one of them being wrong. They are not interchangeable and "newer" is not always safer.</p></div>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>What</th><th>Must be</th><th>Why it bites</th></tr></thead>
+        <tbody>
+          <tr><td>Minecraft</td><td><code>26.1.2</code></td><td>Sets which graphics libraries the game loads</td></tr>
+          <tr><td>NeoForge</td><td><code>26.1.2.109</code> or newer &mdash; and it <b>must</b> start <code>26.1.2.</code></td><td>Too low and mods refuse to load; a build for another Minecraft launches the wrong game entirely</td></tr>
+          <tr><td>Java</td><td><b>25</b></td><td>26.1.2 asks for 25 &mdash; older Java won't launch it</td></tr>
+          <tr><td>Jars in <code>mods/</code></td><td><b class="jarcount">370</b></td><td>Any other number is refused at connect</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>The launcher won't even open</h3>
+
+    <h4>"invalid JVM argument(s) ... --add-modules=javafx.controls,javafx.fxml"</h4>
+    <ul>
+      <li><b>This is not Minecraft, and not the pack</b>
+        <ul>
+          <li>The error names <code>org.jackhuang.hmcl.Main</code> &mdash; that's <b>HMCL</b> (Hello Minecraft! Launcher) failing to start.</li>
+          <li>The game never launches, so the pack is not involved. <b>Redownloading the pack cannot fix this</b>, and neither can any change to it.</li>
+        </ul>
+      </li>
+      <li><b>What it means</b>
+        <ul>
+          <li>HMCL is a JavaFX application. Those repeated <code>--add-modules=javafx...</code> lines are it trying several ways to find JavaFX, failing every time, and then failing to load its own main class.</li>
+          <li><b>A plain JDK has no JavaFX in it.</b> It was unbundled at Java 11, and the common builds &mdash; Temurin/Adoptium, Microsoft, Corretto &mdash; do not ship it.</li>
+        </ul>
+      </li>
+      <li><b>How to fix it</b> &mdash; either one works
+        <ul>
+          <li><b>Run HMCL's Windows <code>.exe</code>, not the <code>.jar</code>.</b> The <code>.exe</code> brings a runtime with it. Double-clicking the <code>.jar</code> hands it to whatever <code>java</code> is on your PATH, which is exactly the JDK that has no JavaFX.</li>
+          <li><b>Or install a JDK that includes JavaFX</b> and point HMCL at that: <a href="https://bell-sw.com/pages/downloads/" target="_blank" rel="noopener">BellSoft Liberica JDK</a> &mdash; the <b>Full</b> package &mdash; or <a href="https://www.azul.com/downloads/?package=jdk-fx" target="_blank" rel="noopener">Azul Zulu JDK FX</a>.</li>
+        </ul>
+      </li>
+      <li><b>The launcher's Java and the game's Java are two different settings</b>
+        <ul>
+          <li>Minecraft 26.1.2 wants <b>Java 25</b>. HMCL itself wants a <b>JavaFX-capable</b> Java.</li>
+          <li>Setting one does not set the other, and installing Java 25 for the game is what leaves HMCL unable to start.</li>
+        </ul>
+      </li>
+      <li><b>If you use HMCL, turn version isolation on</b>
+        <ul>
+          <li>By default it shares one <code>.minecraft</code> across every version you've installed, so another version's mods and libraries mix into this one.</li>
+          <li>That is a common route into the LWJGL error below.</li>
+        </ul>
+      </li>
+    </ul>
+
+    <h3>It crashes while loading</h3>
+
+    <h4>"NoSuchMethodError ... Callback$Descriptor"</h4>
+    <ul>
+      <li><b>What you'll see</b> &mdash; a fatal error during mod loading, roughly:
+        <ul>
+          <li><code>java.lang.InternalError: java.lang.NoSuchMethodError: 'void org.lwjgl.system.Callback$Descriptor.&lt;init&gt;(java.lang.invoke.MethodHandles$Lookup, org.lwjgl.system.libffi.FFICIF)'</code></li>
+        </ul>
+      </li>
+      <li><b>What it actually means</b>
+        <ul>
+          <li>Your instance is running <b>LWJGL 3.3.3</b>. Minecraft 26.1.2 needs <b>3.4.1</b>.</li>
+          <li>In 3.3.3 that class does not exist at all, so the first mod to touch it dies &mdash; usually Sodium.</li>
+          <li><b>Nothing is wrong with the pack, and nothing is wrong with Sodium.</b> Deleting mods will not fix it.</li>
+        </ul>
+      </li>
+      <li><b>Why it happens</b> &mdash; almost always the first of these
+        <ul>
+          <li><b>You installed NeoForge for a different Minecraft version.</b> NeoForge builds are tied to one Minecraft version, so the wrong one quietly launches that version instead &mdash; and 1.21.8 and the 25w3x snapshots all use LWJGL 3.3.3. The build you want starts <code>26.1.2.</code>; anything else is the wrong game. <b>This is the one that has actually bitten someone here.</b></li>
+          <li>Or the instance was <b>copied from an older Minecraft</b>, and the old library setting came along with the copy.</li>
+          <li>Or your launcher lets you <b>pin an LWJGL version</b>, and it is pinned low.</li>
+        </ul>
+      </li>
+      <li><b>How to fix it</b>
+        <ul>
+          <li><b>Prism or MultiMC</b> &mdash; Edit Instance &rarr; Version. "LWJGL 3" is its own line: set it to <code>3.4.1</code>, or remove the override so it follows the game.</li>
+          <li><b>Official launcher or CurseForge</b> &mdash; build a <b>fresh</b> 26.1.2 instance and install NeoForge into that. Do not copy or upgrade an older one. Failing that, make the launcher re-verify its files so 3.4.1 downloads.</li>
+          <li><b>To confirm before you start</b> &mdash; search your launch log for <code>lwjgl-3.3.3</code>. If it's on the classpath, this is your problem.</li>
+        </ul>
+      </li>
+      <li><b>Do not "fix" this by changing Java.</b>
+        <ul>
+          <li>Java 25 is correct here &mdash; 26.1.2 asks for it by name. Downgrading Java will only break something else.</li>
+        </ul>
+      </li>
+    </ul>
+
+    <h4>"... requires neoforge 26.1.2.109 or above"</h4>
+    <ul>
+      <li><b>It names a mod, but the mod is fine.</b>
+        <ul>
+          <li>Whichever mod is named is simply the first one to check. Your NeoForge build is too old.</li>
+          <li>This is the single most misleading message you can hit here, because it reads like a broken download.</li>
+        </ul>
+      </li>
+      <li><b>Fix</b>
+        <ul>
+          <li>Install <b>26.1.2.109</b> or newer. <code>.106</code> is not close enough.</li>
+        </ul>
+      </li>
+    </ul>
+
+    <h4>It crashes naming <code>lambdynamiclights</code></h4>
+    <ul>
+      <li><b>Known-shaky on some setups</b>
+        <ul>
+          <li>It packages its libraries in a layout NeoForge doesn't always accept.</li>
+          <li>Delete that one jar from <code>mods</code>. Nothing else depends on it and the rest of the pack is unaffected.</li>
+        </ul>
+      </li>
+    </ul>
+
+    <h4>It runs out of memory, or stutters then dies</h4>
+    <ul>
+      <li><b>The default 2&nbsp;GB will not load this pack</b>
+        <ul>
+          <li>Edit your installation &rarr; More options &rarr; JVM arguments.</li>
+          <li>Change <code>-Xmx2G</code> to <code>-Xmx8G</code>, or <code>-Xmx6G</code> if the machine only has 8&nbsp;GB total. Leave the rest of the line alone.</li>
+        </ul>
+      </li>
+    </ul>
+
+    <h3>It won't connect</h3>
+
+    <h4>"The server sent registries with unknown keys"</h4>
+    <ul>
+      <li><b>A long list of item names, and none of them are the problem</b>
+        <ul>
+          <li>Your <code>config</code> or <code>kubejs</code> folder is missing or incomplete.</li>
+          <li>Several mods build their item lists from those files, so a client without them genuinely knows about different items than the server does.</li>
+        </ul>
+      </li>
+      <li><b>Fix</b>
+        <ul>
+          <li>Copy <b>all four</b> folders across &mdash; <code>mods</code>, <code>config</code>, <code>kubejs</code>, <code>resourcepacks</code> &mdash; then relaunch.</li>
+        </ul>
+      </li>
+    </ul>
+
+    <h4>A mod-list mismatch, or the server never appears</h4>
+    <ul>
+      <li><b>Count your jars first</b>
+        <ul>
+          <li>There should be <b class="jarcount">370</b> files in <code>&lt;game directory&gt;/mods/</code>.</li>
+          <li>Check you don't have <code>mods/mods/</code> &mdash; unzipping one level too deep is the classic mistake.</li>
+          <li>Two versions of the same mod will also stop the game loading. One jar per mod.</li>
+        </ul>
+      </li>
+      <li><b>If the server isn't in the list at all</b>
+        <ul>
+          <li>Tailscale must say <em>Connected</em>. If it doesn't, nothing else matters.</li>
+          <li>The download page is the quickest test: it only resolves on the tailnet, so if it loads, you're on.</li>
+        </ul>
+      </li>
+    </ul>
+
+    <h3>It runs, but something looks wrong</h3>
+    <ul>
+      <li><b>Shelf-Shrooms warns it's for an older version</b>
+        <ul>
+          <li>Expected. Confirm past it &mdash; the pack is optional and cosmetic either way.</li>
+        </ul>
+      </li>
+      <li><b>A keybind does nothing</b>
+        <ul>
+          <li>KeybindsPurger may have stripped it. Re-bind it in <kbd>Controls</kbd> rather than assuming the mod is broken.</li>
+        </ul>
+      </li>
+      <li><b>The first launch looks frozen</b>
+        <ul>
+          <li><span class="jarcount">370</span> mods take several minutes the first time, and it will appear stuck more than once. Every launch after is much quicker.</li>
+        </ul>
+      </li>
+    </ul>
+
+    <div class="callout"><p><b>Still stuck?</b> Send Isabel the <b>log</b>, not a description &mdash; <code>&lt;game directory&gt;/logs/latest.log</code>. The real cause is usually a hundred lines above the part that looks like the error.</p></div>
+  </section>
+
+  <!-- ===================== SERVER STATS ===================== -->
+  <section class="panel" id="panel-stats" role="tabpanel" aria-labelledby="tab-stats" tabindex="0" hidden>
+    <h2>Server Stats</h2>
+    <p class="lede">How the server has actually been running &mdash; when it was up, who was on, how it performed, and where the horses are. Rebuilt automatically at every nightly restart.</p>
+    <p>The <b>pack version</b> below is the one the server is on. The updater prints the same number when it runs, so if yours is behind, run it again from the <a href="http://skyfaller.taild8de30.ts.net:8080/">download page</a>.</p>
+    <p class="sp-asof" id="sp-asof">No data has been published yet.</p>
+
+    <div class="sp-tiles" id="sp-tiles"></div>
+
+    <h3>Uptime</h3>
+    <p>One cell per hour, newest day last. Every cell is evidence rather than a guess: the server writes a performance sample every five minutes, so an hour is green only because something actually answered in it.</p>
+
+    <div class="sp-legend" aria-hidden="true">
+      <span><i style="background:var(--sp-up)"></i>Up</span>
+      <span><i style="background:var(--sp-partial)"></i>Up part of the hour</span>
+      <span><i style="background:var(--sp-down)"></i>Observed down</span>
+      <span><i class="none-swatch"></i>No data</span>
+    </div>
+
+    <div class="sp-grid" id="sp-uptime"></div>
+
+    <div class="callout"><p><b>&ldquo;No data&rdquo; is not the same as &ldquo;down&rdquo;.</b> The sampler runs on the same machine as the server, so when the machine is asleep or logged out nothing is recorded and nobody was watching. The server was certainly not reachable, but it was never seen to fail &mdash; so those hours are hatched rather than red. They still count against the uptime figure.</p></div>
+
+    <h3>The longest gaps</h3>
+    <p>Stretches with no sample at all, longest first. The routine ones &mdash; the sampler stands aside for the hourly item clear and the 2am restart &mdash; are filtered out.</p>
+    <div id="sp-gaps"></div>
+
+    <h3>Players</h3>
+    <figure class="sp-fig">
+      <figcaption>Most players online in each 15-minute window. Peak, not average &mdash; a quiet stretch either side should not flatten out the evening everyone logged on.</figcaption>
+      <div class="sp-plot" id="sp-players"></div>
+    </figure>
+
+    <h3>Performance</h3>
+    <figure class="sp-fig">
+      <figcaption>Worst ticks-per-second in each 15-minute window. 20 is the ceiling; the line dropping is the server working harder than it would like. Worst rather than average, because an average hides exactly the spike worth finding.</figcaption>
+      <div class="sp-plot" id="sp-tps"></div>
+    </figure>
+
+    <h3>Horses</h3>
+    <p>Counted straight out of the saved world rather than from the running game. An in-game count only ever sees horses in loaded chunks, so it collapses to almost nothing whenever the server is empty &mdash; which looks alarming and means nothing.</p>
+
+    <div class="sp-tiles" id="sp-horse-tiles"></div>
+    <div id="sp-owners"></div>
+
+    <details>
+      <summary>Show all of it as tables</summary>
+      <div id="sp-tables"></div>
+    </details>
   </section>
 
 </main>
@@ -584,6 +1349,336 @@
     var target = document.getElementById('tab-' + hash);
     if (target) select(target, false);
   }
+})();
+</script>
+
+<script>
+window.SERVER_STATS =
+/* SERVER-STATS-DATA-BEGIN */
+{"generated":1791227050,"pack_version":"1.0.7","from":1790269614,"to":1791183195,"hours":[[1790269200,3],[1790272800,3],[1790276400,3],[1790280000,3],[1790283600,3],[1790287200,3],[1790290800,3],[1790294400,3],[1790298000,3],[1790301600,3],[1790305200,3],[1790308800,3],[1790312400,3],[1790316000,3],[1790319600,0],[1790323200,0],[1790326800,3],[1790330400,3],[1790334000,3],[1790337600,3],[1790341200,3],[1790344800,3],[1790348400,3],[1790352000,3],[1790355600,3],[1790359200,3],[1790362800,3],[1790366400,3],[1790370000,2],[1790373600,3],[1790377200,3],[1790380800,3],[1790384400,3],[1790388000,2],[1790391600,3],[1790395200,3],[1790398800,3],[1790402400,3],[1790406000,0],[1790409600,0],[1790413200,3],[1790416800,3],[1790420400,3],[1790424000,3],[1790427600,3],[1790431200,3],[1790434800,3],[1790438400,3],[1790442000,3],[1790445600,3],[1790449200,3],[1790452800,3],[1790456400,3],[1790460000,3],[1790463600,3],[1790467200,3],[1790470800,3],[1790474400,3],[1790478000,3],[1790481600,3],[1790485200,3],[1790488800,3],[1790492400,0],[1790496000,0],[1790499600,3],[1790503200,3],[1790506800,3],[1790510400,3],[1790514000,3],[1790517600,3],[1790521200,3],[1790524800,3],[1790528400,3],[1790532000,3],[1790535600,3],[1790539200,3],[1790542800,3],[1790546400,3],[1790550000,3],[1790553600,3],[1790557200,3],[1790560800,3],[1790564400,3],[1790568000,3],[1790571600,3],[1790575200,3],[1790578800,0],[1790582400,0],[1790586000,3],[1790589600,3],[1790593200,3],[1790596800,3],[1790600400,3],[1790604000,3],[1790607600,0],[1790611200,0],[1790614800,0],[1790618400,0],[1790622000,0],[1790625600,0],[1790629200,0],[1790632800,0],[1790636400,0],[1790640000,0],[1790643600,0],[1790647200,0],[1790650800,2],[1790654400,3],[1790658000,3],[1790661600,3],[1790665200,0],[1790668800,0],[1790672400,3],[1790676000,3],[1790679600,3],[1790683200,3],[1790686800,3],[1790690400,3],[1790694000,3],[1790697600,3],[1790701200,3],[1790704800,3],[1790708400,3],[1790712000,3],[1790715600,3],[1790719200,3],[1790722800,3],[1790726400,3],[1790730000,3],[1790733600,3],[1790737200,3],[1790740800,3],[1790744400,3],[1790748000,3],[1790751600,0],[1790755200,0],[1790758800,3],[1790762400,3],[1790766000,3],[1790769600,3],[1790773200,3],[1790776800,2],[1790780400,3],[1790784000,3],[1790787600,3],[1790791200,3],[1790794800,3],[1790798400,3],[1790802000,3],[1790805600,3],[1790809200,3],[1790812800,3],[1790816400,3],[1790820000,3],[1790823600,3],[1790827200,3],[1790830800,3],[1790834400,3],[1790838000,0],[1790841600,0],[1790845200,3],[1790848800,3],[1790852400,3],[1790856000,3],[1790859600,3],[1790863200,3],[1790866800,3],[1790870400,3],[1790874000,3],[1790877600,3],[1790881200,3],[1790884800,3],[1790888400,3],[1790892000,3],[1790895600,3],[1790899200,2],[1790902800,3],[1790906400,3],[1790910000,3],[1790913600,3],[1790917200,3],[1790920800,3],[1790924400,1],[1790928000,1],[1790931600,1],[1790935200,1],[1790938800,1],[1790942400,1],[1790946000,1],[1790949600,1],[1790953200,1],[1790956800,1],[1790960400,1],[1790964000,1],[1790967600,3],[1790971200,3],[1790974800,3],[1790978400,3],[1790982000,3],[1790985600,3],[1790989200,3],[1790992800,3],[1790996400,3],[1791000000,3],[1791003600,3],[1791007200,3],[1791010800,0],[1791014400,0],[1791018000,0],[1791021600,0],[1791025200,0],[1791028800,0],[1791032400,3],[1791036000,3],[1791039600,3],[1791043200,3],[1791046800,3],[1791050400,3],[1791054000,3],[1791057600,3],[1791061200,3],[1791064800,3],[1791068400,3],[1791072000,3],[1791075600,3],[1791079200,3],[1791082800,3],[1791086400,3],[1791090000,3],[1791093600,3],[1791097200,3],[1791100800,3],[1791104400,3],[1791108000,3],[1791111600,3],[1791115200,3],[1791118800,3],[1791122400,3],[1791126000,3],[1791129600,3],[1791133200,3],[1791136800,3],[1791140400,3],[1791144000,3],[1791147600,3],[1791151200,3],[1791154800,3],[1791158400,3],[1791162000,3],[1791165600,3],[1791169200,3],[1791172800,3],[1791176400,3],[1791180000,3]],"series":[[1790269200,0,19.3,10.2],[1790270100,0,19.3,10.2],[1790271000,0,19.3,10.2],[1790271900,0,19.3,10.2],[1790272800,0,19.3,10.2],[1790273700,0,19.3,10.2],[1790274600,0,19.3,10.2],[1790275500,0,19.3,10.2],[1790276400,0,19.3,10.2],[1790277300,0,19.3,10.2],[1790278200,0,19.3,10.2],[1790279100,0,19.3,10.2],[1790280000,0,19.3,10.2],[1790280900,0,19.3,10.2],[1790281800,0,19.3,10.2],[1790282700,0,19.3,10.2],[1790283600,0,19.3,10.2],[1790284500,0,19.3,10.2],[1790285400,0,19.3,10.2],[1790286300,0,20.0,1.3],[1790287200,0,20.0,1.3],[1790288100,0,20.0,1.3],[1790289000,0,20.0,1.3],[1790289900,0,20.0,1.3],[1790290800,0,20.0,1.3],[1790291700,0,20.0,1.3],[1790292600,0,18.5,1.3],[1790293500,1,20.0,18.0],[1790294400,2,19.9,40.2],[1790295300,2,20.0,33.6],[1790296200,2,20.0,33.0],[1790297100,1,20.0,26.3],[1790298000,2,18.6,46.7],[1790298900,2,20.0,38.1],[1790299800,2,20.0,37.4],[1790300700,2,20.0,36.8],[1790301600,2,20.0,41.7],[1790302500,2,20.0,38.6],[1790303400,2,20.0,38.9],[1790304300,1,20.0,23.9],[1790305200,1,20.0,24.9],[1790306100,1,20.0,32.3],[1790307000,1,20.0,28.7],[1790307900,1,20.0,38.6],[1790308800,1,20.0,42.0],[1790309700,1,20.0,32.1],[1790310600,0,20.0,15.8],[1790311500,0,20.0,15.8],[1790312400,0,20.0,15.8],[1790313300,0,20.0,15.8],[1790314200,0,20.0,15.8],[1790315100,0,20.0,15.8],[1790316000,0,20.0,15.8],[1790316900,0,20.0,15.8],[1790317800,0,20.0,15.8],[1790318700,0,20.0,15.8],[1790327700,0,18.8,0.9],[1790328600,0,18.8,0.9],[1790329500,0,18.8,0.9],[1790330400,0,18.8,0.9],[1790331300,0,18.8,0.9],[1790332200,0,18.8,0.9],[1790333100,0,18.8,0.9],[1790334000,0,18.8,0.9],[1790334900,0,18.8,0.9],[1790335800,0,18.8,0.9],[1790336700,0,18.8,0.9],[1790337600,0,18.8,0.9],[1790338500,0,18.8,0.9],[1790339400,0,18.8,0.9],[1790340300,0,18.8,0.9],[1790341200,0,18.8,0.9],[1790342100,0,18.8,0.9],[1790343000,0,18.8,0.9],[1790344800,0,20.0,0.9],[1790345700,0,20.0,0.9],[1790346600,0,20.0,0.9],[1790347500,0,20.0,0.9],[1790348400,1,20.0,15.0],[1790349300,1,20.0,16.6],[1790350200,1,20.0,15.4],[1790351100,1,20.0,14.7],[1790352000,1,20.0,19.9],[1790352900,1,20.0,20.7],[1790353800,0,20.0,1.7],[1790354700,0,20.0,1.7],[1790355600,0,20.0,1.7],[1790356500,0,20.0,1.7],[1790357400,0,20.0,1.7],[1790358300,0,20.0,1.7],[1790359200,0,20.0,1.7],[1790360100,0,20.0,1.7],[1790361000,0,20.0,1.7],[1790361900,0,20.0,1.7],[1790362800,0,18.8,1.0],[1790363700,0,20.0,0.9],[1790364600,0,20.0,0.9],[1790365500,0,20.0,0.9],[1790366400,0,20.0,0.9],[1790367300,0,20.0,0.9],[1790368200,0,20.0,0.9],[1790369100,0,20.0,0.9],[1790370000,0,20.0,0.9],[1790370900,1,20.0,25.2],[1790371800,1,20.0,18.7],[1790372700,1,20.0,13.9],[1790373600,1,20.0,17.9],[1790374500,1,20.0,16.6],[1790375400,1,20.0,17.6],[1790376300,1,20.0,20.6],[1790377200,1,20.0,18.0],[1790378100,0,20.0,2.0],[1790379000,0,20.0,2.0],[1790379900,1,20.0,9.2],[1790380800,2,18.8,25.6],[1790381700,4,15.6,61.6],[1790382600,5,10.0,94.3],[1790383500,4,14.2,64.8],[1790385300,3,20.0,40.5],[1790386200,2,20.0,21.9],[1790387100,1,20.0,20.8],[1790388000,4,13.9,66.8],[1790388900,4,12.9,72.6],[1790391600,5,11.8,78.2],[1790392500,6,8.0,112.5],[1790393400,6,7.3,117.8],[1790394300,6,5.5,136.9],[1790395200,6,4.5,152.4],[1790396100,6,6.5,119.0],[1790397000,6,8.1,103.6],[1790397900,6,10.2,92.0],[1790398800,6,10.3,87.0],[1790399700,5,13.8,72.2],[1790400600,5,11.7,79.2],[1790401500,5,13.1,75.2],[1790402400,4,19.6,48.7],[1790403300,3,19.8,46.0],[1790404200,3,19.1,54.2],[1790405100,3,20.0,38.9],[1790414100,0,18.7,0.9],[1790415000,0,18.7,0.9],[1790415900,0,18.7,0.9],[1790416800,0,18.7,0.9],[1790417700,0,18.7,0.9],[1790418600,0,18.7,0.9],[1790419500,0,18.7,0.9],[1790420400,0,18.7,0.9],[1790421300,0,18.7,0.9],[1790422200,0,18.7,0.9],[1790423100,0,18.7,0.9],[1790424000,0,18.7,0.9],[1790424900,0,18.7,0.9],[1790425800,0,18.7,0.9],[1790426700,0,18.7,0.9],[1790427600,0,18.7,0.9],[1790428500,0,18.7,0.9],[1790429400,0,18.7,0.9],[1790430300,0,18.7,0.9],[1790431200,0,18.7,0.9],[1790432100,0,18.7,0.9],[1790433000,0,18.7,0.9],[1790433900,1,20.0,14.9],[1790434800,1,20.0,14.8],[1790435700,1,20.0,15.5],[1790436600,1,20.0,16.7],[1790437500,1,20.0,15.7],[1790438400,2,20.0,30.6],[1790439300,2,20.0,30.5],[1790440200,2,20.0,32.2],[1790441100,2,20.0,30.5],[1790442000,2,20.0,25.6],[1790442900,2,20.0,26.9],[1790443800,2,20.0,27.8],[1790444700,1,19.0,16.5],[1790445600,1,20.0,17.0],[1790446500,0,20.0,2.4],[1790447400,0,20.0,2.4],[1790448300,1,20.0,14.6],[1790449200,1,20.0,15.2],[1790450100,1,20.0,15.7],[1790451000,1,20.0,16.8],[1790451900,1,20.0,18.0],[1790452800,2,19.5,49.7],[1790453700,3,20.0,42.3],[1790454600,3,19.7,45.3],[1790455500,2,20.0,31.8],[1790456400,3,17.8,51.1],[1790457300,3,16.5,58.7],[1790458200,3,19.0,51.7],[1790459100,3,19.9,47.7],[1790460000,2,20.0,30.8],[1790460900,1,20.0,22.6],[1790461800,1,20.0,19.7],[1790462700,2,20.0,37.3],[1790463600,1,20.0,22.3],[1790464500,1,20.0,22.5],[1790465400,1,20.0,19.8],[1790466300,1,20.0,17.8],[1790467200,1,20.0,21.1],[1790468100,0,20.0,7.4],[1790469000,0,20.0,7.4],[1790469900,0,20.0,7.4],[1790470800,0,20.0,7.4],[1790471700,1,20.0,19.8],[1790472600,1,20.0,20.0],[1790473500,2,20.0,34.8],[1790474400,2,20.0,33.1],[1790475300,2,20.0,32.5],[1790476200,2,20.0,34.6],[1790477100,2,20.0,30.3],[1790478000,2,20.0,34.3],[1790478900,2,20.0,34.8],[1790479800,2,20.0,34.7],[1790480700,1,20.0,23.0],[1790481600,1,20.0,15.7],[1790482500,1,20.0,20.2],[1790483400,1,18.6,22.3],[1790484300,1,20.0,16.0],[1790485200,1,20.0,20.0],[1790486100,1,20.0,23.7],[1790487000,1,19.2,21.4],[1790487900,1,20.0,23.0],[1790488800,0,20.0,7.6],[1790489700,0,18.8,2.1],[1790490600,0,18.8,2.1],[1790491500,0,18.8,2.1],[1790500500,0,20.0,1.7],[1790501400,0,20.0,1.7],[1790502300,0,20.0,1.7],[1790503200,0,20.0,1.7],[1790504100,0,20.0,1.7],[1790505000,0,20.0,1.7],[1790505900,0,20.0,1.7],[1790506800,0,20.0,1.7],[1790507700,0,20.0,1.7],[1790508600,0,20.0,1.7],[1790509500,0,20.0,1.7],[1790510400,0,20.0,1.7],[1790511300,0,20.0,1.7],[1790512200,0,20.0,1.7],[1790513100,0,20.0,1.7],[1790514000,0,20.0,1.7],[1790514900,1,20.0,17.8],[1790515800,1,20.0,17.4],[1790516700,1,20.0,15.8],[1790517600,0,20.0,4.7],[1790518500,0,20.0,4.7],[1790519400,0,20.0,4.7],[1790520300,0,20.0,4.7],[1790521200,0,20.0,4.7],[1790522100,0,20.0,4.7],[1790523000,0,20.0,4.7],[1790523900,1,20.0,5.2],[1790524800,1,20.0,16.7],[1790525700,1,20.0,15.4],[1790526600,0,20.0,4.9],[1790527500,0,20.0,4.9],[1790528400,0,20.0,4.9],[1790529300,0,20.0,4.9],[1790530200,1,20.0,14.8],[1790531100,1,20.0,16.3],[1790532000,1,20.0,17.8],[1790532900,1,20.0,16.7],[1790533800,1,20.0,17.8],[1790534700,1,20.0,17.6],[1790535600,2,20.0,34.8],[1790536500,2,20.0,31.8],[1790537400,2,20.0,35.6],[1790538300,1,20.0,19.4],[1790539200,2,20.0,34.4],[1790540100,2,20.0,32.5],[1790541000,2,20.0,33.2],[1790541900,2,20.0,30.6],[1790542800,2,20.0,33.6],[1790543700,2,20.0,33.8],[1790544600,3,20.0,50.1],[1790545500,3,19.9,45.9],[1790546400,3,17.5,54.8],[1790547300,3,17.3,55.6],[1790548200,1,20.0,21.7],[1790549100,1,20.0,19.5],[1790550000,1,20.0,21.4],[1790550900,3,20.0,44.0],[1790551800,3,18.8,51.2],[1790552700,3,19.9,45.5],[1790553600,3,18.6,49.9],[1790554500,3,19.2,50.1],[1790555400,3,20.0,45.3],[1790556300,3,20.0,41.3],[1790557200,3,20.0,41.1],[1790558100,3,19.2,49.6],[1790559000,3,20.0,46.7],[1790559900,3,17.0,50.4],[1790560800,3,19.4,48.7],[1790561700,3,18.1,52.7],[1790562600,3,18.9,45.3],[1790563500,2,20.0,32.4],[1790564400,1,20.0,19.5],[1790565300,0,20.0,10.7],[1790566200,0,20.0,10.7],[1790567100,0,20.0,10.7],[1790568000,0,20.0,10.7],[1790568900,0,20.0,10.7],[1790569800,0,20.0,10.7],[1790570700,0,20.0,10.7],[1790571600,0,20.0,10.7],[1790572500,0,20.0,10.7],[1790573400,0,20.0,10.7],[1790574300,0,20.0,10.7],[1790575200,0,20.0,10.7],[1790576100,0,20.0,10.7],[1790577000,0,20.0,10.7],[1790577900,0,20.0,10.7],[1790586900,0,20.0,1.7],[1790587800,0,20.0,1.7],[1790588700,0,20.0,1.7],[1790589600,0,20.0,1.7],[1790590500,0,20.0,1.7],[1790591400,0,20.0,1.7],[1790592300,0,20.0,1.7],[1790593200,0,20.0,1.7],[1790594100,0,20.0,1.7],[1790595000,0,20.0,1.7],[1790595900,0,20.0,1.7],[1790596800,0,20.0,1.7],[1790597700,0,20.0,1.7],[1790598600,0,20.0,1.7],[1790599500,0,20.0,1.7],[1790600400,0,20.0,1.7],[1790601300,0,20.0,1.7],[1790602200,0,20.0,1.7],[1790603100,0,20.0,1.7],[1790604000,0,20.0,1.7],[1790652600,0,20.0,0.9],[1790653500,0,20.0,0.9],[1790654400,0,20.0,0.9],[1790655300,0,20.0,0.9],[1790656200,0,20.0,0.9],[1790657100,0,20.0,0.9],[1790658000,0,20.0,0.9],[1790658900,0,20.0,0.9],[1790659800,0,20.0,0.9],[1790660700,0,20.0,0.9],[1790661600,0,20.0,0.9],[1790662500,0,20.0,0.9],[1790663400,0,20.0,0.9],[1790664300,0,20.0,0.9],[1790673300,0,20.0,0.9],[1790674200,0,20.0,0.9],[1790675100,0,20.0,0.9],[1790676000,0,20.0,0.9],[1790676900,0,20.0,0.9],[1790677800,0,20.0,0.9],[1790678700,0,20.0,0.9],[1790679600,0,20.0,0.9],[1790680500,0,20.0,0.9],[1790681400,0,20.0,0.9],[1790682300,0,20.0,0.9],[1790683200,0,20.0,0.9],[1790684100,0,20.0,0.9],[1790685000,0,20.0,0.9],[1790685900,0,20.0,0.9],[1790686800,0,20.0,0.9],[1790687700,0,20.0,0.9],[1790688600,0,20.0,0.9],[1790689500,0,20.0,0.9],[1790690400,0,20.0,0.9],[1790691300,0,20.0,0.9],[1790692200,0,20.0,0.9],[1790693100,0,20.0,0.9],[1790694000,0,20.0,0.9],[1790694900,0,20.0,0.9],[1790695800,0,20.0,0.9],[1790696700,0,20.0,0.9],[1790697600,0,20.0,0.9],[1790698500,0,20.0,0.9],[1790699400,0,20.0,0.9],[1790700300,0,20.0,0.9],[1790701200,0,20.0,0.9],[1790702100,0,20.0,0.9],[1790703000,0,20.0,0.9],[1790703900,0,20.0,0.9],[1790704800,0,20.0,0.9],[1790705700,0,20.0,0.9],[1790706600,0,20.0,0.9],[1790707500,0,20.0,0.9],[1790708400,0,20.0,0.9],[1790709300,0,20.0,0.9],[1790710200,0,18.6,1.0],[1790711100,0,18.6,1.0],[1790712000,0,18.6,1.0],[1790712900,0,18.6,1.0],[1790713800,0,18.6,1.0],[1790714700,0,18.6,1.0],[1790715600,0,18.6,1.0],[1790716500,0,18.6,1.0],[1790717400,0,18.6,1.0],[1790718300,0,18.6,1.0],[1790719200,0,18.6,1.0],[1790720100,0,18.6,1.0],[1790721000,0,18.6,1.0],[1790721900,0,18.6,1.0],[1790722800,0,18.6,1.0],[1790723700,0,18.6,1.0],[1790724600,1,20.0,20.4],[1790725500,1,20.0,17.3],[1790726400,1,20.0,17.2],[1790727300,1,20.0,18.2],[1790728200,2,20.0,33.4],[1790729100,4,15.3,61.9],[1790730000,4,16.4,58.2],[1790730900,2,20.0,34.6],[1790731800,2,17.3,56.2],[1790732700,2,17.6,54.5],[1790733600,2,17.4,56.2],[1790734500,2,17.9,54.6],[1790735400,2,16.8,56.5],[1790736300,2,17.3,56.3],[1790737200,0,20.0,4.5],[1790738100,0,20.0,4.5],[1790739000,0,20.0,4.5],[1790739900,0,20.0,4.5],[1790740800,0,20.0,4.5],[1790741700,0,20.0,4.5],[1790742600,0,20.0,4.5],[1790743500,0,20.0,4.5],[1790744400,0,20.0,4.5],[1790745300,0,20.0,4.5],[1790746200,0,20.0,4.5],[1790747100,0,20.0,4.5],[1790748000,0,20.0,4.5],[1790748900,0,20.0,4.5],[1790749800,0,20.0,4.5],[1790750700,0,20.0,4.5],[1790759700,0,20.0,1.0],[1790760600,0,20.0,1.0],[1790761500,0,20.0,1.0],[1790762400,0,20.0,1.0],[1790763300,0,20.0,1.0],[1790764200,0,20.0,1.0],[1790765100,0,20.0,1.0],[1790766000,0,20.0,1.0],[1790766900,0,20.0,1.0],[1790767800,0,20.0,1.0],[1790768700,0,20.0,1.0],[1790769600,0,20.0,1.0],[1790770500,0,20.0,1.0],[1790771400,0,20.0,1.0],[1790772300,0,20.0,1.0],[1790773200,0,20.0,1.0],[1790774100,0,20.0,1.0],[1790775000,0,20.0,1.0],[1790775900,0,20.0,1.0],[1790776800,0,20.0,1.0],[1790777700,0,20.0,0.9],[1790778600,0,20.0,0.9],[1790779500,0,20.0,0.9],[1790780400,0,20.0,0.9],[1790781300,0,20.0,0.9],[1790782200,0,20.0,0.9],[1790783100,0,20.0,0.9],[1790784000,0,20.0,0.9],[1790784900,0,20.0,0.9],[1790785800,0,20.0,1.0],[1790786700,0,20.0,1.0],[1790787600,0,20.0,1.0],[1790788500,0,20.0,1.0],[1790789400,0,20.0,1.0],[1790790300,0,20.0,1.0],[1790791200,1,20.0,1.1],[1790792100,1,20.0,18.3],[1790793000,0,20.0,1.6],[1790793900,0,20.0,1.6],[1790794800,0,20.0,1.6],[1790795700,0,20.0,1.6],[1790796600,1,19.2,13.2],[1790797500,1,20.0,13.4],[1790798400,1,20.0,13.4],[1790799300,1,20.0,12.2],[1790800200,1,20.0,11.3],[1790801100,1,20.0,38.4],[1790802000,1,20.0,42.8],[1790802900,1,20.0,41.9],[1790803800,1,20.0,42.2],[1790804700,2,15.6,62.4],[1790805600,2,16.4,59.2],[1790806500,2,15.4,62.5],[1790807400,2,14.1,69.4],[1790808300,3,12.2,75.4],[1790809200,3,11.6,76.1],[1790810100,2,20.0,25.6],[1790811000,3,14.2,66.9],[1790811900,3,14.1,67.8],[1790812800,4,12.0,79.0],[1790813700,4,12.3,79.3],[1790814600,4,12.0,80.4],[1790815500,4,12.2,78.2],[1790816400,4,13.1,74.2],[1790817300,4,13.7,72.3],[1790818200,3,13.6,71.7],[1790819100,2,18.2,53.2],[1790820000,2,17.9,54.6],[1790820900,1,20.0,40.5],[1790821800,0,20.0,1.1],[1790822700,0,20.0,1.1],[1790823600,0,20.0,1.0],[1790824500,0,20.0,1.0],[1790825400,0,20.0,1.0],[1790826300,0,20.0,1.0],[1790827200,0,20.0,1.0],[1790828100,0,20.0,1.0],[1790829000,0,20.0,1.0],[1790829900,0,20.0,1.0],[1790830800,0,20.0,1.0],[1790831700,0,20.0,1.0],[1790832600,0,20.0,1.0],[1790833500,0,20.0,1.0],[1790834400,0,20.0,1.0],[1790835300,0,20.0,1.0],[1790836200,0,20.0,1.0],[1790837100,0,20.0,1.0],[1790846100,0,20.0,1.1],[1790847000,0,20.0,1.1],[1790847900,0,20.0,1.1],[1790848800,0,20.0,1.1],[1790849700,0,20.0,1.1],[1790850600,0,20.0,1.1],[1790851500,0,20.0,1.1],[1790852400,0,20.0,1.1],[1790853300,0,20.0,1.1],[1790854200,0,20.0,1.1],[1790855100,0,20.0,1.1],[1790856000,0,20.0,1.1],[1790856900,0,20.0,1.1],[1790857800,0,20.0,1.1],[1790858700,0,20.0,1.1],[1790859600,0,20.0,1.1],[1790860500,0,20.0,1.1],[1790861400,0,20.0,1.1],[1790862300,0,20.0,1.1],[1790863200,0,20.0,1.1],[1790864100,0,20.0,1.1],[1790865000,0,20.0,1.1],[1790865900,0,20.0,1.1],[1790866800,0,20.0,1.1],[1790867700,0,20.0,1.1],[1790868600,0,20.0,1.1],[1790869500,0,20.0,1.1],[1790870400,0,20.0,1.1],[1790871300,0,20.0,1.1],[1790872200,0,20.0,1.1],[1790873100,0,20.0,1.1],[1790874000,0,20.0,1.1],[1790874900,0,20.0,1.1],[1790875800,0,20.0,1.1],[1790876700,0,20.0,1.1],[1790877600,0,20.0,1.1],[1790878500,0,20.0,1.1],[1790879400,0,20.0,1.1],[1790880300,0,20.0,1.1],[1790881200,0,19.3,3.2],[1790883000,0,15.8,8.7],[1790883900,0,20.0,9.2],[1790884800,0,20.0,4.0],[1790885700,0,20.0,4.0],[1790886600,0,20.0,4.0],[1790887500,0,20.0,4.0],[1790888400,0,20.0,4.0],[1790889300,1,20.0,38.7],[1790890200,2,19.0,49.9],[1790891100,2,19.3,51.2],[1790892000,2,20.0,45.1],[1790892900,1,20.0,17.4],[1790893800,1,20.0,15.9],[1790894700,1,20.0,16.8],[1790895600,1,20.0,17.3],[1790896500,2,20.0,35.0],[1790897400,2,20.0,30.4],[1790898300,3,20.0,41.2],[1790899200,3,19.1,51.4],[1790900100,3,19.0,48.0],[1790901000,2,19.9,40.6],[1790901900,3,17.9,53.3],[1790902800,2,20.0,40.8],[1790903700,3,16.2,52.9],[1790904600,3,18.4,50.2],[1790905500,2,20.0,43.7],[1790906400,2,18.3,43.3],[1790907300,2,15.8,42.6],[1790908200,1,20.0,24.1],[1790909100,1,20.0,25.2],[1790910000,0,20.0,9.3],[1790910900,0,20.0,9.3],[1790911800,0,20.0,9.3],[1790912700,0,20.0,9.3],[1790913600,0,20.0,6.7],[1790914500,0,20.0,6.7],[1790917200,0,20.0,4.2],[1790918100,0,20.0,2.7],[1790919000,0,20.0,2.7],[1790919900,0,20.0,2.7],[1790920800,0,20.0,2.7],[1790921700,0,20.0,2.7],[1790922600,0,20.0,2.7],[1790923500,0,20.0,2.7],[1790967600,0,18.8,1.9],[1790968500,0,18.8,1.9],[1790969400,0,18.8,1.9],[1790970300,0,18.8,1.9],[1790971200,0,18.8,2.3],[1790972100,0,20.0,2.3],[1790973000,0,20.0,2.3],[1790973900,0,20.0,2.3],[1790974800,0,20.0,2.3],[1790975700,0,20.0,2.3],[1790976600,1,20.0,19.0],[1790977500,1,20.0,16.9],[1790978400,1,20.0,19.7],[1790979300,1,20.0,18.2],[1790980200,1,20.0,18.3],[1790981100,1,20.0,20.0],[1790982000,2,20.0,35.6],[1790982900,3,20.0,34.2],[1790983800,3,20.0,37.3],[1790984700,4,19.5,48.0],[1790985600,4,19.9,47.6],[1790986500,5,18.7,50.9],[1790987400,5,14.1,61.9],[1790988300,5,11.6,69.2],[1790989200,5,14.6,66.2],[1790990100,5,14.1,63.7],[1790991000,5,10.9,78.8],[1790991900,5,14.8,61.8],[1790992800,4,18.0,50.2],[1790993700,4,17.2,51.8],[1790994600,4,18.9,50.6],[1790995500,4,20.0,44.5],[1790996400,3,20.0,35.0],[1790997300,2,20.0,35.3],[1790998200,2,20.0,31.4],[1790999100,2,20.0,34.5],[1791000000,2,20.0,36.0],[1791000900,2,20.0,37.7],[1791001800,2,20.0,41.5],[1791002700,2,20.0,45.3],[1791003600,1,20.0,21.2],[1791004500,1,20.0,21.3],[1791005400,1,20.0,21.9],[1791006300,1,20.0,21.1],[1791007200,1,20.0,21.5],[1791008100,1,20.0,21.3],[1791009000,1,20.0,22.2],[1791009900,1,20.0,19.4],[1791035100,0,20.0,2.2],[1791036000,0,20.0,2.2],[1791036900,0,20.0,2.2],[1791037800,0,20.0,2.2],[1791038700,1,20.0,18.0],[1791039600,2,20.0,34.1],[1791040500,1,20.0,19.7],[1791041400,1,20.0,19.8],[1791042300,1,20.0,20.7],[1791043200,0,20.0,6.0],[1791044100,1,20.0,21.1],[1791045000,1,20.0,22.2],[1791045900,1,20.0,19.4],[1791046800,1,20.0,27.4],[1791047700,0,20.0,3.9],[1791048600,0,20.0,3.9],[1791049500,0,20.0,3.9],[1791050400,0,20.0,3.9],[1791051300,0,20.0,3.9],[1791052200,0,20.0,3.9],[1791053100,0,20.0,3.9],[1791054000,0,20.0,3.9],[1791054900,0,20.0,3.9],[1791055800,0,20.0,3.9],[1791056700,0,20.0,3.9],[1791057600,1,20.0,15.2],[1791058500,1,20.0,15.1],[1791059400,1,20.0,15.9],[1791060300,1,20.0,15.1],[1791061200,1,20.0,15.1],[1791062100,1,20.0,14.9],[1791063000,0,20.0,4.7],[1791063900,0,18.8,2.2],[1791064800,0,18.8,2.2],[1791065700,0,18.8,2.2],[1791066600,0,18.8,2.2],[1791067500,0,18.8,2.2],[1791068400,1,20.0,16.8],[1791069300,2,20.0,24.4],[1791070200,2,18.9,25.4],[1791071100,2,19.2,30.2],[1791072000,2,20.0,28.6],[1791072900,2,20.0,27.6],[1791073800,1,20.0,13.4],[1791074700,1,20.0,13.6],[1791075600,1,20.0,13.4],[1791076500,1,20.0,13.0],[1791077400,1,20.0,17.3],[1791078300,1,20.0,18.5],[1791079200,0,20.0,2.4],[1791080100,2,20.0,32.4],[1791081000,2,20.0,37.2],[1791081900,2,18.7,52.4],[1791082800,2,17.6,55.7],[1791083700,2,17.4,55.2],[1791084600,2,17.7,55.7],[1791085500,2,18.4,56.3],[1791086400,2,17.1,56.8],[1791087300,2,20.0,33.1],[1791088200,2,20.0,36.5],[1791089100,2,17.6,55.3],[1791090000,2,17.3,56.4],[1791090900,2,18.5,52.9],[1791091800,1,20.0,20.3],[1791092700,1,20.0,18.8],[1791093600,0,20.0,4.8],[1791094500,0,20.0,4.8],[1791095400,0,20.0,4.8],[1791096300,0,20.0,2.0],[1791097200,0,20.0,2.0],[1791098100,0,20.0,2.0],[1791099000,0,20.0,2.0],[1791099900,0,20.0,2.0],[1791100800,0,20.0,2.0],[1791101700,0,20.0,2.0],[1791102600,0,20.0,2.0],[1791105300,0,20.0,2.0],[1791106200,0,20.0,2.0],[1791107100,0,20.0,2.0],[1791108000,0,20.0,2.0],[1791108900,0,20.0,2.0],[1791109800,0,20.0,2.0],[1791110700,0,20.0,2.0],[1791111600,0,20.0,2.0],[1791112500,0,20.0,2.0],[1791113400,0,20.0,2.0],[1791114300,0,20.0,2.0],[1791115200,0,20.0,2.0],[1791116100,0,20.0,2.0],[1791117000,0,20.0,2.0],[1791117900,0,20.0,2.0],[1791118800,0,20.0,2.0],[1791119700,0,20.0,2.0],[1791120600,0,20.0,2.0],[1791121500,0,20.0,2.0],[1791122400,1,20.0,18.9],[1791123300,1,20.0,19.9],[1791124200,0,20.0,2.3],[1791125100,0,20.0,2.3],[1791126000,0,20.0,2.3],[1791126900,0,20.0,2.3],[1791127800,0,20.0,2.3],[1791128700,0,20.0,2.3],[1791129600,0,20.0,2.3],[1791130500,0,20.0,2.3],[1791131400,0,20.0,2.3],[1791132300,0,20.0,2.3],[1791133200,0,20.0,2.3],[1791134100,0,20.0,2.3],[1791135000,0,20.0,2.3],[1791135900,0,20.0,2.3],[1791136800,0,20.0,2.3],[1791137700,0,20.0,2.3],[1791138600,0,20.0,2.3],[1791139500,0,20.0,2.3],[1791140400,1,20.0,19.8],[1791141300,1,20.0,21.8],[1791142200,1,20.0,21.0],[1791143100,1,20.0,21.4],[1791144000,2,19.0,39.5],[1791144900,2,20.0,40.5],[1791145800,1,20.0,20.2],[1791146700,1,20.0,19.3],[1791147600,1,20.0,23.7],[1791148500,1,20.0,21.4],[1791149400,1,20.0,24.6],[1791150300,1,20.0,19.6],[1791151200,1,20.0,22.0],[1791152100,0,20.0,2.4],[1791153000,1,20.0,3.9],[1791153900,1,20.0,20.9],[1791154800,2,20.0,36.1],[1791155700,2,19.9,41.5],[1791156600,2,20.0,28.6],[1791157500,2,19.8,40.0],[1791158400,2,20.0,39.1],[1791159300,2,20.0,38.9],[1791160200,2,20.0,39.6],[1791161100,3,18.9,50.9],[1791162000,3,17.8,52.9],[1791162900,3,18.1,51.9],[1791163800,3,18.8,51.3],[1791164700,3,15.4,57.5],[1791165600,2,19.5,38.0],[1791166500,2,19.2,45.8],[1791167400,2,19.5,43.3],[1791168300,2,20.0,40.2],[1791169200,2,20.0,39.5],[1791170100,1,18.6,23.6],[1791171000,0,20.0,21.0],[1791171900,0,20.0,6.2],[1791172800,0,20.0,6.2],[1791173700,0,20.0,6.2],[1791174600,0,20.0,6.2],[1791175500,0,20.0,6.2],[1791176400,0,20.0,6.2],[1791177300,0,20.0,6.2],[1791178200,0,20.0,6.2],[1791179100,0,20.0,6.2],[1791180000,0,20.0,2.0],[1791180900,0,20.0,2.0],[1791181800,0,20.0,2.0],[1791182700,0,20.0,2.0]],"gaps":[[1790604221,1790652821,810],[1790923997,1790968095,735],[1791010421,1791035295,415],[1790319221,1790327922,145],[1790405621,1790414321,145],[1790492021,1790500721,145],[1790578421,1790587121,145],[1790664821,1790673520,145],[1790751221,1790759921,145],[1790837595,1790846295,145],[1790389723,1790391822,35],[1790915295,1790917395,35]],"samples":2210,"observed_down_samples":255,"hours_up":205,"hours_partial":5,"hours_down":12,"hours_nodata":32,"uptime_pct":82.7,"peak_players":6,"horses":{"total":938,"tamed":137,"wild":801,"unclaimed":42,"by_owner":[["axolotlwyvern",43],["Happenstancery",18],["NiceMeem",13],["VolatileMatter",11],["Demon_Killer455",5],["Silverj0",4],["skaiseu",1]],"breakdown":{"minecraft:horse":914,"minecraft:donkey":24},"scanned":141,"files":150,"at":1791227054},"horse_history":[[1790779295,668,126,542],[1790845535,436,121,315],[1790967882,832,123,709],[1791058477,928,125,803],[1791227054,938,137,801]]}
+/* SERVER-STATS-DATA-END */
+;
+</script>
+
+<script>
+/* Server Stats tab. Reads the payload injected by server-stats.py and draws
+   it with inline SVG - no chart library, because the page has no dependencies
+   and this is four simple forms.
+
+   Every chart here is a SINGLE series on its own axis. Players and TPS are
+   deliberately two charts rather than one with two y-scales: a dual axis lets
+   the author put any two lines in any relationship they like just by choosing
+   the scales, and the reader cannot tell. */
+(function () {
+  var D = window.SERVER_STATS;
+  var panel = document.getElementById('panel-stats');
+  if (!panel || !D || D.empty) { return; }
+
+  var NBSP = ' ';
+
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) { n.className = cls; }
+    if (text != null) { n.textContent = text; }
+    return n;
+  }
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function dt(epoch) { return new Date(epoch * 1000); }
+  function dayKey(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  function dayLabel(d) {
+    var M = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return M[d.getMonth()] + NBSP + pad(d.getDate());
+  }
+  function clock(d) { return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+  function stamp(epoch) { var d = dt(epoch); return dayLabel(d) + ' ' + clock(d); }
+  function dur(mins) {
+    if (mins < 90) { return mins + ' min'; }
+    var h = Math.floor(mins / 60), m = mins % 60;
+    return h + 'h' + (m ? ' ' + m + 'm' : '');
+  }
+
+  /* ---------------------------------------------------------------- tiles */
+  function tiles(host, rows) {
+    host.innerHTML = '';
+    rows.forEach(function (r) {
+      var t = el('div', 'sp-tile');
+      t.appendChild(el('b', null, r[0]));
+      t.appendChild(el('span', null, r[1]));
+      host.appendChild(t);
+    });
+  }
+
+  var upPct = D.uptime_pct == null ? '-' : D.uptime_pct + '%';
+  var lastTps = null, lastPlayers = 0;
+  (D.series || []).forEach(function (s) {
+    if (s[2] != null) { lastTps = s[2]; }
+    lastPlayers = s[1];
+  });
+
+  tiles(document.getElementById('sp-tiles'), [
+    [upPct, 'uptime, all ' + (D.hours || []).length + ' hours watched'],
+    [String(D.hours_nodata || 0), 'hours with no data'],
+    [String(D.peak_players || 0), 'most players at once'],
+    [lastTps == null ? '-' : lastTps.toFixed(1), 'TPS at the last sample']
+  ]);
+
+  document.getElementById('sp-asof').textContent =
+    (D.pack_version ? 'Pack v' + D.pack_version + '. ' : '') +
+    'Covering ' + stamp(D.from) + ' to ' + stamp(D.to) + '. ' +
+    D.samples + ' samples. Rebuilt ' + stamp(D.generated) + '.';
+
+  /* --------------------------------------------------------------- uptime */
+  var STATE = [
+    { cls: 'none',    word: 'no data' },
+    { cls: 'down',    word: 'observed down' },
+    { cls: 'partial', word: 'up part of the hour' },
+    { cls: 'up',      word: 'up' }
+  ];
+
+  (function uptime() {
+    var host = document.getElementById('sp-uptime');
+    var days = [], index = {};
+    var all = D.hours || [];
+    if (!all.length) { return; }
+    /* Hours outside the recorded window become empty spacers, not "no data".
+       The tail of today has simply not happened yet, and hatching it claims an
+       outage that is really just the clock. */
+    var firstH = all[0][0], lastH = all[all.length - 1][0];
+    all.forEach(function (h) {
+      var d = dt(h[0]), k = dayKey(d);
+      if (!index[k]) {
+        index[k] = {
+          label: dayLabel(d), cells: {},
+          base: Math.floor(new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() / 1000)
+        };
+        days.push(k);
+      }
+      index[k].cells[d.getHours()] = h[1];
+    });
+
+    var tip = el('div', 'sp-tip');
+    host.style.position = 'relative';
+    host.appendChild(tip);
+
+    days.forEach(function (k) {
+      var row = el('div', 'sp-row');
+      row.appendChild(el('span', 'sp-day', index[k].label));
+      for (var h = 0; h < 24; h++) {
+        var at = index[k].base + h * 3600;
+        if (at < firstH || at > lastH) {
+          var blank = el('span', 'sp-cell');
+          blank.style.visibility = 'hidden';
+          row.appendChild(blank);
+          continue;
+        }
+        var st = index[k].cells[h];
+        var known = st !== undefined;
+        var s = STATE[known ? st : 0];
+        var c = el('span', 'sp-cell ' + s.cls);
+        /* Named in the accessible name too, so a screen reader and a
+           colourblind reader both get the state without the colour. */
+        c.setAttribute('role', 'img');
+        c.setAttribute('aria-label', index[k].label + ' ' + pad(h) + ':00 - ' + s.word);
+        c.dataset.txt = index[k].label + ' ' + pad(h) + ':00 - ' + s.word;
+        row.appendChild(c);
+      }
+      host.appendChild(row);
+    });
+
+    var hours = el('div', 'sp-hours');
+    for (var h = 0; h < 24; h++) {
+      hours.appendChild(el('span', null, h % 6 === 0 ? pad(h) : ''));
+    }
+    host.appendChild(hours);
+
+    host.addEventListener('mousemove', function (e) {
+      var t = e.target;
+      if (!t.classList || !t.classList.contains('sp-cell')) { tip.style.opacity = 0; return; }
+      var hb = host.getBoundingClientRect(), cb = t.getBoundingClientRect();
+      tip.textContent = t.dataset.txt;
+      tip.style.left = (cb.left - hb.left + cb.width / 2) + 'px';
+      tip.style.top = (cb.top - hb.top - 4) + 'px';
+      tip.style.opacity = 1;
+    });
+    host.addEventListener('mouseleave', function () { tip.style.opacity = 0; });
+  })();
+
+  /* ----------------------------------------------------------------- gaps */
+  (function gaps() {
+    var host = document.getElementById('sp-gaps');
+    var rows = D.gaps || [];
+    if (!rows.length) { host.appendChild(el('p', null, 'No gap longer than 20 minutes.')); return; }
+    var t = el('table', 'sp-tbl');
+    t.innerHTML = '<thead><tr><th>From</th><th>Until</th><th>Length</th></tr></thead>';
+    var tb = el('tbody');
+    rows.forEach(function (g) {
+      var tr = el('tr');
+      var a = el('td', 'n', stamp(g[0])); var b = el('td', 'n', stamp(g[1]));
+      var c = el('td', 'n', dur(g[2]));
+      tr.appendChild(a); tr.appendChild(b); tr.appendChild(c);
+      tb.appendChild(tr);
+    });
+    t.appendChild(tb);
+    host.appendChild(t);
+  })();
+
+  /* ---------------------------------------------------------------- lines */
+  function line(hostId, series, pick, yMax, fmt, unit) {
+    var host = document.getElementById(hostId);
+    var pts = [];
+    series.forEach(function (s) {
+      var v = pick(s);
+      if (v != null) { pts.push([s[0], v]); }
+    });
+    if (pts.length < 2) { host.appendChild(el('p', null, 'Not enough data yet.')); return; }
+
+    var W = 720, H = 190, L = 34, R = 8, T = 10, B = 22;
+    var x0 = pts[0][0], x1 = pts[pts.length - 1][0];
+    var top = yMax || Math.max.apply(null, pts.map(function (p) { return p[1]; })) || 1;
+    var px = function (t) { return L + (t - x0) / (x1 - x0 || 1) * (W - L - R); };
+    var py = function (v) { return T + (1 - v / top) * (H - T - B); };
+
+    var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" role="img" aria-label="' + unit + ' over time">';
+
+    /* Recessive gridlines and their labels. */
+    for (var i = 0; i <= 4; i++) {
+      var v = top * i / 4, y = py(v);
+      svg += '<line x1="' + L + '" y1="' + y + '" x2="' + (W - R) + '" y2="' + y +
+             '" stroke="var(--line-soft)" stroke-width="1"/>';
+      svg += '<text x="' + (L - 6) + '" y="' + (y + 3.5) +
+             '" text-anchor="end" font-size="10" fill="var(--text-faint)">' + fmt(v) + '</text>';
+    }
+
+    var d = pts.map(function (p, i) { return (i ? 'L' : 'M') + px(p[0]).toFixed(1) + ' ' + py(p[1]).toFixed(1); }).join(' ');
+    svg += '<path d="' + d + '" fill="none" stroke="var(--sp-up)" stroke-width="2" ' +
+           'stroke-linejoin="round" stroke-linecap="round"/>';
+
+    /* Date ticks at each local midnight - enough to place the line in time
+       without a label on every point. */
+    var seenDay = {};
+    pts.forEach(function (p) {
+      var dd = dt(p[0]), k = dayKey(dd);
+      if (seenDay[k] || dd.getHours() > 1) { return; }
+      seenDay[k] = 1;
+      var x = px(p[0]);
+      svg += '<line x1="' + x + '" y1="' + T + '" x2="' + x + '" y2="' + (H - B) +
+             '" stroke="var(--line-soft)" stroke-width="1"/>';
+      svg += '<text x="' + x + '" y="' + (H - B + 13) + '" text-anchor="middle" font-size="10" ' +
+             'fill="var(--text-faint)">' + dayLabel(dd) + '</text>';
+    });
+
+    svg += '<circle id="' + hostId + '-dot" r="4.5" fill="var(--sp-up)" stroke="var(--bg)" ' +
+           'stroke-width="2" opacity="0"/>';
+    svg += '<line id="' + hostId + '-cross" y1="' + T + '" y2="' + (H - B) +
+           '" stroke="var(--neon)" stroke-width="1" opacity="0"/>';
+    svg += '</svg>';
+    host.innerHTML = svg;
+
+    var tip = el('div', 'sp-tip');
+    host.appendChild(tip);
+    var node = host.querySelector('svg');
+    var dot = document.getElementById(hostId + '-dot');
+    var cross = document.getElementById(hostId + '-cross');
+
+    node.addEventListener('mousemove', function (e) {
+      var b = node.getBoundingClientRect();
+      var t = x0 + (e.clientX - b.left) / b.width * (x1 - x0);
+      var best = pts[0], bd = Infinity;
+      pts.forEach(function (p) { var dd = Math.abs(p[0] - t); if (dd < bd) { bd = dd; best = p; } });
+      var sx = px(best[0]), sy = py(best[1]);
+      dot.setAttribute('cx', sx); dot.setAttribute('cy', sy); dot.setAttribute('opacity', 1);
+      cross.setAttribute('x1', sx); cross.setAttribute('x2', sx); cross.setAttribute('opacity', 0.5);
+      tip.innerHTML = '<b>' + fmt(best[1]) + '</b> ' + unit + '<br>' + stamp(best[0]);
+      tip.style.left = (sx / W * b.width) + 'px';
+      tip.style.top = (sy / H * b.height - 8) + 'px';
+      tip.style.opacity = 1;
+    });
+    node.addEventListener('mouseleave', function () {
+      tip.style.opacity = 0; dot.setAttribute('opacity', 0); cross.setAttribute('opacity', 0);
+    });
+  }
+
+  line('sp-players', D.series || [], function (s) { return s[1]; },
+       Math.max(1, D.peak_players || 1), function (v) { return String(Math.round(v)); }, 'players');
+  line('sp-tps', D.series || [], function (s) { return s[2]; },
+       20, function (v) { return v.toFixed(0); }, 'TPS');
+
+  /* --------------------------------------------------------------- horses */
+  (function horses() {
+    var hz = D.horses;
+    if (!hz) { return; }
+    tiles(document.getElementById('sp-horse-tiles'), [
+      [String(hz.total), 'horses, donkeys and mules'],
+      [String(hz.wild), 'never tamed'],
+      [String(hz.tamed), 'tamed'],
+      [String(hz.unclaimed), 'tamed but unowned']
+    ]);
+
+    var host = document.getElementById('sp-owners');
+    var owners = hz.by_owner || [];
+    if (!owners.length) { return; }
+    host.appendChild(el('h4', null, 'Tamed horses by owner'));
+    var max = owners[0][1] || 1;
+    var wrap = el('div', 'sp-bars');
+    owners.forEach(function (o) {
+      var r = el('div', 'sp-bar');
+      r.appendChild(el('span', null, o[0]));
+      var barHost = el('span');
+      var bar = el('i');
+      bar.style.width = Math.max(2, o[1] / max * 100) + '%';
+      barHost.appendChild(bar);
+      r.appendChild(barHost);
+      r.appendChild(el('b', null, String(o[1])));   /* direct label on every bar */
+      wrap.appendChild(r);
+    });
+    host.appendChild(wrap);
+    if (hz.unclaimed) {
+      host.appendChild(el('p', 'sp-asof',
+        hz.unclaimed + ' more are tame but carry no owner, so they are not in the bars above.'));
+    }
+  })();
+
+  /* --------------------------------------------------------------- tables */
+  (function tables() {
+    var host = document.getElementById('sp-tables');
+    function table(caption, head, rows) {
+      var t = el('table', 'sp-tbl');
+      var cap = el('caption', null, caption);
+      cap.style.cssText = 'text-align:left;font-size:12px;color:var(--text-faint);padding:14px 0 4px';
+      t.appendChild(cap);
+      var h = el('thead'), hr = el('tr');
+      head.forEach(function (c) { hr.appendChild(el('th', null, c)); });
+      h.appendChild(hr); t.appendChild(h);
+      var tb = el('tbody');
+      rows.forEach(function (r) {
+        var tr = el('tr');
+        r.forEach(function (c) { tr.appendChild(el('td', 'n', String(c))); });
+        tb.appendChild(tr);
+      });
+      t.appendChild(tb);
+      host.appendChild(t);
+    }
+
+    table('Uptime by state', ['State', 'Hours'], [
+      ['Up', D.hours_up || 0],
+      ['Up part of the hour', D.hours_partial || 0],
+      ['Observed down', D.hours_down || 0],
+      ['No data', D.hours_nodata || 0]
+    ]);
+
+    if (D.horses) {
+      table('Horses by owner', ['Owner', 'Tamed'],
+            (D.horses.by_owner || []).concat([['(tamed, no owner)', D.horses.unclaimed]]));
+      var bd = D.horses.breakdown || {};
+      table('Horses by kind', ['Kind', 'Count'],
+            Object.keys(bd).map(function (k) { return [k.replace('minecraft:', ''), bd[k]]; }));
+    }
+
+    if ((D.horse_history || []).length) {
+      table('Horse census over time', ['When', 'Total', 'Tamed', 'Wild'],
+            D.horse_history.map(function (r) { return [stamp(r[0]), r[1], r[2], r[3]]; }));
+    }
+  })();
 })();
 </script>
 </body>
