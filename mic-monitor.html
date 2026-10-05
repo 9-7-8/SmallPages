@@ -172,6 +172,16 @@
     cursor: pointer;
   }
 
+  .lag {
+    margin: 0.9rem 0 0 3rem;
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    min-height: 1.1em;
+  }
+  .lag.slow { color: var(--hot); }
+
   .status { font-size: 0.85rem; margin-top: 1.2rem; min-height: 1.2em; }
   .meta-line { font-size: 0.78rem; color: var(--text-faint); margin-top: 0.5rem; }
 
@@ -193,7 +203,7 @@
 <main>
   <a class="home" href="index.html">&larr; index</a>
   <h1>mic monitor</h1>
-  <p class="lede">Takes whatever the microphone hears and puts it straight back out of the speakers, with a meter for how loud it is and a volume you can ride. Nothing is recorded and nothing is sent anywhere &mdash; the sound goes from the input to the output and no further.</p>
+  <p class="lede">Takes whatever the microphone hears and puts it straight back out of the speakers, with a meter for how loud it is and a volume you can ride. It runs as close to live as a browser can be talked into, and says underneath how far behind it actually is. Nothing is recorded and nothing is sent anywhere &mdash; the sound goes from the input to the output and no further.</p>
 
   <div class="card">
     <div class="headline">
@@ -217,6 +227,7 @@
     </div>
 
     <div class="scale" id="scale"></div>
+    <div class="lag" id="lag"></div>
   </div>
 
   <div class="card">
@@ -255,17 +266,24 @@
     </div>
 
     <div class="toggles">
-      <label><input type="checkbox" id="echo" checked> Echo cancellation</label>
+      <label title="The smallest buffers the devices will give, and no resampling on the way through">
+        <input type="checkbox" id="fast" checked> Low latency
+      </label>
+      <label title="Stops a speaker feeding the microphone, at the cost of the delay it needs to do it">
+        <input type="checkbox" id="echo"> Echo cancellation
+      </label>
       <label><input type="checkbox" id="noise"> Noise suppression</label>
       <label><input type="checkbox" id="auto"> Automatic gain</label>
-      <label><input type="checkbox" id="limit" checked> Limiter</label>
+      <label><input type="checkbox" id="limit" checked> Limiter<span id="limitNote"></span></label>
     </div>
 
     <div class="status" id="status" role="status">Press start &mdash; the browser will ask for the microphone.</div>
     <div class="meta-line" id="meta"></div>
   </div>
 
-  <p class="note"><strong>Wear headphones.</strong> A microphone and a speaker in the same room, with the one feeding the other, is the whole recipe for feedback &mdash; the howl builds in about a second and it builds loud. Echo cancellation is on to begin with, which mostly talks the loop out of starting, and the limiter catches what gets through; neither is a substitute for headphones, and mute is one press away.</p>
+  <p class="note"><strong>The delay, and what's left of it.</strong> The number under the meter is the whole trip: the buffer the microphone fills, the handful of milliseconds inside this page, and the buffer the browser hands the speakers. That last one is usually the whole story, and <strong>a Bluetooth speaker or Bluetooth headphones will be a hundred milliseconds of it or more</strong> &mdash; nothing on this page can reach that, and anything wired cuts most of it. After that: leave <em>low latency</em> on, which asks both devices for their smallest buffers and builds the page's audio at the microphone's own sample rate so nothing is resampled on the way past; leave <em>echo cancellation</em> off, which is a processing chain and costs what processing costs; and close whatever else is holding the sound card. Below that sits the floor, which belongs to the devices and the operating system rather than to anything a page is allowed to touch.</p>
+
+  <p class="note"><strong>Wear headphones.</strong> A microphone and a speaker in the same room, with the one feeding the other, is the whole recipe for feedback &mdash; the howl builds in about a second and it builds loud. Echo cancellation would mostly talk the loop out of starting, but it is the one control here that trades delay for safety, and it ducks a voice when it hears itself, so it starts off; the limiter rounds off anything over &minus;3 dB at no cost in delay. Neither is a substitute for headphones, and mute is one press away.</p>
 
   <p class="note">The meter reads in dBFS, where 0 is as loud as the signal can be before it clips and everything useful sits below it. <strong>in</strong> is what the microphone sends; <strong>out</strong> is that after the volume and the limiter, which is what's actually leaving the speakers. Speech wants to land around &minus;18, with peaks short of &minus;6. The marker on each bar holds the loudest moment of the last second and then slides back.</p>
 </main>
@@ -287,6 +305,9 @@ const metaEl = document.getElementById("meta");
 const bigRead = document.getElementById("bigRead");
 const clipLight = document.getElementById("clipLight");
 const scaleEl = document.getElementById("scale");
+const fast = document.getElementById("fast");
+const lagEl = document.getElementById("lag");
+const limitNote = document.getElementById("limitNote");
 const echo = document.getElementById("echo");
 const noise = document.getElementById("noise");
 const auto = document.getElementById("auto");
@@ -322,10 +343,10 @@ let stream = null;           // the live microphone
 let source = null;
 let gain = null;
 let limiter = null;
-let trim = null;             // takes back what the limiter adds of its own accord
 let analysers = { in: null, out: null };
 let frames = { in: null, out: null };
 let meterLoop = null;
+let lagWatch = null;
 let running = false;
 let muted = false;
 let lastFrame = 0;
@@ -334,6 +355,8 @@ let held = { in: -Infinity, out: -Infinity };
 let clipUntil = 0;
 let silentSince = 0;
 let saidSilent = false;
+let saidSlow = false;
+let limiterCost = 0;       // how far behind the limiter runs, once measured
 
 function setStatus(message, isError = false) {
   statusEl.textContent = message;
@@ -494,17 +517,31 @@ function constraints() {
     autoGainControl: auto.checked,
   };
   if (inSel.value) wanted.deviceId = { exact: inSel.value };
+  if (fast.checked) {
+    // Asking for the smallest capture buffer the device will give, and for one
+    // channel, because a second one is more to carry and nothing to hear.
+    wanted.latency = { ideal: 0.003 };
+    wanted.channelCount = { ideal: 1 };
+  }
   return { audio: wanted, video: false };
 }
 
 // Opens (or reopens) the microphone and hangs it on the front of the graph.
-// Everything downstream of `source` survives, so a device or processing change
-// doesn't interrupt what's already playing for longer than it takes to swap.
+// The microphone comes first and the graph is built to match it, because a
+// context's sample rate is fixed the moment it's made: ask for 44.1 while the
+// device runs at 48 and every buffer goes through a resampler on the way
+// past, which costs both delay and work for nothing anyone can hear.
 async function openMic() {
   const fresh = await navigator.mediaDevices.getUserMedia(constraints());
+  const track = fresh.getAudioTracks()[0];
+  const rate = (track && track.getSettings().sampleRate) || 0;
+
+  if (!ctx || (rate && Math.abs(ctx.sampleRate - rate) > 1)) {
+    await buildGraph(rate);
+  }
 
   if (source) source.disconnect();
-  if (stream) for (const track of stream.getTracks()) track.stop();
+  if (stream) for (const existing of stream.getTracks()) existing.stop();
 
   stream = fresh;
   source = ctx.createMediaStreamSource(stream);
@@ -516,84 +553,117 @@ async function openMic() {
   await listDevices();
 }
 
-// gain → limiter → trim → out, with the limiter spliced in or out as it's
-// toggled. The out analyser sits last so the bar reads what leaves, not what
-// was asked for: when the limiter is holding the peaks down, that's the point.
+// gain → limiter → out, with the limiter spliced in or out as it's toggled.
+// The out analyser sits last so the bar reads what leaves, not what was asked
+// for: when the limiter is bending a peak down, that's the point.
 function wireOutput() {
   gain.disconnect();
   limiter.disconnect();
-  trim.disconnect();
   analysers.out.disconnect();
 
   if (limit.checked) {
     gain.connect(limiter);
-    limiter.connect(trim);
-    trim.connect(analysers.out);
+    limiter.connect(analysers.out);
   } else {
     gain.connect(analysers.out);
   }
   analysers.out.connect(ctx.destination);
 }
 
-function limiterSettings(node) {
-  node.threshold.value = -3;
-  node.knee.value = 0;
-  node.ratio.value = 20;
-  node.attack.value = 0.003;
-  node.release.value = 0.12;
+// The ceiling, drawn as a curve rather than run as a compressor. A compressor
+// has to hear a peak before it can hold it down, so it runs a few milliseconds
+// behind everything else — six of them, measured, which is a quarter of the
+// delay this page can otherwise get down to. A curve decides each sample on
+// its own and so runs no later than the sample does: under the threshold it's
+// a straight line and changes nothing at all, and over it bends towards a
+// ceiling it never quite reaches. Loud enough to be bent is already too loud,
+// and a peak that grates is a better outcome than one let through whole.
+const CEILING = 0.7;                   // −3 dBFS, where the line starts to bend
+
+function limiterCurve() {
+  const points = 2049;
+  const curve = new Float32Array(points);
+  for (let i = 0; i < points; i++) {
+    const x = (i / (points - 1)) * 2 - 1;
+    const size = Math.abs(x);
+    const bent = size <= CEILING
+      ? size
+      : CEILING + (1 - CEILING) * Math.tanh((size - CEILING) / (1 - CEILING));
+    curve[i] = Math.sign(x) * bent;
+  }
+  return curve;
 }
 
-// A browser's compressor quietly applies a makeup gain of its own, so a signal
-// nowhere near the threshold still comes out louder than it went in. For a
-// monitor, whose one job is to pass the room through at the volume it was
-// asked for, that's a lie on the meter and a surprise in the speakers. How
-// much it adds depends only on the settings, so it's rendered once against a
-// tone far too quiet to be limited, and taken straight back off.
-async function measureMakeup() {
-  const rate = 44100;
-  const frames = Math.round(rate * 0.4);
+function makeLimiter(context) {
+  const node = context.createWaveShaper();
+  node.curve = limiterCurve();
+  // Oversampling would sound cleaner, and it works by filters that delay what
+  // passes through them — which is the one thing being bought back here.
+  node.oversample = "none";
+  return node;
+}
+
+// None of that is taken on trust. The impulse that caught the compressor
+// running late goes through whatever the limiter is now, and whatever comes
+// back is what the total at the foot of the board is told.
+async function measureLimiterDelay(rate) {
+  const frames = Math.round(rate * 0.05);
   const probe = new OfflineAudioContext(1, frames, rate);
 
-  const tone = probe.createOscillator();
-  tone.frequency.value = 440;
-  const quiet = probe.createGain();
-  quiet.gain.value = 0.02;                  // −34 dBFS: nothing to limit here
+  const buffer = probe.createBuffer(1, frames, rate);
+  buffer.getChannelData(0)[0] = 1;
+  const tap = probe.createBufferSource();
+  tap.buffer = buffer;
 
-  const node = probe.createDynamicsCompressor();
-  limiterSettings(node);
+  tap.connect(makeLimiter(probe)).connect(probe.destination);
+  tap.start();
 
-  tone.connect(quiet).connect(node).connect(probe.destination);
-  tone.start();
-
-  const rendered = await probe.startRendering();
-  // The first stretch is the compressor settling, which isn't the question.
-  const data = rendered.getChannelData(0).subarray(Math.round(frames / 2));
-  let sum = 0;
-  for (let i = 0; i < data.length; i++) sum += data[i] * data[i];
-
-  const out = Math.sqrt(sum / data.length);
-  const expected = 0.02 / Math.SQRT2;       // what a sine that size should read
-  const factor = out > 0 ? expected / out : 1;
-  // Only ever a correction, never a boost in its own right.
-  return factor > 0.2 && factor <= 1 ? factor : 1;
+  const out = (await probe.startRendering()).getChannelData(0);
+  for (let i = 0; i < out.length; i++) {
+    if (Math.abs(out[i]) > 1e-4) return i / rate;
+  }
+  return 0;
 }
 
-function buildGraph() {
-  ctx = new AudioContext({ latencyHint: "interactive" });
+function showLimiterCost(seconds) {
+  limiterCost = seconds;
+  const ms = Math.round(seconds * 1000);
+  limitNote.textContent = ms >= 1 ? ` (+${ms} ms)` : "";
+}
+
+// Rebuilt rather than reconfigured, because the two things that matter most
+// for delay — the sample rate and the size of the buffer the browser hands the
+// speakers — are both settled when the context is constructed and can't be
+// moved afterwards.
+async function buildGraph(rate) {
+  if (ctx) {
+    try { await ctx.close(); } catch { /* already gone */ }
+  }
+
+  // A number asks for the smallest buffer the device will stand; "interactive"
+  // is the browser's own idea of small, which is roomier. Not every browser
+  // takes either, hence the walk down.
+  const attempts = fast.checked
+    ? [{ latencyHint: 0, sampleRate: rate }, { latencyHint: "interactive", sampleRate: rate },
+       { latencyHint: 0 }, {}]
+    : [{ latencyHint: "interactive", sampleRate: rate }, { latencyHint: "interactive" }, {}];
+
+  ctx = null;
+  for (const options of attempts) {
+    if (options.sampleRate && !rate) continue;
+    try {
+      ctx = new AudioContext(options);
+      break;
+    } catch { /* this browser won't have it; try the next way of asking */ }
+  }
+  if (!ctx) ctx = new AudioContext();
+  if (ctx.state === "suspended") await ctx.resume();
 
   gain = ctx.createGain();
   gain.gain.value = 0;             // comes up on the first ramp, not with a thud
 
-  // A limiter rather than a compressor: a hard ratio right under the ceiling,
-  // fast enough to catch a door slam, so nothing shrieks out at full scale.
-  limiter = ctx.createDynamicsCompressor();
-  limiterSettings(limiter);
-
-  // Until the measurement lands, a few milliseconds in, it passes straight
-  // through — the same thing it does if the measurement can't be made.
-  trim = ctx.createGain();
-  trim.gain.value = 1;
-  measureMakeup().then((factor) => { trim.gain.value = factor; }).catch(() => {});
+  limiter = makeLimiter(ctx);
+  measureLimiterDelay(ctx.sampleRate).then(showLimiterCost).catch(() => {});
 
   for (const side of ["in", "out"]) {
     const node = ctx.createAnalyser();
@@ -608,16 +678,27 @@ function buildGraph() {
 limit.addEventListener("change", () => {
   if (!running) return;
   wireOutput();
-  setStatus(limit.checked ? "Limiter on." : "Limiter off — peaks go out as they come in.");
+  showMeta();
+  setStatus(limit.checked
+    ? "Limiter on — anything over −3 dB gets rounded off, at no cost in delay."
+    : "Limiter off — peaks go out exactly as they come in.");
 });
 
-for (const box of [echo, noise, auto]) {
+for (const box of [echo, noise, auto, fast]) {
   box.addEventListener("change", async () => {
     if (!running) return;
     setStatus("Reopening the microphone…");
     try {
+      // The buffer size is settled when the context is built, so asking for a
+      // different one means building another — openMic does that on its own
+      // when the rate moves, and this is the nudge for when it doesn't.
+      if (box === fast && ctx) await buildGraph(ctx.sampleRate);
       await openMic();
+      applyGain(0.05);
+      await applySink();
+      saidSlow = false;
       setStatus("Running.");
+      showMeta();
     } catch (err) {
       console.error(err);
       stop();
@@ -745,10 +826,8 @@ async function start() {
       throw new Error("this browser has no microphone access");
     }
 
-    if (!ctx) buildGraph();
+    await openMic();                 // builds the graph around the device it finds
     if (ctx.state === "suspended") await ctx.resume();
-
-    await openMic();
     await applySink();
 
     running = true;
@@ -760,9 +839,12 @@ async function start() {
     applyGain(0.08);                 // fade up, so starting isn't a bang
 
     lastFrame = 0;
+    saidSlow = false;
     meterLoop = requestAnimationFrame(tick);
     setStatus("Running.");
     showMeta();
+    clearInterval(lagWatch);
+    lagWatch = setInterval(showMeta, 1000);
   } catch (err) {
     console.error(err);
     stop();
@@ -776,6 +858,8 @@ function stop() {
   running = false;
   cancelAnimationFrame(meterLoop);
   meterLoop = null;
+  clearInterval(lagWatch);
+  lagWatch = null;
 
   if (gain && ctx) {
     gain.gain.cancelScheduledValues(ctx.currentTime);
@@ -794,6 +878,8 @@ function stop() {
   muteBtn.textContent = "Mute";
   clearMeters();
   metaEl.textContent = "";
+  lagEl.textContent = "";
+  lagEl.classList.remove("slow");
 }
 
 runBtn.addEventListener("click", () => {
@@ -805,18 +891,44 @@ runBtn.addEventListener("click", () => {
   }
 });
 
-// What the browser is actually doing, which is the first thing worth knowing
-// when a monitor feels late.
+// The delay, added up from the three places it comes from, and said plainly
+// enough to act on: the capture buffer, the graph, and the buffer the browser
+// hands the speakers. The last of those is usually the whole story.
 function showMeta() {
-  if (!ctx) return;
+  if (!ctx || !running) return;
+
   const track = stream && stream.getAudioTracks()[0];
-  const lag = (ctx.baseLatency || 0) + (ctx.outputLatency || 0);
+  const settings = track ? track.getSettings() : {};
+  const capture = settings.latency || 0;
+  const base = ctx.baseLatency || 0;
+  const out = ctx.outputLatency || 0;
+  const total = capture + base + out + (limit.checked ? limiterCost : 0);
+
+  lagEl.textContent = total ? `≈ ${Math.round(total * 1000)} ms, microphone to speaker` : "";
+  lagEl.classList.toggle("slow", total > 0.06);
+
+  const parts = [
+    capture ? `${Math.round(capture * 1000)} ms in` : "",
+    `${Math.round((base + (limit.checked ? limiterCost : 0)) * 1000)} ms here`,
+    out ? `${Math.round(out * 1000)} ms out` : "",
+  ].filter(Boolean).join(" + ");
+
   metaEl.textContent = [
     track && track.label ? track.label : "microphone",
     `${Math.round(ctx.sampleRate / 100) / 10} kHz`,
-    lag ? `about ${Math.round(lag * 1000)} ms behind the room` : "",
+    parts,
+    settings.sampleRate && Math.abs(settings.sampleRate - ctx.sampleRate) > 1
+      ? "resampling — the rates don't match" : "",
     canPickOutput() ? "" : "this browser picks the output itself",
   ].filter(Boolean).join(" · ");
+
+  // A Bluetooth speaker buffers a tenth of a second or more and no setting on
+  // this page can reach it, so say where the time is actually going.
+  if (out > 0.08 && !saidSlow) {
+    saidSlow = true;
+    setStatus(`Running — but the output alone is adding ${Math.round(out * 1000)} ms.`
+      + " That's the speaker's own buffer, which is the signature of Bluetooth; anything wired will cut most of it.");
+  }
 }
 
 if (!canPickOutput()) outField.hidden = true;
