@@ -423,6 +423,7 @@
       <button id="tab-land" role="tab" aria-controls="panel-land" aria-selected="false">Claiming Land</button>
       <button id="tab-shops" role="tab" aria-controls="panel-shops" aria-selected="false">Money &amp; Shops</button>
       <button id="tab-ore" role="tab" aria-controls="panel-ore" aria-selected="false">Mining</button>
+      <button id="tab-quarry" role="tab" aria-controls="panel-quarry" aria-selected="false">Quarries</button>
       <button id="tab-sort" role="tab" aria-controls="panel-sort" aria-selected="false">Sorting Chests</button>
       <button id="tab-travel" role="tab" aria-controls="panel-travel" aria-selected="false">Getting Around</button>
       <button id="tab-horses" role="tab" aria-controls="panel-horses" aria-selected="false">Horses</button>
@@ -805,6 +806,79 @@
         <li><span class="who"><a href="https://github.com/Snownee/Jade" target="_blank" rel="noopener">Jade</a></span><span class="what">The block tooltip: every panel it can show, and how to configure them <span class="host">github</span></span></li>
         <li><span class="who"><a href="https://blakesmods.com/mystical-agriculture" target="_blank" rel="noopener">Mystical Agriculture</a></span><span class="what">Growing resources as crops — essences, seeds and the tier progression <span class="host">blakesmods</span></span></li>
         <li><span class="who"><a href="https://github.com/P3pp3rF1y/SophisticatedBackpacks/wiki" target="_blank" rel="noopener">Sophisticated Backpacks</a></span><span class="what">Every upgrade, including auto-pickup, filtering, magnets and smelting <span class="host">github wiki</span></span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ===================== QUARRIES ===================== -->
+  <section class="panel" id="panel-quarry" role="tabpanel" aria-labelledby="tab-quarry" tabindex="0" hidden>
+    <h2>Quarries</h2>
+    <p class="lede">If you remember the old BuildCraft quarry, this pack has its direct descendant: <a href="https://github.com/Kotori316/QuarryPlus/wiki" target="_blank" rel="noopener">QuarryPlus</a> (the mod file is called <em>AdditionalEnchantedMiner</em>). Mark out a box, point a machine at it, give it power, and it strip-mines the whole thing down to bedrock while you do something else.</p>
+
+    <h3>Pick your size first</h3>
+    <ul>
+      <li><b>Mini Quarry</b> &mdash; small and cheap. The right first one.</li>
+      <li><b>Solid Fuel Quarry</b> &mdash; burns coal instead of needing a power grid. The best early option if you have not built generators yet.</li>
+      <li><b>Quarry Plus</b> &mdash; the main machine, and what most people mean by "a quarry".</li>
+      <li><b>Chunk Destroyer</b> &mdash; does exactly what the name says. Do not place it near anything you like.</li>
+    </ul>
+
+    <h3>Setting one up, start to finish</h3>
+    <ol>
+      <li><b>Mark the area.</b> Place a <b>Marker Plus</b> and right-click it to extend its beams, then place more until the beams enclose the box you want dug. A <b>Flexible Marker</b> does the same job from a single block &mdash; right-click it and type the size in, which is far less fiddly for a big area.</li>
+      <li><b>Place the quarry against the marked area.</b> It reads the box from the markers the moment you place it.</li>
+      <li><b>Give it power.</b> Run energy in from whatever you are using &mdash; it accepts ordinary FE from the pack's generators and cables. The Solid Fuel Quarry takes coal in a slot instead.</li>
+      <li><b>Let it build its frame.</b> It lays a wireframe round the box first, then starts digging. This is normal and costs energy; nothing is wrong.</li>
+      <li><b>Take the output away.</b> Pipe or conduit the drops into a chest or your storage system, or it will fill up and stall.</li>
+    </ol>
+
+    <div class="callout lit">
+      <p><b>A quarry only runs in a loaded chunk.</b> Walk away and it stops. Claim the area and force-load it (see <b>Claiming Land</b>) or you will come back to a job that never progressed.</p>
+    </div>
+
+    <h3>Modules worth adding</h3>
+    <ul>
+      <li><b>Quarry Pump Module</b> &mdash; clears water and lava out of the way instead of grinding to a halt in an ocean.</li>
+      <li><b>Quarry Exp Collect Module</b> &mdash; banks the XP the digging produces.</li>
+      <li><b>Void Module</b> &mdash; throws away the cobble and dirt you do not want, so your storage fills with ore instead.</li>
+      <li><b>Filler Module</b> &mdash; fills the hole back in behind itself.</li>
+    </ul>
+
+    <h3>Enchanting a quarry</h3>
+    <p>This is the part people miss, and it is the single biggest upgrade available: <b>QuarryPlus machines accept enchantments</b>, exactly like a pickaxe.</p>
+    <ol>
+      <li>Enchant a <b>pickaxe</b> normally &mdash; or an enchanted book, if you are using the <b>Book Enchantment Mover</b>.</li>
+      <li>Place an <b>Enchantment Mover</b>, put the enchanted pickaxe in one side and the quarry machine block in the other.</li>
+      <li>Pick the enchantment and move it across. The machine keeps it permanently.</li>
+    </ol>
+
+    <h3>How far you can push it here</h3>
+    <p>This server runs <a href="https://www.curseforge.com/minecraft/mc-mods/apotheosis" target="_blank" rel="noopener">Apotheosis</a>, which raises the vanilla caps. These are the <em>actual</em> limits on this server, read from the server itself:</p>
+    <ul>
+      <li><b>Fortune 8</b> &mdash; not 10, and well above the vanilla 3.</li>
+      <li><b>Efficiency 9</b></li>
+      <li><b>Unbreaking 8</b></li>
+      <li><b>Looting 8</b></li>
+      <li><b>Silk Touch 1</b> &mdash; unchanged, and there is no higher version.</li>
+    </ul>
+    <div class="callout">
+      <p><b>You cannot find Fortune 8 &mdash; you have to build it.</b> Enchanting tables and loot only ever hand out up to <b>Fortune 3</b> on this server. Everything above that comes from combining books and tools in an anvil, which is what Apotheosis' enchanting setup is for.</p>
+    </div>
+    <p>A quarry with Fortune multiplies every ore it touches, across an entire chunk, for as long as it runs. It is worth far more on a machine than on a pickaxe you swing by hand.</p>
+
+    <div class="callout">
+      <p><b>Fortune and Silk Touch do not stack.</b> Pick one per machine. If you want both, run two quarries. QuarryPlus also has a <b>FortuneBlockList</b> and a <b>SilktouchBlockList</b> in its interface, so you can say which blocks get which treatment rather than applying it to everything.</p>
+    </div>
+
+    <h3>If you would rather not build one</h3>
+    <p><b>Mining Gadgets</b> is in the pack too &mdash; a handheld laser that mines a configurable area, powered and upgradeable. Much less setup, much smaller scale, and it does not need chunk loading because you are standing there.</p>
+
+    <div class="wikis">
+      <h4>Wikis</h4>
+      <ul>
+        <li><span class="who"><a href="https://github.com/Kotori316/QuarryPlus/wiki" target="_blank" rel="noopener">QuarryPlus</a></span><span class="what">Every machine, module and marker, with the energy costs <span class="host">github wiki</span></span></li>
+        <li><span class="who"><a href="https://www.curseforge.com/minecraft/mc-mods/apotheosis" target="_blank" rel="noopener">Apotheosis</a></span><span class="what">The enchanting overhaul that raises the level caps <span class="host">curseforge</span></span></li>
+        <li><span class="who"><a href="https://github.com/Direwolf20-MC/MiningGadgets" target="_blank" rel="noopener">Mining Gadgets</a></span><span class="what">The handheld alternative and its upgrades <span class="host">github</span></span></li>
       </ul>
     </div>
   </section>
