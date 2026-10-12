@@ -21,6 +21,7 @@ close it. Nothing is uploaded anywhere; every image, GIF and byte stays in your 
 | [`playlist-to-audio.html`](playlist-to-audio.html) | Turns a YouTube or YouTube Music playlist into a `yt-dlp` command you run yourself. The page builds the command only — no audio passes through it. |
 | [`anything-to-image.html`](anything-to-image.html) | Paste, drop or pick anything — a screenshot, spreadsheet cells, a slide shape, an SVG, plain text, a link — and it comes back as a PNG, JPEG or WebP to copy or save. Drop a whole `.xlsx` and every visible tab becomes its own page, cropped to the cells that hold something; the workbook is unzipped and read in the page itself, with no spreadsheet library behind it. |
 | [`mic-monitor.html`](mic-monitor.html) | Plays the microphone straight back out of the speakers, with a meter for the level going in and the level going out, and a volume you can ride between them. Built for the delay to be small and honest about it: the audio graph is built at the microphone's own sample rate so nothing is resampled, both devices are asked for their smallest buffers, the limiter is a shaped curve rather than a compressor so it costs nothing in time, and the page shows the round trip in milliseconds, split into the part each end is responsible for. Pick the input and, where the browser allows it, the output; echo cancellation is there, off by default, because a mic and a speaker in one room is how feedback starts. Nothing is recorded and nothing leaves the page. |
+| [`document-viewer.html`](document-viewer.html) | Opens a document and reads it in the page: logs, plain text, Markdown, PDF and Word files. A text file is streamed in and split into lines as the bytes arrive, then drawn through a virtual scroller, so only one screenful is ever in the DOM and a multi-megabyte log scrolls like a short one; a UTF-16 BOM, the kind Windows logs carry, is picked up and decoded. Lines filter by rule — include the ones that match, exclude the ones that match, plain string or regular expression, case-sensitive or not — stacked as deep as you like and applied in slices so typing never blocks the tab. Matches are marked in place, and what's on screen copies to the clipboard or downloads in the file's own format with `_filtered` on the name. Markdown renders in the page or shows its source; a `.docx` is unzipped and its XML walked here, with no library involved; a PDF draws through pdf.js and can hand its text to the filters. Anything that isn't text at all falls back to a hex dump. |
 | [`unzip.html`](unzip.html) | Opens a `.zip` and lists what's inside; click a name to save that file, or take the lot one per second. Reads the archive's central directory directly and inflates with the browser's own `DecompressionStream`, so there's no library to load. |
 
 ## Theme
@@ -74,9 +75,11 @@ python3 -m http.server
 
 Then visit `http://localhost:8000`.
 
-Three tools need the network the first time they run — `gifuct-js` for GIF decoding
-and `gif.js` for encoding, both pulled from a CDN, and the ONNX weights behind
-`remove-background.html`. Everything else works offline.
+Four tools need the network the first time they run — `gifuct-js` for GIF decoding
+and `gif.js` for encoding, both pulled from a CDN, the ONNX weights behind
+`remove-background.html`, and `pdf.js`, which `document-viewer.html` fetches only
+when you actually open a PDF. Everything else works offline, `document-viewer.html`
+included for every other kind of file it opens.
 
 `remove-background.html` is the one page that isn't self-contained: it imports
 [`vendor/imgly-background-removal.mjs`](vendor/), a bundled copy of an AGPL-3.0

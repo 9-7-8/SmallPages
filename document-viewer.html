@@ -1,0 +1,1961 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>document viewer</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  /* Layout and sizing only. Colour, type and component styling live in theme.css. */
+
+  body { margin: 0; padding: 3rem 1.5rem 4rem; }
+  main { max-width: 1180px; margin: 0 auto; }
+  p.lede { margin: 0 0 2.2rem; max-width: 64ch; }
+  .card { margin-bottom: 1.25rem; }
+
+  /* ------------------------------------------------------------- picker -- */
+
+  .dropzone { padding: 2.4rem 1.5rem; text-align: center; cursor: pointer; }
+  .dropzone input { display: none; }
+  .dropzone .hint { font-size: 0.85rem; margin-top: 0.4rem; }
+  .dropzone.slim { padding: 0.85rem 1rem; text-align: left; font-size: 0.85rem; }
+  .dropzone.slim .big { font-size: 0.85rem; }
+  .dropzone.slim .hint { display: none; }
+  body.dragging .dropzone { border-color: var(--neon); background: hsl(var(--tint) / 0.05); }
+
+  .status { font-size: 0.85rem; margin-top: 0.8rem; min-height: 1.2em; }
+  .bar { height: 2px; background: var(--line-soft); margin-top: 0.7rem; display: none; }
+  .bar.on { display: block; }
+  .bar i { display: block; height: 100%; width: 0; background: var(--neon); box-shadow: var(--glow-soft); transition: width 0.1s linear; }
+
+  /* ---------------------------------------------------------- document -- */
+
+  #doc { display: none; }
+  #doc.open { display: block; }
+  body.reading p.lede { display: none; }
+
+  .docbar {
+    display: flex; align-items: baseline; gap: 0.5rem 1.2rem; flex-wrap: wrap;
+    padding-bottom: 0.9rem; margin-bottom: 1rem;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .docname { word-break: break-all; }
+  .docmeta { font-size: 0.78rem; font-family: var(--mono); }
+  .docbar .right { margin-left: auto; display: flex; gap: 0.5rem; flex-wrap: wrap; }
+
+  .toolrow { display: flex; align-items: center; gap: 0.55rem 0.9rem; flex-wrap: wrap; margin-bottom: 0.85rem; }
+  .toolrow:last-child { margin-bottom: 0; }
+  .chk { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.8rem; cursor: pointer; white-space: nowrap; }
+  .spacer { flex: 1 1 auto; }
+  .count { font-size: 0.78rem; font-family: var(--mono); white-space: nowrap; }
+  .goto { font-size: 0.8rem; display: inline-flex; align-items: center; gap: 0.4rem; }
+  .goto input { width: 10ch; font-family: var(--mono); font-size: 0.8rem; }
+  .tools { display: none; }
+  .tools.on { display: block; }
+
+  /* ----------------------------------------------------------- filters -- */
+
+  .rule { display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
+  .rule .pat { flex: 1 1 20rem; min-width: 9rem; font-family: var(--mono); font-size: 0.82rem; }
+  .rule .pat.bad { border-color: var(--neon-hot); box-shadow: var(--glow-soft); }
+  .rule .seg button { font-size: 0.72rem; padding: 0.32rem 0.62rem; }
+  .rule .x { padding: 0.32rem 0.58rem; font-size: 0.8rem; line-height: 1; }
+  .rule .why { flex: 1 1 100%; font-size: 0.74rem; margin: -0.2rem 0 0.2rem; }
+  .rulehint { font-size: 0.75rem; margin: 0 0 0.9rem; }
+
+  /* ------------------------------------------------------------ viewer -- */
+
+  .viewport {
+    --row-h: 19px;
+    --ln-w: 0px;
+    height: min(70vh, 780px);
+    overflow: auto;
+    position: relative;
+    display: none;
+    background: var(--sunken);
+    border: 1px solid var(--line-soft);
+  }
+  .viewport.on { display: block; }
+  .sizer { position: relative; width: var(--doc-w, 100%); min-width: 100%; }
+  .rows { position: absolute; top: 0; left: 0; width: 100%; }
+
+  .row { display: flex; height: var(--row-h); line-height: var(--row-h); font-family: var(--mono); font-size: 12.5px; }
+  .ln {
+    position: sticky; left: 0; z-index: 1;
+    flex: none; width: var(--ln-w);
+    padding: 0 0.7rem; text-align: right;
+    color: var(--text-faint); background: var(--sunken);
+    border-right: 1px solid var(--line-soft);
+    user-select: none;
+  }
+  .nogutter .ln { display: none; }
+  .txt { flex: 1 1 auto; padding: 0 0.8rem; white-space: pre; }
+  .row mark { background: hsl(var(--tint) / 0.24); color: var(--neon-hot); border-radius: 0; }
+
+  /* The width of a monospace character, measured rather than assumed, so the
+     hard fold in wrap mode lands exactly where the viewport ends. */
+  #probe {
+    position: absolute; visibility: hidden; pointer-events: none;
+    white-space: pre; font-family: var(--mono); font-size: 12.5px;
+    top: -9999px; left: -9999px;
+  }
+
+  /* ------------------------------------------------- rendered documents -- */
+
+  .render {
+    display: none;
+    padding: 1.5rem 1.7rem;
+    background: var(--sunken);
+    border: 1px solid var(--line-soft);
+    max-height: min(74vh, 880px);
+    overflow: auto;
+  }
+  .render.on { display: block; }
+
+  .prose { max-width: 76ch; margin: 0 auto; }
+  .prose > :first-child { margin-top: 0; }
+  .prose h1 { font-size: 1.55rem; margin: 2rem 0 0.8rem; }
+  .prose h2 { font-size: 1.2rem; margin: 1.8rem 0 0.7rem; }
+  .prose h3 { font-size: 1rem; margin: 1.5rem 0 0.6rem; }
+  .prose h4, .prose h5, .prose h6 { font-size: 0.9rem; margin: 1.3rem 0 0.5rem; }
+  .prose p, .prose ul, .prose ol, .prose blockquote, .prose pre, .prose table { margin: 0 0 1rem; }
+  .prose li { margin-bottom: 0.3rem; }
+  .prose strong { font-weight: 600; }
+  .prose th { font-weight: 500; }
+  .prose ul, .prose ol { padding-left: 1.6rem; }
+  .prose code { font-family: var(--mono); font-size: 0.86em; background: hsl(var(--tint) / 0.07); padding: 0.1em 0.3em; }
+  .prose pre { background: var(--bg); border: 1px solid var(--line-soft); padding: 0.85rem 1rem; overflow-x: auto; }
+  .prose pre code { background: none; padding: 0; font-size: 12.5px; }
+  .prose blockquote { border-left: 2px solid var(--line); padding-left: 1rem; margin-left: 0; color: var(--text-dim); }
+  .prose hr { border: none; border-top: 1px solid var(--line-soft); margin: 2rem 0; }
+  .prose img { max-width: 100%; height: auto; }
+  .prose table { border-collapse: collapse; width: auto; max-width: 100%; display: block; overflow-x: auto; }
+  .prose th, .prose td { border: 1px solid var(--line-soft); padding: 0.35rem 0.65rem; text-align: left; }
+  .prose th > p, .prose td > p, .prose li > p { margin: 0; }
+  .prose .task { list-style: none; }
+
+  /* --------------------------------------------------------------- pdf -- */
+
+  .pdfpage { margin: 0 auto 1.1rem; width: fit-content; max-width: 100%; position: relative; border: 1px solid var(--line-soft); }
+  .pdfpage canvas, .pdfpage .placeholder { display: block; background: #ffffff; }
+  .pdfpage .placeholder { display: grid; place-items: center; color: #555; font-family: var(--mono); font-size: 11px; }
+  .pdfpage .num { position: absolute; right: 0; bottom: -1.15rem; font-size: 0.7rem; font-family: var(--mono); color: var(--text-faint); }
+
+  @media (max-width: 720px) {
+    body { padding: 2rem 1rem 3rem; }
+    .render { padding: 1.1rem 1rem; }
+    .docbar .right { margin-left: 0; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <a class="home" href="index.html">&larr; index</a>
+  <h1>document viewer</h1>
+  <p class="lede">Drop in a document and read it here &mdash; logs, plain text and Markdown, with
+  PDF and Word files too. Text and logs come with line filters: keep only the lines that match a
+  string or a regular expression, or drop the ones that do. A big file is read a chunk at a time and
+  drawn a screen at a time, so size isn't the thing that stops it.</p>
+
+  <div class="card">
+    <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Choose a document to open">
+      <div class="big">Drop a document here, or click to choose one</div>
+      <div class="hint"><code>.log</code> <code>.txt</code> <code>.md</code> &mdash; any text at all &mdash; plus <code>.pdf</code> and <code>.docx</code> &middot; opened in your browser, never uploaded</div>
+      <input type="file" id="fileInput">
+    </div>
+    <div class="status" id="status"></div>
+    <div class="bar" id="bar"><i id="barFill"></i></div>
+  </div>
+
+  <section class="card" id="doc">
+    <div class="docbar">
+      <div class="docname" id="docname"></div>
+      <div class="docmeta" id="docmeta"></div>
+      <div class="right" id="docacts"></div>
+    </div>
+
+    <div class="tools" id="tools">
+      <div class="toolrow">
+        <label class="chk"><input type="checkbox" id="wrapChk"> wrap long lines</label>
+        <label class="chk"><input type="checkbox" id="lnChk" checked> line numbers</label>
+        <span class="spacer"></span>
+        <label class="goto">go to line <input type="number" id="gotoInput" min="1" placeholder="1"></label>
+        <button class="ghost" id="copyBtn" title="every line on screen, filters and all">Copy all</button>
+        <button class="ghost" id="saveBtn" title="the lines on screen, saved in the file's own format">Download visible</button>
+      </div>
+
+      <div id="rules"></div>
+      <p class="rulehint" id="ruleHint">A line is shown when it matches at least one <b>include</b> rule &mdash; or when there are none &mdash; and no <b>exclude</b> rule. Turn on <code>.*</code> to read the pattern as a regular expression.</p>
+
+      <div class="toolrow">
+        <button class="ghost" id="addInclude">+ include lines matching</button>
+        <button class="ghost" id="addExclude">+ exclude lines matching</button>
+        <span class="spacer"></span>
+        <span class="count" id="count"></span>
+      </div>
+    </div>
+
+    <div class="viewport" id="viewport" tabindex="0">
+      <div class="sizer" id="sizer"><div class="rows" id="rows"></div></div>
+    </div>
+    <div class="render" id="render"></div>
+  </section>
+</main>
+<span id="probe" aria-hidden="true"></span>
+
+<script>
+"use strict";
+
+/* ============================================================================
+   document viewer
+
+   Three ways a document ends up on screen:
+
+     · text   — logs, plain text, Markdown source, anything that decodes.
+                Lines are held in an array and drawn through a virtual
+                scroller, so the DOM only ever holds one screenful.
+     · prose  — Markdown and .docx, rendered to HTML in the page.
+     · pages  — PDF, drawn to canvas by pdf.js, one page at a time as it
+                scrolls into view.
+
+   The filters belong to the text path, which is where logs live.
+   ========================================================================== */
+
+const el = (id) => document.getElementById(id);
+
+const dropzone  = el("dropzone");
+const fileInput  = el("fileInput");
+const statusEl   = el("status");
+const barEl      = el("bar");
+const barFill    = el("barFill");
+const docEl      = el("doc");
+const docnameEl  = el("docname");
+const docmetaEl  = el("docmeta");
+const docactsEl  = el("docacts");
+const toolsEl    = el("tools");
+const rulesEl    = el("rules");
+const ruleHintEl = el("ruleHint");
+const countEl    = el("count");
+const viewport   = el("viewport");
+const sizerEl    = el("sizer");
+const rowsEl     = el("rows");
+const renderEl   = el("render");
+const probeEl    = el("probe");
+const wrapChk    = el("wrapChk");
+const lnChk      = el("lnChk");
+const gotoInput  = el("gotoInput");
+
+const ROW_H = 19;                       // keep in step with --row-h
+const OVERSCAN = 6;
+const CHUNK_LINES = 40000;              // lines filtered per animation frame
+const HEX_LIMIT = 4 * 1024 * 1024;      // bytes shown when a file isn't text
+const MAX_SIZER_PX = 30e6;              // past this browsers stop honouring height
+
+// Everything about the document currently open.
+let lines = [];          // every logical line of a text document
+let shown = null;        // indices into lines after filtering; null means all
+let maxCh = 0;           // longest shown line, in characters
+let rowStarts = null;    // wrap mode: visual row each shown line starts at
+let cpl = 0;             // wrap mode: characters per visual row
+let totalRows = 0;
+let highlights = [];     // global regexes for the include patterns
+let openToken = 0;       // bumped on every open, so stale work drops out
+let filterToken = 0;
+let rules = [];
+let ruleSeq = 0;
+
+/* --------------------------------------------------------------- plumbing -- */
+
+function setStatus(msg, isError = false) {
+  statusEl.textContent = msg;
+  statusEl.classList.toggle("error", isError);
+}
+
+function setProgress(done, total) {
+  if (done == null) { barEl.classList.remove("on"); return; }
+  barEl.classList.add("on");
+  barFill.style.width = `${total ? Math.min(100, (done / total) * 100) : 0}%`;
+}
+
+const fmtNum = (n) => n.toLocaleString();
+
+function fmtSize(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
+}
+
+const escapeHtml = (s) => s.replace(/[&<>"']/g, (c) =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const nextFrame = () => new Promise((r) => requestAnimationFrame(() => r()));
+
+function ghostButton(label, onClick) {
+  const b = document.createElement("button");
+  b.className = "ghost";
+  b.textContent = label;
+  b.addEventListener("click", onClick);
+  return b;
+}
+
+function save(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
+/* ------------------------------------------------------------ taking files -- */
+
+dropzone.addEventListener("click", () => fileInput.click());
+dropzone.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInput.click(); }
+});
+fileInput.addEventListener("change", () => {
+  if (fileInput.files.length) openDocument(fileInput.files[0]);
+});
+
+// The whole window takes a drop, not just the strip at the top — once a
+// document is open the dropzone is small and easy to miss.
+let dragDepth = 0;
+window.addEventListener("dragenter", (e) => {
+  if (!e.dataTransfer || ![...e.dataTransfer.types].includes("Files")) return;
+  e.preventDefault();
+  dragDepth++;
+  document.body.classList.add("dragging");
+});
+window.addEventListener("dragover", (e) => { e.preventDefault(); });
+window.addEventListener("dragleave", () => {
+  if (--dragDepth <= 0) { dragDepth = 0; document.body.classList.remove("dragging"); }
+});
+window.addEventListener("drop", (e) => {
+  e.preventDefault();
+  dragDepth = 0;
+  document.body.classList.remove("dragging");
+  const f = e.dataTransfer?.files?.[0];
+  if (f) openDocument(f);
+});
+
+/* ------------------------------------------------------------- dispatching -- */
+
+// Extensions we know decode to something worth reading as lines. Anything not
+// listed still gets opened as text if it sniffs as text.
+const TEXT_EXT = new Set([
+  "log", "txt", "text", "md", "markdown", "mdown", "mkd", "json", "jsonl", "ndjson",
+  "csv", "tsv", "yml", "yaml", "toml", "ini", "cfg", "conf", "properties", "env",
+  "xml", "svg", "html", "htm", "css", "js", "mjs", "ts", "tsx", "jsx", "py", "rb",
+  "sh", "bash", "zsh", "ps1", "bat", "c", "h", "cpp", "hpp", "cs", "java", "kt",
+  "go", "rs", "swift", "sql", "diff", "patch", "srt", "vtt", "gcode", "nfo", "out",
+  "err", "trace", "dump", "list", "lst", "map", "mcmeta", "gitignore", "lock",
+]);
+const MARKDOWN_EXT = new Set(["md", "markdown", "mdown", "mkd"]);
+
+const extOf = (name) => (name.includes(".") ? name.split(".").pop().toLowerCase() : "");
+
+async function openDocument(file) {
+  const token = ++openToken;
+  reset();
+  currentName = file.name;
+  setStatus(`Opening ${file.name} — ${fmtSize(file.size)}…`);
+
+  const ext = extOf(file.name);
+  let kind;
+  try {
+    kind = await sniff(file, ext);
+  } catch (err) {
+    console.error(err);
+    setStatus(`Couldn't read ${file.name}: ${err.message}`, true);
+    return;
+  }
+  if (token !== openToken) return;
+
+  currentKind = kind;
+  describe(file, kind);
+
+  try {
+    if (kind === "pdf") await openPdf(file, token);
+    else if (kind === "docx") await openDocx(file, token);
+    else if (kind === "zip") openStrayZip(file);
+    else if (kind === "binary") await openHex(file, token);
+    else await openText(file, token, kind === "markdown");
+  } catch (err) {
+    if (token !== openToken) return;
+    console.error(err);
+    setStatus(`Couldn't open ${file.name}: ${err.message}`, true);
+  } finally {
+    if (token === openToken) setProgress(null);
+  }
+}
+
+// Magic bytes beat the extension: a .log that is really a PDF opens as one,
+// and a file with no extension at all still opens if it decodes to text.
+async function sniff(file, ext) {
+  const head = new Uint8Array(await file.slice(0, 4096).arrayBuffer());
+  const magic = (...bytes) => bytes.every((b, i) => head[i] === b);
+
+  if (magic(0x25, 0x50, 0x44, 0x46)) return "pdf";                 // %PDF
+  if (magic(0x50, 0x4b, 0x03, 0x04) || magic(0x50, 0x4b, 0x05, 0x06)) {
+    return ext === "docx" || ext === "docm" || ext === "dotx" ? "docx" : "zip";
+  }
+  if (ext === "pdf") return "pdf";
+  if (MARKDOWN_EXT.has(ext)) return "markdown";
+  if (TEXT_EXT.has(ext)) return "text";
+  return looksLikeText(head) ? "text" : "binary";
+}
+
+// A NUL byte, or a pile of other control bytes, is what separates a log from a
+// binary. UTF-16 text is full of NULs, so its BOM gets a pass.
+function looksLikeText(head) {
+  if (!head.length) return true;
+  if ((head[0] === 0xff && head[1] === 0xfe) || (head[0] === 0xfe && head[1] === 0xff)) return true;
+  let odd = 0;
+  for (let i = 0; i < head.length; i++) {
+    const b = head[i];
+    if (b === 0) return false;
+    if (b < 9 || (b > 13 && b < 32) || b === 0x7f) odd++;
+  }
+  return odd / head.length < 0.05;
+}
+
+function describe(file, kind) {
+  docEl.classList.add("open");
+  document.body.classList.add("reading");
+  docnameEl.textContent = file.name;
+  docmetaEl.textContent = `${fmtSize(file.size)} · ${kind}`;
+  dropzone.classList.add("slim");
+  dropzone.querySelector(".big").textContent = "Open another document";
+}
+
+// Clears everything the previous document left behind, including blob URLs
+// handed to <img> tags by the .docx reader.
+function reset() {
+  filterToken++;
+  lines = [];
+  shown = null;
+  rowStarts = null;
+  maxCh = 0;
+  totalRows = 0;
+  highlights = [];
+  rules = [];
+  rulesEl.textContent = "";
+  for (const url of blobUrls) URL.revokeObjectURL(url);
+  blobUrls = [];
+  if (pdfDoc) { pdfDoc.destroy?.(); pdfDoc = null; }
+  if (pageObserver) { pageObserver.disconnect(); pageObserver = null; }
+  renderEl.textContent = "";
+  renderEl.classList.remove("on");
+  viewport.classList.remove("on");
+  toolsEl.classList.remove("on");
+  docactsEl.textContent = "";
+  countEl.textContent = "";
+  gotoInput.value = "";
+  rowsEl.textContent = "";
+  pool = [];
+  lnChk.checked = true;
+  setProgress(null);
+}
+
+let blobUrls = [];
+function blobUrl(blob) {
+  const url = URL.createObjectURL(blob);
+  blobUrls.push(url);
+  return url;
+}
+
+/* ------------------------------------------------------- reading as text -- */
+
+// Read the file as a stream and split it into lines as the bytes arrive, so a
+// 3 MB log and a 3 GB one both work the same way and neither needs the whole
+// decoded string to exist a second time.
+async function readLines(file, token, onProgress) {
+  const label = await encodingOf(file);
+  const decoder = new TextDecoder(label, { fatal: false });
+  const out = [];
+  let carry = "";
+  let read = 0;
+
+  let crlf = false;
+  const push = (s) => {
+    if (s.charCodeAt(s.length - 1) === 13) { crlf = true; out.push(s.slice(0, -1)); }
+    else out.push(s);
+  };
+
+  if (!file.stream) {                                   // very old browsers
+    const text = decoder.decode(await file.arrayBuffer());
+    for (const s of text.split("\n")) push(s);
+    detectedEnding = crlf ? "\r\n" : "\n";
+    return out;
+  }
+
+  const reader = file.stream().getReader();
+  let lastPaint = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (token !== openToken) { reader.cancel().catch(() => {}); return null; }
+      if (done) break;
+
+      read += value.byteLength;
+      const parts = (carry + decoder.decode(value, { stream: true })).split("\n");
+      carry = parts.pop();
+      for (let i = 0; i < parts.length; i++) push(parts[i]);
+
+      const now = performance.now();
+      if (now - lastPaint > 80) {
+        lastPaint = now;
+        onProgress(read, out.length);
+        await nextFrame();                  // let the progress bar actually move
+        if (token !== openToken) { reader.cancel().catch(() => {}); return null; }
+      }
+    }
+  } finally {
+    reader.releaseLock?.();
+  }
+
+  carry += decoder.decode();
+  if (carry.length) push(carry);
+  else if (!out.length) out.push("");
+  detectedEnding = crlf ? "\r\n" : "\n";
+  return out;
+}
+
+// UTF-16 is common in Windows event and installer logs, and decoding it as
+// UTF-8 turns the whole file into a wall of NULs, so check the BOM first.
+async function encodingOf(file) {
+  const b = new Uint8Array(await file.slice(0, 2).arrayBuffer());
+  if (b[0] === 0xff && b[1] === 0xfe) return "utf-16le";
+  if (b[0] === 0xfe && b[1] === 0xff) return "utf-16be";
+  return "utf-8";
+}
+
+async function openText(file, token, isMarkdown) {
+  const read = await readLines(file, token, (bytes, count) => {
+    setProgress(bytes, file.size);
+    setStatus(`Reading ${file.name} — ${fmtSize(bytes)} of ${fmtSize(file.size)}, ${fmtNum(count)} lines…`);
+  });
+  if (read === null || token !== openToken) return;
+
+  setLines(read, detectedEnding);
+  if (isMarkdown) {
+    markdownSource = lines.join("\n");
+    showMarkdown();
+  } else {
+    showText();
+  }
+  setStatus(`${fmtNum(lines.length)} line${lines.length === 1 ? "" : "s"}, ${fmtSize(file.size)}.`);
+}
+
+// The text path: filters, virtual scroller, the lot.
+function showText() {
+  renderEl.classList.remove("on");
+  viewport.classList.add("on");
+  toolsEl.classList.add("on");
+  applyFilters();
+}
+
+/* ---------------------------------------------------------------- filters -- */
+
+const shownCount = () => (shown ? shown.length : lines.length);
+const lineAt = (i) => lines[shown ? shown[i] : i];
+const logicalNo = (i) => (shown ? shown[i] : i) + 1;
+const lastLogicalNo = () => (shown ? (shown.length ? shown[shown.length - 1] + 1 : 0) : lines.length);
+
+let globalMaxCh = 0;
+
+function addRule(mode, pattern = "", focus = true) {
+  const rule = { mode, pattern, regex: false, cased: false };
+  const row = document.createElement("div");
+  row.className = "rule";
+
+  const seg = document.createElement("div");
+  seg.className = "seg";
+  const buttons = {};
+  for (const m of ["include", "exclude"]) {
+    const b = document.createElement("button");
+    b.textContent = m;
+    b.title = m === "include" ? "show only lines that match" : "hide lines that match";
+    b.addEventListener("click", () => {
+      rule.mode = m;
+      for (const k in buttons) buttons[k].classList.toggle("on", k === m);
+      applyFilters();
+    });
+    buttons[m] = b;
+    seg.appendChild(b);
+  }
+  buttons[mode].classList.add("on");
+
+  const pat = document.createElement("input");
+  pat.type = "text";
+  pat.className = "pat";
+  pat.value = pattern;
+  pat.placeholder = "text to match, or a regular expression";
+  pat.setAttribute("aria-label", "pattern");
+
+  const reLabel = document.createElement("label");
+  reLabel.className = "chk";
+  reLabel.title = "read the pattern as a regular expression";
+  const reBox = document.createElement("input");
+  reBox.type = "checkbox";
+  reLabel.append(reBox, document.createTextNode(".*"));
+
+  const caseLabel = document.createElement("label");
+  caseLabel.className = "chk";
+  caseLabel.title = "match upper and lower case exactly";
+  const caseBox = document.createElement("input");
+  caseBox.type = "checkbox";
+  caseLabel.append(caseBox, document.createTextNode("Aa"));
+
+  const x = document.createElement("button");
+  x.className = "ghost x";
+  x.textContent = "×";
+  x.setAttribute("aria-label", "remove this rule");
+  x.addEventListener("click", () => {
+    rules = rules.filter((r) => r !== rule);
+    row.remove();
+    applyFilters();
+  });
+
+  const why = document.createElement("div");
+  why.className = "why status";
+
+  row.append(seg, pat, reLabel, caseLabel, x, why);
+  rulesEl.appendChild(row);
+
+  rule.input = pat;
+  rule.why = why;
+  rule.reBox = reBox;
+  rule.caseBox = caseBox;
+  rules.push(rule);
+
+  // Typing filters as you type; 3 MB of log is fast enough that waiting for
+  // Enter would feel like the page was holding something back.
+  let debounce;
+  const onEdit = () => {
+    clearTimeout(debounce);
+    debounce = setTimeout(() => {
+      rule.pattern = pat.value;
+      rule.regex = reBox.checked;
+      rule.cased = caseBox.checked;
+      applyFilters();
+    }, 110);
+  };
+  pat.addEventListener("input", onEdit);
+  reBox.addEventListener("change", onEdit);
+  caseBox.addEventListener("change", onEdit);
+  pat.addEventListener("keydown", (e) => { if (e.key === "Enter") { clearTimeout(debounce); onEdit(); } });
+
+  if (focus) pat.focus();
+  return rule;
+}
+
+// A plain string is matched with indexOf rather than a regex — it is the
+// common case and measurably quicker over a few hundred thousand lines.
+function compile(rule) {
+  if (!rule.pattern) return null;
+  if (rule.regex) {
+    const flags = rule.cased ? "" : "i";
+    const re = new RegExp(rule.pattern, flags);
+    return { test: (s) => re.test(s), hl: new RegExp(rule.pattern, flags + "g") };
+  }
+  if (rule.cased) {
+    const p = rule.pattern;
+    return { test: (s) => s.includes(p), hl: new RegExp(escapeRe(p), "g") };
+  }
+  const lower = rule.pattern.toLowerCase();
+  return { test: (s) => s.toLowerCase().includes(lower), hl: new RegExp(escapeRe(rule.pattern), "gi") };
+}
+
+function applyFilters() {
+  const token = ++filterToken;
+  const includes = [];
+  const excludes = [];
+  highlights = [];
+
+  for (const rule of rules) {
+    rule.why.textContent = "";
+    rule.input.classList.remove("bad");
+    let m;
+    try {
+      m = compile(rule);
+    } catch (err) {
+      rule.input.classList.add("bad");
+      rule.why.textContent = `that regular expression doesn't parse — ${err.message}`;
+      continue;
+    }
+    if (!m) continue;
+    (rule.mode === "include" ? includes : excludes).push(m);
+    if (rule.mode === "include") highlights.push(m.hl);
+  }
+
+  if (!includes.length && !excludes.length) {
+    shown = null;
+    maxCh = globalMaxCh;
+    finishFilter(token);
+    return;
+  }
+
+  const keep = (s) => {
+    if (includes.length) {
+      let hit = false;
+      for (let r = 0; r < includes.length; r++) if (includes[r].test(s)) { hit = true; break; }
+      if (!hit) return false;
+    }
+    for (let r = 0; r < excludes.length; r++) if (excludes[r].test(s)) return false;
+    return true;
+  };
+
+  // Sliced across frames: a very long file still filters without the tab
+  // going unresponsive, and a keystroke part-way through supersedes the run.
+  const out = [];
+  let i = 0;
+  let max = 0;
+  const step = () => {
+    if (token !== filterToken) return;
+    const end = Math.min(lines.length, i + CHUNK_LINES);
+    for (; i < end; i++) {
+      const s = lines[i];
+      if (keep(s)) { out.push(i); if (s.length > max) max = s.length; }
+    }
+    if (i < lines.length) {
+      countEl.textContent = `filtering… ${Math.round((i / lines.length) * 100)}%`;
+      requestAnimationFrame(step);
+      return;
+    }
+    shown = out;
+    maxCh = max;
+    finishFilter(token);
+  };
+  step();
+}
+
+function finishFilter(token) {
+  if (token !== filterToken) return;
+  const n = shownCount();
+  countEl.textContent = shown
+    ? `${fmtNum(n)} of ${fmtNum(lines.length)} lines`
+    : `${fmtNum(n)} line${n === 1 ? "" : "s"}`;
+  viewport.scrollTop = 0;
+  relayout(false);
+}
+
+/* -------------------------------------------------------- virtual scroller -- */
+
+let pool = [];
+let scale = 1;
+
+function ensurePool(n) {
+  while (pool.length < n) {
+    const row = document.createElement("div");
+    row.className = "row";
+    const ln = document.createElement("span");
+    ln.className = "ln";
+    const txt = document.createElement("span");
+    txt.className = "txt";
+    row.append(ln, txt);
+    rowsEl.appendChild(row);
+    pool.push({ row, ln, txt, hidden: false });
+  }
+}
+
+function charWidth() {
+  probeEl.textContent = "0".repeat(200);
+  const w = probeEl.getBoundingClientRect().width / 200;
+  probeEl.textContent = "";
+  return w || 7;
+}
+
+// Everything that depends on the width of the viewport or the set of shown
+// lines: the gutter, the document width, the wrap point, the scroller height.
+function relayout(keepPosition = true) {
+  if (!viewport.classList.contains("on")) return;
+  const anchorRow = keepPosition ? firstVisibleRow() : 0;
+  const anchorLine = rowStarts && anchorRow < totalRows ? lineForRow(anchorRow) : anchorRow;
+
+  const count = shownCount();
+  const numbers = lnChk.checked;
+  const wrap = wrapChk.checked;
+  viewport.classList.toggle("nogutter", !numbers);
+
+  const digits = Math.max(2, String(Math.max(1, lastLogicalNo())).length);
+  viewport.style.setProperty("--ln-w", numbers ? `calc(${digits}ch + 1.4rem)` : "0px");
+  viewport.style.setProperty("--doc-w", wrap ? "100%" : `calc(var(--ln-w) + ${maxCh + 2}ch)`);
+
+  // One row has to exist and be laid out before the text column can be
+  // measured, and the wrap point comes out of that measurement.
+  ensurePool(1);
+  pool[0].row.style.display = "";
+  pool[0].hidden = false;
+  sizerEl.style.height = `${Math.max(1, Math.min(MAX_SIZER_PX, count * ROW_H))}px`;
+
+  if (wrap) {
+    const chW = charWidth();
+    const textW = pool[0].txt.clientWidth || viewport.clientWidth;
+    cpl = Math.max(16, Math.floor((textW - 2) / chW));
+    rowStarts = new Uint32Array(count + 1);
+    let acc = 0;
+    for (let i = 0; i < count; i++) {
+      rowStarts[i] = acc;
+      const len = lineAt(i).length;
+      acc += len > cpl ? Math.ceil(len / cpl) : 1;
+    }
+    rowStarts[count] = acc;
+    totalRows = acc;
+  } else {
+    rowStarts = null;
+    cpl = 0;
+    totalRows = count;
+  }
+
+  // Browsers stop honouring an element's height somewhere past 30 million
+  // pixels, so beyond that the scrollbar maps onto the row range by ratio
+  // instead of one pixel per pixel. It costs exactness, not the ability to
+  // reach a line — that is what "go to line" is for.
+  const full = totalRows * ROW_H;
+  scale = full > MAX_SIZER_PX ? MAX_SIZER_PX / full : 1;
+  sizerEl.style.height = `${Math.max(1, Math.round(full * scale))}px`;
+
+  if (keepPosition && totalRows) scrollToRow(rowStarts ? rowStarts[Math.min(anchorLine, count - 1)] : anchorLine);
+  else renderWindow();
+}
+
+function firstVisibleRow() {
+  if (!totalRows) return 0;
+  if (scale === 1) return Math.floor(viewport.scrollTop / ROW_H);
+  const maxScroll = Math.max(1, sizerEl.offsetHeight - viewport.clientHeight);
+  const visible = Math.ceil(viewport.clientHeight / ROW_H);
+  return Math.round(Math.min(1, viewport.scrollTop / maxScroll) * Math.max(0, totalRows - visible));
+}
+
+function lineForRow(r) {
+  let lo = 0;
+  let hi = shownCount() - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (rowStarts[mid] <= r) lo = mid; else hi = mid - 1;
+  }
+  return lo;
+}
+
+function renderWindow() {
+  const vh = viewport.clientHeight;
+  const need = Math.min(totalRows, Math.ceil(vh / ROW_H) + OVERSCAN);
+  ensurePool(need);
+
+  const first = firstVisibleRow();
+  rowsEl.style.transform = `translateY(${scale === 1 ? first * ROW_H : viewport.scrollTop}px)`;
+
+  for (let k = 0; k < pool.length; k++) {
+    const slot = pool[k];
+    const r = first + k;
+    if (k >= need || r >= totalRows) {
+      if (!slot.hidden) { slot.row.style.display = "none"; slot.hidden = true; }
+      continue;
+    }
+    if (slot.hidden) { slot.row.style.display = ""; slot.hidden = false; }
+    fillRow(slot, r);
+  }
+}
+
+function fillRow(slot, r) {
+  let idx = r;
+  let seg = 0;
+  if (rowStarts) { idx = lineForRow(r); seg = r - rowStarts[idx]; }
+
+  const line = lineAt(idx);
+  const text = rowStarts && line.length > cpl ? line.slice(seg * cpl, seg * cpl + cpl) : line;
+
+  slot.ln.textContent = seg === 0 ? String(logicalNo(idx)) : "";
+  if (highlights.length) slot.txt.innerHTML = highlight(text);
+  else slot.txt.textContent = text;
+}
+
+// Marks every match of every include pattern. Ranges are collected from each
+// pattern and then merged, so two patterns overlapping on one line don't
+// produce nested or crossed <mark> tags.
+function highlight(text) {
+  const ranges = [];
+  for (const re of highlights) {
+    re.lastIndex = 0;
+    let m;
+    while ((m = re.exec(text)) !== null) {
+      if (!m[0].length) { re.lastIndex++; continue; }
+      ranges.push([m.index, m.index + m[0].length]);
+      if (ranges.length > 500) break;
+    }
+  }
+  if (!ranges.length) return escapeHtml(text);
+  ranges.sort((a, b) => a[0] - b[0]);
+
+  let html = "";
+  let at = 0;
+  for (const [s, e] of ranges) {
+    if (e <= at) continue;
+    const start = Math.max(s, at);
+    html += `${escapeHtml(text.slice(at, start))}<mark>${escapeHtml(text.slice(start, e))}</mark>`;
+    at = e;
+  }
+  return html + escapeHtml(text.slice(at));
+}
+
+function scrollToRow(r) {
+  if (scale === 1) {
+    viewport.scrollTop = r * ROW_H;
+  } else {
+    const maxScroll = Math.max(1, sizerEl.offsetHeight - viewport.clientHeight);
+    const visible = Math.ceil(viewport.clientHeight / ROW_H);
+    viewport.scrollTop = (r / Math.max(1, totalRows - visible)) * maxScroll;
+  }
+  renderWindow();
+}
+
+let scrollPending = false;
+viewport.addEventListener("scroll", () => {
+  if (scrollPending) return;
+  scrollPending = true;
+  requestAnimationFrame(() => { scrollPending = false; renderWindow(); });
+}, { passive: true });
+
+let resizeTimer;
+new ResizeObserver(() => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => relayout(true), 120);
+}).observe(viewport);
+
+wrapChk.addEventListener("change", () => relayout(true));
+lnChk.addEventListener("change", () => relayout(true));
+
+el("addInclude").addEventListener("click", () => addRule("include"));
+el("addExclude").addEventListener("click", () => addRule("exclude"));
+
+// "go to line" means the line's own number, not its place in the filtered
+// view, so on a filtered document it lands on the first shown line at or
+// after that number.
+gotoInput.addEventListener("change", () => jumpToLine(parseInt(gotoInput.value, 10)));
+gotoInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") jumpToLine(parseInt(gotoInput.value, 10));
+});
+
+function jumpToLine(n) {
+  const count = shownCount();
+  if (!Number.isFinite(n) || !count) return;
+  const target = Math.max(0, n - 1);
+  let idx;
+  if (!shown) {
+    idx = Math.min(count - 1, target);
+  } else {
+    let lo = 0;
+    let hi = shown.length - 1;
+    idx = shown.length - 1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      if (shown[mid] >= target) { idx = mid; hi = mid - 1; } else lo = mid + 1;
+    }
+  }
+  scrollToRow(rowStarts ? rowStarts[idx] : idx);
+  viewport.focus({ preventScroll: true });
+}
+
+/* ------------------------------------------------------- what's on screen -- */
+
+// Built as an array of pieces rather than one string: a Blob takes the array
+// as it is, and a 3 GB log never has to exist twice over.
+function shownParts() {
+  const n = shownCount();
+  const parts = new Array(n);
+  for (let i = 0; i < n; i++) parts[i] = lineAt(i) + lineEnding;
+  return parts;
+}
+
+// navigator.clipboard wants a secure context, and one of these pages handed
+// over as a single file is often opened from file:// instead. The old
+// execCommand route still works there.
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch (err) {
+    console.warn(err);
+  }
+  const box = document.createElement("textarea");
+  box.value = text;
+  box.setAttribute("readonly", "");
+  box.style.cssText = "position:fixed;top:-1000px;opacity:0";
+  document.body.appendChild(box);
+  box.select();
+  const ok = document.execCommand?.("copy") ?? false;
+  box.remove();
+  return ok;
+}
+
+el("copyBtn").addEventListener("click", async () => {
+  const n = shownCount();
+  setStatus(`Copying ${fmtNum(n)} lines…`);
+  const ok = await copyText(shownParts().join(""));
+  setStatus(ok
+    ? `Copied ${fmtNum(n)} line${n === 1 ? "" : "s"}${shown ? " — the filtered view" : ""}.`
+    : "The browser wouldn't give the page the clipboard. Download instead?", !ok);
+});
+
+el("saveBtn").addEventListener("click", () => {
+  const n = shownCount();
+  save(new Blob(shownParts(), { type: textMime() }), filteredName());
+  setStatus(`Saved ${fmtNum(n)} line${n === 1 ? "" : "s"} as ${filteredName()}.`);
+});
+
+// Same format the file arrived in — a .log comes back a .log — with _filtered
+// on the end of the name. Nothing recognisable to keep means .txt.
+function filteredName() {
+  const name = currentName || "document.txt";
+  const dot = name.lastIndexOf(".");
+  const stem = dot > 0 ? name.slice(0, dot) : name;
+  const ext = dot > 0 ? name.slice(dot + 1) : "";
+  const keep = ext && ext.length <= 12 && (currentKind === "text" || currentKind === "markdown");
+  return `${stem}_filtered.${keep ? ext : "txt"}`;
+}
+
+function textMime() {
+  const ext = extOf(currentName || "");
+  if (currentKind !== "text" && currentKind !== "markdown") return "text/plain";
+  if (MARKDOWN_EXT.has(ext)) return "text/markdown";
+  if (ext === "csv") return "text/csv";
+  if (ext === "json" || ext === "jsonl" || ext === "ndjson") return "application/json";
+  if (ext === "html" || ext === "htm") return "text/plain";   // never served as live HTML
+  return "text/plain";
+}
+
+// Everything on screen in a rendered view — Markdown, a Word document, the
+// text of a PDF — as the reader sees it, not as the markup behind it.
+function copyRendered() {
+  return ghostButton("Copy all", async () => {
+    const text = (renderEl.querySelector(".prose") || renderEl).innerText || "";
+    const ok = await copyText(text);
+    setStatus(ok ? `Copied ${fmtNum((text.match(/\n/g) || []).length + 1)} lines.`
+                 : "The browser wouldn't give the page the clipboard.", !ok);
+  });
+}
+
+let currentName = "";
+let currentKind = "";
+let lineEnding = "\n";        // what a download writes between lines
+let detectedEnding = "\n";    // what the file itself used
+
+function setLines(arr, ending = "\n") {
+  lines = arr;
+  lineEnding = ending;
+  globalMaxCh = 0;
+  for (let i = 0; i < arr.length; i++) if (arr[i].length > globalMaxCh) globalMaxCh = arr[i].length;
+}
+
+function showProse(html) {
+  viewport.classList.remove("on");
+  toolsEl.classList.remove("on");
+  renderEl.innerHTML = "";
+  const box = document.createElement("div");
+  box.className = "prose";
+  box.innerHTML = html;
+  renderEl.appendChild(box);
+  renderEl.classList.add("on");
+  renderEl.scrollTop = 0;
+}
+
+// Two mutually exclusive buttons, lit by theme.css through .on.
+function segControl(options, initial, onPick) {
+  const seg = document.createElement("div");
+  seg.className = "seg";
+  const buttons = options.map(([key, label]) => {
+    const b = document.createElement("button");
+    b.textContent = label;
+    b.addEventListener("click", () => {
+      for (const other of buttons) other.classList.toggle("on", other === b);
+      onPick(key);
+    });
+    b.classList.toggle("on", key === initial);
+    seg.appendChild(b);
+    return b;
+  });
+  return seg;
+}
+
+/* --------------------------------------------------------------- markdown -- */
+
+let markdownSource = "";
+
+function showMarkdown() {
+  docactsEl.textContent = "";
+  docactsEl.appendChild(segControl(
+    [["rendered", "rendered"], ["source", "source"]],
+    "rendered",
+    (mode) => { if (mode === "source") showText(); else showProse(renderMarkdown(markdownSource)); }
+  ));
+  docactsEl.appendChild(copyRendered());
+  showProse(renderMarkdown(markdownSource));
+}
+
+/* A small CommonMark-ish renderer: headings, fences, lists, quotes, tables,
+   rules, and the usual inline run of code, emphasis, links and images.
+
+   HTML in the source is escaped rather than passed through. A document viewer
+   opens files from wherever they came from, and running their markup in this
+   page is not a thing it should offer. */
+function renderMarkdown(src) {
+  const ls = src.replace(/\r\n?/g, "\n").split("\n");
+  const out = [];
+  let i = 0;
+
+  const isListItem = (s) => /^(\s*)([-*+]|\d{1,9}[.)])(\s+|$)/.test(s);
+  const isBlockStart = (s) =>
+    !s.trim() || /^ {0,3}(#{1,6})\s/.test(s) || /^ {0,3}(```|~~~)/.test(s) ||
+    /^ {0,3}>/.test(s) || isListItem(s) || /^ {0,3}([-*_])(\s*\1){2,}\s*$/.test(s);
+
+  while (i < ls.length) {
+    const line = ls[i];
+
+    if (!line.trim()) { i++; continue; }
+
+    const fence = /^ {0,3}(`{3,}|~{3,})\s*(\S*)/.exec(line);
+    if (fence) {
+      const close = new RegExp(`^ {0,3}${fence[1][0] === "`" ? "`" : "~"}{${fence[1].length},}\\s*$`);
+      const body = [];
+      i++;
+      while (i < ls.length && !close.test(ls[i])) body.push(ls[i++]);
+      i++;                                                   // the closing fence
+      const lang = fence[2] ? ` class="language-${escapeHtml(fence[2])}"` : "";
+      out.push(`<pre><code${lang}>${escapeHtml(body.join("\n"))}</code></pre>`);
+      continue;
+    }
+
+    const heading = /^ {0,3}(#{1,6})\s+(.*?)\s*#*\s*$/.exec(line);
+    if (heading) {
+      const n = heading[1].length;
+      out.push(`<h${n}>${inlineMd(heading[2])}</h${n}>`);
+      i++;
+      continue;
+    }
+
+    if (/^ {0,3}([-*_])(\s*\1){2,}\s*$/.test(line)) { out.push("<hr>"); i++; continue; }
+
+    if (/^ {0,3}>/.test(line)) {
+      const body = [];
+      while (i < ls.length && (/^ {0,3}>/.test(ls[i]) || (ls[i].trim() && body.length))) {
+        body.push(ls[i].replace(/^ {0,3}> ?/, ""));
+        i++;
+      }
+      out.push(`<blockquote>${renderMarkdown(body.join("\n"))}</blockquote>`);
+      continue;
+    }
+
+    if (isListItem(line)) {
+      const [html, next] = mdList(ls, i);
+      out.push(html);
+      i = next;
+      continue;
+    }
+
+    if (ls[i + 1] !== undefined && line.includes("|") &&
+        /^\s*\|?[\s:|-]*-[\s:|-]*\|?\s*$/.test(ls[i + 1]) && ls[i + 1].includes("-")) {
+      const [html, next] = mdTable(ls, i);
+      out.push(html);
+      i = next;
+      continue;
+    }
+
+    const para = [];
+    while (i < ls.length && ls[i].trim() && !isBlockStart(ls[i])) para.push(ls[i++]);
+    if (!para.length) para.push(ls[i++]);                    // never stall
+    out.push(`<p>${inlineMd(para.join("\n")).replace(/ {2,}\n/g, "<br>\n")}</p>`);
+  }
+
+  return out.join("\n");
+}
+
+function mdList(ls, start) {
+  const items = [];
+  let i = start;
+  while (i < ls.length) {
+    const m = /^(\s*)([-*+]|\d{1,9}[.)])(?:\s+(.*))?$/.exec(ls[i]);
+    if (m) {
+      items.push({
+        indent: m[1].replace(/\t/g, "    ").length,
+        ordered: /\d/.test(m[2][0]),
+        content: [m[3] || ""],
+      });
+      i++;
+      continue;
+    }
+    if (!ls[i].trim()) {                                      // blank line
+      if (i + 1 < ls.length && /^(\s*)([-*+]|\d{1,9}[.)])(\s+|$)/.test(ls[i + 1])) { i++; continue; }
+      break;
+    }
+    if (items.length && /^\s{2,}/.test(ls[i])) {              // lazy continuation
+      items[items.length - 1].content.push(ls[i].trim());
+      i++;
+      continue;
+    }
+    break;
+  }
+  let html = "";
+  let k = 0;
+  while (k < items.length) {
+    const [chunk, next] = mdListLevel(items, k);
+    html += chunk;
+    k = next > k ? next : k + 1;
+  }
+  return [html, i];
+}
+
+function mdListLevel(items, start) {
+  const base = items[start].indent;
+  const ordered = items[start].ordered;
+  let html = ordered ? "<ol>" : "<ul>";
+  let i = start;
+
+  while (i < items.length && items[i].indent >= base) {
+    if (items[i].indent === base && items[i].ordered !== ordered) break;
+    const it = items[i];
+    i++;
+    let sub = "";
+    if (i < items.length && items[i].indent > base) {
+      const [s, next] = mdListLevel(items, i);
+      sub = s;
+      i = next;
+    }
+    const task = /^\[([ xX])\]\s+(.*)$/.exec(it.content[0]);
+    if (task) {
+      const body = inlineMd([task[2], ...it.content.slice(1)].join(" "));
+      html += `<li class="task"><input type="checkbox" disabled${task[1] === " " ? "" : " checked"}> ${body}${sub}</li>`;
+    } else {
+      html += `<li>${inlineMd(it.content.join(" "))}${sub}</li>`;
+    }
+  }
+  return [html + (ordered ? "</ol>" : "</ul>"), i];
+}
+
+function mdTable(ls, start) {
+  const cells = (row) => {
+    const t = row.trim().replace(/^\|/, "").replace(/\|$/, "");
+    const out = [];
+    let cur = "";
+    for (let k = 0; k < t.length; k++) {
+      if (t[k] === "\\" && t[k + 1] === "|") { cur += "|"; k++; continue; }
+      if (t[k] === "|") { out.push(cur); cur = ""; continue; }
+      cur += t[k];
+    }
+    out.push(cur);
+    return out.map((c) => c.trim());
+  };
+
+  const head = cells(ls[start]);
+  const align = cells(ls[start + 1]).map((c) =>
+    /^:-+:$/.test(c) ? "center" : /-+:$/.test(c) ? "right" : /^:-+/.test(c) ? "left" : "");
+  const style = (k) => (align[k] ? ` style="text-align:${align[k]}"` : "");
+
+  let html = "<table><thead><tr>";
+  head.forEach((c, k) => { html += `<th${style(k)}>${inlineMd(c)}</th>`; });
+  html += "</tr></thead><tbody>";
+
+  let i = start + 2;
+  for (; i < ls.length && ls[i].trim() && ls[i].includes("|"); i++) {
+    html += "<tr>";
+    const row = cells(ls[i]);
+    for (let k = 0; k < head.length; k++) html += `<td${style(k)}>${inlineMd(row[k] || "")}</td>`;
+    html += "</tr>";
+  }
+  return [`${html}</tbody></table>`, i];
+}
+
+// Everything is escaped up front; anything this builds is parked in a token
+// list and put back at the end, so later passes can't reach inside an href.
+function inlineMd(src) {
+  const tokens = [];
+  const hold = (html) => `\u0000${tokens.push(html) - 1}\u0000`;
+
+  let t = escapeHtml(src);
+
+  t = t.replace(/(`+)([\s\S]*?)\1(?!`)/g, (m, ticks, body) =>
+    hold(`<code>${body.replace(/^ | $/g, "")}</code>`));
+
+  t = t.replace(/!\[([^\]]*)\]\(\s*([^)\s]+)(?:\s+&quot;([^&]*)&quot;)?\s*\)/g, (m, alt, url, title) =>
+    hold(`<img src="${safeUrl(url)}" alt="${alt}"${title ? ` title="${title}"` : ""}>`));
+
+  t = t.replace(/\[([^\]]*)\]\(\s*([^)\s]+)(?:\s+&quot;([^&]*)&quot;)?\s*\)/g, (m, text, url, title) =>
+    hold(`<a href="${safeUrl(url)}"${title ? ` title="${title}"` : ""}>${text}</a>`));
+
+  t = t.replace(/&lt;((?:https?|mailto):[^\s&]+)&gt;/g, (m, url) =>
+    hold(`<a href="${safeUrl(url)}">${url}</a>`));
+
+  t = t.replace(/(^|[\s(])((?:https?:\/\/|www\.)[^\s<>()"']+[^\s<>()"'.,;:!?])/g, (m, pre, url) =>
+    `${pre}${hold(`<a href="${safeUrl(url.startsWith("www.") ? `https://${url}` : url)}">${url}</a>`)}`);
+
+  t = t.replace(/\*\*\*([^*]+)\*\*\*/g, "<strong><em>$1</em></strong>")
+       .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+       .replace(/__([^_]+)__/g, "<strong>$1</strong>")
+       .replace(/~~([^~]+)~~/g, "<del>$1</del>")
+       .replace(/\*([^*\n]+)\*/g, "<em>$1</em>")
+       .replace(/(^|[^\w\\])_([^_\n]+)_(?![\w])/g, "$1<em>$2</em>");
+
+  const restore = (s) => s.replace(/\u0000(\d+)\u0000/g, (m, k) => restore(tokens[+k]));
+  return restore(t);
+}
+
+// Only schemes that can't execute. Anything else is left as plain text by
+// pointing the link nowhere.
+function safeUrl(url) {
+  const bare = url.replace(/^&quot;|&quot;$/g, "").trim();
+  return /^(https?:|mailto:|tel:|#|\/|\.\.?\/|[^:]*$)/i.test(bare) ? bare : "#";
+}
+
+/* --------------------------------------------------------------- .docx -- */
+
+/* A .docx is a ZIP of XML. The central directory at the end of the archive is
+   the index, and DecompressionStream inflates the entries, so there is no
+   library to load for either half of the job. */
+
+function readZip(buffer) {
+  const view = new DataView(buffer);
+  const eocd = findEOCD(view);
+  const count = view.getUint16(eocd + 10, true);
+  let at = view.getUint32(eocd + 16, true);
+  if (at === 0xffffffff || count === 0xffff) throw new Error("Zip64 archives aren't supported");
+
+  const entries = new Map();
+  for (let i = 0; i < count; i++) {
+    if (view.getUint32(at, true) !== 0x02014b50) throw new Error("its central directory is corrupt");
+    const flags = view.getUint16(at + 8, true);
+    const nameLength = view.getUint16(at + 28, true);
+    const name = new TextDecoder(flags & 0x800 ? "utf-8" : "windows-1252")
+      .decode(buffer.slice(at + 46, at + 46 + nameLength));
+    entries.set(name, {
+      name,
+      method: view.getUint16(at + 10, true),
+      packedSize: view.getUint32(at + 20, true),
+      size: view.getUint32(at + 24, true),
+      localOffset: view.getUint32(at + 42, true),
+      encrypted: (flags & 0x1) !== 0,
+    });
+    at += 46 + nameLength + view.getUint16(at + 30, true) + view.getUint16(at + 32, true);
+  }
+  return entries;
+}
+
+function findEOCD(view) {
+  const earliest = Math.max(0, view.byteLength - 0xffff - 22);
+  for (let at = view.byteLength - 22; at >= earliest; at--) {
+    if (view.getUint32(at, true) === 0x06054b50) return at;
+  }
+  throw new Error("that isn't a ZIP container");
+}
+
+async function unzipEntry(file, entry) {
+  if (entry.encrypted) throw new Error(`${entry.name} is password-protected`);
+  const header = new DataView(await file.slice(entry.localOffset, entry.localOffset + 30).arrayBuffer());
+  if (header.getUint32(0, true) !== 0x04034b50) throw new Error(`${entry.name} has a corrupt local header`);
+  const start = entry.localOffset + 30 + header.getUint16(26, true) + header.getUint16(28, true);
+  const packed = file.slice(start, start + entry.packedSize);
+  if (entry.method === 0) return packed;
+  if (entry.method !== 8) throw new Error(`${entry.name} uses compression method ${entry.method}`);
+  return new Response(packed.stream().pipeThrough(new DecompressionStream("deflate-raw"))).blob();
+}
+
+const W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+const R_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+
+const xChild = (node, name) => (node ? [...node.children].find((c) => c.localName === name) : null);
+const xChildren = (node, name) => (node ? [...node.children].filter((c) => c.localName === name) : []);
+const xVal = (node) => (node ? node.getAttributeNS(W_NS, "val") ?? node.getAttribute("w:val") : null);
+const xAttr = (node, ns, name) => (node ? node.getAttributeNS(ns, name) ?? node.getAttribute(`${ns === W_NS ? "w" : "r"}:${name}`) : null);
+
+function xDescendant(node, name) {
+  for (const n of node.getElementsByTagName("*")) if (n.localName === name) return n;
+  return null;
+}
+
+// An on/off property is on unless it says otherwise: <w:b/> and <w:b w:val="1"/>
+// both mean bold, <w:b w:val="0"/> means the style turned it back off.
+const xOn = (node) => {
+  if (!node) return false;
+  const v = xVal(node);
+  return v === null || !/^(0|false|off)$/i.test(v);
+};
+
+async function openDocx(file, token) {
+  setStatus("Unpacking the document…");
+  const entries = readZip(await file.arrayBuffer());
+  if (token !== openToken) return;
+
+  const docEntry = entries.get("word/document.xml");
+  if (!docEntry) throw new Error("there is no word/document.xml inside it");
+
+  const asText = async (name) => {
+    const entry = entries.get(name);
+    return entry ? (await unzipEntry(file, entry)).text() : null;
+  };
+
+  const xml = await (await unzipEntry(file, docEntry)).text();
+  const relsXml = await asText("word/_rels/document.xml.rels");
+  const numXml = await asText("word/numbering.xml");
+  if (token !== openToken) return;
+
+  // Images are pulled out up front so the walk over the body can stay sync.
+  const media = new Map();
+  for (const [name, entry] of entries) {
+    if (!/^word\/media\//.test(name) || !entry.size) continue;
+    try {
+      media.set(name, blobUrl(await unzipEntry(file, entry)));
+    } catch (err) {
+      console.warn(err);
+    }
+  }
+  if (token !== openToken) return;
+
+  const parse = (text) => {
+    const dom = new DOMParser().parseFromString(text, "application/xml");
+    if (dom.getElementsByTagName("parsererror").length) throw new Error("its XML doesn't parse");
+    return dom;
+  };
+
+  const body = xChild(parse(xml).documentElement, "body");
+  if (!body) throw new Error("its document.xml has no body");
+
+  const ctx = {
+    media,
+    rels: relsXml ? docxRels(parse(relsXml)) : new Map(),
+    numbering: numXml ? docxNumbering(parse(numXml)) : new Map(),
+  };
+
+  const html = docxBlocks([...body.children], ctx) || "<p>This document has no content in it.</p>";
+  docxActions(html);
+
+  const words = (renderEl.textContent.match(/\S+/g) || []).length;
+  setStatus(`Opened as a Word document — ${fmtNum(words)} words.`);
+}
+
+// A .docx can be read as the document it is, or as its own plain text with the
+// line filters over it. Either way the bar offers the way back.
+function docxActions(html) {
+  showProse(html);
+  docactsEl.textContent = "";
+  docactsEl.appendChild(ghostButton("Text & filters", () => {
+    const text = (renderEl.querySelector(".prose") || renderEl).innerText || "";
+    setLines(text.replace(/\r\n?/g, "\n").split("\n"));
+    docactsEl.textContent = "";
+    docactsEl.appendChild(ghostButton("Back to the document", () => docxActions(html)));
+    showText();
+  }));
+  docactsEl.appendChild(copyRendered());
+}
+
+function docxRels(dom) {
+  const map = new Map();
+  for (const rel of dom.documentElement.children) {
+    const id = rel.getAttribute("Id");
+    if (id) map.set(id, { target: rel.getAttribute("Target") || "", mode: rel.getAttribute("TargetMode") || "" });
+  }
+  return map;
+}
+
+// numbering.xml says which list shape each level of each numbering is, by way
+// of an indirection through abstractNum.
+function docxNumbering(dom) {
+  const abstract = new Map();
+  for (const an of xChildren(dom.documentElement, "abstractNum")) {
+    const id = xAttr(an, W_NS, "abstractNumId");
+    const levels = new Map();
+    for (const lvl of xChildren(an, "lvl")) {
+      levels.set(xAttr(lvl, W_NS, "ilvl") || "0", xVal(xChild(lvl, "numFmt")) || "bullet");
+    }
+    abstract.set(id, levels);
+  }
+
+  const map = new Map();
+  for (const num of xChildren(dom.documentElement, "num")) {
+    const numId = xAttr(num, W_NS, "numId");
+    const levels = abstract.get(xVal(xChild(num, "abstractNumId")));
+    if (!levels) continue;
+    for (const [ilvl, fmt] of levels) map.set(`${numId}:${ilvl}`, fmt);
+  }
+  return map;
+}
+
+function docxBlocks(nodes, ctx) {
+  const out = [];
+  let items = [];
+  const flush = () => {
+    let i = 0;
+    while (i < items.length) {
+      const [html, next] = docxListLevel(items, i, ctx);
+      out.push(html);
+      i = next > i ? next : i + 1;
+    }
+    items = [];
+  };
+
+  for (const node of nodes) {
+    if (node.localName === "p") {
+      const block = docxParagraph(node, ctx);
+      if (block.numId) { items.push(block); continue; }
+      flush();
+      if (!block.html) { out.push("<p><br></p>"); continue; }
+      const style = block.align ? ` style="text-align:${block.align}"` : "";
+      out.push(`<${block.tag}${style}>${block.html}</${block.tag}>`);
+    } else if (node.localName === "tbl") {
+      flush();
+      out.push(docxTable(node, ctx));
+    } else if (node.localName === "sdt") {
+      flush();
+      const content = xChild(node, "sdtContent");
+      if (content) out.push(docxBlocks([...content.children], ctx));
+    }
+  }
+  flush();
+  return out.join("\n");
+}
+
+function docxListLevel(items, start, ctx) {
+  const base = items[start].level;
+  const fmt = ctx.numbering.get(`${items[start].numId}:${base}`) || "bullet";
+  const ordered = !/bullet|none/i.test(fmt);
+  let html = ordered ? "<ol>" : "<ul>";
+  let i = start;
+
+  while (i < items.length && items[i].level >= base) {
+    if (items[i].level === base && items[i].numId !== items[start].numId) break;
+    const it = items[i];
+    i++;
+    let sub = "";
+    if (i < items.length && items[i].level > base) {
+      const [s, next] = docxListLevel(items, i, ctx);
+      sub = s;
+      i = next;
+    }
+    html += `<li>${it.html || ""}${sub}</li>`;
+  }
+  return [html + (ordered ? "</ol>" : "</ul>"), i];
+}
+
+function docxParagraph(p, ctx) {
+  const pPr = xChild(p, "pPr");
+  const styleId = xVal(xChild(pPr, "pStyle")) || "";
+  const numPr = xChild(pPr, "numPr");
+  const numId = numPr ? xVal(xChild(numPr, "numId")) : null;
+  const level = numPr ? parseInt(xVal(xChild(numPr, "ilvl")) || "0", 10) : 0;
+  const jc = xVal(xChild(pPr, "jc"));
+
+  let tag = "p";
+  const heading = /^Heading\s*(\d)$/i.exec(styleId);
+  if (heading) tag = `h${Math.min(6, Math.max(1, +heading[1]))}`;
+  else if (/^Title$/i.test(styleId)) tag = "h1";
+  else if (/Quote/i.test(styleId)) tag = "blockquote";
+
+  return {
+    tag,
+    numId: numId && numId !== "0" ? numId : null,
+    level: Number.isFinite(level) ? level : 0,
+    align: /^(center|right|both|justify)$/i.test(jc || "")
+      ? (/both|justify/i.test(jc) ? "justify" : jc.toLowerCase())
+      : "",
+    html: docxInline(p, ctx),
+  };
+}
+
+function docxInline(container, ctx) {
+  let html = "";
+  for (const node of container.children) {
+    switch (node.localName) {
+      case "r":
+        html += docxRun(node, ctx);
+        break;
+      case "hyperlink": {
+        const rel = ctx.rels.get(xAttr(node, R_NS, "id") || "");
+        const anchor = xAttr(node, W_NS, "anchor");
+        const href = rel ? safeUrl(escapeHtml(rel.target)) : anchor ? `#${escapeHtml(anchor)}` : "";
+        const inner = docxInline(node, ctx);
+        html += href ? `<a href="${href}">${inner}</a>` : inner;
+        break;
+      }
+      case "ins":
+      case "smartTag":
+      case "sdt":
+      case "sdtContent":
+      case "fldSimple":
+        html += docxInline(node, ctx);
+        break;
+      default:
+        break;                                  // del, bookmarks, pPr, proofErr…
+    }
+  }
+  return html;
+}
+
+function docxRun(r, ctx) {
+  const rPr = xChild(r, "rPr");
+  const wraps = [];
+  if (xOn(xChild(rPr, "b"))) wraps.push("strong");
+  if (xOn(xChild(rPr, "i"))) wraps.push("em");
+  if (xChild(rPr, "u") && !/none/i.test(xVal(xChild(rPr, "u")) || "")) wraps.push("u");
+  if (xOn(xChild(rPr, "strike")) || xOn(xChild(rPr, "dstrike"))) wraps.push("del");
+  const vert = xVal(xChild(rPr, "vertAlign"));
+  if (vert === "superscript") wraps.push("sup");
+  if (vert === "subscript") wraps.push("sub");
+  if (/^(Code|HTMLCode)$/i.test(xVal(xChild(rPr, "rStyle")) || "")) wraps.push("code");
+
+  let body = "";
+  for (const node of r.children) {
+    switch (node.localName) {
+      case "t":
+        body += escapeHtml(node.textContent);
+        break;
+      case "br":
+      case "cr":
+        body += "<br>";
+        break;
+      case "tab":
+        body += "&nbsp;&nbsp;&nbsp;&nbsp;";
+        break;
+      case "noBreakHyphen":
+        body += "&#8209;";
+        break;
+      case "sym":
+        body += "&#9633;";
+        break;
+      case "drawing":
+      case "pict":
+      case "object":
+        body += docxImage(node, ctx);
+        break;
+      default:
+        break;
+    }
+  }
+  if (!body) return "";
+  return wraps.reduceRight((inner, tag) => `<${tag}>${inner}</${tag}>`, body);
+}
+
+// EMU — English Metric Units — are 914400 to the inch, and CSS pixels are 96,
+// so 9525 EMU is one pixel.
+function docxImage(node, ctx) {
+  const blip = xDescendant(node, "blip") || xDescendant(node, "imagedata");
+  if (!blip) return "";
+  const id = blip.getAttributeNS(R_NS, "embed") || blip.getAttributeNS(R_NS, "link") ||
+             blip.getAttribute("r:embed") || blip.getAttribute("r:id");
+  const rel = ctx.rels.get(id || "");
+  if (!rel) return "";
+
+  const target = rel.target.replace(/^\.\//, "");
+  const url = rel.mode === "External"
+    ? safeUrl(escapeHtml(target))
+    : ctx.media.get(target.startsWith("media/") ? `word/${target}` : target.replace(/^\/?/, ""));
+  if (!url) return "";
+
+  const extent = xDescendant(node, "extent") || xDescendant(node, "ext");
+  const cx = extent ? parseInt(extent.getAttribute("cx") || "0", 10) : 0;
+  const width = cx ? ` width="${Math.round(cx / 9525)}"` : "";
+  const alt = escapeHtml(xDescendant(node, "docPr")?.getAttribute("descr") || "");
+  return `<img src="${url}" alt="${alt}"${width}>`;
+}
+
+function docxTable(tbl, ctx) {
+  let html = "<table>";
+  for (const tr of xChildren(tbl, "tr")) {
+    const header = !!xChild(xChild(tr, "trPr"), "tblHeader");
+    html += "<tr>";
+    for (const tc of xChildren(tr, "tc")) {
+      const tcPr = xChild(tc, "tcPr");
+      const merge = xChild(tcPr, "vMerge");
+      if (merge && !/restart/i.test(xVal(merge) || "")) continue;     // continues the cell above
+      const span = parseInt(xVal(xChild(tcPr, "gridSpan")) || "1", 10);
+      const tag = header ? "th" : "td";
+      html += `<${tag}${span > 1 ? ` colspan="${span}"` : ""}>${docxBlocks([...tc.children], ctx)}</${tag}>`;
+    }
+    html += "</tr>";
+  }
+  return `${html}</table>`;
+}
+
+/* ------------------------------------------------------------------ pdf -- */
+
+/* pdf.js is the one thing on this page that isn't in the file. It is fetched
+   on demand, only when a PDF is actually opened, and the page says plainly
+   when it couldn't be reached. */
+const PDFJS_VERSION = "4.10.38";
+const PDFJS_SOURCES = [
+  `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_VERSION}/build/pdf.min.mjs`,
+  "https://cdn.jsdelivr.net/npm/pdfjs-dist@4/build/pdf.min.mjs",
+  `https://unpkg.com/pdfjs-dist@${PDFJS_VERSION}/build/pdf.min.mjs`,
+];
+
+let pdfjsLib = null;
+let pdfAssets = "";        // the build's own folder, for cmaps and font data
+let pdfWorkerUrl = null;
+let pdfDoc = null;
+let pdfBase = null;        // page 1's viewport at scale 1, for the placeholders
+let pdfZoom = 1;
+let pageObserver = null;
+
+async function loadPdfJs() {
+  if (pdfjsLib) return pdfjsLib;
+  let lastErr;
+  for (const src of PDFJS_SOURCES) {
+    try {
+      const mod = await import(/* @vite-ignore */ src);
+      const lib = mod.getDocument ? mod : mod.default;
+      if (!lib?.getDocument) throw new Error("that build has no getDocument");
+      lib.GlobalWorkerOptions.workerSrc = await pdfWorker(src.replace("pdf.min.mjs", "pdf.worker.min.mjs"));
+      pdfAssets = src.replace(/build\/pdf\.min\.mjs$/, "");
+      pdfjsLib = lib;
+      return lib;
+    } catch (err) {
+      console.warn(src, err);
+      lastErr = err;
+    }
+  }
+  throw new Error(`pdf.js couldn't be loaded (${lastErr?.message || "no network"})`);
+}
+
+// A worker script has to be same-origin, so the CDN copy is fetched and
+// handed to pdf.js as a blob URL instead. It outlives the document, so it is
+// kept out of the list that gets revoked on the next open.
+async function pdfWorker(url) {
+  if (pdfWorkerUrl) return pdfWorkerUrl;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    pdfWorkerUrl = URL.createObjectURL(new Blob([await res.arrayBuffer()], { type: "text/javascript" }));
+  } catch (err) {
+    console.warn("worker blob failed, pointing pdf.js straight at the CDN", err);
+    pdfWorkerUrl = url;
+  }
+  return pdfWorkerUrl;
+}
+
+async function openPdf(file, token) {
+  setStatus("Fetching pdf.js…");
+  const lib = await loadPdfJs();
+  if (token !== openToken) return;
+
+  setStatus("Reading the PDF…");
+  const task = lib.getDocument({
+    data: new Uint8Array(await file.arrayBuffer()),
+    isEvalSupported: false,
+    cMapUrl: `${pdfAssets}cmaps/`,
+    cMapPacked: true,
+    standardFontDataUrl: `${pdfAssets}standard_fonts/`,
+  });
+  task.onProgress = ({ loaded, total }) => setProgress(loaded, total || file.size);
+  const pdf = await task.promise;
+  if (token !== openToken) { pdf.destroy(); return; }
+
+  pdfDoc = pdf;
+  pdfZoom = 1;
+  docmetaEl.textContent = `${fmtSize(file.size)} · pdf · ${fmtNum(pdf.numPages)} page${pdf.numPages === 1 ? "" : "s"}`;
+  pdfBase = (await pdf.getPage(1)).getViewport({ scale: 1 });
+  if (token !== openToken) return;
+
+  docactsEl.textContent = "";
+  docactsEl.appendChild(segControl(
+    [["0.75", "75%"], ["1", "fit"], ["1.5", "150%"], ["2.5", "250%"]],
+    "1",
+    (z) => { pdfZoom = parseFloat(z); buildPdfPages(); }
+  ));
+  docactsEl.appendChild(ghostButton("Text & filters", () => extractPdfText(token)));
+
+  buildPdfPages();
+  setStatus(`${fmtNum(pdf.numPages)} page${pdf.numPages === 1 ? "" : "s"}. Pages are drawn as they come into view.`);
+}
+
+function buildPdfPages() {
+  if (!pdfDoc) return;
+  viewport.classList.remove("on");
+  toolsEl.classList.remove("on");
+  renderEl.classList.add("on");
+  renderEl.textContent = "";
+  if (pageObserver) pageObserver.disconnect();
+
+  const cssWidth = Math.max(240, (renderEl.clientWidth - 56) * pdfZoom);
+  const ratio = pdfBase.height / pdfBase.width;
+
+  pageObserver = new IntersectionObserver((hits) => {
+    for (const hit of hits) if (hit.isIntersecting) drawPdfPage(hit.target, cssWidth);
+  }, { root: renderEl, rootMargin: "400px 0px" });
+
+  for (let n = 1; n <= pdfDoc.numPages; n++) {
+    const holder = document.createElement("div");
+    holder.className = "pdfpage";
+    holder.dataset.page = String(n);
+    holder.style.width = `${cssWidth}px`;
+
+    const placeholder = document.createElement("div");
+    placeholder.className = "placeholder";
+    placeholder.style.width = `${cssWidth}px`;
+    placeholder.style.height = `${Math.round(cssWidth * ratio)}px`;
+    placeholder.textContent = `page ${n}`;
+
+    const num = document.createElement("span");
+    num.className = "num";
+    num.textContent = `${n} / ${pdfDoc.numPages}`;
+
+    holder.append(placeholder, num);
+    renderEl.appendChild(holder);
+    pageObserver.observe(holder);
+  }
+}
+
+async function drawPdfPage(holder, cssWidth) {
+  if (holder.dataset.state) return;
+  holder.dataset.state = "drawing";
+  const n = +holder.dataset.page;
+  try {
+    const page = await pdfDoc.getPage(n);
+    const base = page.getViewport({ scale: 1 });
+    const scale = cssWidth / base.width;
+    const view = page.getViewport({ scale });
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(view.width * dpr);
+    canvas.height = Math.round(view.height * dpr);
+    canvas.style.width = `${Math.round(view.width)}px`;
+    canvas.style.height = `${Math.round(view.height)}px`;
+
+    const ctx = canvas.getContext("2d", { alpha: false });
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    await page.render({ canvasContext: ctx, viewport: view, transform: dpr === 1 ? null : [dpr, 0, 0, dpr, 0, 0] }).promise;
+
+    holder.querySelector(".placeholder")?.replaceWith(canvas);
+    holder.dataset.state = "done";
+    page.cleanup();
+  } catch (err) {
+    console.error(err);
+    holder.dataset.state = "";
+    const ph = holder.querySelector(".placeholder");
+    if (ph) ph.textContent = `page ${n} wouldn't draw`;
+  }
+}
+
+// Every page's text, run through the same viewer the logs use, so a PDF can be
+// filtered and searched like anything else.
+async function extractPdfText(token) {
+  if (!pdfDoc) return;
+  setStatus("Pulling the text out…");
+  const out = [];
+  for (let n = 1; n <= pdfDoc.numPages; n++) {
+    if (token !== openToken) return;
+    const page = await pdfDoc.getPage(n);
+    const content = await page.getTextContent();
+
+    // Items carry their own position, so a new line is where the baseline moves.
+    let line = "";
+    let lastY = null;
+    for (const item of content.items) {
+      const y = item.transform?.[5];
+      if (lastY !== null && Math.abs(y - lastY) > 1) { out.push(line); line = ""; }
+      line += item.str;
+      if (item.hasEOL) { out.push(line); line = ""; }
+      lastY = y;
+    }
+    if (line) out.push(line);
+    out.push("");
+    page.cleanup();
+    setProgress(n, pdfDoc.numPages);
+    if (n % 10 === 0) await nextFrame();
+  }
+  if (token !== openToken) return;
+
+  setProgress(null);
+  setLines(out);
+  docactsEl.textContent = "";
+  docactsEl.appendChild(ghostButton("Back to the pages", () => {
+    docactsEl.textContent = "";
+    docactsEl.appendChild(segControl(
+      [["0.75", "75%"], ["1", "fit"], ["1.5", "150%"], ["2.5", "250%"]],
+      String(pdfZoom),
+      (z) => { pdfZoom = parseFloat(z); buildPdfPages(); }
+    ));
+    docactsEl.appendChild(ghostButton("Text & filters", () => extractPdfText(token)));
+    buildPdfPages();
+  }));
+  showText();
+  setStatus(`${fmtNum(out.length)} lines of text out of ${fmtNum(pdfDoc.numPages)} pages.`);
+}
+
+/* ------------------------------------------------------- not text at all -- */
+
+function openStrayZip(file) {
+  showProse(`<p>That is a ZIP archive rather than a document. <a href="unzip.html">unzip</a>
+    will open it and let you pull the files out, and anything text-shaped inside can come
+    straight back here.</p>`);
+  setStatus("ZIP archive — nothing to read as a document.");
+}
+
+// Last resort: show the bytes. Hex rows are just lines, so they go through the
+// same scroller and the same filters as everything else.
+async function openHex(file, token) {
+  const shownBytes = Math.min(file.size, HEX_LIMIT);
+  setStatus("Reading the bytes…");
+  const bytes = new Uint8Array(await file.slice(0, shownBytes).arrayBuffer());
+  if (token !== openToken) return;
+
+  setLines(hexLines(bytes));
+  lnChk.checked = false;
+  showText();
+  setStatus(shownBytes < file.size
+    ? `Not text, so here are the bytes — the first ${fmtSize(shownBytes)} of ${fmtSize(file.size)}.`
+    : `Not text, so here are the bytes — all ${fmtSize(shownBytes)} of them.`);
+}
+
+function hexLines(bytes) {
+  const hex = [];
+  for (let i = 0; i < 256; i++) hex.push(i.toString(16).padStart(2, "0"));
+
+  const out = [];
+  for (let at = 0; at < bytes.length; at += 16) {
+    let cols = "";
+    let ascii = "";
+    for (let j = 0; j < 16; j++) {
+      const i = at + j;
+      if (i < bytes.length) {
+        cols += `${hex[bytes[i]]} `;
+        ascii += bytes[i] >= 32 && bytes[i] < 127 ? String.fromCharCode(bytes[i]) : ".";
+      } else {
+        cols += "   ";
+      }
+      if (j === 7) cols += " ";
+    }
+    out.push(`${at.toString(16).padStart(8, "0")}  ${cols}|${ascii}|`);
+  }
+  return out;
+}
+
+/* ------------------------------------------------------------- keyboard -- */
+
+document.addEventListener("keydown", (e) => {
+  const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || "");
+
+  // The filters are this page's find, so they take ctrl-F.
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f" && toolsEl.classList.contains("on")) {
+    e.preventDefault();
+    focusFilter();
+    return;
+  }
+  if (e.key === "/" && !typing && toolsEl.classList.contains("on")) {
+    e.preventDefault();
+    focusFilter();
+    return;
+  }
+  if (e.key === "Escape" && typing) document.activeElement.blur();
+});
+
+function focusFilter() {
+  if (!rules.length) addRule("include");
+  else rules[0].input.select();
+}
+
+setStatus("Nothing open yet.");
+</script>
+</body>
+</html>
