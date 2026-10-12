@@ -50,6 +50,8 @@
   .count { font-size: 0.78rem; font-family: var(--mono); white-space: nowrap; }
   .goto { font-size: 0.8rem; display: inline-flex; align-items: center; gap: 0.4rem; }
   .goto input { width: 10ch; font-family: var(--mono); font-size: 0.8rem; }
+  .ctx { font-size: 0.8rem; display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap; }
+  .ctx input { width: 6ch; font-family: var(--mono); font-size: 0.8rem; }
   .tools { display: none; }
   .tools.on { display: block; }
 
@@ -91,6 +93,13 @@
   .nogutter .ln { display: none; }
   .txt { flex: 1 1 auto; padding: 0 0.8rem; white-space: pre; }
   .row mark { background: hsl(var(--tint) / 0.24); color: var(--neon-hot); border-radius: 0; }
+
+  /* A line that came along for the ride rather than because it matched, and
+     the hairline where the listing skipped something. The rule is drawn as an
+     inset shadow because a border would make the row taller than every other
+     row, and the scroller is built on all of them being the same height. */
+  .row.ctx .txt { color: var(--text-dim); }
+  .row.gap { box-shadow: inset 0 1px 0 var(--line-soft); }
 
   /* The width of a monospace character, measured rather than assumed, so the
      hard fold in wrap mode lands exactly where the viewport ends. */
@@ -185,11 +194,15 @@
       </div>
 
       <div id="rules"></div>
-      <p class="rulehint" id="ruleHint">A line is shown when it matches at least one <b>include</b> rule &mdash; or when there are none &mdash; and no <b>exclude</b> rule. Turn on <code>.*</code> to read the pattern as a regular expression.</p>
+      <p class="rulehint" id="ruleHint">A line is shown when it matches at least one <b>include</b> rule &mdash; or when there are none &mdash; and no <b>exclude</b> rule. Turn on <code>.*</code> to read the pattern as a regular expression. <b>Before</b> and <b>after</b> keep that many neighbouring lines either side of every line a rule kept, the way <code>grep -B</code> and <code>-A</code> do; they come through dimmed, and they come whether or not they would have been kept on their own. Copy and download take whatever is on screen, context and all.</p>
 
       <div class="toolrow">
         <button class="ghost" id="addInclude">+ include lines matching</button>
         <button class="ghost" id="addExclude">+ exclude lines matching</button>
+        <span class="ctx">keep
+          <input type="number" id="ctxBefore" min="0" max="9999" value="0" aria-label="lines of context before a match"> before,
+          <input type="number" id="ctxAfter" min="0" max="9999" value="0" aria-label="lines of context after a match"> after
+        </span>
         <span class="spacer"></span>
         <span class="count" id="count"></span>
       </div>
@@ -233,6 +246,8 @@ const docnameEl  = el("docname");
 const docmetaEl  = el("docmeta");
 const docactsEl  = el("docacts");
 const toolsEl    = el("tools");
+const ctxBeforeEl = el("ctxBefore");
+const ctxAfterEl  = el("ctxAfter");
 const rulesEl    = el("rules");
 const ruleHintEl = el("ruleHint");
 const countEl    = el("count");
@@ -254,6 +269,10 @@ const MAX_SIZER_PX = 30e6;              // past this browsers stop honouring hei
 // Everything about the document currently open.
 let lines = [];          // every logical line of a text document
 let shown = null;        // indices into lines after filtering; null means all
+let shownHit = null;     // alongside `shown`: 1 where the line matched, 0 where
+                         // it only came along as context. null when every
+                         // shown line is a match in its own right.
+let hitCount = 0;
 let maxCh = 0;           // longest shown line, in characters
 let rowStarts = null;    // wrap mode: visual row each shown line starts at
 let cpl = 0;             // wrap mode: characters per visual row
@@ -438,6 +457,8 @@ function reset() {
   filterToken++;
   lines = [];
   shown = null;
+  shownHit = null;
+  hitCount = 0;
   rowStarts = null;
   maxCh = 0;
   totalRows = 0;
@@ -562,6 +583,15 @@ function showText() {
 /* ---------------------------------------------------------------- filters -- */
 
 const shownCount = () => (shown ? shown.length : lines.length);
+const isContext = (i) => !!shownHit && !shownHit[i];
+// A listing has skipped something whenever two neighbouring rows aren't
+// neighbours in the file.
+const afterGap = (i) => !!shown && i > 0 && shown[i] !== shown[i - 1] + 1;
+
+function contextWanted() {
+  const read = (input) => Math.max(0, Math.min(9999, Math.floor(Number(input.value) || 0)));
+  return { before: read(ctxBeforeEl), after: read(ctxAfterEl) };
+}
 const lineAt = (i) => lines[shown ? shown[i] : i];
 const logicalNo = (i) => (shown ? shown[i] : i) + 1;
 const lastLogicalNo = () => (shown ? (shown.length ? shown[shown.length - 1] + 1 : 0) : lines.length);
@@ -702,6 +732,34 @@ function compile(rule) {
   return { test: (s) => s.toLowerCase().includes(lower), hl: new RegExp(escapeRe(rule.pattern), "gi") };
 }
 
+// Grows the matched lines into the blocks around them, the way grep -B and
+// -A do. Walking the hits in order means each block starts where the last one
+// finished, so overlapping blocks merge instead of repeating lines, and the
+// result stays sorted without a second pass over it.
+function withContext(hits, before, after, total) {
+  const out = [];
+  const hit = [];
+  let next = 0;                        // the first line not yet taken
+
+  for (let k = 0; k < hits.length; k++) {
+    const h = hits[k];
+    if (h < next) {
+      // Already here as somebody else's context — promote it to a match.
+      hit[out.length - (next - h)] = 1;
+      continue;
+    }
+    const from = Math.max(next, h - before);
+    const to = Math.min(total - 1, h + after);
+    for (let i = from; i <= to; i++) {
+      out.push(i);
+      hit.push(i === h ? 1 : 0);
+    }
+    next = to + 1;
+  }
+
+  return { shown: out, hit: Uint8Array.from(hit) };
+}
+
 function applyFilters() {
   const token = ++filterToken;
   const includes = [];
@@ -726,6 +784,9 @@ function applyFilters() {
     (rule.mode === "include" ? includes : excludes).push(m);
     if (rule.mode === "include") highlights.push(m.hl);
   }
+
+  shownHit = null;
+  hitCount = 0;
 
   if (!includes.length && !excludes.length) {
     shown = null;
@@ -761,7 +822,24 @@ function applyFilters() {
       requestAnimationFrame(step);
       return;
     }
-    shown = out;
+    hitCount = out.length;
+    const { before, after } = contextWanted();
+
+    if (before || after) {
+      const grown = withContext(out, before, after, lines.length);
+      shown = grown.shown;
+      shownHit = grown.hit;
+      // The widest line is measured over what's on screen rather than over the
+      // matches, or a long context line would run past where it can scroll.
+      max = 0;
+      for (let k = 0; k < shown.length; k++) {
+        const len = lines[shown[k]].length;
+        if (len > max) max = len;
+      }
+    } else {
+      shown = out;
+    }
+
     maxCh = max;
     finishFilter(token);
   };
@@ -771,9 +849,11 @@ function applyFilters() {
 function finishFilter(token) {
   if (token !== filterToken) return;
   const n = shownCount();
-  const counted = shown
-    ? `${fmtNum(n)} of ${fmtNum(lines.length)} lines`
-    : `${fmtNum(n)} line${n === 1 ? "" : "s"}`;
+  const counted = !shown
+    ? `${fmtNum(n)} line${n === 1 ? "" : "s"}`
+    : shownHit
+      ? `${fmtNum(hitCount)} matching · ${fmtNum(n)} of ${fmtNum(lines.length)} lines with context`
+      : `${fmtNum(n)} of ${fmtNum(lines.length)} lines`;
 
   // A rule that doesn't compile is left out of the pass, and saying only how
   // many lines came back would read as though it had run and matched them.
@@ -923,6 +1003,11 @@ function fillRow(slot, r) {
   const text = rowStarts && line.length > cpl ? line.slice(seg * cpl, seg * cpl + cpl) : line;
 
   slot.ln.textContent = seg === 0 ? String(logicalNo(idx)) : "";
+  // A wrapped line is several rows; only its first carries the marks that
+  // belong to the line itself.
+  slot.row.classList.toggle("ctx", isContext(idx));
+  slot.row.classList.toggle("gap", seg === 0 && afterGap(idx));
+
   if (highlights.length) slot.txt.innerHTML = highlight(text);
   else slot.txt.textContent = text;
 }
@@ -981,6 +1066,18 @@ new ResizeObserver(() => {
 
 wrapChk.addEventListener("change", () => relayout(true));
 lnChk.addEventListener("change", () => relayout(true));
+
+// Context costs a refilter, and holding down an arrow key on a number input
+// fires one per repeat, so the pass waits for the typing to settle.
+let ctxDebounce;
+const onContextEdit = () => {
+  clearTimeout(ctxDebounce);
+  ctxDebounce = setTimeout(applyFilters, 140);
+};
+for (const input of [ctxBeforeEl, ctxAfterEl]) {
+  input.addEventListener("input", onContextEdit);
+  input.addEventListener("change", onContextEdit);
+}
 
 el("addInclude").addEventListener("click", () => addRule("include"));
 el("addExclude").addEventListener("click", () => addRule("exclude"));
@@ -1049,8 +1146,11 @@ el("copyBtn").addEventListener("click", async () => {
   const n = shownCount();
   setStatus(`Copying ${fmtNum(n)} lines…`);
   const ok = await copyText(shownParts().join(""));
+  const what = !shown ? "" : shownHit
+    ? ` — ${fmtNum(hitCount)} matching and the context around them`
+    : " — the filtered view";
   setStatus(ok
-    ? `Copied ${fmtNum(n)} line${n === 1 ? "" : "s"}${shown ? " — the filtered view" : ""}.`
+    ? `Copied ${fmtNum(n)} line${n === 1 ? "" : "s"}${what}.`
     : "The browser wouldn't give the page the clipboard. Download instead?", !ok);
 });
 
