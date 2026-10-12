@@ -52,6 +52,12 @@
   .goto input { width: 10ch; font-family: var(--mono); font-size: 0.8rem; }
   .ctx { font-size: 0.8rem; display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap; }
   .ctx input { width: 6ch; font-family: var(--mono); font-size: 0.8rem; }
+
+  .toolrow.find label[for="findInput"] { font-size: 0.8rem; }
+  .toolrow.find input[type="text"] { flex: 1 1 18rem; min-width: 8rem; font-family: var(--mono); font-size: 0.82rem; }
+  .toolrow.find input[type="text"].bad { border-color: var(--neon-hot); box-shadow: var(--glow-soft); }
+  .nav { padding: 0.3rem 0.62rem; font-size: 0.82rem; line-height: 1.1; }
+  .tally { font-size: 0.75rem; font-family: var(--mono); color: var(--text-dim); min-width: 9ch; white-space: nowrap; }
   .tools { display: none; }
   .tools.on { display: block; }
 
@@ -64,6 +70,12 @@
   .rule .x { padding: 0.32rem 0.58rem; font-size: 0.8rem; line-height: 1; }
   .rule .why { flex: 1 1 100%; font-size: 0.74rem; margin: -0.2rem 0 0.2rem; }
   .rulehint { font-size: 0.75rem; margin: 0 0 0.9rem; }
+  .rulehint kbd {
+    font-family: var(--mono);
+    font-size: 0.85em;
+    border: 1px solid var(--line);
+    padding: 0.05em 0.35em;
+  }
 
   /* ------------------------------------------------------------ viewer -- */
 
@@ -100,6 +112,13 @@
      row, and the scroller is built on all of them being the same height. */
   .row.ctx .txt { color: var(--text-dim); }
   .row.gap { box-shadow: inset 0 1px 0 var(--line-soft); }
+
+  /* Find marks sit under rule marks in loudness: every hit is outlined, and
+     the one being stepped through is filled, so moving between them reads as
+     movement rather than as the page redrawing. */
+  .row mark.f { background: none; color: var(--text); box-shadow: inset 0 -1px 0 var(--neon); }
+  .row mark.f.now { background: var(--neon); color: #000; box-shadow: var(--glow-soft); }
+  .row.cur .ln { color: var(--neon); }
 
   /* The width of a monospace character, measured rather than assumed, so the
      hard fold in wrap mode lands exactly where the viewport ends. */
@@ -161,15 +180,16 @@
 <main>
   <a class="home" href="index.html">&larr; index</a>
   <h1>document viewer</h1>
-  <p class="lede">Drop in a document and read it here &mdash; logs, plain text and Markdown, with
-  PDF and Word files too. Text and logs come with line filters: keep only the lines that match a
-  string or a regular expression, or drop the ones that do. A big file is read a chunk at a time and
-  drawn a screen at a time, so size isn't the thing that stops it.</p>
+  <p class="lede">Drop in a document and read it here &mdash; logs, plain text and Markdown,
+  config and data files like JSON, XML, TOML, CSV and TSV, with PDF and Word files too. Find walks
+  the matches one at a time; the line filters keep only the lines that match a string or a regular
+  expression, or drop the ones that do, with as many lines either side as you want. A big file is
+  read a chunk at a time and drawn a screen at a time, so size isn't the thing that stops it.</p>
 
   <div class="card">
     <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Choose a document to open">
       <div class="big">Drop a document here, or click to choose one</div>
-      <div class="hint"><code>.log</code> <code>.txt</code> <code>.md</code> &mdash; any text at all &mdash; plus <code>.pdf</code> and <code>.docx</code> &middot; opened in your browser, never uploaded</div>
+      <div class="hint"><code>.log</code> <code>.txt</code> <code>.md</code> <code>.json</code> <code>.xml</code> <code>.toml</code> <code>.csv</code> <code>.tsv</code> <code>.config</code> <code>.settings</code> &mdash; any text at all &mdash; plus <code>.pdf</code> and <code>.docx</code> &middot; opened in your browser, never uploaded</div>
       <input type="file" id="fileInput">
     </div>
     <div class="status" id="status"></div>
@@ -184,6 +204,17 @@
     </div>
 
     <div class="tools" id="tools">
+      <div class="toolrow find">
+        <label for="findInput">find</label>
+        <input type="text" id="findInput" placeholder="text to find, or a regular expression"
+               autocomplete="off" spellcheck="false">
+        <label class="chk" title="read what you typed as a regular expression"><input type="checkbox" id="findRe"> .*</label>
+        <label class="chk" title="match upper and lower case exactly"><input type="checkbox" id="findCase"> Aa</label>
+        <button class="ghost nav" id="findPrev" title="previous match — Shift+Enter" aria-label="previous match">&uarr;</button>
+        <button class="ghost nav" id="findNext" title="next match — Enter" aria-label="next match">&darr;</button>
+        <span class="tally" id="findTally"></span>
+      </div>
+
       <div class="toolrow">
         <label class="chk"><input type="checkbox" id="wrapChk"> wrap long lines</label>
         <label class="chk"><input type="checkbox" id="lnChk" checked> line numbers</label>
@@ -194,6 +225,8 @@
       </div>
 
       <div id="rules"></div>
+      <p class="rulehint">Find reads the lines themselves rather than the handful on screen, which is the only way to reach past what's drawn &mdash; <kbd>ctrl</kbd>+<kbd>F</kbd> puts the cursor in it, <kbd>enter</kbd> walks forward, <kbd>shift</kbd>+<kbd>enter</kbd> back, <kbd>esc</kbd> clears. It searches what the filters have left on screen. The filters themselves are on <kbd>/</kbd>.</p>
+
       <p class="rulehint" id="ruleHint">A line is shown when it matches at least one <b>include</b> rule &mdash; or when there are none &mdash; and no <b>exclude</b> rule. Turn on <code>.*</code> to read the pattern as a regular expression. <b>Before</b> and <b>after</b> keep that many neighbouring lines either side of every line a rule kept, the way <code>grep -B</code> and <code>-A</code> do; they come through dimmed, and they come whether or not they would have been kept on their own. Copy and download take whatever is on screen, context and all.</p>
 
       <div class="toolrow">
@@ -259,6 +292,10 @@ const probeEl    = el("probe");
 const wrapChk    = el("wrapChk");
 const lnChk      = el("lnChk");
 const gotoInput  = el("gotoInput");
+const findInput  = el("findInput");
+const findReBox  = el("findRe");
+const findCaseBox = el("findCase");
+const findTally  = el("findTally");
 
 const ROW_H = 19;                       // keep in step with --row-h
 const OVERSCAN = 6;
@@ -278,6 +315,16 @@ let rowStarts = null;    // wrap mode: visual row each shown line starts at
 let cpl = 0;             // wrap mode: characters per visual row
 let totalRows = 0;
 let highlights = [];     // global regexes for the include patterns
+
+// Find is a different job from the filters: nothing is hidden, the matches
+// are walked one at a time. `hits` holds them in the order they appear, each
+// one a position in the shown view rather than in the file, so a filtered
+// document steps through only what it is showing.
+let findRe = null;
+let hits = [];
+let hitAt = -1;
+let findToken = 0;
+const FIND_CAP = 50000;  // enough to walk; past it, counting stops meaning much
 let openToken = 0;       // bumped on every open, so stale work drops out
 let filterToken = 0;
 let rules = [];
@@ -372,7 +419,20 @@ const TEXT_EXT = new Set([
   "sh", "bash", "zsh", "ps1", "bat", "c", "h", "cpp", "hpp", "cs", "java", "kt",
   "go", "rs", "swift", "sql", "diff", "patch", "srt", "vtt", "gcode", "nfo", "out",
   "err", "trace", "dump", "list", "lst", "map", "mcmeta", "gitignore", "lock",
+  "config", "settings", "plist", "manifest", "desktop", "service", "rc",
 ]);
+
+// What a format is called, for the line under the file's name. The viewer
+// reads all of them the same way — as lines — but a file that announces
+// itself as TOML rather than "text" is a file you can see was understood.
+const FORMAT_NAMES = new Map(Object.entries({
+  toml: "TOML", csv: "CSV", tsv: "TSV", json: "JSON", jsonl: "JSON Lines",
+  ndjson: "JSON Lines", xml: "XML", yml: "YAML", yaml: "YAML", ini: "INI",
+  cfg: "config", conf: "config", config: "config", settings: "settings",
+  properties: "properties", env: "environment", log: "log", csvh: "CSV",
+  svg: "SVG", html: "HTML", htm: "HTML", plist: "property list",
+  diff: "diff", patch: "patch", sql: "SQL", srt: "subtitles", vtt: "subtitles",
+}));
 const MARKDOWN_EXT = new Set(["md", "markdown", "mdown", "mkd"]);
 
 const extOf = (name) => (name.includes(".") ? name.split(".").pop().toLowerCase() : "");
@@ -395,7 +455,7 @@ async function openDocument(file) {
   if (token !== openToken) return;
 
   currentKind = kind;
-  describe(file, kind);
+  describe(file, kind === "text" ? (FORMAT_NAMES.get(ext) || "text") : kind);
 
   try {
     if (kind === "pdf") await openPdf(file, token);
@@ -455,10 +515,17 @@ function describe(file, kind) {
 // handed to <img> tags by the .docx reader.
 function reset() {
   filterToken++;
+  findToken++;
   lines = [];
   shown = null;
   shownHit = null;
   hitCount = 0;
+  findRe = null;
+  hits = [];
+  hitAt = -1;
+  findInput.value = "";
+  findInput.classList.remove("bad");
+  findTally.textContent = "";
   rowStarts = null;
   maxCh = 0;
   totalRows = 0;
@@ -864,6 +931,9 @@ function finishFilter(token) {
   if (!n) explainEmpty();
   viewport.scrollTop = 0;
   relayout(false);
+
+  // Find walks what's on screen, and the filters just changed what that is.
+  if (findInput.value) runFind(false);
 }
 
 // Nothing matched. If a rule is a plain-text search holding something that
@@ -874,6 +944,156 @@ function explainEmpty() {
     if (!/\(\?|[[|\\^$]|\.[*+?]/.test(rule.pattern)) continue;
     rule.why.textContent = "No line contains that as plain text — but it reads like a regular expression. Turn on .* to run it as one.";
   }
+}
+
+/* --------------------------------------------------------------- find -- */
+
+// The viewport only ever holds a screenful of rows, so the browser's own
+// find can see almost none of the document. This one reads the lines
+// themselves, which is the only way to reach past what's drawn.
+function compileFind() {
+  const text = findInput.value;
+  findInput.classList.remove("bad");
+  if (!text) return null;
+
+  const flags = findCaseBox.checked ? "g" : "gi";
+  if (!findReBox.checked) return new RegExp(escapeRe(text), flags);
+
+  const lifted = liftInlineFlags(text, flags);
+  try {
+    return new RegExp(lifted.pattern, lifted.flags);
+  } catch (err) {
+    findInput.classList.add("bad");
+    const hint = regexHint(text);
+    findTally.textContent = "bad pattern";
+    findTally.title = `${err.message}${hint ? ` — ${hint}` : ""}`;
+    return undefined;                 // told apart from null: typed, but broken
+  }
+}
+
+function runFind(keepPlace = false) {
+  const token = ++findToken;
+  const wasAt = keepPlace && hits[hitAt] ? hits[hitAt] : null;
+  const re = compileFind();
+
+  hits = [];
+  hitAt = -1;
+  findTally.title = "";
+
+  if (!re) {                          // empty box, or a pattern that won't parse
+    findRe = null;
+    if (re === null) findTally.textContent = "";
+    renderWindow();
+    return;
+  }
+  findRe = re;
+
+  const count = shownCount();
+  let i = 0;
+  const step = () => {
+    if (token !== findToken) return;
+    const end = Math.min(count, i + CHUNK_LINES);
+    for (; i < end && hits.length < FIND_CAP; i++) {
+      const line = lineAt(i);
+      re.lastIndex = 0;
+      let m;
+      while ((m = re.exec(line)) !== null) {
+        hits.push({ i, s: m.index, e: m.index + m[0].length });
+        if (!m[0].length) re.lastIndex++;         // an empty match can't advance itself
+        if (hits.length >= FIND_CAP) break;
+      }
+    }
+    if (i < count && hits.length < FIND_CAP) {
+      findTally.textContent = `finding… ${Math.round((i / count) * 100)}%`;
+      requestAnimationFrame(step);
+      return;
+    }
+    settleFind(wasAt);
+  };
+  step();
+}
+
+// Where to land once the sweep is done: on the match nearest to where the
+// reader already was, so changing a flag or a filter doesn't throw the place
+// away, and otherwise on the first match at or below the top of the screen.
+function settleFind(wasAt) {
+  if (!hits.length) {
+    findTally.textContent = findInput.value ? "no matches" : "";
+    renderWindow();
+    return;
+  }
+
+  const target = wasAt ? wasAt.i : topLine();
+  let at = 0;
+  while (at < hits.length - 1 && hits[at].i < target) at++;
+  hitAt = at;
+  showTally();
+  goToHit(hitAt, false);
+}
+
+function topLine() {
+  if (!totalRows) return 0;
+  const row = firstVisibleRow();
+  return rowStarts ? lineForRow(Math.min(row, totalRows - 1)) : row;
+}
+
+function showTally() {
+  const capped = hits.length >= FIND_CAP ? "+" : "";
+  findTally.textContent = `${fmtNum(hitAt + 1)} of ${fmtNum(hits.length)}${capped}`;
+}
+
+// Moving between matches scrolls only when the match isn't already on screen,
+// so stepping through several on one screenful doesn't make the page jump.
+function goToHit(index, always = true) {
+  const hit = hits[index];
+  if (!hit) return;
+  const row = rowStarts ? rowStarts[hit.i] : hit.i;
+  const first = firstVisibleRow();
+  const visible = Math.max(1, Math.floor(viewport.clientHeight / ROW_H) - 1);
+
+  if (always || row < first || row >= first + visible) {
+    scrollToRow(Math.max(0, row - Math.floor(visible / 3)));
+  } else {
+    renderWindow();
+  }
+}
+
+function stepFind(by) {
+  if (!hits.length) return;
+  hitAt = (hitAt + by + hits.length) % hits.length;
+  showTally();
+  goToHit(hitAt);
+}
+
+let findDebounce;
+const onFindEdit = () => {
+  clearTimeout(findDebounce);
+  findDebounce = setTimeout(() => runFind(true), 120);
+};
+findInput.addEventListener("input", onFindEdit);
+findReBox.addEventListener("change", () => runFind(true));
+findCaseBox.addEventListener("change", () => runFind(true));
+
+findInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    clearTimeout(findDebounce);
+    // Enter on a box that hasn't been swept yet means "search now".
+    if (!hits.length && findInput.value) runFind(false);
+    else stepFind(e.shiftKey ? -1 : 1);
+  } else if (e.key === "Escape") {
+    findInput.value = "";
+    runFind(false);
+    viewport.focus({ preventScroll: true });
+  }
+});
+
+el("findNext").addEventListener("click", () => stepFind(1));
+el("findPrev").addEventListener("click", () => stepFind(-1));
+
+function focusFind() {
+  findInput.focus();
+  findInput.select();
 }
 
 /* -------------------------------------------------------- virtual scroller -- */
@@ -1008,33 +1228,55 @@ function fillRow(slot, r) {
   slot.row.classList.toggle("ctx", isContext(idx));
   slot.row.classList.toggle("gap", seg === 0 && afterGap(idx));
 
-  if (highlights.length) slot.txt.innerHTML = highlight(text);
-  else slot.txt.textContent = text;
+  const here = hits[hitAt];
+  slot.row.classList.toggle("cur", !!here && here.i === idx);
+
+  if (highlights.length || findRe) {
+    // In wrap mode the row holds a slice of the line, so an offset inside it
+    // has to be read back against the whole line before it can be compared
+    // with where the current match was found.
+    const base = rowStarts && line.length > cpl ? seg * cpl : 0;
+    slot.txt.innerHTML = highlight(text, here && here.i === idx ? here.s - base : -1);
+  } else {
+    slot.txt.textContent = text;
+  }
 }
 
-// Marks every match of every include pattern. Ranges are collected from each
-// pattern and then merged, so two patterns overlapping on one line don't
-// produce nested or crossed <mark> tags.
-function highlight(text) {
+// Marks every match of every include pattern, and every hit of the find box
+// on top of them. Ranges are collected from each and then merged, so two
+// patterns overlapping on one line don't produce nested or crossed <mark>
+// tags. `nowAt` is where the match being stepped through starts, in this
+// row's own offsets, or -1 when it isn't on this row.
+function highlight(text, nowAt = -1) {
   const ranges = [];
-  for (const re of highlights) {
+
+  const collect = (re, kind) => {
     re.lastIndex = 0;
     let m;
     while ((m = re.exec(text)) !== null) {
       if (!m[0].length) { re.lastIndex++; continue; }
-      ranges.push([m.index, m.index + m[0].length]);
+      ranges.push([m.index, m.index + m[0].length, kind]);
       if (ranges.length > 500) break;
     }
-  }
+  };
+
+  for (const re of highlights) collect(re, "");
+  if (findRe) collect(findRe, "f");
   if (!ranges.length) return escapeHtml(text);
-  ranges.sort((a, b) => a[0] - b[0]);
+
+  // A find hit wins wherever the two overlap: it is the thing being looked
+  // for, and the rule marks are the backdrop it is being looked for in.
+  ranges.sort((a, b) => a[0] - b[0] || (a[2] === "f" ? -1 : 1));
 
   let html = "";
   let at = 0;
-  for (const [s, e] of ranges) {
+  for (const [s, e, kind] of ranges) {
     if (e <= at) continue;
     const start = Math.max(s, at);
-    html += `${escapeHtml(text.slice(at, start))}<mark>${escapeHtml(text.slice(start, e))}</mark>`;
+    const cls = kind === "f"
+      ? ` class="f${start === nowAt ? " now" : ""}"`
+      : "";
+    html += `${escapeHtml(text.slice(at, start))}<mark${cls}>${escapeHtml(text.slice(start, e))}</mark>`;
     at = e;
   }
   return html + escapeHtml(text.slice(at));
@@ -1176,7 +1418,11 @@ function textMime() {
   if (currentKind !== "text" && currentKind !== "markdown") return "text/plain";
   if (MARKDOWN_EXT.has(ext)) return "text/markdown";
   if (ext === "csv") return "text/csv";
+  if (ext === "tsv") return "text/tab-separated-values";
   if (ext === "json" || ext === "jsonl" || ext === "ndjson") return "application/json";
+  if (ext === "toml") return "application/toml";
+  if (ext === "xml") return "application/xml";
+  if (ext === "yml" || ext === "yaml") return "application/yaml";
   if (ext === "html" || ext === "htm") return "text/plain";   // never served as live HTML
   return "text/plain";
 }
@@ -2089,10 +2335,13 @@ function hexLines(bytes) {
 document.addEventListener("keydown", (e) => {
   const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || "");
 
-  // The filters are this page's find, so they take ctrl-F.
+  // The browser's own find can only reach the handful of rows that happen to
+  // be drawn, so the page takes ctrl-F over and hands it to the box that
+  // reads the lines themselves. The filters, which hide lines rather than
+  // walk them, keep the slash.
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f" && toolsEl.classList.contains("on")) {
     e.preventDefault();
-    focusFilter();
+    focusFind();
     return;
   }
   if (e.key === "/" && !typing && toolsEl.classList.contains("on")) {
@@ -2100,7 +2349,9 @@ document.addEventListener("keydown", (e) => {
     focusFilter();
     return;
   }
-  if (e.key === "Escape" && typing) document.activeElement.blur();
+  if (e.key === "Escape" && typing && document.activeElement !== findInput) {
+    document.activeElement.blur();
+  }
 });
 
 function focusFilter() {
