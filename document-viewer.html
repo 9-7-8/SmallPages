@@ -263,6 +263,7 @@ let openToken = 0;       // bumped on every open, so stale work drops out
 let filterToken = 0;
 let rules = [];
 let ruleSeq = 0;
+let broken = 0;          // rules in the list that don't compile
 
 /* --------------------------------------------------------------- plumbing -- */
 
@@ -653,14 +654,45 @@ function addRule(mode, pattern = "", focus = true) {
   return rule;
 }
 
+// grep, ripgrep, Python, Rust and PCRE all let a pattern set its own flags up
+// front with (?i) and friends. JavaScript's engine has no syntax for that and
+// throws on the entire pattern, so the leading ones are lifted off and turned
+// into real flags instead. (?i) at the front is by far the most pasted of them.
+const INLINE_FLAGS = /^\(\?([a-zA-Z]+)\)/;
+
+function liftInlineFlags(pattern, flags) {
+  let out = flags;
+  let rest = pattern;
+  for (let m; (m = INLINE_FLAGS.exec(rest)); ) {
+    for (const ch of m[1].toLowerCase()) {
+      if (!"ims".includes(ch)) throw new Error(`JavaScript regular expressions have no (?${ch}) flag`);
+      if (!out.includes(ch)) out += ch;
+    }
+    rest = rest.slice(m[0].length);
+  }
+  return { pattern: rest, flags: out };
+}
+
+// The engine's own message says what is wrong but not why a pattern that works
+// elsewhere doesn't work here, so the usual culprits get named.
+function regexHint(pattern) {
+  if (INLINE_FLAGS.test(pattern)) return "";                 // already lifted
+  if (/\(\?[a-zA-Z]+\)/.test(pattern)) return "inline flags like (?i) only work at the very start of a pattern here";
+  if (/\(\?P[<=]/.test(pattern)) return "named groups are written (?<name>…), not (?P<name>…)";
+  if (/\(\?>/.test(pattern)) return "atomic groups, (?>…), aren't supported";
+  if (/\\[AzZ]/.test(pattern)) return "\\A and \\z aren't supported — use ^ and $";
+  if (/[*+?}]\+/.test(pattern)) return "possessive quantifiers, like ++ or *+, aren't supported";
+  return "";
+}
+
 // A plain string is matched with indexOf rather than a regex — it is the
 // common case and measurably quicker over a few hundred thousand lines.
 function compile(rule) {
   if (!rule.pattern) return null;
   if (rule.regex) {
-    const flags = rule.cased ? "" : "i";
-    const re = new RegExp(rule.pattern, flags);
-    return { test: (s) => re.test(s), hl: new RegExp(rule.pattern, flags + "g") };
+    const lifted = liftInlineFlags(rule.pattern, rule.cased ? "" : "i");
+    const re = new RegExp(lifted.pattern, lifted.flags);
+    return { test: (s) => re.test(s), hl: new RegExp(lifted.pattern, `${lifted.flags}g`) };
   }
   if (rule.cased) {
     const p = rule.pattern;
@@ -675,6 +707,7 @@ function applyFilters() {
   const includes = [];
   const excludes = [];
   highlights = [];
+  broken = 0;
 
   for (const rule of rules) {
     rule.why.textContent = "";
@@ -683,8 +716,10 @@ function applyFilters() {
     try {
       m = compile(rule);
     } catch (err) {
+      const hint = regexHint(rule.pattern);
       rule.input.classList.add("bad");
-      rule.why.textContent = `that regular expression doesn't parse — ${err.message}`;
+      rule.why.textContent = `that regular expression doesn't parse${hint ? ` — ${hint}` : ""} (${err.message})`;
+      broken++;
       continue;
     }
     if (!m) continue;
@@ -736,11 +771,29 @@ function applyFilters() {
 function finishFilter(token) {
   if (token !== filterToken) return;
   const n = shownCount();
-  countEl.textContent = shown
+  const counted = shown
     ? `${fmtNum(n)} of ${fmtNum(lines.length)} lines`
     : `${fmtNum(n)} line${n === 1 ? "" : "s"}`;
+
+  // A rule that doesn't compile is left out of the pass, and saying only how
+  // many lines came back would read as though it had run and matched them.
+  countEl.textContent = broken
+    ? `${counted} · ${broken} rule${broken === 1 ? "" : "s"} not applied`
+    : counted;
+
+  if (!n) explainEmpty();
   viewport.scrollTop = 0;
   relayout(false);
+}
+
+// Nothing matched. If a rule is a plain-text search holding something that
+// reads like a regular expression, that is almost always the reason.
+function explainEmpty() {
+  for (const rule of rules) {
+    if (rule.regex || !rule.pattern || rule.why.textContent) continue;
+    if (!/\(\?|[[|\\^$]|\.[*+?]/.test(rule.pattern)) continue;
+    rule.why.textContent = "No line contains that as plain text — but it reads like a regular expression. Turn on .* to run it as one.";
+  }
 }
 
 /* -------------------------------------------------------- virtual scroller -- */
