@@ -246,6 +246,7 @@ button.chip:active {
   background: #ffffff; color: #111111;
   display: flex; flex-direction: column; padding: 0; overflow: hidden;
   text-align: left; cursor: pointer; border: 1px solid var(--line);
+  user-select: none; -webkit-user-select: none;
 }
 button.chip:hover, button.chip:focus-visible { border-color: var(--neon); box-shadow: var(--glow-soft); }
 .chip .ink { display: block; position: relative; height: 94px; }
@@ -623,8 +624,9 @@ button.chip:hover, button.chip:focus-visible { border-color: var(--neon); box-sh
   <section class="panel" id="panel-match" role="tabpanel" aria-labelledby="tab-match" hidden>
     <p class="lede">The nearest real thread and the nearest Pantone chip to the colour
     you have, ranked by how far apart they actually look &mdash; CIEDE2000, not raw RGB
-    distance. Click a thread row to make it the current colour; click a Pantone chip to
-    save the card as a PNG, ink and number and nothing else on it.</p>
+    distance. Click a row or a chip to make it the current colour &mdash; and double-click
+    a Pantone chip to save the card as a PNG, ink and number and nothing else on it. The
+    colour you are on is in the address bar, so it can be bookmarked or sent to someone.</p>
 
     <div class="block">
       <div class="ctl-row">
@@ -1018,6 +1020,7 @@ function setHex(hex, opts) {
 
 function remember() {
   const hex = curHex();
+  markSettled();
   const at = recents.indexOf(hex);
   if (at === 0) return;
   if (at > 0) recents.splice(at, 1);
@@ -1025,6 +1028,53 @@ function remember() {
   if (recents.length > 18) recents.length = 18;
   drawRecents();
 }
+
+/* ── the colour in the address bar ───────────────────────────────────── */
+
+// render() already keeps the hash on whatever colour is current, replacing as
+// it goes so a drag doesn't leave an entry behind for every shade it passed
+// through on the way. What that leaves out is the back button: with nothing
+// ever pushed there is nowhere to go back to. So a colour that is settled on
+// — a chip, a thread, a swatch, the end of a drag — gets an entry of its own.
+let settled = '';       // the colour the entry we are standing on belongs to
+let pushedAt = 0;
+let fromUrl = false;    // applying what the URL asked for: don't push it back
+
+function markSettled() {
+  const hex = curHex();
+  if (fromUrl || !history.pushState || hex === settled) { settled = hex; return; }
+
+  // A held arrow key settles on every repeat. Entries that close together are
+  // one gesture rather than one decision each, so they collapse into the last
+  // rather than filling the history with colours nobody means to walk back to.
+  const now = performance.now();
+  if (settled && now - pushedAt >= 700) {
+    try {
+      // The entry being left behind has been overwritten by every shade the
+      // last gesture went past, so it is put back to the colour that gesture
+      // actually settled on before a new entry goes on top of it.
+      history.replaceState(null, '', settled);
+      history.pushState(null, '', hex);
+      pushedAt = now;
+    } catch (err) { /* a page opened off the filesystem can't push */ }
+  }
+  settled = hex;
+}
+
+// Back, forward, or a hash pasted in by hand. pushState raises neither event,
+// so the two listeners can't tread on what this page itself wrote.
+function applyUrlColour() {
+  const c = location.hash && parseColor(location.hash);
+  if (!c) return;
+  const hex = rgbToHex(c.r, c.g, c.b);
+  settled = hex;
+  if (hex === curHex()) return;
+  fromUrl = true;
+  setRgb(c.r, c.g, c.b, { commit: true });
+  fromUrl = false;
+}
+window.addEventListener('popstate', applyUrlColour);
+window.addEventListener('hashchange', applyUrlColour);
 
 /* ── clipboard ───────────────────────────────────────────────────────── */
 let toastTimer = 0;
@@ -2353,7 +2403,8 @@ function pantoneChip(entry, book, de) {
   b.type = 'button'; b.className = 'chip';
   const code = entry.code + ' ' + book.suffix;
   const told = 'PANTONE ' + code + ' · ' + book.name + ' · ' + entry.hex
-    + ' · ΔE ' + rnd(de, 1) + ', ' + nearness(de);
+    + ' · ΔE ' + rnd(de, 1) + ', ' + nearness(de)
+    + ' — click to pick it, double-click to save the card';
   b.title = told;
   b.setAttribute('aria-label', told);
 
@@ -2379,7 +2430,19 @@ function pantoneChip(entry, book, de) {
   face.append(brand, num, sub);
 
   b.append(ink, face);
-  b.addEventListener('click', () => saveChip(entry, book));
+  // One click picks the colour, two saves the card. The second click of a
+  // double arrives as a click of its own first, which picks the same colour
+  // again — which costs nothing: remember() leaves the list alone when the
+  // colour is already at the top of it, so there is no timer here waiting to
+  // find out whether a second click is coming, and the first one lands at once.
+  b.addEventListener('click', () => {
+    setHex(entry.hex, { commit: true });
+    toast('PANTONE ' + code + ' → picker · double-click to save the card');
+  });
+  b.addEventListener('dblclick', e => {
+    e.preventDefault();
+    saveChip(entry, book);
+  });
   return b;
 }
 
