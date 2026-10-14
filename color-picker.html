@@ -623,7 +623,8 @@ button.chip:hover, button.chip:focus-visible { border-color: var(--neon); box-sh
   <section class="panel" id="panel-match" role="tabpanel" aria-labelledby="tab-match" hidden>
     <p class="lede">The nearest real thread and the nearest Pantone chip to the colour
     you have, ranked by how far apart they actually look &mdash; CIEDE2000, not raw RGB
-    distance. Click a row to make it the current colour.</p>
+    distance. Click a thread row to make it the current colour; click a Pantone chip to
+    save the card as a PNG, ink and number and nothing else on it.</p>
 
     <div class="block">
       <div class="ctl-row">
@@ -2378,11 +2379,89 @@ function pantoneChip(entry, book, de) {
   face.append(brand, num, sub);
 
   b.append(ink, face);
-  b.addEventListener('click', () => {
-    setHex(entry.hex, { commit: true });
-    toast('PANTONE ' + code + ' → picker');
-  });
+  b.addEventListener('click', () => saveChip(entry, book));
   return b;
+}
+
+// The card again, drawn rather than laid out, because what comes off the page
+// should be the chip itself: the ink, the number, and nothing about this
+// page's opinion of it — the ΔE is a reading of the colour you happened to
+// have open, and means nothing once the card is in someone else's hands.
+const CARD = { w: 600, h: 800, ink: 600, pad: 42, scale: 2 };
+
+async function chipCanvas(entry, book) {
+  const canvas = document.createElement('canvas');
+  canvas.width = CARD.w * CARD.scale;
+  canvas.height = CARD.h * CARD.scale;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(CARD.scale, CARD.scale);
+
+  // Canvas takes a font only once the browser actually has it; without this
+  // the first card off a cold page comes out in the fallback.
+  try { await document.fonts.ready; } catch (err) { /* older browsers */ }
+
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, CARD.w, CARD.h);
+  ctx.fillStyle = entry.hex;
+  ctx.fillRect(0, 0, CARD.w, CARD.ink);
+
+  const sans = '"Lexend Deca", Helvetica, Arial, sans-serif';
+  ctx.textBaseline = 'alphabetic';
+
+  ctx.fillStyle = '#111111';
+  ctx.font = '400 15px ' + sans;
+  // Canvas has no letter-spacing everywhere yet, so the one line that wants
+  // it gets it a character at a time.
+  spacedText(ctx, 'PANTONE\u00ae', CARD.pad, CARD.ink + 54, 2.6);
+
+  ctx.font = '500 40px ' + sans;
+  ctx.fillText(entry.code + ' ' + book.suffix, CARD.pad, CARD.ink + 112);
+
+  ctx.fillStyle = '#777777';
+  ctx.font = '400 17px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+  ctx.fillText(entry.hex, CARD.pad, CARD.ink + 146);
+
+  ctx.font = '400 15px ' + sans;
+  ctx.textAlign = 'right';
+  ctx.fillText(book.name, CARD.w - CARD.pad, CARD.ink + 146);
+
+  // A white card on a white background is an invisible card.
+  ctx.textAlign = 'left';
+  ctx.strokeStyle = '#e4e4e4';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(0.5, 0.5, CARD.w - 1, CARD.h - 1);
+  return canvas;
+}
+
+function spacedText(ctx, text, x, y, gap) {
+  let at = x;
+  for (const ch of text) {
+    ctx.fillText(ch, at, y);
+    at += ctx.measureText(ch).width + gap;
+  }
+}
+
+function slug(text) {
+  return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'chip';
+}
+
+async function saveChip(entry, book) {
+  const code = entry.code + ' ' + book.suffix;
+  try {
+    const canvas = await chipCanvas(entry, book);
+    const blob = await new Promise((ok, no) => canvas.toBlob(
+      b => b ? ok(b) : no(new Error('the browser would not write a PNG')), 'image/png'));
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'pantone-' + slug(code) + '.png';
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    toast('saved ' + link.download);
+  } catch (err) {
+    console.error(err);
+    toast("couldn't save that chip");
+  }
 }
 
 function renderMatches() {
