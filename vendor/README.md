@@ -18,3 +18,36 @@ npx esbuild entry.mjs --bundle --minify --format=esm --platform=browser \
 ```
 
 The library is AGPL-3.0; its licence text ships inside the bundle.
+
+---
+
+`swatch-books.js` is the thread and Pantone reference data behind
+[`../color-picker.html`](../color-picker.html): 4,911 thread colours across 14
+manufacturers' charts, and 3,668 Pantone chips in the Solid Coated and Solid
+Uncoated books. It defines one global, `window.SWATCH_BOOKS`, holding entries
+packed as `code~name~rrggbb;...` strings so that 8,579 swatches cost 160 kB
+rather than a megabyte of JSON. The page works without it — the thread tab says
+so and everything else carries on.
+
+None of it is ours. Thread charts are Ink/Stitch's palette files, except DMC,
+which is FlossVerter's; Pantone values are pantonr's (MIT). PANTONE is a
+trademark of Pantone LLC, and nothing here is affiliated with or endorsed by
+Pantone or any thread manufacturer. Every value is an sRGB approximation of a
+physical thread or ink, which is why the page says so next to the matches.
+
+Rebuild it with:
+
+```
+curl -O https://raw.githubusercontent.com/JuliaSzulc/flossverter/main/data/dmc.csv
+curl -O https://raw.githubusercontent.com/thompsongl/pantonr/master/dist/pantone.json
+for f in "Isacord Polyester" "Madeira Polyneon" "Madeira Rayon" \
+         "Robison-Anton Polyester" "Robison-Anton Rayon" "Mettler Poly Sheen" \
+         "Gunold Polyester" "Sulky Rayon" "Hemingworth" "Floriani Polyester" \
+         "Fil-Tec Glide" "Marathon Polyester" "Anchor"; do
+  curl -O --path-as-is \
+    "https://raw.githubusercontent.com/inkstitch/inkstitch/main/palettes/InkStitch $f.gpl"
+done
+```
+
+then pack the `.gpl` files (`R G B<tab>Name  Number` per line), the DMC CSV and
+the Pantone entries whose keys end `-c` or `-u` into the two arrays above.

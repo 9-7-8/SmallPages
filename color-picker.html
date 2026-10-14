@@ -1,0 +1,2437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Colour Picker</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+/* Layout and sizing only — every colour and the typeface come from theme.css.
+   The exception is anything whose fill *is* the data: swatches, slider tracks,
+   the gradient preview. Those carry their colour inline, set from script. */
+body { margin: 0; }
+h2 { margin: 0; }
+button, input, select { font-size: 0.85rem; }
+
+.wrap { max-width: 1120px; margin: 0 auto; padding: 0 1.25rem 6rem; }
+
+/* ── masthead ─────────────────────────────────────────────────────────── */
+.mast { padding: 3rem 0 1.5rem; }
+.mast h1 { line-height: 1.05; }
+.mast p { max-width: 64ch; color: var(--text-dim); margin: 0.9rem 0 0; }
+
+/* ── tab bar + the colour that follows you across it ──────────────────── */
+.bar {
+  position: sticky; top: 0; z-index: 30;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line-soft);
+  padding: 0.75rem 0 0;
+  margin-bottom: 2rem;
+}
+.tabs { display: flex; flex-wrap: wrap; gap: 0.3rem; border: none; }
+.tabs button {
+  border: 1px solid transparent; border-bottom: none;
+  padding: 0.5rem 0.9rem; font-size: 0.82rem; color: var(--text-dim);
+}
+.tabs button[aria-selected="true"] { border-color: var(--line); }
+.dock { display: flex; align-items: center; gap: 0.75rem; padding: 0.7rem 0; }
+.dock .chip {
+  width: 46px; height: 26px; border: 1px solid var(--line); flex: none; padding: 0;
+}
+.dock .hex {
+  font-family: var(--mono); font-size: 0.9rem; letter-spacing: 0.06em;
+  background: none; border: none; color: var(--text); cursor: pointer; padding: 0;
+}
+.dock .hex:hover { color: var(--neon); box-shadow: none; }
+.dock .spacer { margin-left: auto; }
+.dock .tiny { font-size: 0.72rem; color: var(--text-faint); }
+
+/* ── panels ───────────────────────────────────────────────────────────── */
+.panel[hidden] { display: none; }
+.panel > .lede { color: var(--text-dim); max-width: 64ch; margin: 0 0 1.75rem; }
+.block { margin-bottom: 2.25rem; }
+.block > h2 {
+  font-size: 0.78rem; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--text-faint); font-weight: 400;
+  padding-bottom: 0.45rem; border-bottom: 1px solid var(--line-soft);
+  margin-bottom: 1rem;
+}
+.note { font-size: 0.78rem; color: var(--text-faint); margin: 0.6rem 0 0; max-width: 70ch; }
+.btn-row { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+
+/* ── the picker itself ────────────────────────────────────────────────── */
+.pick-grid {
+  display: grid; gap: 1.1rem;
+  grid-template-columns: minmax(240px, 1fr) 34px minmax(280px, 1.1fr);
+  align-items: start;
+}
+.sv {
+  position: relative; aspect-ratio: 1 / 1; touch-action: none; cursor: crosshair;
+  border: 1px solid var(--line); min-height: 240px;
+}
+.hue {
+  position: relative; height: auto; align-self: stretch; min-height: 240px;
+  touch-action: none; cursor: ns-resize; border: 1px solid var(--line);
+}
+.sv canvas, .hue canvas { display: block; width: 100%; height: 100%; }
+.knob {
+  position: absolute; width: 16px; height: 16px; border-radius: 50%;
+  border: 2px solid #fff; transform: translate(-50%, -50%); pointer-events: none;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.7), inset 0 0 0 1px rgba(0,0,0,0.5);
+}
+.hue .knob {
+  left: 50%; width: calc(100% + 8px); height: 10px; border-radius: 2px;
+}
+
+/* ── value rows ───────────────────────────────────────────────────────── */
+.vals { display: grid; gap: 0.5rem; }
+.row { display: grid; grid-template-columns: 3.4rem 1fr auto; gap: 0.5rem; align-items: center; }
+.row .k {
+  font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--text-faint);
+}
+.row .v {
+  font-family: var(--mono); font-size: 0.8rem; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap;
+}
+.row input { width: 100%; font-family: var(--mono); font-size: 0.8rem; }
+.row .trio { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.3rem; }
+.row .trio input { text-align: center; padding: 0.35rem 0.2rem; }
+.cp { padding: 0.3rem 0.5rem; font-size: 0.68rem; }
+.big-chip { height: 96px; border: 1px solid var(--line); margin-bottom: 0.9rem; }
+
+/* ── channel scales ───────────────────────────────────────────────────── */
+.chans { display: grid; gap: 0.65rem; }
+.chan { display: grid; grid-template-columns: 1.4rem 1fr 4.2rem; gap: 0.6rem; align-items: center; }
+.chan .k { font-size: 0.72rem; color: var(--text-dim); font-family: var(--mono); }
+.chan input[type="number"] { padding: 0.3rem 0.35rem; font-family: var(--mono); font-size: 0.78rem; }
+.chan input[type="range"] {
+  -webkit-appearance: none; appearance: none;
+  width: 100%; height: 16px; border: 1px solid var(--line); padding: 0; margin: 0;
+}
+.chan input[type="range"]::-webkit-slider-runnable-track { height: 14px; background: none; }
+.chan input[type="range"]::-moz-range-track { height: 14px; background: none; }
+.chan input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 8px; height: 20px; margin-top: -3px;
+  background: #fff; border: 1px solid #000; border-radius: 0; cursor: ew-resize;
+}
+.chan input[type="range"]::-moz-range-thumb {
+  width: 8px; height: 20px; background: #fff; border: 1px solid #000;
+  border-radius: 0; cursor: ew-resize;
+}
+.chan-group { margin-top: 1.1rem; }
+.chan-group .cap { font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--text-faint); margin-bottom: 0.5rem; }
+
+/* ── ramps, harmony rows, recents ─────────────────────────────────────── */
+.ramp { display: flex; gap: 2px; }
+.ramp button {
+  flex: 1; height: 42px; border: 1px solid var(--line); padding: 0; min-width: 0;
+}
+.ramp button:hover { box-shadow: inset 0 0 0 2px #fff; }
+.harm-row { display: grid; grid-template-columns: 9rem 1fr; gap: 0.75rem; align-items: center; margin-bottom: 0.5rem; }
+.harm-row .name { font-size: 0.76rem; color: var(--text-dim); }
+.harm-row .chips { display: flex; gap: 2px; }
+.harm-row .chips button { flex: 1; height: 34px; border: 1px solid var(--line); padding: 0; min-width: 0; }
+.harm-row .chips button:hover { box-shadow: inset 0 0 0 2px #fff; }
+.recents { display: flex; flex-wrap: wrap; gap: 3px; }
+.recents button { width: 30px; height: 30px; border: 1px solid var(--line); padding: 0; }
+.recents button:hover { box-shadow: inset 0 0 0 2px #fff; }
+
+/* ── image ────────────────────────────────────────────────────────────── */
+.dropzone {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 0.4rem; padding: 2.5rem 1rem; text-align: center; cursor: pointer;
+  font-size: 0.9rem;
+}
+.dropzone .hint { font-size: 0.76rem; }
+.stage-wrap { position: relative; display: inline-block; max-width: 100%; margin-top: 1.25rem; }
+#img-canvas {
+  display: block; max-width: 100%; height: auto; cursor: crosshair;
+  touch-action: none; border: 1px solid var(--line);
+}
+.loupe {
+  position: absolute; pointer-events: none; display: none; z-index: 5;
+  border: 1px solid var(--line); background: var(--bg); padding: 2px;
+}
+.loupe canvas { display: block; image-rendering: pixelated; }
+.loupe .lx {
+  display: block; text-align: center; font-family: var(--mono); font-size: 0.7rem;
+  padding-top: 2px; color: var(--text);
+}
+
+/* ── palette ──────────────────────────────────────────────────────────── */
+.ctl-row { display: flex; flex-wrap: wrap; gap: 1.1rem 1.75rem; align-items: flex-end; }
+.ctl label { display: block; font-size: 0.74rem; color: var(--text-dim); margin-bottom: 0.35rem; }
+.ctl select, .ctl input[type="number"], .ctl input[type="text"] { min-width: 9rem; }
+.pal-top { display: grid; grid-template-columns: 1fr auto; gap: 2rem; align-items: start; }
+.wheel-fig { margin: 0; text-align: center; }
+.wheel-fig canvas { display: block; width: 210px; height: 210px; }
+.wheel-fig figcaption { font-size: 0.72rem; color: var(--text-faint); margin-top: 0.4rem; max-width: 210px; }
+.pal-grid {
+  display: grid; gap: 0.6rem; margin-top: 1.5rem;
+  grid-template-columns: repeat(auto-fill, minmax(124px, 1fr));
+}
+.pal-grid .swatch .chip { height: 72px; }
+.pal-grid .swatch .hex { font-family: var(--mono); font-size: 0.76rem; letter-spacing: 0.04em; text-align: center; }
+.pal-grid .swatch .meta { font-size: 0.66rem; color: var(--text-faint); text-align: center; }
+.pal-grid .swatch .acts { display: flex; gap: 0.25rem; }
+
+/* ── contrast ─────────────────────────────────────────────────────────── */
+.con-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; align-items: start; }
+.con-pair { display: grid; gap: 0.75rem; }
+.con-slot { display: grid; grid-template-columns: 54px 1fr auto; gap: 0.6rem; align-items: center; }
+.con-slot .chip { height: 34px; border: 1px solid var(--line); padding: 0; }
+.con-slot input { font-family: var(--mono); font-size: 0.8rem; }
+.con-demo { border: 1px solid var(--line); padding: 1.5rem; }
+.con-demo p { margin: 0 0 0.75rem; }
+.con-demo .t-sm { font-size: 0.82rem; }
+.con-demo .t-md { font-size: 1rem; }
+.con-demo .t-lg { font-size: 1.5rem; font-weight: 500; margin-bottom: 0; }
+.ratio { font-family: var(--mono); font-size: 2.6rem; line-height: 1; }
+.ratio .unit { font-size: 1rem; color: var(--text-faint); }
+.grades { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem; margin-top: 1.1rem; }
+.grade { border: 1px solid var(--line-soft); padding: 0.55rem 0.7rem; }
+.grade .lab { font-size: 0.68rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-faint); }
+.grade .res { font-size: 0.86rem; margin-top: 0.15rem; }
+.grade.pass { border-color: var(--neon-deep); }
+.grade.pass .res { color: var(--neon); text-shadow: var(--text-glow); }
+.grade.fail .res { color: var(--text-dim); }
+
+/* ── gradient ─────────────────────────────────────────────────────────── */
+.grad-preview { height: 150px; border: 1px solid var(--line); }
+.stops { display: grid; gap: 0.5rem; margin-top: 1rem; }
+.stop { display: grid; grid-template-columns: 46px 7.5rem 1fr 4.5rem auto; gap: 0.5rem; align-items: center; }
+.stop .chip { height: 30px; border: 1px solid var(--line); padding: 0; }
+.stop input[type="text"] { font-family: var(--mono); font-size: 0.78rem; }
+.stop input[type="range"] { width: 100%; }
+.stop .pc { font-family: var(--mono); font-size: 0.76rem; color: var(--text-dim); text-align: right; }
+.code {
+  font-family: var(--mono); font-size: 0.78rem; line-height: 1.55;
+  background: var(--sunken); border: 1px solid var(--line-soft);
+  padding: 0.8rem 0.9rem; white-space: pre-wrap; word-break: break-all; margin: 1rem 0 0;
+}
+
+/* ── matches ──────────────────────────────────────────────────────────── */
+.match-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; align-items: start; }
+.hits { display: grid; gap: 2px; margin-top: 0.9rem; }
+.hit {
+  display: grid; grid-template-columns: 40px 1fr auto; gap: 0.7rem; align-items: center;
+  border: 1px solid transparent; border-bottom: 1px solid var(--line-soft);
+  padding: 0.35rem 0.3rem; cursor: pointer; text-align: left; color: var(--text);
+  font-size: 0.82rem; background: transparent;
+}
+.hit:hover { border-color: var(--neon); background: hsl(var(--tint) / 0.05); box-shadow: none; }
+.hit .sw { height: 28px; border: 1px solid var(--line); }
+.hit .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hit .nm b { font-weight: 400; color: var(--text); }
+.hit .nm span { color: var(--text-faint); font-size: 0.74rem; }
+.hit .de { font-family: var(--mono); font-size: 0.72rem; color: var(--text-faint); text-align: right; }
+.hit .de b { display: block; font-weight: 400; color: var(--text-dim); }
+
+@media (max-width: 860px) {
+  .pick-grid { grid-template-columns: 1fr 34px; }
+  .pick-grid .vals-col { grid-column: 1 / -1; }
+  .pal-top, .con-grid, .match-grid { grid-template-columns: 1fr; }
+  .harm-row { grid-template-columns: 1fr; }
+}
+@media (max-width: 560px) {
+  .wrap { padding: 0 1rem 4rem; }
+  .mast { padding: 2.25rem 0 1rem; }
+  .stop { grid-template-columns: 40px 1fr; grid-auto-flow: dense; }
+  .stop input[type="range"] { grid-column: 1 / -1; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="mast">
+    <a class="home" href="index.html">&larr; index</a>
+    <h1>colour picker</h1>
+    <p>Pick a colour by hand, pull one out of an image, or type a value, and read it
+    back as hex, RGB, HSL, HSV, OKLCH, CSS and CMYK. Build a palette to a harmony
+    rule, check contrast, mix a gradient, and find the embroidery thread or Pantone
+    chip that comes closest.</p>
+  </header>
+
+  <div class="bar">
+    <div class="tabs seg" role="tablist" id="tabs">
+      <button role="tab" id="tab-pick"     aria-controls="panel-pick"     aria-selected="true">picker</button>
+      <button role="tab" id="tab-image"    aria-controls="panel-image"    aria-selected="false">image</button>
+      <button role="tab" id="tab-palette"  aria-controls="panel-palette"  aria-selected="false">palette</button>
+      <button role="tab" id="tab-contrast" aria-controls="panel-contrast" aria-selected="false">contrast</button>
+      <button role="tab" id="tab-gradient" aria-controls="panel-gradient" aria-selected="false">gradient</button>
+      <button role="tab" id="tab-match"    aria-controls="panel-match"    aria-selected="false">thread &amp; pantone</button>
+    </div>
+    <div class="dock">
+      <button class="chip" id="dock-chip" title="the colour everything else on this page works from"></button>
+      <button class="hex" id="dock-hex" title="click to copy">#000000</button>
+      <span class="spacer"></span>
+      <span class="tiny" id="toast"></span>
+    </div>
+  </div>
+
+  <main>
+
+  <!-- ══ picker ══════════════════════════════════════════════════════════ -->
+  <section class="panel" id="panel-pick" role="tabpanel" aria-labelledby="tab-pick">
+    <p class="lede">Drag in the square for saturation and value, the strip for hue.
+    Arrow keys work on both. Every field below is editable &mdash; type a hex, nudge a
+    channel, paste a colour in.</p>
+
+    <div class="block">
+      <div class="pick-grid">
+        <div class="sv" id="sv" tabindex="0" role="application"
+             aria-label="saturation and brightness field, arrow keys to adjust">
+          <canvas id="sv-canvas"></canvas>
+          <div class="knob" id="sv-knob"></div>
+        </div>
+        <div class="hue" id="hue" tabindex="0" role="slider" aria-label="hue"
+             aria-valuemin="0" aria-valuemax="359" aria-valuenow="0">
+          <canvas id="hue-canvas"></canvas>
+          <div class="knob" id="hue-knob"></div>
+        </div>
+        <div class="vals-col">
+          <div class="big-chip" id="big-chip"></div>
+          <div class="vals">
+            <div class="row">
+              <span class="k">hex</span>
+              <input id="f-hex" type="text" spellcheck="false" autocomplete="off" maxlength="9">
+              <button class="ghost cp" data-copy="hex">copy</button>
+            </div>
+            <div class="row">
+              <span class="k">rgb</span>
+              <div class="trio">
+                <input id="f-r" type="number" min="0" max="255" step="1" aria-label="red">
+                <input id="f-g" type="number" min="0" max="255" step="1" aria-label="green">
+                <input id="f-b" type="number" min="0" max="255" step="1" aria-label="blue">
+              </div>
+              <button class="ghost cp" data-copy="rgb">copy</button>
+            </div>
+            <div class="row">
+              <span class="k">hsv</span>
+              <div class="trio">
+                <input id="f-hh" type="number" min="0" max="360" step="1" aria-label="hue">
+                <input id="f-ss" type="number" min="0" max="100" step="1" aria-label="saturation">
+                <input id="f-vv" type="number" min="0" max="100" step="1" aria-label="value">
+              </div>
+              <button class="ghost cp" data-copy="hsv">copy</button>
+            </div>
+            <div class="row">
+              <span class="k">hsl</span><span class="v" id="f-hsl"></span>
+              <button class="ghost cp" data-copy="hsl">copy</button>
+            </div>
+            <div class="row">
+              <span class="k">oklch</span><span class="v" id="f-oklch"></span>
+              <button class="ghost cp" data-copy="oklch">copy</button>
+            </div>
+            <div class="row">
+              <span class="k">lab</span><span class="v" id="f-lab"></span>
+              <button class="ghost cp" data-copy="lab">copy</button>
+            </div>
+            <div class="row">
+              <span class="k">cmyk</span><span class="v" id="f-cmyk"></span>
+              <button class="ghost cp" data-copy="cmyk">copy</button>
+            </div>
+            <div class="row">
+              <span class="k">css</span><span class="v" id="f-css"></span>
+              <button class="ghost cp" data-copy="css">copy</button>
+            </div>
+          </div>
+          <div class="ctl" style="margin-top:0.9rem">
+            <label>cmyk from</label>
+            <div class="seg" id="cmyk-mode">
+              <button data-mode="coated" class="on">a coated press</button>
+              <button data-mode="straight">straight maths</button>
+            </div>
+          </div>
+          <p class="note" id="gamut"></p>
+        </div>
+      </div>
+    </div>
+
+    <div class="block">
+      <h2>channels</h2>
+      <div class="chans" id="rgb-chans">
+        <div class="chan"><span class="k">R</span><input type="range" id="s-r" min="0" max="255" step="1" aria-label="red"><input type="number" id="n-r" min="0" max="255" step="1" aria-label="red value"></div>
+        <div class="chan"><span class="k">G</span><input type="range" id="s-g" min="0" max="255" step="1" aria-label="green"><input type="number" id="n-g" min="0" max="255" step="1" aria-label="green value"></div>
+        <div class="chan"><span class="k">B</span><input type="range" id="s-b" min="0" max="255" step="1" aria-label="blue"><input type="number" id="n-b" min="0" max="255" step="1" aria-label="blue value"></div>
+      </div>
+      <div class="chans chan-group" id="hsl-chans">
+        <div class="cap">hue, saturation, lightness</div>
+        <div class="chan"><span class="k">H</span><input type="range" id="s-h" min="0" max="360" step="1" aria-label="hue"><input type="number" id="n-h" min="0" max="360" step="1" aria-label="hue value"></div>
+        <div class="chan"><span class="k">S</span><input type="range" id="s-s" min="0" max="100" step="1" aria-label="saturation"><input type="number" id="n-s" min="0" max="100" step="1" aria-label="saturation value"></div>
+        <div class="chan"><span class="k">L</span><input type="range" id="s-l" min="0" max="100" step="1" aria-label="lightness"><input type="number" id="n-l" min="0" max="100" step="1" aria-label="lightness value"></div>
+      </div>
+      <p class="note">Each track is drawn for the colour you have now: it shows where
+      that one channel can take it, with everything else held still.</p>
+    </div>
+
+    <div class="block">
+      <h2>quick actions</h2>
+      <div class="btn-row">
+        <button id="q-random">random</button>
+        <button class="ghost" id="q-lighten">lighten</button>
+        <button class="ghost" id="q-darken">darken</button>
+        <button class="ghost" id="q-sat">saturate</button>
+        <button class="ghost" id="q-desat">desaturate</button>
+        <button class="ghost" id="q-warm">warmer</button>
+        <button class="ghost" id="q-cool">cooler</button>
+        <button class="ghost" id="q-comp">complement</button>
+        <button class="ghost" id="q-invert">invert</button>
+        <button class="ghost" id="q-copy-all">copy every value</button>
+      </div>
+    </div>
+
+    <div class="block">
+      <h2>tints &amp; shades</h2>
+      <div class="ramp" id="ramp"></div>
+      <p class="note">Mixed toward white and black in OKLab, so the middle of the ramp
+      doesn't go muddy the way an sRGB blend does.</p>
+    </div>
+
+    <div class="block">
+      <h2>harmony</h2>
+      <div id="harmony"></div>
+      <p class="note">The same rules the palette tab builds to, read straight off the
+      colour you have. Click any chip to make it the current colour.</p>
+    </div>
+
+    <div class="block">
+      <h2>recent</h2>
+      <div class="recents" id="recents"></div>
+    </div>
+  </section>
+
+  <!-- ══ image ═══════════════════════════════════════════════════════════ -->
+  <section class="panel" id="panel-image" role="tabpanel" aria-labelledby="tab-image" hidden>
+    <p class="lede">Drop a picture in and hover it: the loupe shows the pixels under
+    the cursor magnified, with the colour it would take. Click, or drag, to pick.</p>
+
+    <div class="block">
+      <div class="dropzone" id="drop" tabindex="0" role="button">
+        <span>drop an image, click to choose, or paste one</span>
+        <span class="hint">png &middot; jpeg &middot; webp &middot; gif &middot; avif &middot; svg &mdash; it is read in the page and never uploaded</span>
+      </div>
+      <input type="file" id="file" accept="image/*" hidden>
+      <div class="ctl-row" id="img-tools" style="margin-top:1.25rem" hidden>
+        <div class="ctl">
+          <label for="sample">sample</label>
+          <select id="sample">
+            <option value="1">one pixel</option>
+            <option value="3" selected>3 &times; 3 average</option>
+            <option value="5">5 &times; 5 average</option>
+            <option value="9">9 &times; 9 average</option>
+          </select>
+        </div>
+        <div class="btn-row">
+          <button class="ghost" id="img-palette">build a palette from this</button>
+          <button class="ghost" id="img-clear">clear</button>
+        </div>
+      </div>
+      <div class="stage-wrap" id="stage-wrap" hidden>
+        <canvas id="img-canvas"></canvas>
+        <div class="loupe" id="loupe">
+          <canvas id="loupe-canvas" width="132" height="132"></canvas>
+          <span class="lx" id="loupe-hex">#000000</span>
+        </div>
+      </div>
+      <p class="status" id="img-status"></p>
+    </div>
+  </section>
+
+  <!-- ══ palette ═════════════════════════════════════════════════════════ -->
+  <section class="panel" id="panel-palette" role="tabpanel" aria-labelledby="tab-palette" hidden>
+    <p class="lede">Pull the colours out of an image, or grow them from the colour you
+    have, and lay them out to one of the classic harmony rules. Click any swatch to
+    make it the current colour.</p>
+
+    <div class="block">
+      <div class="pal-top">
+        <div>
+          <div class="ctl-row">
+            <div class="ctl">
+              <label>built from</label>
+              <div class="seg" id="pal-src">
+                <button data-src="image" class="on">the image</button>
+                <button data-src="current">the current colour</button>
+              </div>
+            </div>
+            <div class="ctl">
+              <label for="pal-rule">rule</label>
+              <select id="pal-rule">
+                <option value="dominant">dominant &mdash; whatever is actually there</option>
+                <option value="complementary">complementary &mdash; opposite hues</option>
+                <option value="split">split-complementary</option>
+                <option value="analogous" selected>analogous &mdash; neighbours</option>
+                <option value="triadic">triadic &mdash; three, evenly spaced</option>
+                <option value="tetradic">tetradic &mdash; two complementary pairs</option>
+                <option value="square">square &mdash; four, evenly spaced</option>
+                <option value="monochromatic">monochromatic &mdash; one hue, many steps</option>
+              </select>
+            </div>
+            <div class="ctl">
+              <label for="pal-count">colours</label>
+              <input type="number" id="pal-count" min="2" max="16" step="1" value="5">
+            </div>
+            <div class="btn-row">
+              <button id="pal-go">build</button>
+              <button class="ghost" id="pal-copy">copy hex</button>
+              <button class="ghost" id="pal-css">copy css</button>
+              <button class="ghost" id="pal-json">copy json</button>
+            </div>
+          </div>
+        </div>
+        <figure class="wheel-fig">
+          <canvas id="wheel" width="210" height="210"></canvas>
+          <figcaption id="wheel-cap"></figcaption>
+        </figure>
+      </div>
+      <div class="pal-grid" id="pal-grid"></div>
+      <p class="status" id="pal-status"></p>
+      <p class="note">Colours are clustered in OKLab, so what comes back is what the
+      eye would call dominant rather than what the RGB numbers average to. Under a
+      rule, each slot is filled by the image colour closest to the hue that rule asks
+      for; when the image has nothing near it, the nearest colour is rotated onto the
+      target hue instead and marked <em>turned</em>, which is as close to the rule as
+      that image can honestly get.</p>
+    </div>
+  </section>
+
+  <!-- ══ contrast ════════════════════════════════════════════════════════ -->
+  <section class="panel" id="panel-contrast" role="tabpanel" aria-labelledby="tab-contrast" hidden>
+    <p class="lede">Text against a background, measured the way WCAG 2 measures it,
+    with APCA's reading alongside for a second opinion.</p>
+
+    <div class="block">
+      <div class="con-grid">
+        <div>
+          <div class="con-pair">
+            <div class="con-slot">
+              <button class="chip" id="con-fg-chip" title="use as the current colour"></button>
+              <input type="text" id="con-fg" spellcheck="false" aria-label="foreground">
+              <button class="ghost" data-con-set="fg">&larr; current</button>
+            </div>
+            <div class="con-slot">
+              <button class="chip" id="con-bg-chip" title="use as the current colour"></button>
+              <input type="text" id="con-bg" spellcheck="false" aria-label="background">
+              <button class="ghost" data-con-set="bg">&larr; current</button>
+            </div>
+          </div>
+          <div class="btn-row" style="margin-top:0.9rem">
+            <button class="ghost" id="con-swap">swap</button>
+            <button class="ghost" id="con-fix-fg">fix the text</button>
+            <button class="ghost" id="con-fix-bg">fix the background</button>
+          </div>
+          <div class="grades" id="grades"></div>
+          <p class="note" id="con-note"></p>
+        </div>
+        <div>
+          <div class="con-demo" id="con-demo">
+            <p class="t-sm">Small text, 14 pixels. The size most of a page is set in,
+            and the size that decides whether a colour pair is usable at all.</p>
+            <p class="t-md">Body text at 16 pixels.</p>
+            <p class="t-lg">Large text, 24 pixels</p>
+          </div>
+          <p style="margin-top:1rem">
+            <span class="ratio" id="ratio">21.00<span class="unit">:1</span></span>
+          </p>
+          <p class="note" id="apca"></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ gradient ════════════════════════════════════════════════════════ -->
+  <section class="panel" id="panel-gradient" role="tabpanel" aria-labelledby="tab-gradient" hidden>
+    <p class="lede">Stops, an angle, and a choice about where the blending happens.
+    The CSS underneath is the real thing &mdash; copy it straight out.</p>
+
+    <div class="block">
+      <div class="grad-preview" id="grad-preview"></div>
+      <div class="ctl-row" style="margin-top:1.25rem">
+        <div class="ctl">
+          <label>shape</label>
+          <div class="seg" id="grad-kind">
+            <button data-kind="linear" class="on">linear</button>
+            <button data-kind="radial">radial</button>
+            <button data-kind="conic">conic</button>
+          </div>
+        </div>
+        <div class="ctl">
+          <label for="grad-angle">angle <span class="v" id="grad-angle-v"></span></label>
+          <input type="range" id="grad-angle" min="0" max="360" step="1" value="90">
+        </div>
+        <div class="ctl">
+          <label for="grad-space">interpolated in</label>
+          <select id="grad-space">
+            <option value="srgb">sRGB &mdash; what every browser has always done</option>
+            <option value="oklab" selected>OKLab &mdash; even, no grey middle</option>
+            <option value="oklch-longer">OKLCH, the long way round the wheel</option>
+          </select>
+        </div>
+        <div class="btn-row">
+          <button class="ghost" id="grad-add">add the current colour</button>
+          <button class="ghost" id="grad-even">space evenly</button>
+          <button class="ghost" id="grad-rev">reverse</button>
+          <button class="ghost" id="grad-copy">copy css</button>
+        </div>
+      </div>
+      <div class="stops" id="stops"></div>
+      <pre class="code" id="grad-css"></pre>
+      <p class="note">The preview is drawn stop by stop in the space you picked, so
+      what you see holds even where a browser hasn't implemented
+      <code>in oklab</code> yet. The CSS asks for the same thing and falls back to a
+      plain sRGB ramp underneath it.</p>
+    </div>
+  </section>
+
+  <!-- ══ thread & pantone ════════════════════════════════════════════════ -->
+  <section class="panel" id="panel-match" role="tabpanel" aria-labelledby="tab-match" hidden>
+    <p class="lede">The nearest real thread and the nearest Pantone chip to the colour
+    you have, ranked by how far apart they actually look &mdash; CIEDE2000, not raw RGB
+    distance. Click a row to make it the current colour.</p>
+
+    <div class="block">
+      <div class="ctl-row">
+        <div class="ctl">
+          <label for="brand">thread chart</label>
+          <select id="brand"></select>
+        </div>
+        <div class="ctl">
+          <label for="pbook">pantone book</label>
+          <select id="pbook"></select>
+        </div>
+        <div class="ctl">
+          <label for="match-search">or search by name or number</label>
+          <input type="text" id="match-search" spellcheck="false" placeholder="e.g. 310, reflex blue, celadon">
+        </div>
+      </div>
+      <div class="match-grid" style="margin-top:1.5rem">
+        <div>
+          <h2 id="thread-head">thread</h2>
+          <div class="hits" id="thread-hits"></div>
+        </div>
+        <div>
+          <h2 id="pantone-head">pantone</h2>
+          <div class="hits" id="pantone-hits"></div>
+        </div>
+      </div>
+      <p class="note" id="match-note"></p>
+    </div>
+  </section>
+
+  </main>
+</div>
+
+<script src="vendor/swatch-books.js"></script>
+<script>
+(function () {
+'use strict';
+
+/* ════════════════════════════════════════════════════════════════════════
+   colour maths
+   ═══════════════════════════════════════════════════════════════════════ */
+
+const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+const mod360 = h => ((h % 360) + 360) % 360;
+const rnd = (v, n) => { const p = Math.pow(10, n || 0); return Math.round(v * p) / p; };
+const $ = id => document.getElementById(id);
+
+function hexToRgb(hex) {
+  let s = String(hex == null ? '' : hex).trim().replace(/^#/, '');
+  if (/^[0-9a-f]{3,4}$/i.test(s)) s = s[0] + s[0] + s[1] + s[1] + s[2] + s[2];
+  else if (/^[0-9a-f]{8}$/i.test(s)) s = s.slice(0, 6);
+  if (!/^[0-9a-f]{6}$/i.test(s)) return null;
+  const n = parseInt(s, 16);
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+}
+
+function rgbToHex(r, g, b) {
+  const h = v => clamp(Math.round(v), 0, 255).toString(16).padStart(2, '0');
+  return '#' + h(r) + h(g) + h(b);
+}
+
+/* Anything else — rgb(), hsl(), oklch(), a colour keyword — is handed to the
+   browser's own parser through a canvas, which is the only parser guaranteed
+   to agree with what the page will actually paint. */
+const parseCtx = document.createElement('canvas').getContext('2d');
+function parseColor(str) {
+  const direct = hexToRgb(str);
+  if (direct) return direct;
+  const s = String(str == null ? '' : str).trim();
+  if (!s || s.length > 64) return null;
+  let a, b;
+  try {
+    parseCtx.fillStyle = '#000000'; parseCtx.fillStyle = s; a = parseCtx.fillStyle;
+    parseCtx.fillStyle = '#ffffff'; parseCtx.fillStyle = s; b = parseCtx.fillStyle;
+  } catch (e) { return null; }
+  if (a !== b) return null;                       // invalid: each default survived
+  const viaHex = hexToRgb(a);
+  if (viaHex) return viaHex;
+  const m = /^rgba?\(([^)]+)\)$/.exec(a);         // alpha colours come back as rgba()
+  if (!m) return null;
+  const p = m[1].split(/[\s,\/]+/).filter(Boolean).map(parseFloat);
+  if (p.length < 3 || p.some(isNaN)) return null;
+  return { r: clamp(p[0], 0, 255), g: clamp(p[1], 0, 255), b: clamp(p[2], 0, 255) };
+}
+
+function rgbToHsv(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+  let h = 0;
+  if (d) {
+    if (mx === r) h = ((g - b) / d) % 6;
+    else if (mx === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h *= 60;
+  }
+  return { h: mod360(h), s: mx ? d / mx : 0, v: mx };
+}
+
+function hsvToRgb(h, s, v) {
+  h = mod360(h) / 60; s = clamp(s, 0, 1); v = clamp(v, 0, 1);
+  const c = v * s, x = c * (1 - Math.abs((h % 2) - 1)), m = v - c;
+  let t;
+  if (h < 1) t = [c, x, 0]; else if (h < 2) t = [x, c, 0]; else if (h < 3) t = [0, c, x];
+  else if (h < 4) t = [0, x, c]; else if (h < 5) t = [x, 0, c]; else t = [c, 0, x];
+  return { r: (t[0] + m) * 255, g: (t[1] + m) * 255, b: (t[2] + m) * 255 };
+}
+
+function rgbToHsl(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn, l = (mx + mn) / 2;
+  let h = 0, s = 0;
+  if (d) {
+    s = d / (1 - Math.abs(2 * l - 1));
+    if (mx === r) h = ((g - b) / d) % 6;
+    else if (mx === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h *= 60;
+  }
+  return { h: mod360(h), s: clamp(s, 0, 1), l: l };
+}
+
+function hslToRgb(h, s, l) {
+  h = mod360(h); s = clamp(s, 0, 1); l = clamp(l, 0, 1);
+  const c = (1 - Math.abs(2 * l - 1)) * s, x = c * (1 - Math.abs(((h / 60) % 2) - 1)), m = l - c / 2;
+  const k = h / 60;
+  let t;
+  if (k < 1) t = [c, x, 0]; else if (k < 2) t = [x, c, 0]; else if (k < 3) t = [0, c, x];
+  else if (k < 4) t = [0, x, c]; else if (k < 5) t = [x, 0, c]; else t = [c, 0, x];
+  return { r: (t[0] + m) * 255, g: (t[1] + m) * 255, b: (t[2] + m) * 255 };
+}
+
+const toLinear = c => (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+const toGamma = c => (c <= 0.0031308 ? c * 12.92 : 1.055 * Math.pow(c, 1 / 2.4) - 0.055);
+
+function rgbToLinear(r, g, b) { return [toLinear(r / 255), toLinear(g / 255), toLinear(b / 255)]; }
+function linearToRgb(l) {
+  return { r: clamp(toGamma(l[0]), 0, 1) * 255, g: clamp(toGamma(l[1]), 0, 1) * 255, b: clamp(toGamma(l[2]), 0, 1) * 255 };
+}
+
+/* CIE Lab, D65 */
+function rgbToLab(r, g, b) {
+  const L = rgbToLinear(r, g, b);
+  const x = (0.4124564 * L[0] + 0.3575761 * L[1] + 0.1804375 * L[2]) / 0.95047;
+  const y = (0.2126729 * L[0] + 0.7151522 * L[1] + 0.0721750 * L[2]);
+  const z = (0.0193339 * L[0] + 0.1191920 * L[1] + 0.9503041 * L[2]) / 1.08883;
+  const f = t => (t > 0.008856451679 ? Math.cbrt(t) : t * 7.787037037 + 16 / 116);
+  const fx = f(x), fy = f(y), fz = f(z);
+  return { L: 116 * fy - 16, a: 500 * (fx - fy), b: 200 * (fy - fz) };
+}
+
+/* OKLab — the space the clustering, the ramps and the gradient blending use */
+function rgbToOklab(r, g, b) {
+  const L = rgbToLinear(r, g, b);
+  const l = Math.cbrt(0.4122214708 * L[0] + 0.5363325363 * L[1] + 0.0514459929 * L[2]);
+  const m = Math.cbrt(0.2119034982 * L[0] + 0.6806995451 * L[1] + 0.1073969566 * L[2]);
+  const s = Math.cbrt(0.0883024619 * L[0] + 0.2817188376 * L[1] + 0.6299787005 * L[2]);
+  return {
+    L: 0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s,
+    a: 1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s,
+    b: 0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s
+  };
+}
+
+function oklabToRgb(L, A, B) {
+  const l_ = L + 0.3963377774 * A + 0.2158037573 * B;
+  const m_ = L - 0.1055613458 * A - 0.0638541728 * B;
+  const s_ = L - 0.0894841775 * A - 1.2914855480 * B;
+  const l = l_ * l_ * l_, m = m_ * m_ * m_, s = s_ * s_ * s_;
+  return linearToRgb([
+    +4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+    -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+    -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s
+  ]);
+}
+
+function oklabToLch(o) {
+  return { L: o.L, C: Math.hypot(o.a, o.b), h: mod360(Math.atan2(o.b, o.a) * 180 / Math.PI) };
+}
+function lchToOklab(L, C, h) {
+  const r = h * Math.PI / 180;
+  return { L: L, a: C * Math.cos(r), b: C * Math.sin(r) };
+}
+function lchToRgb(L, C, h) { const o = lchToOklab(L, C, h); return oklabToRgb(o.L, o.a, o.b); }
+
+/* CIEDE2000 — what "how far apart do these two actually look" means here */
+function deltaE2000(l1, a1, b1, l2, a2, b2) {
+  const RAD = Math.PI / 180, DEG = 180 / Math.PI;
+  const C1 = Math.hypot(a1, b1), C2 = Math.hypot(a2, b2);
+  const Cb = (C1 + C2) / 2, Cb7 = Math.pow(Cb, 7);
+  const G = 0.5 * (1 - Math.sqrt(Cb7 / (Cb7 + 6103515625)));   /* 25^7 */
+  const a1p = (1 + G) * a1, a2p = (1 + G) * a2;
+  const C1p = Math.hypot(a1p, b1), C2p = Math.hypot(a2p, b2);
+  let h1p = C1p === 0 ? 0 : mod360(Math.atan2(b1, a1p) * DEG);
+  let h2p = C2p === 0 ? 0 : mod360(Math.atan2(b2, a2p) * DEG);
+  const dLp = l2 - l1, dCp = C2p - C1p;
+  let dhp = 0;
+  if (C1p * C2p !== 0) {
+    dhp = h2p - h1p;
+    if (dhp > 180) dhp -= 360; else if (dhp < -180) dhp += 360;
+  }
+  const dHp = 2 * Math.sqrt(C1p * C2p) * Math.sin((dhp / 2) * RAD);
+  const Lbp = (l1 + l2) / 2, Cbp = (C1p + C2p) / 2;
+  let hbp;
+  if (C1p * C2p === 0) hbp = h1p + h2p;
+  else if (Math.abs(h1p - h2p) <= 180) hbp = (h1p + h2p) / 2;
+  else hbp = h1p + h2p < 360 ? (h1p + h2p + 360) / 2 : (h1p + h2p - 360) / 2;
+  const T = 1 - 0.17 * Math.cos((hbp - 30) * RAD) + 0.24 * Math.cos(2 * hbp * RAD)
+            + 0.32 * Math.cos((3 * hbp + 6) * RAD) - 0.20 * Math.cos((4 * hbp - 63) * RAD);
+  const dTh = 30 * Math.exp(-Math.pow((hbp - 275) / 25, 2));
+  const Cbp7 = Math.pow(Cbp, 7);
+  const Rc = 2 * Math.sqrt(Cbp7 / (Cbp7 + 6103515625));
+  const Sl = 1 + (0.015 * Math.pow(Lbp - 50, 2)) / Math.sqrt(20 + Math.pow(Lbp - 50, 2));
+  const Sc = 1 + 0.045 * Cbp, Sh = 1 + 0.015 * Cbp * T;
+  const Rt = -Math.sin(2 * dTh * RAD) * Rc;
+  const kL = dLp / Sl, kC = dCp / Sc, kH = dHp / Sh;
+  return Math.sqrt(kL * kL + kC * kC + kH * kH + Rt * kC * kH);
+}
+
+const deltaE = (c1, c2) => deltaE2000(c1.L, c1.a, c1.b, c2.L, c2.a, c2.b);
+
+/* ── contrast ────────────────────────────────────────────────────────── */
+function relLum(r, g, b) {
+  const L = rgbToLinear(r, g, b);
+  return 0.2126 * L[0] + 0.7152 * L[1] + 0.0722 * L[2];
+}
+function wcagRatio(c1, c2) {
+  const a = relLum(c1.r, c1.g, c1.b), b = relLum(c2.r, c2.g, c2.b);
+  return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+}
+/* APCA W3 0.1.9, the lightness-contrast reading WCAG 3 is built around */
+function apcaLc(txt, bg) {
+  const y = c => 0.2126729 * Math.pow(c.r / 255, 2.4) + 0.7151522 * Math.pow(c.g / 255, 2.4)
+                 + 0.0721750 * Math.pow(c.b / 255, 2.4);
+  let Yt = y(txt), Yb = y(bg);
+  Yt = Yt > 0.022 ? Yt : Yt + Math.pow(0.022 - Yt, 1.414);
+  Yb = Yb > 0.022 ? Yb : Yb + Math.pow(0.022 - Yb, 1.414);
+  if (Math.abs(Yb - Yt) < 0.0005) return 0;
+  let out;
+  if (Yb > Yt) {
+    out = (Math.pow(Yb, 0.56) - Math.pow(Yt, 0.57)) * 1.14;
+    out = out < 0.1 ? 0 : out - 0.027;
+  } else {
+    out = (Math.pow(Yb, 0.65) - Math.pow(Yt, 0.62)) * 1.14;
+    out = out > -0.1 ? 0 : out + 0.027;
+  }
+  return out * 100;
+}
+
+/* ── CMYK ────────────────────────────────────────────────────────────────
+   Two answers, because there are two questions. "straight" is the arithmetic
+   every converter does: strip the largest channel out as black and call the
+   rest ink. It is reversible and means nothing on a press.
+
+   "coated" runs an actual halftone model — Demichel area coverage over the
+   eight Neugebauer primaries of a coated offset press, Yule-Nielsen n = 1.7,
+   a 12% midtone dot gain, black overprinted on top — and then searches for
+   the ink mix whose printed colour lands closest to the one on screen. That
+   search is also the gamut test: when the closest it can get is still a
+   visible distance away, the colour cannot be printed in process ink, and the
+   page says so and shows what you would get instead. It is a model of a press,
+   not an ICC profile for yours. Soft-proof against the real thing.
+   ─────────────────────────────────────────────────────────────────────── */
+
+const YN = 1.7, YN_INV = 1 / YN;
+const PRESS_PRIMARIES = ['ffffff', '009ee0', 'e3007a', 'ffed00', '2e3192', '009944', 'e60012', '231f20'];
+const PRIM = PRESS_PRIMARIES.map(h => {
+  const c = hexToRgb(h), L = rgbToLinear(c.r, c.g, c.b);
+  return L.map(v => Math.pow(Math.max(v, 1e-6), YN_INV));
+});
+const K_INK = rgbToLinear(26, 23, 23);
+const dotGain = a => (a <= 0 ? 0 : a >= 1 ? 1 : clamp(a + 0.12 * Math.sin(Math.PI * a), 0, 1));
+
+function cmykToLinear(c, m, y, k) {
+  const ce = dotGain(c), me = dotGain(m), ye = dotGain(y), ke = dotGain(k);
+  const w = [
+    (1 - ce) * (1 - me) * (1 - ye), ce * (1 - me) * (1 - ye),
+    (1 - ce) * me * (1 - ye), (1 - ce) * (1 - me) * ye,
+    ce * me * (1 - ye), ce * (1 - me) * ye, (1 - ce) * me * ye, ce * me * ye
+  ];
+  const out = [0, 0, 0];
+  for (let i = 0; i < 8; i++) {
+    const wi = w[i]; if (wi <= 0) continue;
+    out[0] += wi * PRIM[i][0]; out[1] += wi * PRIM[i][1]; out[2] += wi * PRIM[i][2];
+  }
+  for (let ch = 0; ch < 3; ch++) {
+    const paper = Math.pow(out[ch], YN);
+    out[ch] = (1 - ke) * out[ch] + ke * Math.pow(paper * K_INK[ch], YN_INV);
+    out[ch] = clamp(Math.pow(out[ch], YN), 0, 1);
+  }
+  return out;
+}
+
+function cmykToRgb(c, m, y, k) { return linearToRgb(cmykToLinear(c, m, y, k)); }
+
+function straightCmyk(r, g, b) {
+  const R = r / 255, G = g / 255, B = b / 255;
+  const k = 1 - Math.max(R, G, B);
+  if (k >= 1) return { c: 0, m: 0, y: 0, k: 1 };
+  const d = 1 - k;
+  return { c: (1 - R - k) / d, m: (1 - G - k) / d, y: (1 - B - k) / d, k: k };
+}
+
+const cmykCache = new Map();
+function fitCmyk(rgb) {
+  const key = rgbToHex(rgb.r, rgb.g, rgb.b);
+  const hit = cmykCache.get(key);
+  if (hit) return hit;
+  const target = rgbToLab(rgb.r, rgb.g, rgb.b);
+  const seed = straightCmyk(rgb.r, rgb.g, rgb.b);
+  const err = (c, m, y, k) => {
+    const got = linearToRgb(cmykToLinear(c, m, y, k));
+    const lab = rgbToLab(got.r, got.g, got.b);
+    const dL = lab.L - target.L, da = lab.a - target.a, db = lab.b - target.b;
+    return dL * dL + da * da + db * db;
+  };
+  /* For a fixed black, walk cyan, magenta and yellow downhill on a shrinking
+     step. The surface is smooth and the seed is already close, so this lands
+     in the same place a far more expensive search would. */
+  const descend = k => {
+    let v = [clamp(seed.c, 0, 1), clamp(seed.m, 0, 1), clamp(seed.y, 0, 1)];
+    let e = err(v[0], v[1], v[2], k), step = 0.3;
+    for (let pass = 0; pass < 13; pass++) {
+      for (let ch = 0; ch < 3; ch++) {
+        for (let dir = -1; dir <= 1; dir += 2) {
+          const was = v[ch], now = clamp(was + dir * step, 0, 1);
+          if (now === was) continue;
+          v[ch] = now;
+          const e2 = err(v[0], v[1], v[2], k);
+          if (e2 < e) { e = e2; } else { v[ch] = was; }
+        }
+      }
+      step *= 0.62;
+    }
+    return { c: v[0], m: v[1], y: v[2], k: k, e: e };
+  };
+  let best = null;
+  for (let i = 0; i <= 16; i++) {
+    const got = descend(i / 16);
+    if (!best || got.e < best.e) best = got;
+  }
+  for (const dk of [0.03125, -0.03125, 0.015625, -0.015625]) {
+    const k = clamp(best.k + dk, 0, 1);
+    const got = descend(k);
+    if (got.e < best.e) best = got;
+  }
+  const printed = cmykToRgb(best.c, best.m, best.y, best.k);
+  const pl = rgbToLab(printed.r, printed.g, printed.b);
+  const out = {
+    c: best.c, m: best.m, y: best.y, k: best.k,
+    hex: rgbToHex(printed.r, printed.g, printed.b),
+    de: deltaE2000(target.L, target.a, target.b, pl.L, pl.a, pl.b)
+  };
+  if (cmykCache.size > 400) cmykCache.clear();
+  cmykCache.set(key, out);
+  return out;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   state
+   ═══════════════════════════════════════════════════════════════════════ */
+
+const state = { h: 18, s: 0.95, v: 0.91 };
+let cmykMode = 'coated';
+let lastHue = -1;
+const recents = [];
+
+function cur() {
+  const c = hsvToRgb(state.h, state.s, state.v);
+  return { r: Math.round(c.r), g: Math.round(c.g), b: Math.round(c.b) };
+}
+function curHex() { const c = cur(); return rgbToHex(c.r, c.g, c.b); }
+
+function setHsv(h, s, v, opts) {
+  opts = opts || {};
+  state.h = mod360(h); state.s = clamp(s, 0, 1); state.v = clamp(v, 0, 1);
+  render(opts);
+  if (opts.commit) remember();
+}
+function setRgb(r, g, b, opts) {
+  const hsv = rgbToHsv(clamp(r, 0, 255), clamp(g, 0, 255), clamp(b, 0, 255));
+  /* A grey has no hue and a black has no saturation; keep the ones on screen
+     so the knob doesn't jump home every time a slider passes through zero. */
+  setHsv(hsv.s < 1e-6 ? state.h : hsv.h, hsv.v < 1e-6 ? state.s : hsv.s, hsv.v, opts);
+}
+function setHex(hex, opts) {
+  const c = parseColor(hex);
+  if (!c) return false;
+  setRgb(c.r, c.g, c.b, opts);
+  return true;
+}
+
+function remember() {
+  const hex = curHex();
+  const at = recents.indexOf(hex);
+  if (at === 0) return;
+  if (at > 0) recents.splice(at, 1);
+  recents.unshift(hex);
+  if (recents.length > 18) recents.length = 18;
+  drawRecents();
+}
+
+/* ── clipboard ───────────────────────────────────────────────────────── */
+let toastTimer = 0;
+function toast(msg) {
+  const el = $('toast');
+  el.textContent = msg;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.textContent = ''; }, 1600);
+}
+function copy(text, what) {
+  const done = () => toast((what || 'copied') + ' → clipboard');
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done, () => fallback());
+  } else fallback();
+  function fallback() {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); done(); } catch (e) { toast('could not copy'); }
+    ta.remove();
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   the picker
+   ═══════════════════════════════════════════════════════════════════════ */
+
+const svBox = $('sv'), svCanvas = $('sv-canvas'), svKnob = $('sv-knob');
+const hueBox = $('hue'), hueCanvas = $('hue-canvas'), hueKnob = $('hue-knob');
+
+function fit(canvas, box) {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const w = Math.max(1, Math.round(box.clientWidth * dpr));
+  const h = Math.max(1, Math.round(box.clientHeight * dpr));
+  if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; return true; }
+  return false;
+}
+
+function drawSV() {
+  fit(svCanvas, svBox);
+  const ctx = svCanvas.getContext('2d'), w = svCanvas.width, h = svCanvas.height;
+  ctx.fillStyle = 'hsl(' + state.h + ', 100%, 50%)';
+  ctx.fillRect(0, 0, w, h);
+  let g = ctx.createLinearGradient(0, 0, w, 0);
+  g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+  g = ctx.createLinearGradient(0, 0, 0, h);
+  g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,1)');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+  lastHue = state.h;
+}
+
+function drawHue() {
+  fit(hueCanvas, hueBox);
+  const ctx = hueCanvas.getContext('2d'), w = hueCanvas.width, h = hueCanvas.height;
+  const g = ctx.createLinearGradient(0, 0, 0, h);
+  for (let i = 0; i <= 12; i++) g.addColorStop(i / 12, 'hsl(' + (i * 30) + ', 100%, 50%)');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+}
+
+function dragArea(el, onMove) {
+  let live = false;
+  el.addEventListener('pointerdown', e => {
+    live = true;
+    try { el.setPointerCapture(e.pointerId); } catch (err) {}
+    onMove(e); e.preventDefault();
+  });
+  el.addEventListener('pointermove', e => { if (live) { onMove(e); e.preventDefault(); } });
+  const stop = () => { if (live) { live = false; remember(); } };
+  el.addEventListener('pointerup', stop);
+  el.addEventListener('pointercancel', stop);
+  el.addEventListener('lostpointercapture', stop);
+}
+
+dragArea(svBox, e => {
+  const r = svBox.getBoundingClientRect();
+  setHsv(state.h, clamp((e.clientX - r.left) / r.width, 0, 1),
+         1 - clamp((e.clientY - r.top) / r.height, 0, 1));
+});
+dragArea(hueBox, e => {
+  const r = hueBox.getBoundingClientRect();
+  setHsv(clamp((e.clientY - r.top) / r.height, 0, 1) * 359.99, state.s, state.v);
+});
+
+svBox.addEventListener('keydown', e => {
+  const step = e.shiftKey ? 0.1 : 0.01;
+  let s = state.s, v = state.v, hit = true;
+  if (e.key === 'ArrowLeft') s -= step; else if (e.key === 'ArrowRight') s += step;
+  else if (e.key === 'ArrowUp') v += step; else if (e.key === 'ArrowDown') v -= step;
+  else hit = false;
+  if (hit) { e.preventDefault(); setHsv(state.h, s, v, { commit: true }); }
+});
+hueBox.addEventListener('keydown', e => {
+  const step = e.shiftKey ? 15 : 1;
+  let h = state.h, hit = true;
+  if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') h -= step;
+  else if (e.key === 'ArrowDown' || e.key === 'ArrowRight') h += step;
+  else hit = false;
+  if (hit) { e.preventDefault(); setHsv(h, state.s, state.v, { commit: true }); }
+});
+
+/* ── fields ──────────────────────────────────────────────────────────── */
+const fHex = $('f-hex');
+fHex.addEventListener('input', () => { if (fHex.value.trim()) setHex(fHex.value, { from: fHex }); });
+fHex.addEventListener('change', () => { if (!setHex(fHex.value, { from: fHex })) render({}); else remember(); });
+fHex.addEventListener('blur', () => render({}));
+
+function numField(id, read) {
+  const el = $(id);
+  const act = () => { read(parseFloat(el.value), el); };
+  el.addEventListener('input', act);
+  el.addEventListener('change', () => { act(); remember(); });
+  el.addEventListener('blur', () => render({}));
+  return el;
+}
+function rgbField(id, idx) {
+  numField(id, (v, el) => {
+    if (isNaN(v)) return;
+    const c = cur(); const t = [c.r, c.g, c.b];
+    t[idx] = clamp(Math.round(v), 0, 255);
+    setRgb(t[0], t[1], t[2], { from: el });
+  });
+}
+rgbField('f-r', 0); rgbField('f-g', 1); rgbField('f-b', 2);
+numField('f-hh', (v, el) => { if (!isNaN(v)) setHsv(v, state.s, state.v, { from: el }); });
+numField('f-ss', (v, el) => { if (!isNaN(v)) setHsv(state.h, v / 100, state.v, { from: el }); });
+numField('f-vv', (v, el) => { if (!isNaN(v)) setHsv(state.h, state.s, v / 100, { from: el }); });
+
+/* ── channel scales ──────────────────────────────────────────────────── */
+function channel(sliderId, numId, get, set) {
+  const sl = $(sliderId), nu = $(numId);
+  const push = (v, el) => { set(v, el); };
+  sl.addEventListener('input', () => push(parseFloat(sl.value), sl));
+  sl.addEventListener('change', remember);
+  nu.addEventListener('input', () => { const v = parseFloat(nu.value); if (!isNaN(v)) push(v, nu); });
+  nu.addEventListener('change', remember);
+  nu.addEventListener('blur', () => render({}));
+  return { sl: sl, nu: nu, get: get };
+}
+const chans = {
+  r: channel('s-r', 'n-r', () => cur().r, (v, el) => { const c = cur(); setRgb(v, c.g, c.b, { from: el }); }),
+  g: channel('s-g', 'n-g', () => cur().g, (v, el) => { const c = cur(); setRgb(c.r, v, c.b, { from: el }); }),
+  b: channel('s-b', 'n-b', () => cur().b, (v, el) => { const c = cur(); setRgb(c.r, c.g, v, { from: el }); }),
+  h: channel('s-h', 'n-h', () => Math.round(state.h), (v, el) => setHsv(v, state.s, state.v, { from: el })),
+  s: channel('s-s', 'n-s', () => Math.round(rgbToHsl(cur().r, cur().g, cur().b).s * 100),
+      (v, el) => { const c = cur(), hsl = rgbToHsl(c.r, c.g, c.b); const n = hslToRgb(state.h, v / 100, hsl.l); setRgb(n.r, n.g, n.b, { from: el }); }),
+  l: channel('s-l', 'n-l', () => Math.round(rgbToHsl(cur().r, cur().g, cur().b).l * 100),
+      (v, el) => { const c = cur(), hsl = rgbToHsl(c.r, c.g, c.b); const n = hslToRgb(state.h, hsl.s, v / 100); setRgb(n.r, n.g, n.b, { from: el }); })
+};
+
+function paintTracks() {
+  const c = cur(), hsl = rgbToHsl(c.r, c.g, c.b);
+  const ramp = stops => 'linear-gradient(to right, ' + stops.join(', ') + ')';
+  chans.r.sl.style.background = ramp(['rgb(0,' + c.g + ',' + c.b + ')', 'rgb(255,' + c.g + ',' + c.b + ')']);
+  chans.g.sl.style.background = ramp(['rgb(' + c.r + ',0,' + c.b + ')', 'rgb(' + c.r + ',255,' + c.b + ')']);
+  chans.b.sl.style.background = ramp(['rgb(' + c.r + ',' + c.g + ',0)', 'rgb(' + c.r + ',' + c.g + ',255)']);
+  const hues = [];
+  for (let i = 0; i <= 12; i++) {
+    const p = hslToRgb(i * 30, hsl.s, hsl.l);
+    hues.push(rgbToHex(p.r, p.g, p.b));
+  }
+  chans.h.sl.style.background = ramp(hues);
+  const s0 = hslToRgb(state.h, 0, hsl.l), s1 = hslToRgb(state.h, 1, hsl.l);
+  chans.s.sl.style.background = ramp([rgbToHex(s0.r, s0.g, s0.b), rgbToHex(s1.r, s1.g, s1.b)]);
+  const l1 = hslToRgb(state.h, hsl.s, 0.5);
+  chans.l.sl.style.background = ramp(['#000000', rgbToHex(l1.r, l1.g, l1.b), '#ffffff']);
+}
+
+/* ── ramp, harmony, recents ──────────────────────────────────────────── */
+function mixOklab(a, b, t) {
+  const A = rgbToOklab(a.r, a.g, a.b), B = rgbToOklab(b.r, b.g, b.b);
+  const o = oklabToRgb(A.L + (B.L - A.L) * t, A.a + (B.a - A.a) * t, A.b + (B.b - A.b) * t);
+  return { r: Math.round(o.r), g: Math.round(o.g), b: Math.round(o.b) };
+}
+
+function chipButton(hex, title, cls) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.style.background = hex;
+  b.title = title || hex;
+  if (cls) b.className = cls;
+  b.addEventListener('click', () => { setHex(hex, { commit: true }); });
+  return b;
+}
+
+function drawRamp() {
+  const host = $('ramp');
+  host.textContent = '';
+  const c = cur(), black = { r: 0, g: 0, b: 0 }, white = { r: 255, g: 255, b: 255 };
+  for (let i = 0; i <= 10; i++) {
+    const t = i / 10;
+    const m = t < 0.5 ? mixOklab(black, c, t * 2) : mixOklab(c, white, (t - 0.5) * 2);
+    const hex = rgbToHex(m.r, m.g, m.b);
+    host.appendChild(chipButton(hex, hex + (i === 5 ? ' — the colour itself' : '')));
+  }
+}
+
+const HARMONIES = [
+  ['complementary', [0, 180]],
+  ['split-complementary', [0, 150, 210]],
+  ['analogous', [-30, 0, 30]],
+  ['triadic', [0, 120, 240]],
+  ['tetradic', [0, 60, 180, 240]],
+  ['square', [0, 90, 180, 270]]
+];
+
+function drawHarmony() {
+  const host = $('harmony');
+  host.textContent = '';
+  HARMONIES.forEach(([name, offs]) => {
+    const row = document.createElement('div');
+    row.className = 'harm-row';
+    const lab = document.createElement('span');
+    lab.className = 'name'; lab.textContent = name;
+    const chips = document.createElement('div');
+    chips.className = 'chips';
+    offs.forEach(o => {
+      const c = hsvToRgb(state.h + o, state.s, state.v);
+      const hex = rgbToHex(c.r, c.g, c.b);
+      chips.appendChild(chipButton(hex, hex + '  ' + (o >= 0 ? '+' : '') + o + '°'));
+    });
+    row.append(lab, chips);
+    host.appendChild(row);
+  });
+  const row = document.createElement('div');
+  row.className = 'harm-row';
+  const lab = document.createElement('span');
+  lab.className = 'name'; lab.textContent = 'monochromatic';
+  const chips = document.createElement('div');
+  chips.className = 'chips';
+  [[0.35, 0.55], [0.6, 0.75], [1, 1], [0.85, 0.6], [0.5, 0.35]].forEach(([sm, vm]) => {
+    const c = hsvToRgb(state.h, clamp(state.s * sm, 0, 1), clamp(state.v * vm + (1 - vm) * 0.15, 0, 1));
+    const hex = rgbToHex(c.r, c.g, c.b);
+    chips.appendChild(chipButton(hex, hex));
+  });
+  row.append(lab, chips);
+  host.appendChild(row);
+}
+
+function drawRecents() {
+  const host = $('recents');
+  host.textContent = '';
+  if (!recents.length) {
+    const p = document.createElement('span');
+    p.className = 'note'; p.style.margin = '0';
+    p.textContent = 'nothing yet — every colour you settle on lands here.';
+    host.appendChild(p);
+    return;
+  }
+  recents.forEach(hex => host.appendChild(chipButton(hex)));
+}
+
+/* ── one render pass ─────────────────────────────────────────────────── */
+let pressFit = null;          /* {hex, fit} — the press search is not free */
+let heavyQueued = false;
+
+function cmykNow(wait) {
+  const c = cur(), hex = rgbToHex(c.r, c.g, c.b);
+  if (cmykMode === 'straight') return { k: straightCmyk(c.r, c.g, c.b), press: null };
+  if (pressFit && pressFit.hex === hex) return { k: pressFit.fit, press: pressFit.fit };
+  if (wait) { const fit = fitCmyk(c); pressFit = { hex: hex, fit: fit }; return { k: fit, press: fit }; }
+  return { k: null, press: null };
+}
+
+function cmykText(parts) {
+  if (!parts.k) return '…';
+  const p = v => Math.round(v * 100);
+  return 'cmyk(' + p(parts.k.c) + '%, ' + p(parts.k.m) + '%, ' + p(parts.k.y) + '%, ' + p(parts.k.k) + '%)';
+}
+
+function strings(wait) {
+  const c = cur(), hex = rgbToHex(c.r, c.g, c.b);
+  const hsl = rgbToHsl(c.r, c.g, c.b);
+  const lch = oklabToLch(rgbToOklab(c.r, c.g, c.b));
+  const lab = rgbToLab(c.r, c.g, c.b);
+  const pct = v => Math.round(v * 100);
+  return {
+    hex: hex,
+    rgb: 'rgb(' + c.r + ', ' + c.g + ', ' + c.b + ')',
+    hsv: 'hsv(' + Math.round(state.h) + ', ' + pct(state.s) + '%, ' + pct(state.v) + '%)',
+    hsl: 'hsl(' + Math.round(hsl.h) + ', ' + pct(hsl.s) + '%, ' + pct(hsl.l) + '%)',
+    oklch: 'oklch(' + rnd(lch.L * 100, 1) + '% ' + rnd(lch.C, 3) + ' ' + rnd(lch.h, 1) + ')',
+    lab: 'lab(' + rnd(lab.L, 1) + '% ' + rnd(lab.a, 1) + ' ' + rnd(lab.b, 1) + ')',
+    cmyk: cmykText(cmykNow(wait)),
+    css: '--color: ' + hex + ';'
+  };
+}
+
+function setField(el, v, from) {
+  if (el === from || el === document.activeElement) return;
+  if (el.value !== v) el.value = v;
+}
+
+function render(opts) {
+  opts = opts || {};
+  const from = opts.from || null;
+  const c = cur(), hex = rgbToHex(c.r, c.g, c.b);
+
+  if (state.h !== lastHue) drawSV();
+  svKnob.style.left = (state.s * 100) + '%';
+  svKnob.style.top = ((1 - state.v) * 100) + '%';
+  svKnob.style.background = hex;
+  hueKnob.style.top = (state.h / 360 * 100) + '%';
+  hueKnob.style.background = 'hsl(' + state.h + ', 100%, 50%)';
+  hueBox.setAttribute('aria-valuenow', Math.round(state.h));
+
+  $('big-chip').style.background = hex;
+  $('dock-chip').style.background = hex;
+  $('dock-hex').textContent = hex;
+
+  const s = strings(false);
+  setField(fHex, hex, from);
+  setField($('f-r'), String(c.r), from);
+  setField($('f-g'), String(c.g), from);
+  setField($('f-b'), String(c.b), from);
+  setField($('f-hh'), String(Math.round(state.h)), from);
+  setField($('f-ss'), String(Math.round(state.s * 100)), from);
+  setField($('f-vv'), String(Math.round(state.v * 100)), from);
+  $('f-hsl').textContent = s.hsl;
+  $('f-oklch').textContent = s.oklch;
+  $('f-lab').textContent = s.lab;
+  $('f-cmyk').textContent = s.cmyk;
+  $('f-css').textContent = s.css;
+
+  for (const key in chans) {
+    const ch = chans[key], v = String(ch.get());
+    if (ch.sl !== from) ch.sl.value = v;
+    setField(ch.nu, v, from);
+  }
+  paintTracks();
+  drawRamp();
+  drawHarmony();
+  paintContrastFromCurrent();
+
+  if (history.replaceState) {
+    try { history.replaceState(null, '', '#' + hex.slice(1)); } catch (e) {}
+  }
+  scheduleHeavy();
+}
+
+function scheduleHeavy() {
+  if (heavyQueued) return;
+  heavyQueued = true;
+  requestAnimationFrame(() => {
+    heavyQueued = false;
+    const c = cur(), hex = rgbToHex(c.r, c.g, c.b);
+    if (cmykMode === 'coated' && (!pressFit || pressFit.hex !== hex)) {
+      pressFit = { hex: hex, fit: fitCmyk(c) };
+    }
+    const parts = cmykNow(false);
+    $('f-cmyk').textContent = cmykText(parts);
+    const note = $('gamut');
+    if (cmykMode === 'straight') {
+      note.textContent = 'Straight conversion: the largest channel pulled out as black, '
+        + 'the rest called ink. Reversible, and no claim about any press.';
+    } else if (parts.press) {
+      const de = parts.press.de;
+      if (de <= 2) {
+        note.innerHTML = 'Printable. A coated press lands &Delta;E ' + de.toFixed(1)
+          + ' from this — at or under what the eye can separate.';
+      } else {
+        note.innerHTML = '<b>Outside the process-ink gamut.</b> The closest a coated press '
+          + 'gets is <b>' + parts.press.hex + '</b>, &Delta;E ' + de.toFixed(1)
+          + ' away &mdash; a difference you would see side by side.';
+      }
+    }
+    if (activeTab === 'match') renderMatches();
+    if (activeTab === 'palette' && palSrc === 'current') buildPalette();
+  });
+}
+
+/* ── quick actions ───────────────────────────────────────────────────── */
+function nudgeLch(fn) {
+  const c = cur();
+  const lch = oklabToLch(rgbToOklab(c.r, c.g, c.b));
+  fn(lch);
+  lch.L = clamp(lch.L, 0, 1); lch.C = Math.max(lch.C, 0);
+  const o = lchToRgb(lch.L, lch.C, lch.h);
+  setRgb(o.r, o.g, o.b, { commit: true });
+}
+function towards(anchor, by) {
+  let d = mod360(anchor - state.h);
+  if (d > 180) d -= 360;
+  setHsv(state.h + clamp(d, -by, by), state.s, state.v, { commit: true });
+}
+$('q-random').addEventListener('click', () => {
+  /* A uniform pick out of the RGB cube is mostly mud. Pick a hue flat, then
+     keep saturation and value in the range where a colour reads as a colour. */
+  setHsv(Math.random() * 360, 0.45 + Math.random() * 0.55, 0.45 + Math.random() * 0.55,
+         { commit: true });
+});
+$('q-lighten').addEventListener('click', () => nudgeLch(l => { l.L += 0.06; }));
+$('q-darken').addEventListener('click', () => nudgeLch(l => { l.L -= 0.06; }));
+$('q-sat').addEventListener('click', () => nudgeLch(l => { l.C = l.C * 1.18 + 0.008; }));
+$('q-desat').addEventListener('click', () => nudgeLch(l => { l.C *= 0.8; }));
+$('q-warm').addEventListener('click', () => towards(40, 8));
+$('q-cool').addEventListener('click', () => towards(220, 8));
+$('q-comp').addEventListener('click', () => setHsv(state.h + 180, state.s, state.v, { commit: true }));
+$('q-invert').addEventListener('click', () => {
+  const c = cur(); setRgb(255 - c.r, 255 - c.g, 255 - c.b, { commit: true });
+});
+$('q-copy-all').addEventListener('click', () => {
+  const s = strings(true);
+  copy(['hex   ' + s.hex, 'rgb   ' + s.rgb, 'hsl   ' + s.hsl, 'hsv   ' + s.hsv,
+        'oklch ' + s.oklch, 'lab   ' + s.lab, 'cmyk  ' + s.cmyk].join('\n'), 'every value');
+});
+document.querySelectorAll('[data-copy]').forEach(b => {
+  b.addEventListener('click', () => {
+    const s = strings(true);
+    const key = b.getAttribute('data-copy');
+    copy(s[key], key);
+  });
+});
+$('dock-hex').addEventListener('click', () => copy(curHex(), 'hex'));
+$('dock-chip').addEventListener('click', () => copy(curHex(), 'hex'));
+$('cmyk-mode').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  cmykMode = b.getAttribute('data-mode');
+  Array.from($('cmyk-mode').children).forEach(x => x.classList.toggle('on', x === b));
+  render({});
+});
+
+/* ── tabs ────────────────────────────────────────────────────────────── */
+let activeTab = 'pick';
+const TABS = ['pick', 'image', 'palette', 'contrast', 'gradient', 'match'];
+function showTab(name) {
+  if (TABS.indexOf(name) < 0) name = 'pick';
+  activeTab = name;
+  TABS.forEach(t => {
+    $('tab-' + t).setAttribute('aria-selected', String(t === name));
+    $('tab-' + t).classList.toggle('on', t === name);
+    $('panel-' + t).hidden = t !== name;
+  });
+  if (name === 'pick') { drawSV(); drawHue(); }
+  if (name === 'palette') {
+    if (!palette.length || palSrc === 'current') buildPalette(); else drawWheel();
+  }
+  if (name === 'match') renderMatches();
+  if (name === 'gradient') drawGradient();
+  if (name === 'contrast') paintContrast();
+}
+$('tabs').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  showTab(b.id.replace('tab-', ''));
+});
+
+/* ════════════════════════════════════════════════════════════════════════
+   image
+   ═══════════════════════════════════════════════════════════════════════ */
+
+const imgCanvas = $('img-canvas');
+const natCanvas = document.createElement('canvas');   /* full resolution, for reads */
+let natCtx = null, haveImage = false, imgData = null;
+
+function setStatus(el, msg, bad) {
+  const n = $(el);
+  n.textContent = msg || '';
+  n.classList.toggle('error', !!bad);
+}
+
+function loadImage(src, label) {
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.onload = () => {
+    const MAX = 3600;
+    const scale = Math.min(1, MAX / Math.max(img.naturalWidth || 1, img.naturalHeight || 1));
+    const w = Math.max(1, Math.round((img.naturalWidth || 1) * scale));
+    const h = Math.max(1, Math.round((img.naturalHeight || 1) * scale));
+    natCanvas.width = w; natCanvas.height = h;
+    natCtx = natCanvas.getContext('2d', { willReadFrequently: true });
+    natCtx.drawImage(img, 0, 0, w, h);
+    imgCanvas.width = w; imgCanvas.height = h;
+    imgCanvas.getContext('2d').drawImage(natCanvas, 0, 0);
+    try {
+      imgData = natCtx.getImageData(0, 0, w, h);
+    } catch (err) {
+      imgData = null;
+      setStatus('img-status', 'The browser will not let this image be read pixel by pixel.', true);
+      return;
+    }
+    haveImage = true;
+    clusterCache = null;
+    $('stage-wrap').hidden = false;
+    $('img-tools').hidden = false;
+    setStatus('img-status', (label ? label + ' — ' : '') + w + ' × ' + h
+      + (scale < 1 ? ' (scaled down from ' + img.naturalWidth + ' × ' + img.naturalHeight + ')' : ''));
+    if (activeTab === 'palette' || palSrc === 'image') buildPalette();
+    if (src.indexOf('blob:') === 0) URL.revokeObjectURL(src);
+  };
+  img.onerror = () => {
+    setStatus('img-status', 'That file could not be decoded as an image.', true);
+    if (src.indexOf('blob:') === 0) URL.revokeObjectURL(src);
+  };
+  img.src = src;
+}
+
+function takeFile(file) {
+  if (!file) return;
+  if (!/^image\//.test(file.type || '')) {
+    setStatus('img-status', 'That is not an image file.', true);
+    return;
+  }
+  setStatus('img-status', 'reading …');
+  loadImage(URL.createObjectURL(file), file.name);
+}
+
+$('drop').addEventListener('click', () => $('file').click());
+$('drop').addEventListener('keydown', e => {
+  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('file').click(); }
+});
+$('file').addEventListener('change', e => { takeFile(e.target.files && e.target.files[0]); e.target.value = ''; });
+['dragenter', 'dragover'].forEach(k => $('drop').addEventListener(k, e => {
+  e.preventDefault(); $('drop').classList.add('drag');
+}));
+['dragleave', 'drop'].forEach(k => $('drop').addEventListener(k, e => {
+  e.preventDefault(); $('drop').classList.remove('drag');
+}));
+$('drop').addEventListener('drop', e => {
+  const dt = e.dataTransfer;
+  if (dt && dt.files && dt.files.length) takeFile(dt.files[0]);
+});
+window.addEventListener('paste', e => {
+  const items = (e.clipboardData && e.clipboardData.items) || [];
+  for (let i = 0; i < items.length; i++) {
+    if (items[i].type && items[i].type.indexOf('image/') === 0) {
+      takeFile(items[i].getAsFile());
+      showTab('image');
+      e.preventDefault();
+      return;
+    }
+  }
+  const text = e.clipboardData && e.clipboardData.getData('text');
+  if (text && document.activeElement === document.body && parseColor(text.trim())) {
+    setHex(text.trim(), { commit: true });
+    toast('pasted ' + curHex());
+  }
+});
+$('img-clear').addEventListener('click', () => {
+  haveImage = false; imgData = null; clusterCache = null;
+  $('stage-wrap').hidden = true; $('img-tools').hidden = true;
+  setStatus('img-status', '');
+});
+$('img-palette').addEventListener('click', () => {
+  palSrc = 'image';
+  Array.from($('pal-src').children).forEach(x => x.classList.toggle('on', x.getAttribute('data-src') === 'image'));
+  showTab('palette');
+  buildPalette();
+});
+
+/* ── reading a pixel ─────────────────────────────────────────────────── */
+function sampleAt(x, y) {
+  if (!imgData) return null;
+  const n = parseInt($('sample').value, 10) || 1, half = (n - 1) / 2;
+  const w = imgData.width, h = imgData.height, d = imgData.data;
+  let lr = 0, lg = 0, lb = 0, count = 0;
+  for (let dy = -half; dy <= half; dy++) {
+    for (let dx = -half; dx <= half; dx++) {
+      const px = clamp(Math.round(x + dx), 0, w - 1), py = clamp(Math.round(y + dy), 0, h - 1);
+      const i = (py * w + px) * 4;
+      if (d[i + 3] < 8) continue;
+      /* Averaged in linear light: an average of gamma-encoded numbers is
+         darker than the light actually falling on that patch. */
+      lr += toLinear(d[i] / 255); lg += toLinear(d[i + 1] / 255); lb += toLinear(d[i + 2] / 255);
+      count++;
+    }
+  }
+  if (!count) return null;
+  const out = linearToRgb([lr / count, lg / count, lb / count]);
+  return { r: Math.round(out.r), g: Math.round(out.g), b: Math.round(out.b) };
+}
+
+function canvasPoint(e) {
+  const r = imgCanvas.getBoundingClientRect();
+  return {
+    x: (e.clientX - r.left) / r.width * imgCanvas.width,
+    y: (e.clientY - r.top) / r.height * imgCanvas.height,
+    rx: e.clientX - r.left, ry: e.clientY - r.top
+  };
+}
+
+const loupe = $('loupe'), loupeCanvas = $('loupe-canvas'), loupeCtx = loupeCanvas.getContext('2d');
+function showLoupe(p) {
+  if (!imgData) return;
+  const span = 11, px = loupeCanvas.width / span;
+  loupeCtx.imageSmoothingEnabled = false;
+  loupeCtx.fillStyle = '#000';
+  loupeCtx.fillRect(0, 0, loupeCanvas.width, loupeCanvas.height);
+  loupeCtx.drawImage(natCanvas,
+    Math.round(p.x) - (span - 1) / 2, Math.round(p.y) - (span - 1) / 2, span, span,
+    0, 0, loupeCanvas.width, loupeCanvas.height);
+  loupeCtx.strokeStyle = 'rgba(255,255,255,0.9)';
+  loupeCtx.lineWidth = 1;
+  loupeCtx.strokeRect(Math.floor(span / 2) * px + 0.5, Math.floor(span / 2) * px + 0.5, px - 1, px - 1);
+  const c = sampleAt(p.x, p.y);
+  const hex = c ? rgbToHex(c.r, c.g, c.b) : '—';
+  $('loupe-hex').textContent = hex;
+  loupe.style.display = 'block';
+  const w = loupe.offsetWidth, h = loupe.offsetHeight;
+  const cw = imgCanvas.clientWidth, ch = imgCanvas.clientHeight;
+  /* A loupe sitting on top of a small picture hides the thing you are aiming
+     at, so when there is room beside the image it goes there instead. */
+  const beside = $('stage-wrap').parentElement.clientWidth - cw;
+  if (beside > w + 18) {
+    loupe.style.left = (cw + 12) + 'px';
+    loupe.style.top = clamp(p.ry - h / 2, 0, Math.max(0, ch - h)) + 'px';
+  } else {
+    loupe.style.left = clamp(p.rx + 18, 0, Math.max(0, cw - w)) + 'px';
+    loupe.style.top = clamp(p.ry + 18, 0, Math.max(0, ch - h)) + 'px';
+  }
+}
+imgCanvas.addEventListener('pointermove', e => { showLoupe(canvasPoint(e)); });
+imgCanvas.addEventListener('pointerleave', () => { loupe.style.display = 'none'; });
+let picking = false;
+imgCanvas.addEventListener('pointerdown', e => {
+  picking = true;
+  try { imgCanvas.setPointerCapture(e.pointerId); } catch (err) {}
+  const p = canvasPoint(e), c = sampleAt(p.x, p.y);
+  if (c) setRgb(c.r, c.g, c.b, {});
+  showLoupe(p);
+  e.preventDefault();
+});
+imgCanvas.addEventListener('pointermove', e => {
+  if (!picking) return;
+  const p = canvasPoint(e), c = sampleAt(p.x, p.y);
+  if (c) setRgb(c.r, c.g, c.b, {});
+});
+['pointerup', 'pointercancel'].forEach(k => imgCanvas.addEventListener(k, () => {
+  if (picking) { picking = false; remember(); toast('picked ' + curHex()); }
+}));
+
+/* ════════════════════════════════════════════════════════════════════════
+   palette
+   ═══════════════════════════════════════════════════════════════════════ */
+
+let palSrc = 'image';
+let palette = [];
+let palMeta = { baseH: 0, rule: 'analogous', n: 5 };
+let clusterCache = null;
+
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function imageSamples() {
+  if (!imgData) return null;
+  const w = imgData.width, h = imgData.height, d = imgData.data;
+  const step = Math.max(1, Math.round(Math.sqrt(w * h / 14000)));
+  const pts = [];
+  for (let y = 0; y < h; y += step) {
+    for (let x = 0; x < w; x += step) {
+      const i = (y * w + x) * 4;
+      if (d[i + 3] < 128) continue;
+      const o = rgbToOklab(d[i], d[i + 1], d[i + 2]);
+      pts.push(o.L, o.a, o.b);
+    }
+  }
+  return pts.length ? new Float64Array(pts) : null;
+}
+
+/* k-means++ in OKLab. Clustering there rather than in RGB is what makes the
+   answer match what the eye calls dominant: distance in OKLab is roughly
+   distance in appearance, which is exactly the thing being averaged. */
+function kmeans(pts, k, seed) {
+  const n = pts.length / 3;
+  k = Math.min(k, n);
+  const rand = mulberry32(seed || 1);
+  const cx = new Float64Array(k * 3);
+  const d2 = new Float64Array(n).fill(Infinity);
+  let first = Math.floor(rand() * n);
+  cx[0] = pts[first * 3]; cx[1] = pts[first * 3 + 1]; cx[2] = pts[first * 3 + 2];
+  for (let c = 1; c < k; c++) {
+    let total = 0;
+    for (let i = 0; i < n; i++) {
+      const dL = pts[i * 3] - cx[(c - 1) * 3], da = pts[i * 3 + 1] - cx[(c - 1) * 3 + 1],
+            db = pts[i * 3 + 2] - cx[(c - 1) * 3 + 2];
+      const d = dL * dL + da * da + db * db;
+      if (d < d2[i]) d2[i] = d;
+      total += d2[i];
+    }
+    let pick = rand() * total, at = 0;
+    for (; at < n - 1; at++) { pick -= d2[at]; if (pick <= 0) break; }
+    cx[c * 3] = pts[at * 3]; cx[c * 3 + 1] = pts[at * 3 + 1]; cx[c * 3 + 2] = pts[at * 3 + 2];
+  }
+  const owner = new Int32Array(n);
+  const sum = new Float64Array(k * 3), count = new Float64Array(k);
+  for (let pass = 0; pass < 24; pass++) {
+    let moved = 0;
+    sum.fill(0); count.fill(0);
+    for (let i = 0; i < n; i++) {
+      let best = 0, bd = Infinity;
+      for (let c = 0; c < k; c++) {
+        const dL = pts[i * 3] - cx[c * 3], da = pts[i * 3 + 1] - cx[c * 3 + 1],
+              db = pts[i * 3 + 2] - cx[c * 3 + 2];
+        const d = dL * dL + da * da + db * db;
+        if (d < bd) { bd = d; best = c; }
+      }
+      if (owner[i] !== best) { owner[i] = best; moved++; }
+      sum[best * 3] += pts[i * 3]; sum[best * 3 + 1] += pts[i * 3 + 1]; sum[best * 3 + 2] += pts[i * 3 + 2];
+      count[best]++;
+    }
+    for (let c = 0; c < k; c++) {
+      if (!count[c]) continue;
+      cx[c * 3] = sum[c * 3] / count[c];
+      cx[c * 3 + 1] = sum[c * 3 + 1] / count[c];
+      cx[c * 3 + 2] = sum[c * 3 + 2] / count[c];
+    }
+    if (!moved && pass) break;
+  }
+  const out = [];
+  for (let c = 0; c < k; c++) {
+    if (!count[c]) continue;
+    const rgb = oklabToRgb(cx[c * 3], cx[c * 3 + 1], cx[c * 3 + 2]);
+    const lch = oklabToLch({ L: cx[c * 3], a: cx[c * 3 + 1], b: cx[c * 3 + 2] });
+    out.push({
+      L: lch.L, C: lch.C, h: lch.h, share: count[c] / n,
+      hex: rgbToHex(Math.round(rgb.r), Math.round(rgb.g), Math.round(rgb.b))
+    });
+  }
+  return out.sort((a, b) => b.share - a.share);
+}
+
+function clustersFor(k) {
+  if (clusterCache && clusterCache.k === k) return clusterCache.list;
+  const pts = imageSamples();
+  if (!pts) return null;
+  const list = kmeans(pts, k, 20250214);
+  clusterCache = { k: k, list: list };
+  return list;
+}
+
+const RULE_OFFSETS = {
+  complementary: [0, 180],
+  split: [0, 150, 210],
+  triadic: [0, 120, 240],
+  tetradic: [0, 60, 180, 240],
+  square: [0, 90, 180, 270]
+};
+const RULE_LABEL = {
+  dominant: 'dominant', complementary: 'complementary', split: 'split-complementary',
+  analogous: 'analogous', triadic: 'triadic', tetradic: 'tetradic', square: 'square',
+  monochromatic: 'monochromatic'
+};
+
+function targetHues(rule, n, baseH) {
+  if (rule === 'analogous') {
+    const out = [];
+    const spread = n <= 5 ? 30 : Math.max(12, Math.round(150 / (n - 1)));
+    for (let i = 0; i < n; i++) out.push(mod360(baseH + (i - (n - 1) / 2) * spread));
+    return out;
+  }
+  if (rule === 'monochromatic' || rule === 'dominant') return new Array(n).fill(mod360(baseH));
+  const offs = RULE_OFFSETS[rule] || [0];
+  const out = [];
+  for (let i = 0; i < n; i++) out.push(mod360(baseH + offs[i % offs.length]));
+  return out;
+}
+
+const hueGap = (a, b) => { const d = Math.abs(mod360(a) - mod360(b)); return d > 180 ? 360 - d : d; };
+
+function buildPalette() {
+  const n = clamp(parseInt($('pal-count').value, 10) || 5, 2, 16);
+  $('pal-count').value = String(n);
+  const rule = $('pal-rule').value;
+  const fromImage = palSrc === 'image' && haveImage && !!imgData;
+  const pool = fromImage ? (clustersFor(clamp(Math.max(n + 4, 8), 2, 20)) || []) : [];
+  const c = cur(), here = oklabToLch(rgbToOklab(c.r, c.g, c.b));
+
+  let base = { L: here.L, C: here.C, h: here.h, share: 1, hex: curHex() };
+  if (fromImage && pool.length) {
+    /* The hue the picture is "about" is not simply the commonest colour: a
+       photo is mostly muted. Weight how much of the frame a cluster holds by
+       how much colour it actually carries. */
+    let best = null;
+    pool.forEach(p => {
+      const score = p.share * (0.22 + p.C * 5);
+      if (!best || score > best.score) best = { p: p, score: score };
+    });
+    base = best.p;
+  }
+
+  const out = [];
+  if (rule === 'dominant' && fromImage && pool.length) {
+    pool.slice(0, n).forEach(p => out.push({ hex: p.hex, origin: 'image', share: p.share }));
+  } else if (rule === 'monochromatic' || rule === 'dominant') {
+    for (let i = 0; i < n; i++) {
+      const t = n === 1 ? 0.5 : i / (n - 1);
+      const L = 0.28 + t * 0.64;
+      const C = base.C * (1 - Math.abs(2 * t - 1) * 0.45);
+      const g = lchToRgb(L, C, base.h);
+      out.push({ hex: rgbToHex(Math.round(g.r), Math.round(g.g), Math.round(g.b)),
+                 origin: 'step', step: i + 1, of: n });
+    }
+  } else {
+    const hues = targetHues(rule, n, base.h);
+    const used = new Set();
+    const TOL = 22;
+    hues.forEach((t, i) => {
+      const rep = hues.slice(0, i).filter(x => x === t).length;
+      let pick = -1, gap = Infinity;
+      pool.forEach((p, idx) => {
+        if (used.has(idx) || p.C < 0.02) return;
+        const d = hueGap(p.h, t);
+        if (d < gap) { gap = d; pick = idx; }
+      });
+      if (pick >= 0 && gap <= TOL) {
+        used.add(pick);
+        out.push({ hex: pool[pick].hex, origin: 'image', share: pool[pick].share });
+        return;
+      }
+      /* Nothing in the picture sits on that hue. Take the strongest colour
+         still going spare and turn it onto the target, which keeps the
+         image's own lightness and chroma while obeying the rule. */
+      let donor = null, donorIdx = -1;
+      pool.forEach((p, idx) => {
+        if (used.has(idx)) return;
+        const score = p.share * (0.22 + p.C * 5);
+        if (!donor || score > donor.score) { donor = { p: p, score: score }; donorIdx = idx; }
+      });
+      const src = donor ? donor.p : base;
+      if (donorIdx >= 0) used.add(donorIdx);
+      const lift = rep ? (rep % 2 ? 1 : -1) * Math.ceil(rep / 2) * 0.12 : 0;
+      const L = clamp(src.L + lift, 0.16, 0.95);
+      const g = lchToRgb(L, Math.max(src.C, 0.04), t);
+      out.push({
+        hex: rgbToHex(Math.round(g.r), Math.round(g.g), Math.round(g.b)),
+        origin: fromImage ? 'turned' : 'built',
+        turn: Math.round(hueGap(src.h, t))
+      });
+    });
+  }
+
+  palette = out;
+  palMeta = { baseH: base.h, rule: rule, n: n };
+  drawPalette();
+  drawWheel(base.h, rule, n);
+
+  const bits = [];
+  if (palSrc === 'current') bits.push('Grown from ' + curHex() + '.');
+  else if (!fromImage) bits.push('No image yet, so this is grown from the current colour instead.');
+  if (fromImage) {
+    const taken = out.filter(x => x.origin === 'image').length;
+    const turned = out.filter(x => x.origin === 'turned').length;
+    const steps = out.filter(x => x.origin === 'step').length;
+    const how = [];
+    if (taken) how.push(taken + ' taken straight from the image');
+    if (turned) how.push(turned + ' turned onto the rule');
+    if (steps) how.push(steps + " stepped along the image's own hue");
+    bits.push(how.join(', ') + '.');
+  }
+  setStatus('pal-status', bits.join(' '));
+}
+
+function drawPalette() {
+  const host = $('pal-grid');
+  host.textContent = '';
+  palette.forEach(p => {
+    const box = document.createElement('div');
+    box.className = 'swatch';
+    const chip = document.createElement('button');
+    chip.type = 'button'; chip.className = 'chip';
+    chip.style.background = p.hex;
+    chip.title = 'open ' + p.hex + ' in the picker';
+    chip.addEventListener('click', () => {
+      setHex(p.hex, { commit: true });
+      toast(p.hex + ' → picker');
+      showTab('pick');
+    });
+    const hex = document.createElement('div');
+    hex.className = 'hex'; hex.textContent = p.hex;
+    const meta = document.createElement('div');
+    meta.className = 'meta';
+    meta.textContent = p.origin === 'image'
+      ? Math.round(p.share * 100) + '% of the image'
+      : p.origin === 'step'
+        ? 'step ' + p.step + ' of ' + p.of
+        : p.origin === 'turned'
+          ? (p.turn ? 'turned ' + p.turn + '°' : 'built to the rule')
+          : 'from the current colour';
+    const acts = document.createElement('div');
+    acts.className = 'acts';
+    const cp = document.createElement('button');
+    cp.type = 'button'; cp.className = 'ghost'; cp.textContent = 'copy';
+    cp.addEventListener('click', () => copy(p.hex, p.hex));
+    acts.appendChild(cp);
+    box.append(chip, hex, meta, acts);
+    host.appendChild(box);
+  });
+}
+
+/* The wheel from the chart: the ring, the rule's geometry drawn across it. */
+function drawWheel(baseH, rule, n) {
+  const cv = $('wheel');
+  if (baseH == null) { baseH = palMeta.baseH; rule = palMeta.rule; n = palMeta.n; }
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const size = 210;
+  cv.width = size * dpr; cv.height = size * dpr;
+  const ctx = cv.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, size, size);
+  const cxp = size / 2, cyp = size / 2, outer = 92, inner = 68;
+
+  for (let a = 0; a < 360; a++) {
+    ctx.beginPath();
+    ctx.arc(cxp, cyp, (outer + inner) / 2, (a - 91) * Math.PI / 180, (a - 89) * Math.PI / 180);
+    ctx.strokeStyle = 'hsl(' + a + ', 100%, 50%)';
+    ctx.lineWidth = outer - inner;
+    ctx.stroke();
+  }
+  if (rule === 'monochromatic') {
+    const g = ctx.createRadialGradient(cxp, cyp, 0, cxp, cyp, inner);
+    g.addColorStop(0, '#ffffff');
+    g.addColorStop(1, 'hsl(' + Math.round(baseH) + ', 100%, 50%)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(cxp, cyp, inner - 2, 0, Math.PI * 2); ctx.fill();
+  }
+
+  const hues = rule === 'dominant' && palette.length
+    ? palette.map(p => { const c = hexToRgb(p.hex); return rgbToHsv(c.r, c.g, c.b).h; })
+    : targetHues(rule, Math.max(n || 5, 2), baseH);
+  const seen = [];
+  hues.forEach(h => { if (!seen.some(x => Math.abs(x - h) < 0.5)) seen.push(h); });
+  const pt = h => {
+    const a = (h - 90) * Math.PI / 180;
+    return [cxp + Math.cos(a) * (outer + inner) / 2, cyp + Math.sin(a) * (outer + inner) / 2];
+  };
+  if (seen.length > 1 && rule !== 'dominant' && rule !== 'monochromatic') {
+    const ordered = seen.slice().sort((a, b) => a - b);
+    ctx.beginPath();
+    ordered.forEach((h, i) => { const p = pt(h); i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]); });
+    if (ordered.length > 2) ctx.closePath();
+    ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+  seen.forEach(h => {
+    const p = pt(h);
+    ctx.beginPath(); ctx.arc(p[0], p[1], 9, 0, Math.PI * 2);
+    ctx.fillStyle = 'hsl(' + Math.round(h) + ', 100%, 50%)';
+    ctx.fill();
+    ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 1; ctx.stroke();
+  });
+
+  const caps = {
+    dominant: 'the hues the image actually holds',
+    complementary: 'two hues, opposite each other',
+    split: 'a hue and the two either side of its opposite',
+    analogous: 'neighbours, stepping around the base hue',
+    triadic: 'three hues, 120° apart',
+    tetradic: 'two complementary pairs, a rectangle',
+    square: 'four hues, 90° apart',
+    monochromatic: 'one hue, lightened and darkened'
+  };
+  $('wheel-cap').textContent = RULE_LABEL[rule] + ' — ' + caps[rule]
+    + ', from ' + Math.round(baseH) + '°';
+}
+
+$('pal-src').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  palSrc = b.getAttribute('data-src');
+  Array.from($('pal-src').children).forEach(x => x.classList.toggle('on', x === b));
+  buildPalette();
+});
+$('pal-rule').addEventListener('change', buildPalette);
+$('pal-count').addEventListener('change', buildPalette);
+$('pal-count').addEventListener('input', buildPalette);
+$('pal-go').addEventListener('click', buildPalette);
+$('pal-copy').addEventListener('click', () => copy(palette.map(p => p.hex).join('\n'), 'palette'));
+$('pal-css').addEventListener('click', () => copy(
+  ':root {\n' + palette.map((p, i) => '  --colour-' + (i + 1) + ': ' + p.hex + ';').join('\n') + '\n}',
+  'palette css'));
+$('pal-json').addEventListener('click', () => copy(JSON.stringify(palette.map(p => ({
+  hex: p.hex, from: p.origin, share: p.share != null ? rnd(p.share, 4) : undefined
+})), null, 2), 'palette json'));
+
+/* ════════════════════════════════════════════════════════════════════════
+   contrast
+   ═══════════════════════════════════════════════════════════════════════ */
+
+let conFg = '#ffffff', conBg = '#101010', conFollow = 'fg';
+
+function paintContrastFromCurrent() {
+  if (conFollow === 'fg') conFg = curHex();
+  else if (conFollow === 'bg') conBg = curHex();
+  paintContrast();
+}
+
+function grade(label, ok, detail) {
+  const d = document.createElement('div');
+  d.className = 'grade ' + (ok ? 'pass' : 'fail');
+  const l = document.createElement('div');
+  l.className = 'lab'; l.textContent = label;
+  const r = document.createElement('div');
+  r.className = 'res'; r.textContent = (ok ? 'passes' : 'fails') + ' · ' + detail;
+  d.append(l, r);
+  return d;
+}
+
+function paintContrast() {
+  const fg = parseColor(conFg) || { r: 255, g: 255, b: 255 };
+  const bg = parseColor(conBg) || { r: 0, g: 0, b: 0 };
+  const fgHex = rgbToHex(fg.r, fg.g, fg.b), bgHex = rgbToHex(bg.r, bg.g, bg.b);
+  $('con-fg-chip').style.background = fgHex;
+  $('con-bg-chip').style.background = bgHex;
+  if (document.activeElement !== $('con-fg')) $('con-fg').value = fgHex;
+  if (document.activeElement !== $('con-bg')) $('con-bg').value = bgHex;
+  const demo = $('con-demo');
+  demo.style.background = bgHex;
+  demo.style.color = fgHex;
+  const ratio = wcagRatio(fg, bg);
+  $('ratio').innerHTML = rnd(ratio, 2).toFixed(2) + '<span class="unit">:1</span>';
+  const g = $('grades');
+  g.textContent = '';
+  g.append(
+    grade('body text, AA', ratio >= 4.5, 'needs 4.5'),
+    grade('body text, AAA', ratio >= 7, 'needs 7'),
+    grade('large text, AA', ratio >= 3, 'needs 3'),
+    grade('icons & borders', ratio >= 3, 'needs 3')
+  );
+  const lc = apcaLc(fg, bg);
+  const abs = Math.abs(lc);
+  const reading = abs >= 90 ? 'enough for anything, down to thin small text'
+    : abs >= 75 ? 'fine for body text'
+    : abs >= 60 ? 'fine for larger or heavier text, not for body copy'
+    : abs >= 45 ? 'headlines and large text only'
+    : abs >= 30 ? 'non-text only — borders, icons, dividers'
+    : 'too close to read';
+  $('apca').innerHTML = 'APCA <b>Lc ' + rnd(abs, 1) + '</b> &mdash; ' + reading
+    + '. WCAG 2 and APCA disagree most on dark backgrounds, where the ratio is '
+    + 'kinder than the eye is.';
+  $('con-note').textContent = conFollow
+    ? 'The ' + (conFollow === 'fg' ? 'text' : 'background') + ' colour is following the picker.'
+    : 'Both colours are set here; the picker no longer drives either.';
+}
+
+function setCon(which, hex) {
+  if (which === 'fg') conFg = hex; else conBg = hex;
+  paintContrast();
+}
+$('con-fg').addEventListener('input', () => {
+  const c = parseColor($('con-fg').value);
+  if (c) { if (conFollow === 'fg') conFollow = null; setCon('fg', rgbToHex(c.r, c.g, c.b)); }
+});
+$('con-bg').addEventListener('input', () => {
+  const c = parseColor($('con-bg').value);
+  if (c) { if (conFollow === 'bg') conFollow = null; setCon('bg', rgbToHex(c.r, c.g, c.b)); }
+});
+$('con-fg').addEventListener('blur', paintContrast);
+$('con-bg').addEventListener('blur', paintContrast);
+$('con-fg-chip').addEventListener('click', () => setHex(conFg, { commit: true }));
+$('con-bg-chip').addEventListener('click', () => setHex(conBg, { commit: true }));
+document.querySelectorAll('[data-con-set]').forEach(b => {
+  b.addEventListener('click', () => {
+    conFollow = b.getAttribute('data-con-set');
+    paintContrastFromCurrent();
+  });
+});
+$('con-swap').addEventListener('click', () => {
+  const t = conFg; conFg = conBg; conBg = t;
+  conFollow = conFollow === 'fg' ? 'bg' : conFollow === 'bg' ? 'fg' : null;
+  paintContrast();
+});
+
+/* Walk the lightness of one side in OKLab until the pair clears 4.5:1, taking
+   the smaller move of the two directions so the colour stays recognisable. */
+function fixSide(which) {
+  const moving = parseColor(which === 'fg' ? conFg : conBg);
+  const fixed = parseColor(which === 'fg' ? conBg : conFg);
+  if (!moving || !fixed) return;
+  const lch = oklabToLch(rgbToOklab(moving.r, moving.g, moving.b));
+  let best = null;
+  for (let dir = -1; dir <= 1; dir += 2) {
+    for (let step = 0; step <= 100; step++) {
+      const L = clamp(lch.L + dir * step * 0.01, 0, 1);
+      const c = lchToRgb(L, lch.C, lch.h);
+      const got = { r: Math.round(c.r), g: Math.round(c.g), b: Math.round(c.b) };
+      const ratio = which === 'fg' ? wcagRatio(got, fixed) : wcagRatio(fixed, got);
+      if (ratio >= 4.5) {
+        if (!best || step < best.step) best = { step: step, hex: rgbToHex(got.r, got.g, got.b) };
+        break;
+      }
+      if (L === 0 || L === 1) break;
+    }
+  }
+  if (!best) { toast('no lightness of that colour reaches 4.5:1'); return; }
+  if (conFollow === which) conFollow = null;
+  setCon(which, best.hex);
+  toast(which === 'fg' ? 'text moved to ' + best.hex : 'background moved to ' + best.hex);
+}
+$('con-fix-fg').addEventListener('click', () => fixSide('fg'));
+$('con-fix-bg').addEventListener('click', () => fixSide('bg'));
+
+/* ════════════════════════════════════════════════════════════════════════
+   gradient
+   ═══════════════════════════════════════════════════════════════════════ */
+
+let stops = [];
+let gradKind = 'linear';
+
+function mixInSpace(a, b, t, space) {
+  if (space === 'srgb') {
+    return { r: a.r + (b.r - a.r) * t, g: a.g + (b.g - a.g) * t, b: a.b + (b.b - a.b) * t };
+  }
+  const A = rgbToOklab(a.r, a.g, a.b), B = rgbToOklab(b.r, b.g, b.b);
+  if (space === 'oklab') {
+    return oklabToRgb(A.L + (B.L - A.L) * t, A.a + (B.a - A.a) * t, A.b + (B.b - A.b) * t);
+  }
+  const la = oklabToLch(A), lb = oklabToLch(B);
+  let dh = lb.h - la.h;                       /* the long way round, as CSS means it */
+  if (dh > 0 && dh < 180) dh -= 360;
+  else if (dh <= 0 && dh > -180) dh += 360;
+  return lchToRgb(la.L + (lb.L - la.L) * t, la.C + (lb.C - la.C) * t, la.h + dh * t);
+}
+
+function gradientStopList() {
+  const space = $('grad-space').value;
+  const sorted = stops.slice().sort((a, b) => a.pos - b.pos);
+  if (!sorted.length) return [];
+  if (space === 'srgb' || sorted.length < 2) {
+    return sorted.map(s => ({ hex: s.hex, pos: s.pos }));
+  }
+  const out = [];
+  const STEPS = 12;
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const a = parseColor(sorted[i].hex) || { r: 0, g: 0, b: 0 };
+    const b = parseColor(sorted[i + 1].hex) || { r: 0, g: 0, b: 0 };
+    for (let s = 0; s < STEPS; s++) {
+      const t = s / STEPS;
+      const c = mixInSpace(a, b, t, space);
+      out.push({
+        hex: rgbToHex(Math.round(c.r), Math.round(c.g), Math.round(c.b)),
+        pos: sorted[i].pos + (sorted[i + 1].pos - sorted[i].pos) * t
+      });
+    }
+  }
+  out.push({ hex: sorted[sorted.length - 1].hex, pos: sorted[sorted.length - 1].pos });
+  return out;
+}
+
+function gradientCss(list, withSpace) {
+  const space = $('grad-space').value;
+  const inPart = !withSpace ? '' :
+    space === 'oklab' ? ' in oklab' : space === 'oklch-longer' ? ' in oklch longer hue' : '';
+  const body = list.map(s => s.hex + ' ' + rnd(s.pos, 2) + '%').join(', ');
+  const angle = $('grad-angle').value;
+  if (gradKind === 'linear') return 'linear-gradient(' + angle + 'deg' + inPart + ', ' + body + ')';
+  if (gradKind === 'radial') return 'radial-gradient(circle at 50% 50%' + inPart + ', ' + body + ')';
+  return 'conic-gradient(from ' + angle + 'deg at 50% 50%' + inPart + ', ' + body + ')';
+}
+
+function drawGradient() {
+  const drawn = gradientCss(gradientStopList(), false);
+  $('grad-preview').style.background = drawn;
+  $('grad-angle-v').textContent = $('grad-angle').value + '°';
+  const plain = gradientCss(stops.slice().sort((a, b) => a.pos - b.pos), false);
+  const fancy = gradientCss(stops.slice().sort((a, b) => a.pos - b.pos), true);
+  $('grad-css').textContent = fancy === plain
+    ? 'background: ' + plain + ';'
+    : 'background: ' + plain + ';\nbackground: ' + fancy + ';';
+  drawStops();
+}
+
+function drawStops() {
+  const host = $('stops');
+  host.textContent = '';
+  stops.forEach((s, i) => {
+    const row = document.createElement('div');
+    row.className = 'stop';
+    const chip = document.createElement('button');
+    chip.type = 'button'; chip.className = 'chip';
+    chip.style.background = s.hex;
+    chip.title = 'open in the picker';
+    chip.addEventListener('click', () => { setHex(s.hex, { commit: true }); toast(s.hex + ' → picker'); });
+    const hex = document.createElement('input');
+    hex.type = 'text'; hex.spellcheck = false; hex.value = s.hex;
+    hex.setAttribute('aria-label', 'stop ' + (i + 1) + ' colour');
+    hex.addEventListener('input', () => {
+      const c = parseColor(hex.value);
+      if (c) { s.hex = rgbToHex(c.r, c.g, c.b); chip.style.background = s.hex; drawGradientOnly(); }
+    });
+    const pos = document.createElement('input');
+    pos.type = 'range'; pos.min = '0'; pos.max = '100'; pos.step = '0.5'; pos.value = String(s.pos);
+    pos.setAttribute('aria-label', 'stop ' + (i + 1) + ' position');
+    const pc = document.createElement('span');
+    pc.className = 'pc'; pc.textContent = rnd(s.pos, 1) + '%';
+    pos.addEventListener('input', () => {
+      s.pos = parseFloat(pos.value); pc.textContent = rnd(s.pos, 1) + '%'; drawGradientOnly();
+    });
+    const kill = document.createElement('button');
+    kill.type = 'button'; kill.className = 'ghost'; kill.textContent = 'remove';
+    kill.disabled = stops.length <= 2;
+    kill.addEventListener('click', () => { stops.splice(i, 1); drawGradient(); });
+    row.append(chip, hex, pos, pc, kill);
+    host.appendChild(row);
+  });
+}
+
+/* Redraw the ramp without rebuilding the rows under the cursor. */
+function drawGradientOnly() {
+  $('grad-preview').style.background = gradientCss(gradientStopList(), false);
+  const plain = gradientCss(stops.slice().sort((a, b) => a.pos - b.pos), false);
+  const fancy = gradientCss(stops.slice().sort((a, b) => a.pos - b.pos), true);
+  $('grad-css').textContent = fancy === plain
+    ? 'background: ' + plain + ';'
+    : 'background: ' + plain + ';\nbackground: ' + fancy + ';';
+}
+
+$('grad-kind').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  gradKind = b.getAttribute('data-kind');
+  Array.from($('grad-kind').children).forEach(x => x.classList.toggle('on', x === b));
+  drawGradient();
+});
+$('grad-angle').addEventListener('input', () => {
+  $('grad-angle-v').textContent = $('grad-angle').value + '°';
+  drawGradientOnly();
+});
+$('grad-space').addEventListener('change', drawGradient);
+$('grad-add').addEventListener('click', () => {
+  stops.push({ hex: curHex(), pos: 100 });
+  stops.sort((a, b) => a.pos - b.pos);
+  drawGradient();
+});
+$('grad-even').addEventListener('click', () => {
+  stops.sort((a, b) => a.pos - b.pos);
+  stops.forEach((s, i) => { s.pos = stops.length === 1 ? 50 : (i / (stops.length - 1)) * 100; });
+  drawGradient();
+});
+$('grad-rev').addEventListener('click', () => {
+  const hexes = stops.slice().sort((a, b) => a.pos - b.pos).map(s => s.hex).reverse();
+  stops.sort((a, b) => a.pos - b.pos).forEach((s, i) => { s.hex = hexes[i]; });
+  drawGradient();
+});
+$('grad-copy').addEventListener('click', () => copy($('grad-css').textContent, 'gradient css'));
+
+/* ════════════════════════════════════════════════════════════════════════
+   thread & pantone
+   ═══════════════════════════════════════════════════════════════════════ */
+
+let books = null;
+function loadBooks() {
+  if (books !== null) return books;
+  const raw = window.SWATCH_BOOKS;
+  if (!raw || !raw.threads) { books = false; return books; }
+  const cook = (str, named) => {
+    const out = [];
+    str.split(';').forEach(rec => {
+      const p = rec.split('~');
+      const hex = p[named ? 2 : 1];
+      const c = hexToRgb(hex);
+      if (!c) return;
+      out.push({ code: p[0], name: named ? p[1] : '', hex: '#' + hex, lab: rgbToLab(c.r, c.g, c.b) });
+    });
+    return out;
+  };
+  books = {
+    threads: raw.threads.map(b => ({ name: b.name, fibre: b.fibre, list: cook(b.data, true) })),
+    pantone: raw.pantone.map(b => ({ name: b.name, suffix: b.suffix, list: cook(b.data, false) }))
+  };
+  return books;
+}
+
+/* One pass, keeping the k nearest by plain Lab distance, then re-ranked with
+   CIEDE2000. The cheap metric only has to get the shortlist right. */
+function topK(list, lab, k, filter) {
+  const keep = [];
+  for (let i = 0; i < list.length; i++) {
+    const e = list[i];
+    if (filter && !filter(e)) continue;
+    const dL = e.lab.L - lab.L, da = e.lab.a - lab.a, db = e.lab.b - lab.b;
+    const d = dL * dL + da * da + db * db;
+    if (keep.length < k) {
+      keep.push({ e: e, d: d });
+      if (keep.length === k) keep.sort((x, y) => x.d - y.d);
+    } else if (d < keep[k - 1].d) {
+      let at = k - 1;
+      while (at > 0 && keep[at - 1].d > d) { keep[at] = keep[at - 1]; at--; }
+      keep[at] = { e: e, d: d };
+    }
+  }
+  if (keep.length < k) keep.sort((x, y) => x.d - y.d);
+  return keep.map(x => ({ e: x.e, de: deltaE(lab, x.e.lab) })).sort((a, b) => a.de - b.de);
+}
+
+function hitRow(entry, bookName, de) {
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'hit';
+  const sw = document.createElement('span');
+  sw.className = 'sw'; sw.style.background = entry.hex;
+  const nm = document.createElement('span');
+  nm.className = 'nm';
+  const strong = document.createElement('b');
+  strong.textContent = entry.name ? entry.code + '  ' + entry.name : entry.code;
+  const sub = document.createElement('span');
+  sub.textContent = '  ' + bookName + '  ' + entry.hex;
+  nm.append(strong, sub);
+  const d = document.createElement('span');
+  d.className = 'de';
+  const top = document.createElement('b');
+  top.textContent = 'ΔE ' + rnd(de, 1);
+  d.append(top, document.createTextNode(
+    de < 1 ? 'no visible difference' : de < 2 ? 'all but identical'
+      : de < 5 ? 'close' : de < 10 ? 'in the family' : 'the nearest there is'));
+  b.append(sw, nm, d);
+  b.addEventListener('click', () => {
+    setHex(entry.hex, { commit: true });
+    toast(entry.code + ' → picker');
+  });
+  return b;
+}
+
+function renderMatches() {
+  const data = loadBooks();
+  const threadHost = $('thread-hits'), panHost = $('pantone-hits');
+  threadHost.textContent = ''; panHost.textContent = '';
+  if (!data) {
+    setStatus('match-note', 'vendor/swatch-books.js did not load, so there is nothing to match against.', true);
+    return;
+  }
+  const c = cur(), lab = rgbToLab(c.r, c.g, c.b);
+  const q = $('match-search').value.trim().toLowerCase();
+  const pass = e => !q || (e.code + ' ' + e.name).toLowerCase().indexOf(q) >= 0;
+  const want = q ? 14 : 8;
+
+  const brandPick = $('brand').value;
+  const threadBooks = brandPick === '*' ? data.threads : data.threads.filter(b => b.name === brandPick);
+  let threadHits = [];
+  threadBooks.forEach(b => {
+    topK(b.list, lab, want, pass).forEach(h => threadHits.push({ h: h, book: b.name }));
+  });
+  threadHits.sort((a, b) => a.h.de - b.h.de);
+  threadHits.slice(0, want).forEach(x => threadHost.appendChild(hitRow(x.h.e, x.book, x.h.de)));
+
+  const bookPick = $('pbook').value;
+  const panBooks = bookPick === '*' ? data.pantone : data.pantone.filter(b => b.name === bookPick);
+  let panHits = [];
+  panBooks.forEach(b => {
+    topK(b.list, lab, want, pass).forEach(h => panHits.push({ h: h, book: b }));
+  });
+  panHits.sort((a, b) => a.h.de - b.h.de);
+  panHits.slice(0, want).forEach(x => {
+    const e = x.h.e;
+    panHost.appendChild(hitRow(
+      { code: 'PANTONE ' + e.code + ' ' + x.book.suffix, name: '', hex: e.hex },
+      x.book.name, x.h.de));
+  });
+
+  if (!threadHits.length) threadHost.appendChild(emptyNote('nothing in that chart matches "' + q + '".'));
+  if (!panHits.length) panHost.appendChild(emptyNote('no Pantone chip matches "' + q + '".'));
+
+  const nThread = data.threads.reduce((n, b) => n + b.list.length, 0);
+  const nPan = data.pantone.reduce((n, b) => n + b.list.length, 0);
+  $('thread-head').textContent = 'thread — ' + (brandPick === '*' ? 'every chart' : brandPick);
+  $('pantone-head').textContent = 'pantone — ' + (bookPick === '*' ? 'both books' : bookPick.toLowerCase());
+  $('match-note').innerHTML = nThread.toLocaleString() + ' thread colours across '
+    + data.threads.length + ' charts and ' + nPan.toLocaleString() + ' Pantone chips, ranked by '
+    + 'CIEDE2000 &mdash; the distance measure that tries to match how different two '
+    + 'colours <em>look</em>, rather than how far apart their numbers are. A &Delta;E '
+    + 'under about 2 is a difference you would struggle to see side by side. '
+    + 'Every value is an sRGB approximation of a physical thread or ink: dye lots '
+    + 'move, screens lie, and a thread under a sewing-room light is not the thread '
+    + 'in daylight. Use this to narrow a shortlist, then hold the real card against it. '
+    + 'Charts come from <a href="https://github.com/inkstitch/inkstitch">Ink/Stitch</a>, '
+    + '<a href="https://github.com/JuliaSzulc/flossverter">FlossVerter</a> and '
+    + '<a href="https://github.com/thompsongl/pantonr">pantonr</a>; PANTONE is a '
+    + 'trademark of Pantone LLC, and this page is not connected with them or with any '
+    + 'thread manufacturer.';
+}
+
+function emptyNote(text) {
+  const p = document.createElement('p');
+  p.className = 'note'; p.textContent = text;
+  return p;
+}
+
+$('brand').addEventListener('change', renderMatches);
+$('pbook').addEventListener('change', renderMatches);
+$('match-search').addEventListener('input', renderMatches);
+
+/* ════════════════════════════════════════════════════════════════════════
+   start
+   ═══════════════════════════════════════════════════════════════════════ */
+
+(function init() {
+  const data = loadBooks();
+  const brand = $('brand'), pbook = $('pbook');
+  const opt = (sel, value, text) => {
+    const o = document.createElement('option');
+    o.value = value; o.textContent = text;
+    sel.appendChild(o);
+  };
+  if (data) {
+    opt(brand, '*', 'every chart');
+    data.threads.forEach(b => opt(brand, b.name, b.name + ' · ' + b.fibre + ' · ' + b.list.length));
+    opt(pbook, '*', 'both books');
+    data.pantone.forEach(b => opt(pbook, b.name, b.name + ' · ' + b.list.length));
+  } else {
+    opt(brand, '*', 'no charts loaded');
+    opt(pbook, '*', 'no books loaded');
+  }
+
+  const fromHash = location.hash && parseColor(location.hash);
+  if (fromHash) {
+    const hsv = rgbToHsv(fromHash.r, fromHash.g, fromHash.b);
+    state.h = hsv.s < 1e-6 ? state.h : hsv.h;
+    state.s = hsv.v < 1e-6 ? state.s : hsv.s;
+    state.v = hsv.v;
+  }
+
+  const comp = hsvToRgb(state.h + 180, state.s, state.v);
+  stops = [{ hex: curHex(), pos: 0 },
+           { hex: rgbToHex(comp.r, comp.g, comp.b), pos: 100 }];
+
+  drawHue();
+  drawSV();
+  render({});
+  remember();
+  drawGradient();
+  showTab('pick');
+
+  let resizeTimer = 0;
+  const redraw = () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      if (activeTab !== 'pick') return;
+      lastHue = -1;
+      drawSV(); drawHue();
+      render({});
+    }, 80);
+  };
+  window.addEventListener('resize', redraw);
+  if (window.ResizeObserver) new ResizeObserver(redraw).observe(svBox);
+})();
+
+})();
+</script>
+</body>
+</html>
