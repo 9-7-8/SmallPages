@@ -1,0 +1,1940 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>word puzzles</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  /* Layout and sizing only — colour and type live in theme.css. The one
+     exception is the @media print block at the bottom: a sheet that is about
+     to go through a printer has to be black on white, whatever the screen is
+     doing, so that block is the only place in this page that names a colour. */
+
+  body {
+    margin: 0;
+    padding: 3rem 1.5rem 5rem;
+  }
+
+  main { max-width: 800px; margin: 0 auto; }
+
+  p.lede { margin: 0 0 2.2rem; max-width: 62ch; }
+
+  .card { margin-bottom: 1.5rem; }
+  .card h2.section { margin: 0 0 1rem; }
+
+  .io { display: grid; grid-template-columns: 1fr; gap: 1rem; }
+  .io.split { grid-template-columns: 1fr 1fr; }
+  .io .col { display: flex; flex-direction: column; gap: 0.4rem; min-width: 0; }
+  .io label { font-size: 0.78rem; }
+  .io textarea {
+    width: 100%;
+    min-height: 13rem;
+    resize: vertical;
+    line-height: 1.5;
+  }
+  #clue-col { display: none; }
+  .io.split #clue-col { display: flex; }
+
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    flex-wrap: wrap;
+    margin-top: 1rem;
+  }
+  .row.tight { margin-top: 0.6rem; }
+  .check { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; cursor: pointer; }
+  .spacer { margin-left: auto; }
+
+  .dropzone {
+    margin-top: 1.2rem;
+    padding: 1.4rem 1.2rem;
+    text-align: center;
+    cursor: pointer;
+  }
+  .dropzone input { display: none; }
+  .dropzone .hint { font-size: 0.78rem; margin-top: 0.35rem; }
+
+  .status { font-size: 0.82rem; margin-top: 0.9rem; min-height: 1.2em; }
+  .status.block { white-space: pre-line; }
+
+  /* -------------------------------------------------------- the options -- */
+
+  #types { margin-bottom: 1.2rem; }
+  #types button { font-size: 0.8rem; padding: 0.45rem 0.8rem; }
+
+  .opt { display: none; align-items: center; gap: 0.9rem; flex-wrap: wrap; margin-bottom: 0.9rem; }
+  .opt.on { display: flex; }
+  .opt > label:first-child { font-size: 0.78rem; min-width: 7.5rem; }
+  .opt .seg button { font-size: 0.76rem; padding: 0.35rem 0.7rem; }
+  .opt select, .opt input[type="number"] { font-size: 0.8rem; }
+  .opt input[type="number"] { width: 4.5rem; }
+  .opt .note { font-size: 0.75rem; }
+
+  /* ---------------------------------------------------------- the sheet -- */
+
+  .sheet-card { padding: 0; }
+  .sheet-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    flex-wrap: wrap;
+    padding: 1rem 1.2rem;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .sheet-bar .status { margin-top: 0; }
+
+  /* Local names for the four tones the sheet uses, so the print block below
+     can repoint all of them at once — on screen they are the theme's own. */
+  .sheet {
+    --paper: var(--raised);
+    --ink: var(--text);
+    --rule: var(--line);
+    --faint: var(--text-faint);
+    background: var(--sunken);
+    color: var(--ink);
+    padding: 1.8rem 1.6rem 2.2rem;
+  }
+
+  .sheet h2.title {
+    font-size: 1.2rem;
+    font-weight: 300;
+    letter-spacing: 0.03em;
+    color: var(--ink);
+    margin: 0 0 0.25rem;
+  }
+  .sheet .sub { font-size: 0.78rem; color: var(--faint); margin: 0 0 1.5rem; }
+  .sheet h3 {
+    font-size: 0.82rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--faint);
+    margin: 0 0 0.6rem;
+  }
+  .sheet p { margin: 0 0 1rem; }
+
+  .sheet .grid-wrap { margin: 0 0 1.6rem; }
+  .sheet .grid-wrap + .grid-wrap { margin-top: -0.4rem; }
+  .sheet svg { display: block; margin: 0 auto; }
+
+  .sheet .block { margin-bottom: 1.6rem; break-inside: avoid; }
+  .sheet .block:last-child { margin-bottom: 0; }
+
+  .sheet .cols { columns: 2; column-gap: 2.4rem; }
+  .sheet ol, .sheet ul { margin: 0; padding-left: 1.7rem; }
+  .sheet li { margin-bottom: 0.45rem; break-inside: avoid; }
+  .sheet li.wide { break-inside: avoid; }
+  .sheet .len { color: var(--faint); }
+
+  .sheet .across-down { display: grid; grid-template-columns: 1fr 1fr; gap: 1.6rem 2.4rem; }
+
+  .sheet .bank {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 1.1rem;
+    border: 1px solid var(--rule);
+    padding: 0.9rem 1.1rem;
+  }
+  .sheet .bank span { white-space: nowrap; }
+  .sheet .bank.grouped { flex-direction: column; gap: 0.5rem; }
+  .sheet .bank-row { display: flex; gap: 0.9rem; align-items: baseline; }
+  .sheet .bank-len {
+    min-width: 1.4rem;
+    text-align: right;
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    color: var(--faint);
+  }
+  .sheet .bank-words { display: flex; flex-wrap: wrap; gap: 0.25rem 1.1rem; }
+
+  .sheet .slots {
+    font-family: var(--mono);
+    letter-spacing: 0.12em;
+    white-space: nowrap;
+  }
+  .sheet .scram { font-family: var(--mono); letter-spacing: 0.22em; }
+  .sheet .code { font-family: var(--mono); letter-spacing: 0.18em; }
+  /* Numbers are read in groups, so they get the room between the groups
+     instead of between the digits. */
+  .sheet .code.nums { letter-spacing: 0; word-spacing: 0.6em; }
+
+  .sheet .pairs { display: grid; grid-template-columns: 1fr 1fr; gap: 1.6rem 2.4rem; }
+  .sheet .pick { font-family: var(--mono); color: var(--faint); }
+
+  .sheet table.keytab { border-collapse: collapse; font-family: var(--mono); font-size: 0.8rem; }
+  .sheet table.keytab td {
+    border: 1px solid var(--rule);
+    width: 1.55rem;
+    height: 1.55rem;
+    text-align: center;
+    padding: 0;
+  }
+  .sheet table.keytab tr.plain td { color: var(--faint); }
+
+  .sheet .answers { margin-top: 2rem; padding-top: 1.3rem; border-top: 1px solid var(--rule); }
+  .sheet .answers.page { break-before: page; }
+
+  .sheet .empty { color: var(--faint); font-size: 0.85rem; }
+
+  @media (max-width: 680px) {
+    body { padding: 2rem 1rem 4rem; }
+    .io.split { grid-template-columns: 1fr; }
+    .sheet .cols { columns: 1; }
+    .sheet .across-down, .sheet .pairs { grid-template-columns: 1fr; }
+  }
+
+  /* ---------------------------------------------------------- the paper -- */
+
+  /* Ink on paper, and nothing on the page but the sheet itself. */
+  @media print {
+    .no-print { display: none !important; }
+    html, body { background: #ffffff; }
+    body { padding: 0; }
+    main { max-width: none; }
+    .sheet-card { border: none; background: #ffffff; margin: 0; }
+    .sheet {
+      --paper: #ffffff;
+      --ink: #111111;
+      --rule: #444444;
+      --faint: #666666;
+      background: #ffffff;
+      padding: 0;
+    }
+    .sheet h2.title { font-weight: 400; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <a class="home no-print" href="index.html">&larr; index</a>
+  <h1 class="no-print">word puzzles</h1>
+  <p class="lede no-print">Give it a list of words &mdash; with clues, if you have them &mdash; and it builds the
+  puzzle around them: a crossword, a word search, a criss-cross, a scramble, fill-the-blanks, a
+  matching sheet, a code cracker or bingo cards. The grid is worked out in the page, and the sheet
+  prints as it looks, answer key and all.</p>
+
+  <div class="card no-print">
+    <h2 class="section">the words</h2>
+    <div class="io" id="io">
+      <div class="col">
+        <label for="words">One per line. A clue after the word, split off by a tab, a comma, a colon, a pipe or a dash.</label>
+        <textarea id="words" spellcheck="false" placeholder="ORBIT, the path one body takes around another
+ECLIPSE &mdash; one body hidden behind another
+PENUMBRA: the softer edge of a shadow"></textarea>
+      </div>
+      <div class="col" id="clue-col">
+        <label for="clues">Clues, one per line, matching the lines on the left.</label>
+        <textarea id="clues" spellcheck="false" placeholder="the path one body takes around another
+one body hidden behind another
+the softer edge of a shadow"></textarea>
+      </div>
+    </div>
+    <div class="row">
+      <label class="check"><input type="checkbox" id="split-clues"> clues in their own column</label>
+      <button class="ghost" id="example">load an example</button>
+      <button class="ghost" id="clear">clear</button>
+    </div>
+    <div class="dropzone" id="drop">
+      <div>Drop a CSV, a TSV or an <code>.xlsx</code> here, or click to choose one</div>
+      <div class="hint">first column the word, second the clue &mdash; a header row is skipped; read in your
+      browser, nothing is uploaded</div>
+      <input type="file" id="file" accept=".csv,.tsv,.tab,.txt,.xlsx,.xlsm,text/csv,text/tab-separated-values,text/plain">
+    </div>
+    <div class="status block" id="status"></div>
+  </div>
+
+  <div class="card no-print">
+    <h2 class="section">the puzzle</h2>
+    <div class="seg" id="types">
+      <button data-type="crossword" class="on">crossword</button>
+      <button data-type="wordsearch">word search</button>
+      <button data-type="crisscross">criss-cross</button>
+      <button data-type="scramble">scramble</button>
+      <button data-type="blanks">fill the blanks</button>
+      <button data-type="matching">matching</button>
+      <button data-type="cipher">code cracker</button>
+      <button data-type="bingo">bingo</button>
+    </div>
+
+    <div class="opt" data-for="all">
+      <label for="title">heading</label>
+      <input type="text" id="title" placeholder="Word puzzle" style="flex:1;min-width:12rem">
+    </div>
+
+    <div class="opt" data-for="wordsearch">
+      <label for="ws-size">grid</label>
+      <select id="ws-size">
+        <option value="0" selected>as small as it fits</option>
+        <option value="10">10 &times; 10</option>
+        <option value="12">12 &times; 12</option>
+        <option value="14">14 &times; 14</option>
+        <option value="16">16 &times; 16</option>
+        <option value="18">18 &times; 18</option>
+        <option value="20">20 &times; 20</option>
+        <option value="24">24 &times; 24</option>
+        <option value="30">30 &times; 30</option>
+      </select>
+    </div>
+    <div class="opt" data-for="wordsearch">
+      <label>directions</label>
+      <div class="seg" id="ws-dirs">
+        <button data-dirs="plain">across &amp; down</button>
+        <button data-dirs="diagonal" class="on">and diagonals</button>
+        <button data-dirs="all">every direction</button>
+      </div>
+    </div>
+    <div class="opt" data-for="wordsearch">
+      <label>the list under it</label>
+      <div class="seg" id="ws-list">
+        <button data-mode="words" class="on">the words</button>
+        <button data-mode="clues" data-needs-clues="1">the clues</button>
+      </div>
+    </div>
+
+    <div class="opt" data-for="crisscross">
+      <label>word bank</label>
+      <div class="seg" id="cc-bank">
+        <button data-bank="length" class="on">grouped by length</button>
+        <button data-bank="alpha">alphabetical</button>
+        <button data-bank="clues" data-needs-clues="1">clues instead</button>
+      </div>
+    </div>
+
+    <div class="opt" data-for="scramble blanks">
+      <label>a leg-up</label>
+      <label class="check"><input type="checkbox" id="first-letter"> give the first letter</label>
+    </div>
+    <div class="opt" data-for="scramble">
+      <label>word bank</label>
+      <label class="check"><input type="checkbox" id="sc-bank"> print the words alongside</label>
+    </div>
+    <div class="opt" data-for="blanks">
+      <label>word bank</label>
+      <label class="check"><input type="checkbox" id="bl-bank" checked> print the words alongside</label>
+    </div>
+
+    <div class="opt" data-for="cipher">
+      <label>the code</label>
+      <div class="seg" id="ci-mode">
+        <button data-mode="letters" class="on">letter for letter</button>
+        <button data-mode="numbers">a number per letter</button>
+      </div>
+    </div>
+    <div class="opt" data-for="cipher">
+      <label for="ci-free">given away</label>
+      <input type="number" id="ci-free" min="0" max="8" step="1" value="2">
+      <span class="note">letters filled in on the key to start you off</span>
+    </div>
+
+    <div class="opt" data-for="bingo">
+      <label>card</label>
+      <div class="seg" id="bg-size">
+        <button data-size="3">3 &times; 3</button>
+        <button data-size="4">4 &times; 4</button>
+        <button data-size="5" class="on">5 &times; 5</button>
+      </div>
+      <label class="check"><input type="checkbox" id="bg-free" checked> free square in the middle</label>
+    </div>
+    <div class="opt" data-for="bingo">
+      <label for="bg-cards">how many</label>
+      <input type="number" id="bg-cards" min="1" max="24" step="1" value="4">
+      <span class="note">each card draws its own words from the list</span>
+    </div>
+
+    <div class="row tight">
+      <button class="ghost" id="reroll">re-roll</button>
+      <label class="check"><input type="checkbox" id="with-key" checked> include the answer key</label>
+      <label class="check"><input type="checkbox" id="key-page" checked> key on its own page</label>
+    </div>
+  </div>
+
+  <div class="card sheet-card" id="out">
+    <div class="sheet-bar no-print">
+      <button id="print">Print</button>
+      <button class="ghost" id="save-svg">Save the grid as SVG</button>
+      <button class="ghost" id="copy-txt">Copy as text</button>
+      <span class="status" id="note"></span>
+    </div>
+    <div class="sheet" id="sheet"></div>
+  </div>
+</main>
+
+<script>
+"use strict";
+
+/* ============================================================================
+   word puzzles — every puzzle on this page is built from the same thing: a
+   list of words, each with an optional clue. The list comes from the two text
+   boxes or from a spreadsheet, and from there it is only ever read, never
+   sent anywhere.
+   ========================================================================== */
+
+/* ------------------------------------------------------------- the basics -- */
+
+const $ = (id) => document.getElementById(id);
+
+function esc(text) {
+  return String(text).replace(/[&<>"']/g, (ch) => (
+    { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]
+  ));
+}
+
+// Every puzzle that shuffles anything shuffles from a seed, so the sheet you
+// are looking at stays the sheet you print — and so "re-roll" means something.
+function rngFrom(seed) {
+  let a = (seed >>> 0) || 1;
+  return function () {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function shuffled(list, rng) {
+  const out = list.slice();
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    const swap = out[i]; out[i] = out[j]; out[j] = swap;
+  }
+  return out;
+}
+
+function plural(n, one, many) {
+  return `${n} ${n === 1 ? one : many}`;
+}
+
+const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+
+/* ------------------------------------------------------------- the words -- */
+
+// A grid holds letters and nothing else, so an accent is folded down to the
+// letter under it and everything that isn't A–Z is dropped. The word as typed
+// is kept alongside for the word bank and the answer key.
+function letterize(text) {
+  return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z]/g, "");
+}
+
+function makeEntry(word, clue) {
+  const display = String(word || "").replace(/\s+/g, " ").trim();
+  const parts = display.split(/[\s/\-\u2010-\u2015]+/).map(letterize).filter(Boolean);
+  return {
+    display,
+    parts,
+    letters: parts.join(""),
+    clue: String(clue || "").replace(/\s+/g, " ").trim(),
+  };
+}
+
+// Word first, clue second, with whatever is between them. Tabs and pipes are
+// unambiguous; a dash has to have spaces around it so a hyphenated word stays
+// one word; a comma is last because a clue is full of them and only the first
+// one counts.
+const SEPARATORS = [/\t+/, /\s*\|\s*/, /\s+[\u2010-\u2015]\s+/, /\s+-\s+/, /\s*:\s+/, /\s*,\s*/];
+
+function splitLine(line) {
+  let first = null;
+  for (const sep of SEPARATORS) {
+    const found = sep.exec(line);
+    if (!found || found.index === 0) continue;
+    const word = line.slice(0, found.index).trim();
+    const clue = line.slice(found.index + found[0].length).trim();
+    if (!first) first = [word, clue];
+    if (letterize(word)) return [word, clue];
+  }
+  // A line whose word is nothing but punctuation is handed on as it is, for
+  // the tidying to drop — better than quietly turning its clue into the word.
+  return first || [line.trim(), ""];
+}
+
+function parseTyped(wordsText, cluesText, split) {
+  const lines = wordsText.split(/\r?\n/).map((l) => l.trim());
+  const usable = (line) => line && !line.startsWith("#");
+  if (!split) return lines.filter(usable).map((line) => makeEntry(...splitLine(line)));
+
+  // Two columns are paired by line number, blank lines included, so a gap left
+  // in one box is a gap in the other rather than everything sliding up by one.
+  // A line with no clue beside it is still read for a clue of its own, in case
+  // the list was pasted in with both on one line.
+  const clues = cluesText.split(/\r?\n/).map((l) => l.trim());
+  return lines
+    .map((line, i) => (usable(line)
+      ? (clues[i] ? makeEntry(line, clues[i]) : makeEntry(...splitLine(line)))
+      : null))
+    .filter(Boolean);
+}
+
+// What the list adds up to once the unusable lines are out of it.
+function tidy(raw) {
+  const entries = [];
+  const seen = new Set();
+  const dropped = { short: 0, duplicate: 0 };
+
+  for (const entry of raw) {
+    if (entry.letters.length < 2) { dropped.short++; continue; }
+    if (seen.has(entry.letters)) { dropped.duplicate++; continue; }
+    seen.add(entry.letters);
+    entries.push(entry);
+  }
+  return { entries, dropped };
+}
+
+/* -------------------------------------------------------------- csv, tsv -- */
+
+// Quoted fields, doubled quotes inside them, and newlines inside those —
+// enough of RFC 4180 that a file saved out of a spreadsheet reads back.
+function parseDelimited(text, delimiter) {
+  const rows = [];
+  let row = [];
+  let field = "";
+  let quoted = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (quoted) {
+      if (ch === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; } else quoted = false;
+      } else field += ch;
+      continue;
+    }
+    if (ch === '"' && !field) { quoted = true; continue; }
+    if (ch === delimiter) { row.push(field); field = ""; continue; }
+    if (ch === "\n" || ch === "\r") {
+      if (ch === "\r" && text[i + 1] === "\n") i++;
+      row.push(field); rows.push(row); row = []; field = "";
+      continue;
+    }
+    field += ch;
+  }
+  row.push(field);
+  rows.push(row);
+  return rows.filter((cells) => cells.some((cell) => cell.trim()));
+}
+
+// A European spreadsheet writes CSV with semicolons, and plenty of exports use
+// tabs whatever the file is called, so the delimiter is counted rather than
+// assumed. Quoted stretches are skipped so a comma inside a clue can't vote.
+function sniffDelimiter(text, name) {
+  if (/\.tsv$|\.tab$/i.test(name)) return "\t";
+  const head = text.slice(0, 4000).replace(/"[^"]*"/g, "");
+  const counts = [",", ";", "\t"].map((d) => [d, head.split(d).length - 1]);
+  counts.sort((a, b) => b[1] - a[1]);
+  return counts[0][1] ? counts[0][0] : ",";
+}
+
+const HEADER_WORD = /^(word|words|answer|answers|term|terms|entry|item|name)$/i;
+const HEADER_CLUE = /^(clue|clues|definition|definitions|hint|hints|meaning|description|prompt)$/i;
+
+function entriesFromRows(rows) {
+  const out = [];
+  let from = 0;
+  const first = rows[0] || [];
+  if (HEADER_WORD.test((first[0] || "").trim()) || HEADER_CLUE.test((first[1] || "").trim())) from = 1;
+
+  for (let i = from; i < rows.length; i++) {
+    const cells = rows[i];
+    const word = (cells[0] || "").trim();
+    if (!word) continue;
+    // A one-column file can still hold "WORD, clue" in that column.
+    const clue = (cells[1] || "").trim();
+    out.push(clue ? makeEntry(word, clue) : makeEntry(...splitLine(word)));
+  }
+  return out;
+}
+
+/* ----------------------------------------------------------------- xlsx -- */
+
+// An .xlsx is a ZIP of XML and the browser can already inflate and parse both,
+// so the workbook is read here rather than by shipping a spreadsheet library
+// with the page. Only the first two columns of the first visible tab matter,
+// so this reads the cells and stops — no number formats, no styles.
+
+async function zipIndex(file) {
+  const from = Math.max(0, file.size - 0xffff - 22);
+  const tail = new DataView(await file.slice(from).arrayBuffer());
+
+  let eocd = -1;
+  for (let at = tail.byteLength - 22; at >= 0; at--) {
+    if (tail.getUint32(at, true) === 0x06054b50) { eocd = at; break; }
+  }
+  if (eocd < 0) throw new Error("that file has no ZIP directory in it");
+
+  const count = tail.getUint16(eocd + 10, true);
+  const size = tail.getUint32(eocd + 12, true);
+  const start = tail.getUint32(eocd + 16, true);
+  const dir = new DataView(await file.slice(start, start + size).arrayBuffer());
+
+  const entries = new Map();
+  let at = 0;
+  for (let i = 0; i < count && at + 46 <= dir.byteLength; i++) {
+    if (dir.getUint32(at, true) !== 0x02014b50) break;
+    const flags = dir.getUint16(at + 8, true);
+    const nameLength = dir.getUint16(at + 28, true);
+    const name = new TextDecoder(flags & 0x800 ? "utf-8" : "windows-1252")
+      .decode(new Uint8Array(dir.buffer, dir.byteOffset + at + 46, nameLength));
+    entries.set(name, {
+      encrypted: (flags & 0x1) !== 0,
+      method: dir.getUint16(at + 10, true),
+      packedSize: dir.getUint32(at + 20, true),
+      localOffset: dir.getUint32(at + 42, true),
+    });
+    at += 46 + nameLength + dir.getUint16(at + 30, true) + dir.getUint16(at + 32, true);
+  }
+  return entries;
+}
+
+async function zipText(file, entry) {
+  if (!entry) return null;
+  if (entry.encrypted) throw new Error("it's password-protected");
+
+  // The local header's name and extra fields can be sized differently from the
+  // directory's, so where the data starts has to come from the header itself.
+  const header = new DataView(await file.slice(entry.localOffset, entry.localOffset + 30).arrayBuffer());
+  if (header.getUint32(0, true) !== 0x04034b50) throw new Error("one of its parts is corrupt");
+  const start = entry.localOffset + 30 + header.getUint16(26, true) + header.getUint16(28, true);
+  const packed = file.slice(start, start + entry.packedSize);
+
+  if (entry.method === 0) return await packed.text();
+  if (entry.method !== 8) throw new Error(`compression method ${entry.method} isn't supported`);
+  return await new Response(packed.stream().pipeThrough(new DecompressionStream("deflate-raw"))).text();
+}
+
+function parseXml(text, what) {
+  const doc = new DOMParser().parseFromString(text, "application/xml");
+  if (doc.querySelector("parsererror")) throw new Error(`its ${what} doesn't parse`);
+  return doc;
+}
+
+// Rich text arrives as a run per styled stretch; <rPh> is a phonetic gloss
+// sitting alongside the text rather than part of it.
+function textIn(node) {
+  return Array.from(node.querySelectorAll("t"))
+    .filter((t) => !t.closest("rPh"))
+    .map((t) => t.textContent)
+    .join("");
+}
+
+function cellAt(ref) {
+  const parts = /^([A-Z]+)(\d+)$/.exec(ref || "");
+  if (!parts) return null;
+  let col = 0;
+  for (const letter of parts[1]) col = col * 26 + (letter.charCodeAt(0) - 64);
+  return { col: col - 1, row: Number(parts[2]) - 1 };
+}
+
+async function rowsFromWorkbook(file) {
+  const zip = await zipIndex(file);
+  const bookXml = await zipText(file, zip.get("xl/workbook.xml"));
+  if (!bookXml) throw new Error("that ZIP isn't a spreadsheet — there's no workbook inside it");
+  const book = parseXml(bookXml, "workbook");
+
+  const relsXml = await zipText(file, zip.get("xl/_rels/workbook.xml.rels"));
+  const rels = new Map();
+  if (relsXml) {
+    for (const rel of parseXml(relsXml, "relationships").querySelectorAll("Relationship")) {
+      rels.set(rel.getAttribute("Id"), rel.getAttribute("Target") || "");
+    }
+  }
+
+  const sharedXml = await zipText(file, zip.get("xl/sharedStrings.xml"));
+  const shared = sharedXml
+    ? Array.from(parseXml(sharedXml, "strings").querySelectorAll("sst > si")).map(textIn)
+    : [];
+
+  let sheetXml = null;
+  let sheetName = "";
+  for (const node of book.querySelectorAll("sheets > sheet")) {
+    if ((node.getAttribute("state") || "visible") !== "visible") continue;
+    const target = rels.get(node.getAttribute("r:id")) || "";
+    const path = target.startsWith("/") ? target.slice(1)
+      : target.startsWith("xl/") ? target : `xl/${target.replace(/^\.\//, "")}`;
+    const xml = await zipText(file, zip.get(path));
+    if (!xml) continue;
+    sheetXml = xml;
+    sheetName = node.getAttribute("name") || "";
+    break;
+  }
+  if (!sheetXml) throw new Error("there are no visible tabs in it");
+
+  const rows = [];
+  for (const node of parseXml(sheetXml, "sheet").querySelectorAll("sheetData > row > c")) {
+    const at = cellAt(node.getAttribute("r"));
+    if (!at || at.col > 1) continue;            // only the word and its clue
+
+    const type = node.getAttribute("t") || "n";
+    const value = node.querySelector("v");
+    let text = "";
+    if (type === "s") text = shared[Number(value ? value.textContent : NaN)] || "";
+    else if (type === "inlineStr") text = textIn(node.querySelector("is") || node);
+    else if (type === "b") text = value && value.textContent === "1" ? "TRUE" : "FALSE";
+    else if (value) text = value.textContent;   // a number reads as it is stored
+
+    if (!text.trim()) continue;
+    (rows[at.row] || (rows[at.row] = []))[at.col] = text.trim();
+  }
+  return { rows: rows.filter((row) => row && row.some((cell) => cell && cell.trim())), sheetName };
+}
+
+async function entriesFromFile(file) {
+  const head = new Uint8Array(await file.slice(0, 8).arrayBuffer());
+  const zipped = head[0] === 0x50 && head[1] === 0x4b && head[2] === 0x03 && head[3] === 0x04;
+  const legacy = head[0] === 0xd0 && head[1] === 0xcf && head[2] === 0x11 && head[3] === 0xe0;
+
+  if (legacy) {
+    throw new Error("that's the old binary .xls format — save it again as .xlsx or CSV and it'll open");
+  }
+  if (zipped) {
+    const { rows, sheetName } = await rowsFromWorkbook(file);
+    return { entries: entriesFromRows(rows), from: sheetName ? `${file.name} · ${sheetName}` : file.name };
+  }
+
+  const text = await file.text();
+  const delimiter = sniffDelimiter(text, file.name);
+  return { entries: entriesFromRows(parseDelimited(text, delimiter)), from: file.name };
+}
+
+/* ============================================================================
+   the generators
+   ========================================================================== */
+
+/* ------------------------------------------------------- interlocking grid --
+   The crossword and the criss-cross are the same puzzle underneath: words laid
+   across and down so that every word after the first crosses one already on
+   the grid. Crossing is also what keeps the answer honest — a letter shared
+   between two words can only be the one letter.
+   ------------------------------------------------------------------------- */
+
+function layoutOnce(order, rng, weights) {
+  const cells = new Map();                 // "r,c" → { ch, across, down }
+  const byLetter = new Map();              // letter → [[r, c], …] to cross at
+  const placed = [];
+  const left = [];
+  let minR = 0, maxR = 0, minC = 0, maxC = 0;
+
+  const at = (r, c) => cells.get(r + "," + c);
+
+  function area(a, b, c, d) { return (b - a + 1) * (d - c + 1); }
+
+  // Does the word fit here, and if so how many letters does it share?
+  function fits(word, r, c, dr, dc) {
+    const n = word.letters.length;
+    // The squares either end have to be empty, or the word runs into its
+    // neighbour and the two read as one longer word.
+    if (at(r - dr, c - dc) || at(r + dr * n, c + dc * n)) return -1;
+
+    let crossings = 0;
+    for (let i = 0; i < n; i++) {
+      const rr = r + dr * i, cc = c + dc * i;
+      const cell = at(rr, cc);
+      if (cell) {
+        if (cell.ch !== word.letters[i]) return -1;
+        // Crossing a word that runs the same way would mean lying on top of it.
+        if (dc ? cell.across : cell.down) return -1;
+        crossings++;
+      } else if (at(rr - dc, cc - dr) || at(rr + dc, cc + dr)) {
+        // A letter dropped alongside an existing word invents a second word
+        // nobody has a clue for.
+        return -1;
+      }
+    }
+    return crossings;
+  }
+
+  function put(word, r, c, dr, dc) {
+    for (let i = 0; i < word.letters.length; i++) {
+      const rr = r + dr * i, cc = c + dc * i;
+      const key = rr + "," + cc;
+      let cell = cells.get(key);
+      if (!cell) {
+        cell = { ch: word.letters[i], across: false, down: false };
+        cells.set(key, cell);
+        const spots = byLetter.get(cell.ch) || [];
+        spots.push([rr, cc]);
+        byLetter.set(cell.ch, spots);
+      }
+      if (dc) cell.across = true; else cell.down = true;
+    }
+    minR = Math.min(minR, r); maxR = Math.max(maxR, r + dr * (word.letters.length - 1));
+    minC = Math.min(minC, c); maxC = Math.max(maxC, c + dc * (word.letters.length - 1));
+    placed.push({ word, r, c, dr, dc });
+  }
+
+  // Crossings are worth having; sprawl and a long thin shape are not.
+  function bestSpot(word) {
+    let top = null;
+    for (let i = 0; i < word.letters.length; i++) {
+      for (const [r0, c0] of byLetter.get(word.letters[i]) || []) {
+        const cell = at(r0, c0);
+        const dirs = [];
+        if (!cell.across) dirs.push([0, 1]);
+        if (!cell.down) dirs.push([1, 0]);
+        for (const [dr, dc] of dirs) {
+          const r = r0 - dr * i, c = c0 - dc * i;
+          const crossings = fits(word, r, c, dr, dc);
+          if (crossings < 1) continue;
+          const endR = r + dr * (word.letters.length - 1);
+          const endC = c + dc * (word.letters.length - 1);
+          const h = Math.max(maxR, endR) - Math.min(minR, r) + 1;
+          const w = Math.max(maxC, endC) - Math.min(minC, c) + 1;
+          const score = crossings * weights.cross
+            - (w * h - area(minR, maxR, minC, maxC)) * weights.sprawl
+            - Math.abs(w - h * 1.25) * 0.5
+            + rng() * 0.8;
+          if (!top || score > top.score) top = { r, c, dr, dc, score, crossings };
+        }
+      }
+    }
+    return top;
+  }
+
+  put(order[0], 0, 0, 0, 1);
+  for (let i = 1; i < order.length; i++) {
+    const spot = bestSpot(order[i]);
+    if (spot) put(order[i], spot.r, spot.c, spot.dr, spot.dc);
+    else left.push(order[i]);
+  }
+
+  // The grid is a different shape by the end than it was halfway through, so
+  // the words that wouldn't go anywhere are offered the finished grid once.
+  for (const word of left.splice(0, left.length)) {
+    const spot = bestSpot(word);
+    if (spot) put(word, spot.r, spot.c, spot.dr, spot.dc);
+    else left.push(word);
+  }
+
+  const rows = maxR - minR + 1;
+  const cols = maxC - minC + 1;
+  const shifted = new Map();
+  for (const [key, cell] of cells) {
+    const [r, c] = key.split(",").map(Number);
+    shifted.set((r - minR) + "," + (c - minC), cell);
+  }
+  for (const entry of placed) { entry.r -= minR; entry.c -= minC; }
+
+  return {
+    cells: shifted,
+    placed,
+    left,
+    rows,
+    cols,
+    crossings: placed.reduce((sum, p) => sum + (p.crossings || 0), 0),
+    score: placed.length * 10000 - rows * cols - Math.abs(cols - rows * 1.25) * 12,
+  };
+}
+
+function interlock(entries, rng, attempts = 60) {
+  const usable = entries.filter((e) => e.letters.length >= 2);
+  if (!usable.length) return null;
+
+  const longestFirst = usable.slice().sort((a, b) => b.letters.length - a.letters.length);
+  let best = null;
+
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    // The first run is the straight long-words-first order, which is usually
+    // the tightest; the rest jog it about so a word that had nowhere to go the
+    // first time gets another chance earlier in the queue.
+    const order = attempt === 0 ? longestFirst : shuffled(usable, rng)
+      .map((e) => [e, e.letters.length + rng() * 4])
+      .sort((a, b) => b[1] - a[1])
+      .map(([e]) => e);
+
+    // How much a crossing is worth against how much room it costs is what
+    // decides whether the grid comes out dense or sprawling, and which of the
+    // two takes more words depends entirely on the list — so the runs try a
+    // spread of both rather than one house style.
+    const layout = layoutOnce(order, rng, attempt === 0
+      ? { cross: 12, sprawl: 0.07 }
+      : { cross: 4 + rng() * 14, sprawl: 0.01 + rng() * 0.16 });
+    if (!best || layout.score > best.score) best = layout;
+    if (best.left.length === 0 && best.rows * best.cols <= best.placed.length * 9) break;
+  }
+
+  numberLayout(best);
+  return best;
+}
+
+// Crossword numbering: walk the grid the way you read it, and number every
+// square that starts a word in either direction.
+function numberLayout(layout) {
+  const at = (r, c) => layout.cells.get(r + "," + c);
+  let next = 1;
+  for (let r = 0; r < layout.rows; r++) {
+    for (let c = 0; c < layout.cols; c++) {
+      const cell = at(r, c);
+      if (!cell) continue;
+      const startsAcross = !at(r, c - 1) && at(r, c + 1);
+      const startsDown = !at(r - 1, c) && at(r + 1, c);
+      if (startsAcross || startsDown) cell.num = next++;
+    }
+  }
+  for (const entry of layout.placed) {
+    const cell = at(entry.r, entry.c);
+    entry.num = cell ? cell.num : 0;
+  }
+  layout.across = layout.placed.filter((p) => p.dc === 1).sort((a, b) => a.num - b.num);
+  layout.down = layout.placed.filter((p) => p.dr === 1).sort((a, b) => a.num - b.num);
+}
+
+/* ---------------------------------------------------------- word search -- */
+
+const SEARCH_DIRS = {
+  plain: [[0, 1], [1, 0]],
+  diagonal: [[0, 1], [1, 0], [1, 1], [1, -1]],
+  all: [[0, 1], [1, 0], [1, 1], [1, -1], [0, -1], [-1, 0], [-1, -1], [-1, 1]],
+};
+
+function searchOnce(words, size, dirs, rng) {
+  const grid = Array.from({ length: size }, () => new Array(size).fill(""));
+  const placed = [];
+  const left = [];
+
+  for (const word of words) {
+    const letters = word.letters;
+    const n = letters.length;
+    if (n > size) { left.push(word); continue; }
+
+    const options = [];
+    for (const [dr, dc] of dirs) {
+      const rLow = dr >= 0 ? 0 : (n - 1) * -dr;
+      const rHigh = dr <= 0 ? size - 1 : size - 1 - (n - 1) * dr;
+      const cLow = dc >= 0 ? 0 : (n - 1) * -dc;
+      const cHigh = dc <= 0 ? size - 1 : size - 1 - (n - 1) * dc;
+      for (let r = rLow; r <= rHigh; r++) {
+        for (let c = cLow; c <= cHigh; c++) {
+          let shared = 0;
+          let ok = true;
+          for (let i = 0; i < n && ok; i++) {
+            const have = grid[r + dr * i][c + dc * i];
+            if (!have) continue;
+            if (have === letters[i]) shared++; else ok = false;
+          }
+          if (ok) options.push({ r, c, dr, dc, shared });
+        }
+      }
+    }
+
+    if (!options.length) { left.push(word); continue; }
+
+    // Words that share letters make a tighter, less sieve-like grid, so a
+    // crossing placement is favoured without being forced.
+    let pick = options[Math.floor(rng() * options.length)];
+    if (rng() < 0.75) {
+      const most = options.reduce((best, o) => (o.shared > best.shared ? o : best), options[0]);
+      if (most.shared) {
+        const top = options.filter((o) => o.shared === most.shared);
+        pick = top[Math.floor(rng() * top.length)];
+      }
+    }
+
+    for (let i = 0; i < n; i++) grid[pick.r + pick.dr * i][pick.c + pick.dc * i] = letters[i];
+    placed.push({ word, ...pick, len: n });
+  }
+
+  return { grid, placed, left, size };
+}
+
+// The letters filling the gaps are drawn from the words themselves, so a lone
+// Q or Z can't quietly point at the answer.
+function fillGaps(search, words, rng) {
+  const pool = words.map((w) => w.letters).join("") || ALPHABET.join("");
+  for (let r = 0; r < search.size; r++) {
+    for (let c = 0; c < search.size; c++) {
+      if (!search.grid[r][c]) search.grid[r][c] = pool[Math.floor(rng() * pool.length)];
+    }
+  }
+  return search;
+}
+
+function wordSearch(entries, rng, { size, dirs }) {
+  const words = entries.filter((e) => e.letters.length >= 2)
+    .slice().sort((a, b) => b.letters.length - a.letters.length);
+  if (!words.length) return null;
+
+  const longest = words[0].letters.length;
+  const letters = words.reduce((sum, w) => sum + w.letters.length, 0);
+  // Room for the words plus about the same again in filler, and never
+  // narrower than the longest word.
+  const snug = Math.max(longest, Math.ceil(Math.sqrt(letters * 2.1)), 7);
+
+  let best = null;
+  for (let grow = 0; grow <= (size ? 0 : 10); grow++) {
+    const n = Math.min(40, Math.max(size || snug + grow, longest));
+    let round = null;
+    for (let tries = 0; tries < 6; tries++) {
+      const attempt = searchOnce(words, n, SEARCH_DIRS[dirs] || SEARCH_DIRS.diagonal, rng);
+      if (!round || attempt.left.length < round.left.length) round = attempt;
+      if (!round.left.length) break;
+    }
+    if (!best || round.left.length < best.left.length) best = round;
+    if (!best.left.length) break;
+  }
+
+  return fillGaps(best, words, rng);
+}
+
+/* ------------------------------------------------------------- scramble -- */
+
+function scramble(letters, rng) {
+  for (let tries = 0; tries < 20; tries++) {
+    const out = shuffled(letters.split(""), rng).join("");
+    if (out !== letters || letters.length < 2) return out;
+  }
+  return letters.split("").reverse().join("");
+}
+
+/* --------------------------------------------------------- code cracker -- */
+
+// Letter for letter, no letter standing for itself — otherwise a solver who
+// spots one is owed an apology. Numbers are just a permutation of 1–26.
+function cipherFor(rng, mode) {
+  const map = new Map();
+  if (mode === "numbers") {
+    const numbers = shuffled(ALPHABET.map((_, i) => i + 1), rng);
+    ALPHABET.forEach((ch, i) => map.set(ch, String(numbers[i])));
+    return map;
+  }
+  let swapped;
+  do { swapped = shuffled(ALPHABET, rng); } while (swapped.some((ch, i) => ch === ALPHABET[i]));
+  ALPHABET.forEach((ch, i) => map.set(ch, swapped[i]));
+  return map;
+}
+
+// A two-word answer stays two words in code, so the shape of the thing is
+// still a clue — which is how a cryptogram is meant to work.
+function encode(entry, map, mode) {
+  const parts = typeof entry === "string" ? [entry] : entry.parts;
+  return parts
+    .map((part) => part.split("").map((ch) => map.get(ch) || ch).join(mode === "numbers" ? " " : ""))
+    .join(mode === "numbers" ? "  /  " : " ");
+}
+
+// The letters given away are the ones that turn up most, which is the leg-up
+// a solver would have taken anyway.
+function freebies(entries, count) {
+  const seen = new Map();
+  for (const entry of entries) {
+    for (const ch of entry.letters) seen.set(ch, (seen.get(ch) || 0) + 1);
+  }
+  return new Set([...seen.entries()].sort((a, b) => b[1] - a[1]).slice(0, count).map(([ch]) => ch));
+}
+
+/* --------------------------------------------------------------- bingo -- */
+
+function bingoCards(entries, rng, { size, cards, free }) {
+  const pool = entries.filter((e) => e.display);
+  const slots = size * size;
+  const need = free ? slots - 1 : slots;
+  if (pool.length < need) return { cards: [], need };
+
+  const middle = free ? Math.floor(slots / 2) : -1;
+  const out = [];
+  for (let n = 0; n < cards; n++) {
+    const picked = shuffled(pool, rng).slice(0, need);
+    const squares = [];
+    let take = 0;
+    // The free square, where there is one, sits in the middle and takes no word.
+    for (let i = 0; i < slots; i++) squares.push(i === middle ? null : picked[take++]);
+    out.push(squares);
+  }
+  return { cards: out, size, free, need };
+}
+
+/* ============================================================================
+   drawing the grids
+
+   Every grid is an SVG built from the same handful of classes, and the palette
+   is handed in rather than baked: on the page it points at the theme's own
+   custom properties, and a saved file gets ink on paper, because a file that
+   leaves here is going into a document or a printer.
+   ========================================================================== */
+
+const SCREEN_PALETTE = {
+  paper: "var(--paper)",
+  ink: "var(--ink)",
+  rule: "var(--rule)",
+  faint: "var(--faint)",
+  sans: "var(--sans)",
+};
+
+const SAVED_PALETTE = {
+  paper: "#ffffff",
+  ink: "#111111",
+  rule: "#444444",
+  faint: "#666666",
+  sans: "Helvetica,Arial,sans-serif",
+};
+
+function svgCss(pal) {
+  return [
+    `.wp-svg .cel{fill:${pal.paper};stroke:${pal.rule};stroke-width:1}`,
+    `.wp-svg .box{fill:none;stroke:${pal.rule};stroke-width:1}`,
+    `.wp-svg .num{fill:${pal.faint};font:400 9px ${pal.sans}}`,
+    `.wp-svg .ltr{fill:${pal.ink};font:400 16px ${pal.sans};text-anchor:middle}`,
+    `.wp-svg .lts{fill:${pal.ink};font:400 15px ${pal.sans};text-anchor:middle;letter-spacing:0.02em}`,
+    `.wp-svg .wrd{fill:${pal.ink};font-family:${pal.sans};text-anchor:middle}`,
+    `.wp-svg .cap{fill:${pal.faint};font:400 11px ${pal.sans};letter-spacing:0.06em}`,
+    `.wp-svg .free{fill:${pal.faint};font:400 12px ${pal.sans};text-anchor:middle;letter-spacing:0.08em}`,
+    `.wp-svg .mark{fill:none;stroke:${pal.ink};stroke-opacity:0.16;stroke-linecap:round}`,
+  ].join("");
+}
+
+// Parts stack down the page, each centred on the widest of them, which is all
+// the arranging any of these sheets needs.
+function svgDoc(parts, pal, { gap = 22, responsive = true } = {}) {
+  const list = parts.filter(Boolean);
+  if (!list.length) return "";
+  const w = Math.max(...list.map((p) => p.w));
+  const h = list.reduce((sum, p) => sum + p.h, 0) + gap * (list.length - 1);
+
+  let y = 0;
+  let body = "";
+  for (const part of list) {
+    body += `<g transform="translate(${((w - part.w) / 2).toFixed(1)},${y.toFixed(1)})">${part.body}</g>`;
+    y += part.h + gap;
+  }
+  // On the page the grid gives way to a narrow window; a saved file keeps the
+  // size it was drawn at, which is what a document or a printer wants.
+  const sizing = responsive ? ` style="width:100%;max-width:${w}px;height:auto"` : "";
+  return `<svg class="wp-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}"`
+    + ` width="${w}" height="${h}"${sizing} role="img"><style>${svgCss(pal)}</style>${body}</svg>`;
+}
+
+function interlockPart(layout, answers) {
+  const S = 30;
+  let body = "";
+  for (const [key, cell] of layout.cells) {
+    const [r, c] = key.split(",").map(Number);
+    const x = c * S + 0.5;
+    const y = r * S + 0.5;
+    body += `<rect class="cel" x="${x}" y="${y}" width="${S}" height="${S}"/>`;
+    if (cell.num) body += `<text class="num" x="${x + 2.6}" y="${y + 9.4}">${cell.num}</text>`;
+    if (answers) body += `<text class="ltr" x="${x + S / 2}" y="${y + S * 0.79}">${cell.ch}</text>`;
+  }
+  return { w: layout.cols * S + 1, h: layout.rows * S + 1, body };
+}
+
+function searchPart(search, answers) {
+  const S = 26;
+  const span = search.size * S;
+  let body = `<rect class="box" x="0.5" y="0.5" width="${span}" height="${span}"/>`;
+
+  if (answers) {
+    // One round-capped stroke per word, laid under the letters.
+    for (const hit of search.placed) {
+      const x1 = hit.c * S + S / 2 + 0.5;
+      const y1 = hit.r * S + S / 2 + 0.5;
+      const x2 = (hit.c + hit.dc * (hit.len - 1)) * S + S / 2 + 0.5;
+      const y2 = (hit.r + hit.dr * (hit.len - 1)) * S + S / 2 + 0.5;
+      body += `<line class="mark" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke-width="${(S * 0.76).toFixed(1)}"/>`;
+    }
+  }
+
+  for (let r = 0; r < search.size; r++) {
+    for (let c = 0; c < search.size; c++) {
+      body += `<text class="lts" x="${c * S + S / 2 + 0.5}" y="${r * S + S * 0.71 + 0.5}">${search.grid[r][c]}</text>`;
+    }
+  }
+  return { w: span + 1, h: span + 1, body };
+}
+
+// Words in a bingo square have to be read at arm's length across a room, so
+// they are wrapped and then shrunk until the longest line fits the square.
+const measurer = document.createElement("canvas").getContext("2d");
+let measureFont = "Helvetica, Arial, sans-serif";
+
+function fitLines(text, maxWidth, maxLines, startSize) {
+  const words = text.split(/\s+/).filter(Boolean);
+  for (let size = startSize; size >= 7; size--) {
+    measurer.font = `400 ${size}px ${measureFont}`;
+    const lines = [];
+    let line = "";
+    let tooWide = false;
+    for (const word of words) {
+      const next = line ? `${line} ${word}` : word;
+      if (line && measurer.measureText(next).width > maxWidth) { lines.push(line); line = word; }
+      else line = next;
+      if (measurer.measureText(line).width > maxWidth) tooWide = true;
+    }
+    if (line) lines.push(line);
+    if (!tooWide && lines.length <= maxLines) return { lines, size };
+  }
+
+  // One word longer than the square itself: break it wherever it runs out of
+  // room, which at least keeps it inside the lines.
+  const out = [];
+  let line = "";
+  for (const ch of words.join(" ")) {
+    if (line && measurer.measureText(line + ch).width > maxWidth) { out.push(line); line = ch; }
+    else line += ch;
+  }
+  if (line) out.push(line);
+  return { lines: out.slice(0, maxLines + 2), size: 7 };
+}
+
+function bingoPart(squares, size, caption) {
+  const S = size >= 5 ? 92 : size === 4 ? 108 : 126;
+  const head = caption ? 20 : 0;
+  let body = caption ? `<text class="cap" x="0.5" y="12">${esc(caption)}</text>` : "";
+
+  for (let i = 0; i < squares.length; i++) {
+    const r = Math.floor(i / size);
+    const c = i % size;
+    const x = c * S + 0.5;
+    const y = r * S + 0.5 + head;
+    body += `<rect class="cel" x="${x}" y="${y}" width="${S}" height="${S}"/>`;
+
+    const entry = squares[i];
+    if (!entry) {
+      body += `<text class="free" x="${x + S / 2}" y="${y + S / 2 + 4}">FREE</text>`;
+      continue;
+    }
+    const fit = fitLines(entry.display, S - 14, 4, size >= 5 ? 14 : 16);
+    const top = y + S / 2 - ((fit.lines.length - 1) * fit.size * 1.15) / 2 + fit.size * 0.35;
+    fit.lines.forEach((line, n) => {
+      body += `<text class="wrd" x="${x + S / 2}" y="${(top + n * fit.size * 1.15).toFixed(1)}"`
+        + ` style="font-size:${fit.size}px">${esc(line)}</text>`;
+    });
+  }
+  return { w: size * S + 1, h: size * S + 1 + head, body };
+}
+
+/* ============================================================================
+   the sheets
+
+   One function per puzzle. Each is handed the words and the options and gives
+   back the puzzle, the answer key, the SVG parts a save would write out, the
+   plain-text version, and anything it had to leave behind.
+   ========================================================================== */
+
+function lengthTag(entry) {
+  const counts = entry.parts.map((part) => part.length);
+  return `(${counts.join(",")})`;
+}
+
+function clueHtml(entry) {
+  return entry.clue ? esc(entry.clue) : '<span class="empty">&mdash; no clue for this one &mdash;</span>';
+}
+
+// One space per letter, a gap between the words of a two-word answer.
+function slotsHtml(entry, firstLetter) {
+  return entry.parts
+    .map((part, pi) => part.split("").map((ch, i) => (firstLetter && pi === 0 && i === 0 ? ch : "_")).join(" "))
+    .join("&nbsp; / &nbsp;");
+}
+
+function slotsText(entry, firstLetter) {
+  return entry.parts
+    .map((part, pi) => part.split("").map((ch, i) => (firstLetter && pi === 0 && i === 0 ? ch : "_")).join(" "))
+    .join("   /   ");
+}
+
+function bankHtml(words) {
+  return `<div class="bank">${words.map((w) => `<span>${esc(w)}</span>`).join("")}</div>`;
+}
+
+function listBlock(title, inner) {
+  return `<div class="block"><h3>${esc(title)}</h3>${inner}</div>`;
+}
+
+function gridRowsText(layout) {
+  const lines = [];
+  for (let r = 0; r < layout.rows; r++) {
+    let line = "";
+    for (let c = 0; c < layout.cols; c++) {
+      const cell = layout.cells.get(r + "," + c);
+      line += (cell ? cell.ch : " ") + " ";
+    }
+    lines.push(line.replace(/\s+$/, ""));
+  }
+  return lines;
+}
+
+/* ----------------------------------------------------------- crossword -- */
+
+function renderCrossword(ctx) {
+  const layout = interlock(ctx.entries, ctx.rng);
+  if (!layout) return null;
+
+  const clueList = (words) => `<ol>${words.map((hit) =>
+    `<li value="${hit.num}">${clueHtml(hit.word)} <span class="len">${lengthTag(hit.word)}</span></li>`).join("")}</ol>`;
+
+  const answerList = (words) => `<ol>${words.map((hit) =>
+    `<li value="${hit.num}">${esc(hit.word.display)}</li>`).join("")}</ol>`;
+
+  const parts = [interlockPart(layout, false)];
+  const keyParts = [interlockPart(layout, true)];
+
+  const html = `<div class="grid-wrap">${svgDoc(parts, SCREEN_PALETTE)}</div>`
+    + `<div class="across-down">`
+    + `<div><h3>across</h3>${clueList(layout.across)}</div>`
+    + `<div><h3>down</h3>${clueList(layout.down)}</div>`
+    + `</div>`;
+
+  const key = `<div class="grid-wrap">${svgDoc(keyParts, SCREEN_PALETTE)}</div>`
+    + `<div class="across-down">`
+    + `<div><h3>across</h3>${answerList(layout.across)}</div>`
+    + `<div><h3>down</h3>${answerList(layout.down)}</div>`
+    + `</div>`;
+
+  const text = ["ACROSS"]
+    .concat(layout.across.map((h) => `${h.num}. ${h.word.clue || "—"} ${lengthTag(h.word)}`))
+    .concat(["", "DOWN"])
+    .concat(layout.down.map((h) => `${h.num}. ${h.word.clue || "—"} ${lengthTag(h.word)}`))
+    .concat(["", "ANSWERS", ...gridRowsText(layout), ""])
+    .concat(layout.across.map((h) => `${h.num} across  ${h.word.display}`))
+    .concat(layout.down.map((h) => `${h.num} down  ${h.word.display}`));
+
+  return {
+    parts, keyParts, html, key, text,
+    sub: `Fill the grid from the clues — ${plural(layout.across.length, "across", "across")}, ${plural(layout.down.length, "down", "down")}.`,
+    left: layout.left,
+    noClues: layout.placed.filter((h) => !h.word.clue).length,
+  };
+}
+
+/* --------------------------------------------------------- criss-cross -- */
+
+function renderCrissCross(ctx) {
+  const layout = interlock(ctx.entries, ctx.rng);
+  if (!layout) return null;
+
+  const words = layout.placed.map((hit) => hit.word);
+  const bank = ctx.opts.bankMode;
+  let bankBlock;
+
+  if (bank === "clues") {
+    const clueList = (hits) => `<ol>${hits.map((hit) =>
+      `<li value="${hit.num}">${clueHtml(hit.word)} <span class="len">${lengthTag(hit.word)}</span></li>`).join("")}</ol>`;
+    bankBlock = `<div class="across-down">`
+      + `<div><h3>across</h3>${clueList(layout.across)}</div>`
+      + `<div><h3>down</h3>${clueList(layout.down)}</div></div>`;
+  } else if (bank === "alpha") {
+    const sorted = words.map((w) => w.display).sort((a, b) => a.localeCompare(b));
+    bankBlock = listBlock("word bank", bankHtml(sorted));
+  } else {
+    // Grouped by length, because that is how you solve one of these: find the
+    // one eight-letter slot, and the one eight-letter word that goes in it.
+    const groups = new Map();
+    for (const word of words) {
+      const list = groups.get(word.letters.length) || [];
+      list.push(word.display);
+      groups.set(word.letters.length, list);
+    }
+    const rows = [...groups.keys()].sort((a, b) => a - b).map((len) =>
+      `<div class="bank-row"><span class="bank-len">${len}</span>`
+      + `<span class="bank-words">${groups.get(len).sort((a, b) => a.localeCompare(b))
+        .map((word) => `<span>${esc(word)}</span>`).join("")}</span></div>`);
+    bankBlock = listBlock("word bank, by length", `<div class="bank grouped">${rows.join("")}</div>`);
+  }
+
+  const parts = [interlockPart(layout, false)];
+  const keyParts = [interlockPart(layout, true)];
+
+  const text = [`WORD BANK`, words.map((w) => w.display).sort().join(", "), "", "ANSWERS"]
+    .concat(gridRowsText(layout), [""])
+    .concat(layout.across.map((h) => `${h.num} across  ${h.word.display}`))
+    .concat(layout.down.map((h) => `${h.num} down  ${h.word.display}`));
+
+  return {
+    parts, keyParts,
+    html: `<div class="grid-wrap">${svgDoc(parts, SCREEN_PALETTE)}</div>${bankBlock}`,
+    key: `<div class="grid-wrap">${svgDoc(keyParts, SCREEN_PALETTE)}</div>`,
+    text,
+    sub: bank === "clues"
+      ? `Every answer goes in the grid once. ${plural(words.length, "word", "words")}, and the lengths say where.`
+      : `Every word in the bank goes in the grid exactly once. ${plural(words.length, "word", "words")}.`,
+    left: layout.left,
+  };
+}
+
+/* --------------------------------------------------------- word search -- */
+
+function renderWordSearch(ctx) {
+  const search = wordSearch(ctx.entries, ctx.rng, { size: ctx.opts.size, dirs: ctx.opts.dirs });
+  if (!search) return null;
+
+  const found = search.placed.map((hit) => hit.word);
+  const parts = [searchPart(search, false)];
+  const keyParts = [searchPart(search, true)];
+
+  let listBelow;
+  if (ctx.opts.listMode === "clues") {
+    listBelow = listBlock("find the answer to each clue", `<ol class="cols">${found.map((word) =>
+      `<li>${clueHtml(word)} <span class="len">${lengthTag(word)}</span></li>`).join("")}</ol>`);
+  } else {
+    const sorted = found.map((w) => w.display).sort((a, b) => a.localeCompare(b));
+    listBelow = listBlock("the words", bankHtml(sorted));
+  }
+
+  const spread = { plain: "across and down", diagonal: "across, down and diagonally", all: "in all eight directions" };
+  const gridText = search.grid.map((row) => row.join(" "));
+
+  const text = [...gridText, "", "THE WORDS", found.map((w) => w.display).sort().join(", "), "", "ANSWERS"]
+    .concat(search.placed.map((hit) =>
+      `${hit.word.display} — row ${hit.r + 1}, column ${hit.c + 1}, ${dirName(hit.dr, hit.dc)}`));
+
+  return {
+    parts, keyParts,
+    html: `<div class="grid-wrap">${svgDoc(parts, SCREEN_PALETTE)}</div>${listBelow}`,
+    key: `<div class="grid-wrap">${svgDoc(keyParts, SCREEN_PALETTE)}</div>`
+      + (ctx.opts.listMode === "clues"
+        ? listBlock("the answers", `<ol class="cols">${found.map((w) => `<li>${esc(w.display)}</li>`).join("")}</ol>`)
+        : ""),
+    text,
+    sub: `${plural(found.length, "word is", "words are")} hidden in the ${search.size} × ${search.size} grid, ${spread[ctx.opts.dirs] || spread.diagonal}.`,
+    left: search.left,
+  };
+}
+
+function dirName(dr, dc) {
+  const names = { "0,1": "left to right", "0,-1": "right to left", "1,0": "top to bottom", "-1,0": "bottom to top" };
+  return names[`${dr},${dc}`] || `diagonally ${dr > 0 ? "down" : "up"} and ${dc > 0 ? "right" : "left"}`;
+}
+
+/* ------------------------------------------------------------ scramble -- */
+
+function renderScramble(ctx) {
+  const words = shuffled(ctx.entries, ctx.rng);
+  const items = words.map((entry) => ({ entry, mixed: scramble(entry.letters, ctx.rng) }));
+
+  const html = listBlock("unscramble", `<ol>${items.map((item) =>
+    `<li class="wide"><span class="scram">${esc(item.mixed)}</span>`
+    + (item.entry.clue ? ` &mdash; ${esc(item.entry.clue)}` : "")
+    + `<br><span class="slots">${slotsHtml(item.entry, ctx.opts.firstLetter)}</span></li>`).join("")}</ol>`)
+    + (ctx.opts.bank ? listBlock("word bank", bankHtml(shuffled(words, ctx.rng).map((w) => w.display))) : "");
+
+  const key = `<ol class="cols">${items.map((item) =>
+    `<li>${esc(item.mixed)} &nbsp;&rarr;&nbsp; ${esc(item.entry.display)}</li>`).join("")}</ol>`;
+
+  const text = ["UNSCRAMBLE"]
+    .concat(items.map((item, i) => `${i + 1}. ${item.mixed}${item.entry.clue ? ` — ${item.entry.clue}` : ""}  ${slotsText(item.entry, ctx.opts.firstLetter)}`))
+    .concat(["", "ANSWERS"], items.map((item, i) => `${i + 1}. ${item.entry.display}`));
+
+  return {
+    parts: [], keyParts: [], html, key, text,
+    sub: `The letters of each word, shuffled. ${plural(items.length, "word", "words")} to put back.`,
+    left: [],
+  };
+}
+
+/* ----------------------------------------------------- fill the blanks -- */
+
+function renderBlanks(ctx) {
+  const withClues = ctx.entries.filter((entry) => entry.clue);
+  const without = ctx.entries.filter((entry) => !entry.clue);
+  if (!withClues.length) return { needsClues: true };
+
+  const items = shuffled(withClues, ctx.rng);
+  const html = listBlock("one letter per space", `<ol>${items.map((entry) =>
+    `<li class="wide">${esc(entry.clue)}<br><span class="slots">${slotsHtml(entry, ctx.opts.firstLetter)}</span></li>`).join("")}</ol>`)
+    + (ctx.opts.bank ? listBlock("word bank", bankHtml(shuffled(items, ctx.rng).map((w) => w.display))) : "");
+
+  const key = `<ol class="cols">${items.map((entry) => `<li>${esc(entry.display)}</li>`).join("")}</ol>`;
+
+  const text = ["FILL THE BLANKS"]
+    .concat(items.map((entry, i) => `${i + 1}. ${entry.clue}\n    ${slotsText(entry, ctx.opts.firstLetter)}`))
+    .concat(["", "ANSWERS"], items.map((entry, i) => `${i + 1}. ${entry.display}`));
+
+  return {
+    parts: [], keyParts: [], html, key, text,
+    sub: `${plural(items.length, "clue", "clues")}, one letter per space`
+      + (ctx.opts.bank ? ", and every answer is in the word bank." : "."),
+    left: without,
+    leftReason: "no clue to go with them",
+  };
+}
+
+/* ------------------------------------------------------------ matching -- */
+
+const MATCH_LETTERS = ALPHABET.slice();
+
+function renderMatching(ctx) {
+  const withClues = ctx.entries.filter((entry) => entry.clue);
+  const without = ctx.entries.filter((entry) => !entry.clue);
+  if (!withClues.length) return { needsClues: true };
+
+  // One letter per word, so a sheet holds twenty-six pairs at the most.
+  const used = shuffled(withClues, ctx.rng).slice(0, MATCH_LETTERS.length);
+  const overflow = withClues.length - used.length;
+
+  const clues = shuffled(used, ctx.rng);
+  const words = shuffled(used, ctx.rng).map((entry, i) => ({ entry, letter: MATCH_LETTERS[i] }));
+  const letterOf = new Map(words.map(({ entry, letter }) => [entry, letter]));
+
+  const html = `<div class="pairs">`
+    + `<div><h3>clues</h3><ol>${clues.map((entry) =>
+      `<li><span class="pick">___</span> &nbsp;${esc(entry.clue)}</li>`).join("")}</ol></div>`
+    + `<div><h3>words</h3><ul style="list-style:none;padding-left:0">${words.map(({ entry, letter }) =>
+      `<li><span class="pick">${letter}.</span> ${esc(entry.display)}</li>`).join("")}</ul></div>`
+    + `</div>`;
+
+  const key = `<ol class="cols">${clues.map((entry) =>
+    `<li>${letterOf.get(entry)} &nbsp;&mdash;&nbsp; ${esc(entry.display)}</li>`).join("")}</ol>`;
+
+  const text = ["CLUES"]
+    .concat(clues.map((entry, i) => `${i + 1}. ___  ${entry.clue}`))
+    .concat(["", "WORDS"], words.map(({ entry, letter }) => `${letter}. ${entry.display}`))
+    .concat(["", "ANSWERS"], clues.map((entry, i) => `${i + 1}. ${letterOf.get(entry)} — ${entry.display}`));
+
+  return {
+    parts: [], keyParts: [], html, key, text,
+    sub: `Write the letter of the word beside the clue it belongs to. ${plural(used.length, "pair", "pairs")}.`,
+    left: without,
+    leftReason: "no clue to go with them",
+    note: overflow ? `${overflow} more would have needed a twenty-seventh letter, so they were left off` : "",
+  };
+}
+
+/* --------------------------------------------------------- code cracker -- */
+
+function renderCipher(ctx) {
+  const map = cipherFor(ctx.rng, ctx.opts.cipherMode);
+  const given = freebies(ctx.entries, ctx.opts.given);
+  const items = shuffled(ctx.entries, ctx.rng);
+  const numbers = ctx.opts.cipherMode === "numbers";
+
+  // The key is indexed by the code, not by the answer — that is the side of it
+  // the solver is holding.
+  const inverse = new Map([...map.entries()].map(([plain, code]) => [code, plain]));
+  const codes = numbers
+    ? Array.from({ length: 26 }, (_, i) => String(i + 1))
+    : ALPHABET.slice();
+
+  function keyTable(filled) {
+    const half = 13;
+    let rows = "";
+    for (let start = 0; start < codes.length; start += half) {
+      const slice = codes.slice(start, start + half);
+      rows += `<tr class="plain">${slice.map((code) => `<td>${esc(code)}</td>`).join("")}</tr>`;
+      rows += `<tr>${slice.map((code) => {
+        const plain = inverse.get(code) || "";
+        return `<td>${filled || given.has(plain) ? plain : ""}</td>`;
+      }).join("")}</tr>`;
+    }
+    return `<table class="keytab">${rows}</table>`;
+  }
+
+  const html = listBlock(numbers ? "each number stands for a letter" : "each letter stands for another", keyTable(false))
+    + listBlock("the words", `<ol>${items.map((entry) =>
+      `<li class="wide"><span class="code${numbers ? " nums" : ""}">`
+      + `${esc(encode(entry, map, ctx.opts.cipherMode))}</span>`
+      + (entry.clue ? ` &mdash; ${esc(entry.clue)}` : "")
+      + `<br><span class="slots">${slotsHtml(entry, false)}</span></li>`).join("")}</ol>`);
+
+  const key = listBlock("the code", keyTable(true))
+    + `<ol class="cols">${items.map((entry) =>
+      `<li>${esc(encode(entry, map, ctx.opts.cipherMode))} &nbsp;&rarr;&nbsp; ${esc(entry.display)}</li>`).join("")}</ol>`;
+
+  const text = [numbers ? "CODE: a number per letter" : "CODE: a letter for a letter"]
+    .concat(items.map((entry, i) => `${i + 1}. ${encode(entry, map, ctx.opts.cipherMode)}${entry.clue ? ` — ${entry.clue}` : ""}`))
+    .concat(["", "THE CODE"], [codes.map((code) => `${code}=${inverse.get(code)}`).join("  ")])
+    .concat(["", "ANSWERS"], items.map((entry, i) => `${i + 1}. ${entry.display}`));
+
+  return {
+    parts: [], keyParts: [], html, key, text,
+    sub: numbers
+      ? `Every letter has been swapped for a number. ${plural(items.length, "word", "words")} to crack.`
+      : `Every letter has been swapped for another letter — never itself. ${plural(items.length, "word", "words")} to crack.`,
+    left: [],
+  };
+}
+
+/* --------------------------------------------------------------- bingo -- */
+
+function renderBingo(ctx) {
+  const built = bingoCards(ctx.entries, ctx.rng, {
+    size: ctx.opts.cardSize,
+    cards: ctx.opts.cards,
+    free: ctx.opts.free && ctx.opts.cardSize >= 5,
+  });
+
+  if (!built.cards.length) {
+    return {
+      parts: [], keyParts: [], text: [],
+      html: `<p class="empty">A ${ctx.opts.cardSize} × ${ctx.opts.cardSize} card needs ${built.need} words and
+        the list has ${ctx.entries.length}. Add more words, or pick a smaller card.</p>`,
+      key: "",
+      sub: "",
+      left: [],
+    };
+  }
+
+  const parts = built.cards.map((squares, i) =>
+    bingoPart(squares, built.size, `card ${i + 1} of ${built.cards.length}`));
+
+  // A card is its own block so the printer can put a page break between them
+  // rather than slicing one in half.
+  const html = parts.map((part) => `<div class="grid-wrap">${svgDoc([part], SCREEN_PALETTE)}</div>`).join("");
+
+  const called = shuffled(ctx.entries, ctx.rng).map((entry) => entry.display);
+  const key = `<ol class="cols">${called.map((word) => `<li>${esc(word)}</li>`).join("")}</ol>`;
+
+  const text = ["CALL LIST"].concat(called.map((word, i) => `${i + 1}. ${word}`));
+
+  return {
+    parts, keyParts: [], html, key, text,
+    sub: `${plural(built.cards.length, "card", "cards")}, ${built.size} × ${built.size}. Cross a square off when its word is called.`,
+    left: [],
+    keyLabel: "call list",
+  };
+}
+
+/* ============================================================================
+   the page
+   ========================================================================== */
+
+const RENDERERS = {
+  crossword: renderCrossword,
+  wordsearch: renderWordSearch,
+  crisscross: renderCrissCross,
+  scramble: renderScramble,
+  blanks: renderBlanks,
+  matching: renderMatching,
+  cipher: renderCipher,
+  bingo: renderBingo,
+};
+
+const HEADINGS = {
+  crossword: "Crossword",
+  wordsearch: "Word search",
+  crisscross: "Criss-cross",
+  scramble: "Word scramble",
+  blanks: "Fill the blanks",
+  matching: "Matching",
+  cipher: "Code cracker",
+  bingo: "Word bingo",
+};
+
+const NEEDS_CLUES = {
+  blanks: "Fill the blanks is built out of clues — the clue is the question and the word is the answer.",
+  matching: "Matching pairs each clue with its word, so it needs the clues.",
+};
+
+const state = {
+  type: "crossword",
+  seed: 7,
+  entries: [],
+  parts: [],
+  text: "",
+};
+
+const sheetEl = $("sheet");
+const statusEl = $("status");
+const noteEl = $("note");
+
+function segValue(id, attr) {
+  const on = $(id).querySelector("button.on") || $(id).querySelector("button:not(:disabled)");
+  return on ? on.dataset[attr] : "";
+}
+
+function wireSeg(id, attr, after) {
+  $(id).addEventListener("click", (event) => {
+    const button = event.target.closest("button");
+    if (!button || button.disabled) return;
+    for (const other of $(id).querySelectorAll("button")) other.classList.toggle("on", other === button);
+    if (after) after(button.dataset[attr]);
+    render();
+  });
+}
+
+function readOpts() {
+  return {
+    size: Number($("ws-size").value) || 0,
+    dirs: segValue("ws-dirs", "dirs") || "diagonal",
+    listMode: segValue("ws-list", "mode") || "words",
+    bankMode: segValue("cc-bank", "bank") || "length",
+    // A scramble with the answers printed under it is barely a puzzle, so the
+    // two types start from opposite defaults.
+    bank: (state.type === "scramble" ? $("sc-bank") : $("bl-bank")).checked,
+    firstLetter: $("first-letter").checked,
+    cipherMode: segValue("ci-mode", "mode") || "letters",
+    given: Math.max(0, Math.min(8, Number($("ci-free").value) || 0)),
+    cardSize: Number(segValue("bg-size", "size")) || 5,
+    cards: Math.max(1, Math.min(24, Number($("bg-cards").value) || 1)),
+    free: $("bg-free").checked,
+  };
+}
+
+function showOptionsFor(type) {
+  for (const row of document.querySelectorAll(".opt")) {
+    const applies = row.dataset.for.split(" ");
+    row.classList.toggle("on", applies.includes("all") || applies.includes(type));
+  }
+}
+
+// The options that read the clues are only offered when there are clues to
+// read, and anything resting on one steps aside.
+function syncClueOptions(haveClues) {
+  for (const button of document.querySelectorAll("[data-needs-clues]")) {
+    button.disabled = !haveClues;
+    if (!haveClues && button.classList.contains("on")) {
+      button.classList.remove("on");
+      const fallback = button.parentElement.querySelector("button:not([data-needs-clues])");
+      if (fallback) fallback.classList.add("on");
+    }
+  }
+}
+
+/* --------------------------------------------------------- reading input -- */
+
+function readWords() {
+  const split = $("split-clues").checked;
+  const { entries, dropped } = tidy(parseTyped($("words").value, $("clues").value, split));
+  state.entries = entries;
+
+  const withClues = entries.filter((entry) => entry.clue).length;
+  syncClueOptions(withClues > 0);
+
+  if (!entries.length) {
+    statusEl.textContent = "";
+    statusEl.classList.remove("error");
+    return;
+  }
+
+  const bits = [plural(entries.length, "word", "words")];
+  bits.push(withClues === entries.length ? "all with clues" : `${withClues} with a clue`);
+  if (dropped.duplicate) bits.push(`${plural(dropped.duplicate, "repeat", "repeats")} dropped`);
+  if (dropped.short) bits.push(`${dropped.short} too short to use`);
+  statusEl.textContent = bits.join(" · ");
+  statusEl.classList.remove("error");
+}
+
+function setStatus(message, isError) {
+  statusEl.textContent = message;
+  statusEl.classList.toggle("error", !!isError);
+}
+
+function applyEntries(entries, from) {
+  const haveClues = entries.some((entry) => entry.clue);
+  $("split-clues").checked = haveClues;
+  $("io").classList.toggle("split", haveClues);
+  $("words").value = entries.map((entry) => entry.display).join("\n");
+  $("clues").value = haveClues ? entries.map((entry) => entry.clue).join("\n") : "";
+  readWords();
+  render();
+  if (from) {
+    const now = statusEl.textContent;
+    setStatus(`${from} — ${now || "nothing usable in it"}`, !state.entries.length);
+  }
+}
+
+/* ------------------------------------------------------------ rendering -- */
+
+function render() {
+  const opts = readOpts();
+  showOptionsFor(state.type);
+
+  if (!state.entries.length) {
+    sheetEl.innerHTML = `<p class="empty">Nothing to build with yet. Type a list above, drop a
+      spreadsheet in, or load the example.</p>`;
+    noteEl.textContent = "";
+    $("print").disabled = true;
+    $("save-svg").disabled = true;
+    $("copy-txt").disabled = true;
+    return;
+  }
+
+  const built = RENDERERS[state.type]({ entries: state.entries, rng: rngFrom(state.seed), opts });
+
+  if (!built || built.needsClues) {
+    sheetEl.innerHTML = `<p class="empty">${esc(NEEDS_CLUES[state.type] || "Nothing came out of that list.")}
+      Add a clue after each word &mdash; or tick <em>clues in their own column</em> and paste them in.</p>`;
+    noteEl.textContent = "";
+    $("print").disabled = true;
+    $("save-svg").disabled = true;
+    $("copy-txt").disabled = true;
+    return;
+  }
+
+  const heading = $("title").value.trim() || HEADINGS[state.type];
+  const withKey = $("with-key").checked && !!built.key;
+  const keyLabel = built.keyLabel || "answer key";
+
+  sheetEl.innerHTML = `<h2 class="title">${esc(heading)}</h2>`
+    + (built.sub ? `<p class="sub">${esc(built.sub)}</p>` : "")
+    + built.html
+    + (withKey
+      ? `<div class="answers${$("key-page").checked ? " page" : ""}"><h3>${esc(keyLabel)}</h3>${built.key}</div>`
+      : "");
+
+  state.parts = (built.parts || []).concat(withKey ? built.keyParts || [] : []);
+  state.text = [heading, built.sub || "", ""].concat(built.text || []).join("\n").replace(/\n{3,}/g, "\n\n");
+  state.heading = heading;
+
+  $("print").disabled = false;
+  $("save-svg").disabled = !state.parts.length;
+  $("copy-txt").disabled = !state.text.trim();
+
+  // What the puzzle couldn't take is said out loud rather than quietly dropped.
+  const notes = [];
+  if (built.left && built.left.length) {
+    const names = built.left.map((entry) => entry.display);
+    const reason = built.leftReason || (state.type === "wordsearch"
+      ? "they wouldn't fit the grid"
+      : "they wouldn't cross anything already on the grid");
+    notes.push(`${plural(names.length, "word", "words")} left out — ${reason}: ${names.slice(0, 12).join(", ")}`
+      + (names.length > 12 ? ", …" : ""));
+  }
+  if (built.note) notes.push(built.note);
+  if (built.noClues) notes.push(`${plural(built.noClues, "clue is", "clues are")} still blank`);
+  noteEl.textContent = notes.join(" · ");
+}
+
+function rerender() { readWords(); render(); }
+
+/* ----------------------------------------------------------- saving out -- */
+
+function slug(text) {
+  return (text || "puzzle").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "puzzle";
+}
+
+function saveSvg() {
+  if (!state.parts.length) return;
+  const svg = svgDoc(state.parts, SAVED_PALETTE, { responsive: false });
+  const file = `<?xml version="1.0" encoding="UTF-8"?>\n${svg}\n`;
+  const url = URL.createObjectURL(new Blob([file], { type: "image/svg+xml" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${slug(state.heading)}.svg`;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  noteEl.textContent = `saved ${link.download}`;
+}
+
+async function copyText() {
+  try {
+    await navigator.clipboard.writeText(state.text);
+    noteEl.textContent = "copied";
+  } catch (err) {
+    noteEl.textContent = "the browser wouldn't hand over the clipboard — select the sheet and copy it instead";
+  }
+}
+
+/* -------------------------------------------------------------- wiring -- */
+
+const EXAMPLE = [
+  ["ORBIT", "the path one body takes around another"],
+  ["ECLIPSE", "one body hidden behind another"],
+  ["PENUMBRA", "the softer outer edge of a shadow"],
+  ["GRAVITY", "what keeps a moon from wandering off"],
+  ["NEBULA", "a cloud of gas where stars are made"],
+  ["COMET", "ice on a long loop, with a tail"],
+  ["METEOR", "a streak of light burning up on the way down"],
+  ["ASTEROID", "rock on its own orbit, mostly between Mars and Jupiter"],
+  ["GALAXY", "a few hundred billion stars, held together"],
+  ["QUASAR", "the bright heart of a very distant galaxy"],
+  ["PULSAR", "a dead star keeping time"],
+  ["SUPERNOVA", "how a heavy star signs off"],
+  ["CRATER", "the dent an impact leaves behind"],
+  ["EQUINOX", "day and night the same length"],
+  ["SOLSTICE", "the longest day, or the shortest"],
+  ["ZENITH", "straight overhead"],
+  ["PARALLAX", "the shift that gives away a star's distance"],
+  ["ALBEDO", "how much light a surface throws back"],
+  ["CORONA", "the sun's outer atmosphere, seen in eclipse"],
+  ["AURORA", "charged particles meeting the upper air"],
+  ["PERIHELION", "the closest an orbit comes to the sun"],
+  ["APOGEE", "the far end of an orbit around the Earth"],
+  ["TELESCOPE", "the instrument that started all of this"],
+  ["SPECTRUM", "light split into the colours in it"],
+  ["REDSHIFT", "light stretched by a universe getting bigger"],
+  ["LIGHT YEAR", "a distance, despite the name"],
+];
+
+let typing = 0;
+function onTyping() {
+  clearTimeout(typing);
+  typing = setTimeout(rerender, 220);
+}
+
+function init() {
+  // Canvas can't read a CSS custom property, and bingo squares have to be
+  // measured before they are drawn, so the page's own font is asked for once.
+  measureFont = getComputedStyle(document.body).fontFamily || measureFont;
+
+  $("words").addEventListener("input", onTyping);
+  $("clues").addEventListener("input", onTyping);
+  $("title").addEventListener("input", onTyping);
+
+  $("split-clues").addEventListener("change", () => {
+    $("io").classList.toggle("split", $("split-clues").checked);
+    rerender();
+  });
+
+  $("example").addEventListener("click", () => {
+    applyEntries(EXAMPLE.map(([word, clue]) => makeEntry(word, clue)));
+  });
+
+  $("clear").addEventListener("click", () => {
+    $("words").value = "";
+    $("clues").value = "";
+    rerender();
+  });
+
+  $("types").addEventListener("click", (event) => {
+    const button = event.target.closest("button");
+    if (!button) return;
+    for (const other of $("types").querySelectorAll("button")) other.classList.toggle("on", other === button);
+    state.type = button.dataset.type;
+    render();
+  });
+
+  wireSeg("ws-dirs", "dirs");
+  wireSeg("ws-list", "mode");
+  wireSeg("cc-bank", "bank");
+  wireSeg("ci-mode", "mode");
+  wireSeg("bg-size", "size");
+
+  for (const id of ["ws-size", "ci-free", "bg-cards", "bg-free", "first-letter",
+    "sc-bank", "bl-bank", "with-key", "key-page"]) {
+    $(id).addEventListener("change", render);
+  }
+
+  $("reroll").addEventListener("click", () => {
+    state.seed = Math.floor(Math.random() * 0xffffffff) || 1;
+    render();
+  });
+
+  $("print").addEventListener("click", () => window.print());
+  $("save-svg").addEventListener("click", saveSvg);
+  $("copy-txt").addEventListener("click", copyText);
+
+  const drop = $("drop");
+  const fileInput = $("file");
+  drop.addEventListener("click", () => fileInput.click());
+  drop.addEventListener("dragover", (event) => { event.preventDefault(); drop.classList.add("drag"); });
+  drop.addEventListener("dragleave", () => drop.classList.remove("drag"));
+  drop.addEventListener("drop", (event) => {
+    event.preventDefault();
+    drop.classList.remove("drag");
+    if (event.dataTransfer.files.length) openFile(event.dataTransfer.files[0]);
+  });
+  fileInput.addEventListener("change", () => {
+    if (fileInput.files.length) openFile(fileInput.files[0]);
+  });
+
+  rerender();
+}
+
+async function openFile(file) {
+  setStatus(`Reading ${file.name}…`);
+  try {
+    const { entries, from } = await entriesFromFile(file);
+    if (!entries.length) {
+      setStatus(`${file.name} — there's no word in the first column of any row`, true);
+      return;
+    }
+    applyEntries(entries, from);
+  } catch (err) {
+    console.error(err);
+    setStatus(`${file.name} — ${err.message}`, true);
+  }
+}
+
+init();
+</script>
+</body>
+</html>
