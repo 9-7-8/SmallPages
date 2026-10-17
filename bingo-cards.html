@@ -143,28 +143,37 @@
   }
   .head:last-child { border-right: none; }
 
+  /* No padding on the square itself: the container unit below is a share of
+     the whole square, and the margin round the words is held by the box
+     inside it, so the measuring and the drawing agree on what the box is. */
   .cell {
     position: relative;
     aspect-ratio: 1 / 1;
+    container-type: inline-size;
     display: flex;
     align-items: center;
     justify-content: center;
-    text-align: center;
-    padding: 5px;
-    font-size: 13px;
-    line-height: 1.25;
     color: var(--type);
     border-right: 1px solid var(--ink);
     border-bottom: 1px solid var(--ink);
-    overflow-wrap: anywhere;
-    hyphens: auto;
   }
   .cell.edge-r { border-right: none; }
   .cell.edge-b { border-bottom: none; }
-  /* Long entries are set smaller rather than allowed to spill out of the box. */
-  .cell.mid { font-size: 11px; }
-  .cell.small { font-size: 9.5px; line-height: 1.2; }
-  .cell.free { font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; }
+  .cell.free .fit { font-weight: 500; }
+
+  /* Every square is set at its own size, worked out for its own words, and
+     written in a share of the square's width so the card can be any size on
+     screen and keep it. The line breaks are the ones that were measured, so
+     nothing re-wraps underneath the size that was chosen for it. */
+  .fit {
+    width: 86%;
+    text-align: center;
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+    line-height: 1.15;
+    letter-spacing: normal;
+    font-size: calc(var(--fit, 12) * 1cqw);
+  }
 
   .sheet .foot {
     margin: 12px 0 0;
@@ -473,13 +482,102 @@ function headLetters(cols) {
   return cols === 5 && headsIn.placeholder === "BINGO" && !typed ? null : null;
 }
 
-/* ------------------------------------------------------------- rendering -- */
+/* --------------------------------------------------------- fitting words -- */
 
-function sizeClass(text) {
-  if (text.length <= 14) return "";
-  if (text.length <= 28) return "mid";
-  return "small";
+// Every square gets the largest type its own words will take. Sizes are held
+// as a share of the square's width rather than in pixels, so one answer does
+// for the card on screen at any width and for the card in the PNG, which is
+// drawn much larger — and the page and the file come out set identically
+// because they ask this the same question.
+const FIT = {
+  box: 86,          // the words' share of the square, leaving a margin round them
+  max: 44,          // a single short word shouldn't swallow the whole square
+  min: 5,
+  lead: 1.15,
+  // The largest size that fits is by definition a whisker from one that
+  // doesn't, so the measuring is held a little inside the box it is measuring
+  // against. Without that, rounding in the rendering is enough to tip a line
+  // over and wrap it, and the page and the file stop agreeing.
+  slack: 0.98,
+  family: '"Lexend Deca", Helvetica, Arial, sans-serif',
+};
+
+const gauge = document.createElement("canvas").getContext("2d");
+const fitCache = new Map();
+
+// The lines the words break into at a given size, or null when a single word
+// is wider than the box on its own — no amount of wrapping saves that size.
+function linesAt(text, size, weight) {
+  gauge.font = `${weight} ${size}px ${FIT.family}`;
+  const limit = FIT.box * FIT.slack;
+  const words = String(text).split(/\s+/).filter(Boolean);
+  if (!words.length) return [""];
+
+  const lines = [];
+  let line = "";
+  for (const word of words) {
+    if (gauge.measureText(word).width > limit) return null;
+    const next = line ? line + " " + word : word;
+    if (gauge.measureText(next).width <= limit) {
+      line = next;
+    } else {
+      lines.push(line);
+      line = word;
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
 }
+
+// A word longer than the square is wide at the smallest size there is. The
+// break has to be written down rather than left to the browser, or the page
+// would break it where it liked and the PNG would run it off the edge.
+function hardBreak(text, size, weight) {
+  gauge.font = `${weight} ${size}px ${FIT.family}`;
+  const limit = FIT.box * FIT.slack;
+  const lines = [];
+  let rest = String(text);
+  while (rest) {
+    let cut = 1;
+    while (cut < rest.length && gauge.measureText(rest.slice(0, cut + 1)).width <= limit) cut++;
+    lines.push(rest.slice(0, cut));
+    rest = rest.slice(cut);
+  }
+  return lines;
+}
+
+function fitText(text, bold) {
+  const key = (bold ? "b|" : "n|") + text;
+  const had = fitCache.get(key);
+  if (had) return had;
+
+  const weight = bold ? 500 : 400;
+  let low = FIT.min;
+  let high = FIT.max;
+  let best = null;
+
+  // Binary search: a size that fits means everything smaller fits too, so the
+  // answer is the largest one that does.
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2);
+    const lines = linesAt(text, mid, weight);
+    if (lines && lines.length * mid * FIT.lead <= FIT.box) {
+      best = { size: mid, lines };
+      low = mid + 1;
+    } else {
+      high = mid - 1;
+    }
+  }
+
+  // Nothing fits, which takes a word longer than the square is wide even at
+  // the smallest size. Broken mid-word at that size is the least bad answer
+  // left, and it is written out so both the page and the file use it.
+  if (!best) best = { size: FIT.min, lines: hardBreak(text, FIT.min, weight) };
+  fitCache.set(key, best);
+  return best;
+}
+
+/* ------------------------------------------------------------- rendering -- */
 
 function build() {
   const items = readItems();
@@ -559,10 +657,16 @@ function sheetFor(card, cols, rows, heads, index, total) {
 
   card.forEach((cell, i) => {
     const box = document.createElement("div");
-    box.className = "cell " + sizeClass(cell.text) + (cell.free ? " free" : "");
+    box.className = "cell" + (cell.free ? " free" : "");
     if ((i % cols) === cols - 1) box.classList.add("edge-r");
     if (i >= (rows - 1) * cols) box.classList.add("edge-b");
-    box.textContent = cell.text;
+
+    const fit = fitText(cell.text, cell.free);
+    const words = document.createElement("div");
+    words.className = "fit";
+    words.style.setProperty("--fit", String(fit.size));
+    words.textContent = fit.lines.join("\n");
+    box.appendChild(words);
     grid.appendChild(box);
   });
 
@@ -653,35 +757,6 @@ document.addEventListener("drop", (e) => {
 
 const PNG = { cell: 150, pad: 52, panelPad: 34, head: 92 };
 
-function wrapText(ctx, text, width) {
-  const lines = [];
-  let line = "";
-  for (const word of String(text).split(/\s+/)) {
-    const next = line ? line + " " + word : word;
-    if (ctx.measureText(next).width <= width || !line) {
-      line = next;
-      continue;
-    }
-    lines.push(line);
-    line = word;
-  }
-  if (line) lines.push(line);
-
-  // A single word too long for the box is broken where it stops fitting.
-  const out = [];
-  for (const one of lines) {
-    let rest = one;
-    while (ctx.measureText(rest).width > width && rest.length > 1) {
-      let cut = 1;
-      while (cut < rest.length && ctx.measureText(rest.slice(0, cut + 1)).width <= width) cut++;
-      out.push(rest.slice(0, cut));
-      rest = rest.slice(cut);
-    }
-    out.push(rest);
-  }
-  return out;
-}
-
 async function cardCanvas(card, cols, rows, heads, index, total) {
   const sans = '"Lexend Deca", Helvetica, Arial, sans-serif';
   try { await document.fonts.ready; } catch (err) { /* older browsers */ }
@@ -758,14 +833,17 @@ async function cardCanvas(card, cols, rows, heads, index, total) {
   card.forEach((cell, i) => {
     const x = left + (i % cols) * PNG.cell;
     const y = cellTop + Math.floor(i / cols) * PNG.cell;
-    const size = cell.text.length <= 14 ? 20 : cell.text.length <= 28 ? 17 : 14;
+
+    // The same answer the page used, scaled from a share of the square to
+    // this square's actual size, with the lines it was measured for.
+    const fit = fitText(cell.text, cell.free);
+    const size = (fit.size / 100) * PNG.cell;
     ctx.font = (cell.free ? '500 ' : '400 ') + size + 'px ' + sans;
-    const text = cell.free ? cell.text.toUpperCase() : cell.text;
-    const lines = wrapText(ctx, text, PNG.cell - 18);
-    const step = size * 1.25;
-    const start = y + PNG.cell / 2 - ((lines.length - 1) * step) / 2;
-    lines.forEach((line, n) => {
-      ctx.fillText(line, x + PNG.cell / 2, start + n * step);
+
+    const step = size * FIT.lead;
+    const start = y + PNG.cell / 2 - ((fit.lines.length - 1) * step) / 2;
+    fit.lines.forEach((text, n) => {
+      ctx.fillText(text, x + PNG.cell / 2, start + n * step);
     });
   });
 
@@ -890,6 +968,17 @@ window.addEventListener("pagehide", () => {
 itemsBox.value = SAMPLE.join("\n");
 seedIn.value = newSeed();
 build();
+
+// The first cards are measured in whatever face is up at the time, which on a
+// cold page is the fallback. When the real one arrives the measurements are
+// worth nothing, so they are thrown away and the cards dealt again — the same
+// shuffle word gives back the same cards, only set properly.
+if (document.fonts && document.fonts.ready) {
+  document.fonts.ready.then(() => {
+    fitCache.clear();
+    build();
+  }).catch(() => {});
+}
 </script>
 </body>
 </html>
