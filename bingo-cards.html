@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>bingo cards</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  /* Layout and sizing only. Colour, type and component styling live in
+     theme.css — with two exceptions. The card itself is coloured by whoever
+     is making it, so its tones come from the controls rather than the theme;
+     and the @media print block at the bottom has to put a sheet on white
+     paper whatever the screen is doing. */
+
+  body { margin: 0; padding: 3rem 1.5rem 5rem; }
+
+  main { max-width: 860px; margin: 0 auto; }
+
+  p.lede { margin: 0 0 2.2rem; max-width: 60ch; }
+
+  .card { margin-bottom: 1.5rem; }
+
+  /* ------------------------------------------------------------ controls -- */
+
+  .items { display: flex; flex-direction: column; gap: 0.4rem; }
+  .items label { font-size: 0.78rem; }
+  .items textarea { width: 100%; min-height: 11rem; resize: vertical; line-height: 1.55; }
+
+  .row {
+    display: flex;
+    align-items: flex-end;
+    gap: 1.1rem;
+    flex-wrap: wrap;
+    margin-top: 1.2rem;
+  }
+  .row + .row { margin-top: 1rem; }
+  .row.split { padding-top: 1.1rem; border-top: 1px solid var(--line-soft); }
+
+  .field { display: flex; flex-direction: column; gap: 0.35rem; }
+  .field label { font-size: 0.78rem; }
+  .field input[type="number"] { width: 5.2rem; }
+  .field input[type="text"] { width: 12rem; }
+  .field input[type="color"] { width: 3rem; height: 2.1rem; padding: 0.15rem; }
+  .field.grow { flex: 1; min-width: 12rem; }
+  .field .unit { font-size: 0.72rem; }
+
+  .check { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; cursor: pointer; }
+  .spacer { flex: 1 1 auto; }
+
+  .pair { display: flex; align-items: center; gap: 0.5rem; }
+  .pair input[type="range"] { width: 7rem; }
+  .pair output { font-size: 0.75rem; font-family: var(--mono); width: 4ch; }
+
+  .picked { font-size: 0.75rem; color: var(--text-faint); max-width: 16rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .status { font-size: 0.83rem; margin-top: 1.1rem; min-height: 1.2em; }
+
+  /* ------------------------------------------------------------ the card -- */
+
+  .sheets { display: flex; flex-direction: column; gap: 1.5rem; }
+
+  /* The four tones the card is drawn in. They are named here so the controls
+     can repoint them and the print block can leave them alone — unlike the
+     rest of this repo's pages, a bingo card is not themed, it's decorated. */
+  .sheet {
+    --ink: #111111;        /* the rules */
+    --type: #111111;       /* what is written between them */
+    --panel: #ffffff;
+    --panel-alpha: 1;
+    position: relative;
+    overflow: hidden;
+    padding: 26px;
+    background: #ffffff;
+    border: 1px solid var(--line-soft);
+    /* Backgrounds are dropped by default on the way to a printer, and a bingo
+       card with its colours stripped out is a different card. */
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  /* An <img> rather than a CSS background: a background image is the first
+     thing a print dialog throws away, and this one is the point. */
+  .sheet .bg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: none;
+  }
+  .sheet.has-bg .bg { display: block; }
+
+  /* Everything readable sits on the panel, which sits on the picture. */
+  /* The colour belongs to the tint layer alone. Painting it here as well
+     would stack two coats of it, and the slider below could never let any of
+     the picture through however far it was pulled down. */
+  .panel {
+    position: relative;
+    padding: 18px 18px 20px;
+  }
+  .panel-tint {
+    position: absolute;
+    inset: 0;
+    background: var(--panel);
+    opacity: var(--panel-alpha);
+  }
+  .panel-body { position: relative; }
+
+  .sheet h2 {
+    margin: 0 0 2px;
+    text-align: center;
+    font-size: 26px;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    color: var(--type);
+    overflow-wrap: anywhere;
+  }
+  .sheet .say {
+    margin: 0 0 14px;
+    text-align: center;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--type);
+    opacity: 0.6;
+  }
+  .sheet h2.bare { margin-bottom: 14px; }
+
+  .grid { display: grid; gap: 0; border: 2px solid var(--ink); }
+  .grid.heads { margin-top: 0; }
+
+  .head {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 2px;
+    font-size: 22px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    color: var(--type);
+    border-right: 1px solid var(--ink);
+    border-bottom: 2px solid var(--ink);
+  }
+  .head:last-child { border-right: none; }
+
+  .cell {
+    position: relative;
+    aspect-ratio: 1 / 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 5px;
+    font-size: 13px;
+    line-height: 1.25;
+    color: var(--type);
+    border-right: 1px solid var(--ink);
+    border-bottom: 1px solid var(--ink);
+    overflow-wrap: anywhere;
+    hyphens: auto;
+  }
+  .cell.edge-r { border-right: none; }
+  .cell.edge-b { border-bottom: none; }
+  /* Long entries are set smaller rather than allowed to spill out of the box. */
+  .cell.mid { font-size: 11px; }
+  .cell.small { font-size: 9.5px; line-height: 1.2; }
+  .cell.free { font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; }
+
+  .sheet .foot {
+    margin: 12px 0 0;
+    text-align: center;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    color: var(--type);
+    opacity: 0.55;
+  }
+
+  .acts { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+  .acts.end { margin-left: auto; }
+
+  .note { font-size: 0.78rem; margin-top: 1.2rem; max-width: 64ch; }
+  .note strong { color: var(--text-dim); font-weight: 400; }
+
+  [hidden] { display: none !important; }
+
+  @media (max-width: 620px) {
+    body { padding: 2rem 1rem 4rem; }
+    .acts.end { margin-left: 0; width: 100%; }
+    .field input[type="text"] { width: 100%; }
+  }
+
+  /* One card to a page, on white, with the decoration kept. */
+  @media print {
+    .no-print { display: none !important; }
+    html, body { background: #ffffff; }
+    body { padding: 0; }
+    main { max-width: none; }
+    .sheets { gap: 0; }
+    .sheet {
+      border: none;
+      break-after: page;
+      page-break-after: always;
+      width: 100%;
+    }
+    .sheet:last-child { break-after: auto; page-break-after: auto; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <a class="home" href="index.html">&larr; index</a>
+  <h1>bingo cards</h1>
+  <p class="lede">Type the list, say how big the card is, and take as many cards as there are
+  people &mdash; each one its own shuffle of the same list. Anything the list doesn't reach
+  becomes a free square, starting at the middle and working out. Give it a picture, a title and
+  two colours and it comes out looking like something, not like a spreadsheet.</p>
+
+  <div class="card no-print">
+    <div class="items">
+      <label for="items">One square per line</label>
+      <textarea id="items" spellcheck="false" placeholder="someone says &quot;you're on mute&quot;&#10;a dog walks through shot&#10;the wifi drops&#10;…"></textarea>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label for="cols">Columns</label>
+        <input type="number" id="cols" min="2" max="10" value="5">
+      </div>
+      <div class="field">
+        <label for="rows">Rows</label>
+        <input type="number" id="rows" min="2" max="10" value="5">
+      </div>
+      <div class="field">
+        <label for="count">Cards</label>
+        <input type="number" id="count" min="1" max="60" value="1">
+      </div>
+      <div class="field">
+        <label for="freeWord">Free square reads</label>
+        <input type="text" id="freeWord" value="FREE" style="width:8rem">
+      </div>
+      <label class="check" title="A card with a square to spare in the middle, even when the list fills it">
+        <input type="checkbox" id="alwaysFree"> always free in the middle
+      </label>
+    </div>
+
+    <div class="row split">
+      <div class="field grow">
+        <label for="title">Title</label>
+        <input type="text" id="title" value="BINGO" style="width:100%">
+      </div>
+      <div class="field grow">
+        <label for="subtitle">Line under it</label>
+        <input type="text" id="subtitle" placeholder="optional" style="width:100%">
+      </div>
+      <div class="field">
+        <label for="heads">Letters over the columns</label>
+        <input type="text" id="heads" placeholder="BINGO" style="width:8rem">
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label for="inkColor">Grid lines</label>
+        <input type="color" id="inkColor" value="#111111">
+      </div>
+      <div class="field">
+        <label for="textColor">Text</label>
+        <input type="color" id="textColor" value="#111111">
+      </div>
+      <div class="field">
+        <label for="panelColor">Behind the grid</label>
+        <div class="pair">
+          <input type="color" id="panelColor" value="#ffffff">
+          <input type="range" id="panelAlpha" min="0" max="100" value="100" aria-label="how solid it is">
+          <output id="panelAlphaOut">100%</output>
+        </div>
+      </div>
+      <div class="field">
+        <label>Picture behind the card</label>
+        <div class="acts">
+          <button class="ghost" id="bgBtn">Choose</button>
+          <button class="ghost" id="bgClear" hidden>Remove</button>
+          <input type="file" id="bgInput" accept="image/*" hidden>
+        </div>
+        <span class="picked" id="bgName"></span>
+      </div>
+    </div>
+
+    <div class="row split">
+      <div class="field">
+        <label for="seed">Shuffle</label>
+        <input type="text" id="seed" style="width:9rem" spellcheck="false">
+      </div>
+      <button class="ghost" id="reshuffle">Shuffle again</button>
+      <div class="acts end">
+        <button class="ghost" id="printBtn">Print</button>
+        <button id="pngBtn">Save as PNG</button>
+      </div>
+    </div>
+
+    <div class="status" id="status"></div>
+  </div>
+
+  <div class="sheets" id="sheets"></div>
+
+  <p class="note no-print"><strong>How the free squares land.</strong> Every card takes its own
+  shuffle of the list, and if the list is longer than the card each one gets a different handful
+  of it. When the list runs short the squares left over are filled in from the middle outwards
+  &mdash; the centre first, then the squares around it, so what's left reads as a free middle
+  rather than as gaps. On a card with an even number of rows or columns there is no true centre,
+  so the nearest square to it goes first.</p>
+
+  <p class="note no-print"><strong>Getting it out.</strong> Print puts one card on each page, and
+  tells the printer to keep the colours and the picture rather than stripping them the way it
+  does by default. Save as PNG writes each card as its own file, one a second, because a browser
+  cancels a burst of downloads fired off from a single click. Nothing is uploaded: the picture
+  you choose is read in the page and stays there.</p>
+</main>
+
+<script>
+"use strict";
+
+const el = (id) => document.getElementById(id);
+
+const itemsBox   = el("items");
+const colsIn     = el("cols");
+const rowsIn     = el("rows");
+const countIn    = el("count");
+const freeWordIn = el("freeWord");
+const alwaysFree = el("alwaysFree");
+const titleIn    = el("title");
+const subtitleIn = el("subtitle");
+const headsIn    = el("heads");
+const inkColor   = el("inkColor");
+const textColor  = el("textColor");
+const panelColor = el("panelColor");
+const panelAlpha = el("panelAlpha");
+const panelAlphaOut = el("panelAlphaOut");
+const bgBtn      = el("bgBtn");
+const bgClear    = el("bgClear");
+const bgInput    = el("bgInput");
+const bgName     = el("bgName");
+const seedIn     = el("seed");
+const sheetsEl   = el("sheets");
+const statusEl   = el("status");
+
+const SAMPLE = [
+  'someone says "you\'re on mute"',
+  "a dog walks through shot",
+  "the wifi drops",
+  "“can everyone see my screen?”",
+  "a child appears",
+  "someone eats on camera",
+  "“sorry, go ahead”",
+  "a siren outside",
+  "the meeting could have been an email",
+  "someone joins ten minutes late",
+  "a cat on the keyboard",
+  "“let's take that offline”",
+  "an echo nobody can find",
+  "a frozen face mid-sentence",
+  "“circle back”",
+  "the wrong screen shared",
+  "a doorbell",
+  "“you're breaking up”",
+  "someone forgets to unmute, twice",
+  "a virtual background glitches",
+];
+
+let bgUrl = "";
+let bgFile = "";
+let bgImage = null;        // the decoded picture, kept for the PNG writer
+let cards = [];
+
+function setStatus(message, isError = false) {
+  statusEl.textContent = message;
+  statusEl.classList.toggle("error", isError);
+}
+
+/* ----------------------------------------------------------- the shuffle -- */
+
+// A named shuffle rather than Math.random, so the same list and the same word
+// give back the same cards — print a set, lose it, print the identical set.
+function hashSeed(text) {
+  let h = 2166136261;
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+function rngFrom(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function shuffled(list, rng) {
+  const out = list.slice();
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    const swap = out[i];
+    out[i] = out[j];
+    out[j] = swap;
+  }
+  return out;
+}
+
+const newSeed = () => Math.random().toString(36).slice(2, 8);
+
+/* -------------------------------------------------------------- the card -- */
+
+function readItems() {
+  return itemsBox.value.split("\n").map((line) => line.trim()).filter(Boolean);
+}
+
+const clampNum = (input, low, high, fallback) => {
+  const n = Math.round(Number(input.value));
+  return Number.isFinite(n) ? Math.max(low, Math.min(high, n)) : fallback;
+};
+
+// Which squares become free, in the order they should be taken: the middle
+// first, then outwards by how far each square sits from it. Ties — the four
+// squares around the centre are all the same distance from it — are broken by
+// the card's own shuffle, so a run of cards doesn't lean the same way every
+// time.
+function freeOrder(cols, rows, rng) {
+  const midX = (cols - 1) / 2;
+  const midY = (rows - 1) / 2;
+  const order = [];
+  for (let i = 0; i < cols * rows; i++) {
+    const x = i % cols;
+    const y = Math.floor(i / cols);
+    order.push({ i, d: Math.hypot(x - midX, y - midY), tie: rng() });
+  }
+  order.sort((a, b) => a.d - b.d || a.tie - b.tie);
+  return order.map((o) => o.i);
+}
+
+function buildCard(items, cols, rows, seed, index) {
+  const rng = rngFrom(seed + index * 7919);
+  const cells = cols * rows;
+  const word = freeWordIn.value.trim() || "FREE";
+
+  // Free squares are decided before the list is laid in, so the list fills
+  // what is left rather than being pushed about afterwards.
+  const taken = new Set();
+  const order = freeOrder(cols, rows, rng);
+  const spare = Math.max(0, cells - items.length);
+  const wanted = alwaysFree.checked ? Math.max(1, spare) : spare;
+  for (let i = 0; i < Math.min(wanted, cells); i++) taken.add(order[i]);
+
+  const pick = shuffled(items, rng);
+  const out = [];
+  let at = 0;
+  for (let i = 0; i < cells; i++) {
+    if (taken.has(i)) out.push({ text: word, free: true });
+    else out.push({ text: pick[at++] || word, free: !pick[at - 1] });
+  }
+  return out;
+}
+
+function headLetters(cols) {
+  const typed = headsIn.value.trim();
+  if (typed) return Array.from(typed.slice(0, cols));
+  if (!headsIn.placeholder) return null;
+  // The default only makes sense on the card it was named after.
+  return cols === 5 && headsIn.placeholder === "BINGO" && !typed ? null : null;
+}
+
+/* ------------------------------------------------------------- rendering -- */
+
+function sizeClass(text) {
+  if (text.length <= 14) return "";
+  if (text.length <= 28) return "mid";
+  return "small";
+}
+
+function build() {
+  const items = readItems();
+  const cols = clampNum(colsIn, 2, 10, 5);
+  const rows = clampNum(rowsIn, 2, 10, 5);
+  const count = clampNum(countIn, 1, 60, 1);
+  const seed = hashSeed(seedIn.value || "bingo");
+  const cells = cols * rows;
+  const heads = headLetters(cols);
+
+  cards = [];
+  sheetsEl.textContent = "";
+
+  for (let n = 0; n < count; n++) {
+    const card = buildCard(items, cols, rows, seed, n);
+    cards.push(card);
+    sheetsEl.appendChild(sheetFor(card, cols, rows, heads, n, count));
+  }
+
+  paint();
+
+  const spare = Math.max(0, cells - items.length);
+  const over = Math.max(0, items.length - cells);
+  setStatus(
+    `${count} card${count === 1 ? "" : "s"} · ${cols} × ${rows} · `
+    + `${items.length} line${items.length === 1 ? "" : "s"}`
+    + (spare ? ` · ${spare} free square${spare === 1 ? "" : "s"} per card`
+      : over ? ` · ${over} more than a card holds, so each card draws its own ${cells}`
+        : " · exactly enough to fill a card"));
+}
+
+function sheetFor(card, cols, rows, heads, index, total) {
+  const sheet = document.createElement("div");
+  sheet.className = "sheet";
+  sheet.dataset.index = String(index);
+
+  const bg = document.createElement("img");
+  bg.className = "bg";
+  bg.alt = "";
+  sheet.appendChild(bg);
+
+  const panel = document.createElement("div");
+  panel.className = "panel";
+  const tint = document.createElement("div");
+  tint.className = "panel-tint";
+  const body = document.createElement("div");
+  body.className = "panel-body";
+  panel.append(tint, body);
+
+  const title = titleIn.value.trim();
+  const say = subtitleIn.value.trim();
+  if (title) {
+    const h = document.createElement("h2");
+    h.textContent = title;
+    if (!say) h.className = "bare";
+    body.appendChild(h);
+  }
+  if (say) {
+    const p = document.createElement("p");
+    p.className = "say";
+    p.textContent = say;
+    body.appendChild(p);
+  }
+
+  const grid = document.createElement("div");
+  grid.className = "grid";
+  grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+
+  if (heads) {
+    for (let c = 0; c < cols; c++) {
+      const head = document.createElement("div");
+      head.className = "head";
+      head.textContent = heads[c] || "";
+      grid.appendChild(head);
+    }
+  }
+
+  card.forEach((cell, i) => {
+    const box = document.createElement("div");
+    box.className = "cell " + sizeClass(cell.text) + (cell.free ? " free" : "");
+    if ((i % cols) === cols - 1) box.classList.add("edge-r");
+    if (i >= (rows - 1) * cols) box.classList.add("edge-b");
+    box.textContent = cell.text;
+    grid.appendChild(box);
+  });
+
+  body.appendChild(grid);
+
+  if (total > 1) {
+    const foot = document.createElement("p");
+    foot.className = "foot";
+    foot.textContent = `card ${index + 1} of ${total}`;
+    body.appendChild(foot);
+  }
+
+  sheet.appendChild(panel);
+  return sheet;
+}
+
+// The colours and the picture are the only things that change without the
+// cards needing to be built again, so they are painted on their own.
+function paint() {
+  const alpha = Number(panelAlpha.value) / 100;
+  panelAlphaOut.value = `${panelAlpha.value}%`;
+
+  for (const sheet of sheetsEl.children) {
+    sheet.style.setProperty("--ink", inkColor.value);
+    sheet.style.setProperty("--type", textColor.value);
+    sheet.style.setProperty("--panel", panelColor.value);
+    sheet.style.setProperty("--panel-alpha", String(alpha));
+    sheet.classList.toggle("has-bg", !!bgUrl);
+    const bg = sheet.querySelector(".bg");
+    if (bgUrl) bg.src = bgUrl;
+    else bg.removeAttribute("src");
+    // Without a picture the card is the panel, so the two agree.
+    sheet.style.background = bgUrl ? "#ffffff" : panelColor.value;
+  }
+}
+
+/* ---------------------------------------------------------- the picture -- */
+
+bgBtn.addEventListener("click", () => bgInput.click());
+bgInput.addEventListener("change", () => {
+  const file = bgInput.files && bgInput.files[0];
+  if (file) useBackground(file);
+});
+
+function useBackground(file) {
+  if (!file.type.startsWith("image/")) {
+    setStatus("That isn't an image.", true);
+    return;
+  }
+  if (bgUrl) URL.revokeObjectURL(bgUrl);
+  bgUrl = URL.createObjectURL(file);
+  bgFile = file.name || "picture";
+  bgName.textContent = bgFile;
+  bgClear.hidden = false;
+
+  // Kept decoded, because the PNG writer needs the pixels rather than the URL.
+  const img = new Image();
+  img.onload = () => { bgImage = img; paint(); };
+  img.onerror = () => {
+    bgImage = null;
+    setStatus("The browser couldn't read that picture.", true);
+  };
+  img.src = bgUrl;
+  paint();
+}
+
+bgClear.addEventListener("click", () => {
+  if (bgUrl) URL.revokeObjectURL(bgUrl);
+  bgUrl = "";
+  bgFile = "";
+  bgImage = null;
+  bgName.textContent = "";
+  bgClear.hidden = true;
+  bgInput.value = "";
+  paint();
+});
+
+for (const type of ["dragover", "dragenter"]) {
+  document.addEventListener(type, (e) => { e.preventDefault(); });
+}
+document.addEventListener("drop", (e) => {
+  e.preventDefault();
+  const file = e.dataTransfer.files && e.dataTransfer.files[0];
+  if (file) useBackground(file);
+});
+
+/* -------------------------------------------------------------- the PNG -- */
+
+const PNG = { cell: 150, pad: 52, panelPad: 34, head: 92 };
+
+function wrapText(ctx, text, width) {
+  const lines = [];
+  let line = "";
+  for (const word of String(text).split(/\s+/)) {
+    const next = line ? line + " " + word : word;
+    if (ctx.measureText(next).width <= width || !line) {
+      line = next;
+      continue;
+    }
+    lines.push(line);
+    line = word;
+  }
+  if (line) lines.push(line);
+
+  // A single word too long for the box is broken where it stops fitting.
+  const out = [];
+  for (const one of lines) {
+    let rest = one;
+    while (ctx.measureText(rest).width > width && rest.length > 1) {
+      let cut = 1;
+      while (cut < rest.length && ctx.measureText(rest.slice(0, cut + 1)).width <= width) cut++;
+      out.push(rest.slice(0, cut));
+      rest = rest.slice(cut);
+    }
+    out.push(rest);
+  }
+  return out;
+}
+
+async function cardCanvas(card, cols, rows, heads, index, total) {
+  const sans = '"Lexend Deca", Helvetica, Arial, sans-serif';
+  try { await document.fonts.ready; } catch (err) { /* older browsers */ }
+
+  const gridW = cols * PNG.cell;
+  const gridH = rows * PNG.cell + (heads ? PNG.head : 0);
+  const title = titleIn.value.trim();
+  const say = subtitleIn.value.trim();
+  const topText = (title ? 54 : 0) + (say ? 30 : 0);
+  const footText = total > 1 ? 34 : 0;
+
+  const panelW = gridW + PNG.panelPad * 2;
+  const panelH = gridH + PNG.panelPad * 2 + topText + footText;
+  const W = panelW + PNG.pad * 2;
+  const H = panelH + PNG.pad * 2;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext("2d");
+
+  const ink = inkColor.value;
+  const type = textColor.value;
+  const panel = panelColor.value;
+  const alpha = Number(panelAlpha.value) / 100;
+
+  ctx.fillStyle = bgImage ? "#ffffff" : panel;
+  ctx.fillRect(0, 0, W, H);
+
+  // Cover, the same as the page does it: fill the card and crop the overflow
+  // rather than squash the picture to fit.
+  if (bgImage && bgImage.width && bgImage.height) {
+    const scale = Math.max(W / bgImage.width, H / bgImage.height);
+    const w = bgImage.width * scale;
+    const h = bgImage.height * scale;
+    ctx.drawImage(bgImage, (W - w) / 2, (H - h) / 2, w, h);
+  }
+
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = panel;
+  ctx.fillRect(PNG.pad, PNG.pad, panelW, panelH);
+  ctx.globalAlpha = 1;
+
+  const left = PNG.pad + PNG.panelPad;
+  let top = PNG.pad + PNG.panelPad;
+  ctx.fillStyle = type;
+  ctx.textAlign = "center";
+
+  if (title) {
+    ctx.font = '500 38px ' + sans;
+    ctx.textBaseline = "top";
+    ctx.fillText(title, PNG.pad + panelW / 2, top, panelW - 20);
+    top += 54;
+  }
+  if (say) {
+    ctx.globalAlpha = 0.6;
+    ctx.font = '400 16px ' + sans;
+    ctx.fillText(say.toUpperCase(), PNG.pad + panelW / 2, top, panelW - 20);
+    ctx.globalAlpha = 1;
+    top += 30;
+  }
+
+  const gridTop = top;
+  if (heads) {
+    ctx.font = '500 34px ' + sans;
+    ctx.textBaseline = "middle";
+    for (let c = 0; c < cols; c++) {
+      ctx.fillText(heads[c] || "", left + c * PNG.cell + PNG.cell / 2, gridTop + PNG.head / 2);
+    }
+  }
+
+  const cellTop = gridTop + (heads ? PNG.head : 0);
+  ctx.textBaseline = "middle";
+  card.forEach((cell, i) => {
+    const x = left + (i % cols) * PNG.cell;
+    const y = cellTop + Math.floor(i / cols) * PNG.cell;
+    const size = cell.text.length <= 14 ? 20 : cell.text.length <= 28 ? 17 : 14;
+    ctx.font = (cell.free ? '500 ' : '400 ') + size + 'px ' + sans;
+    const text = cell.free ? cell.text.toUpperCase() : cell.text;
+    const lines = wrapText(ctx, text, PNG.cell - 18);
+    const step = size * 1.25;
+    const start = y + PNG.cell / 2 - ((lines.length - 1) * step) / 2;
+    lines.forEach((line, n) => {
+      ctx.fillText(line, x + PNG.cell / 2, start + n * step);
+    });
+  });
+
+  // The rules go on last, over the text, so a long entry that reached the
+  // edge of its box is cut by the line rather than sitting across it.
+  ctx.strokeStyle = ink;
+  ctx.lineWidth = 2;
+  for (let c = 1; c < cols; c++) {
+    line(ctx, left + c * PNG.cell, gridTop, left + c * PNG.cell, cellTop + rows * PNG.cell);
+  }
+  for (let r = 1; r < rows; r++) {
+    line(ctx, left, cellTop + r * PNG.cell, left + gridW, cellTop + r * PNG.cell);
+  }
+  if (heads) {
+    ctx.lineWidth = 4;
+    line(ctx, left, cellTop, left + gridW, cellTop);
+  }
+  ctx.lineWidth = 4;
+  ctx.strokeRect(left, gridTop, gridW, cellTop - gridTop + rows * PNG.cell);
+
+  if (total > 1) {
+    ctx.globalAlpha = 0.55;
+    ctx.fillStyle = type;
+    ctx.font = '400 15px ' + sans;
+    ctx.textBaseline = "top";
+    ctx.fillText(`CARD ${index + 1} OF ${total}`, PNG.pad + panelW / 2,
+      cellTop + rows * PNG.cell + 14);
+    ctx.globalAlpha = 1;
+  }
+  return canvas;
+}
+
+function line(ctx, x1, y1, x2, y2) {
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x2, y2);
+  ctx.stroke();
+}
+
+function stem() {
+  const base = (titleIn.value.trim() || "bingo").toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  return (base || "bingo").slice(0, 40);
+}
+
+const wait = (ms) => new Promise((done) => setTimeout(done, ms));
+
+el("pngBtn").addEventListener("click", async () => {
+  if (!cards.length) return;
+  const button = el("pngBtn");
+  if (button.disabled) return;
+  button.disabled = true;
+
+  const cols = clampNum(colsIn, 2, 10, 5);
+  const rows = clampNum(rowsIn, 2, 10, 5);
+  const heads = headLetters(cols);
+
+  try {
+    for (let n = 0; n < cards.length; n++) {
+      setStatus(`Writing card ${n + 1} of ${cards.length}…`);
+      const canvas = await cardCanvas(cards[n], cols, rows, heads, n, cards.length);
+      const blob = await new Promise((ok, no) => canvas.toBlob(
+        (b) => b ? ok(b) : no(new Error("the browser wouldn't write a PNG")), "image/png"));
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = cards.length > 1 ? `${stem()}-${n + 1}.png` : `${stem()}.png`;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      // A browser cancels a burst of downloads fired from one click, so they
+      // go out one a second.
+      if (n < cards.length - 1) await wait(1000);
+    }
+    setStatus(`Saved ${cards.length} card${cards.length === 1 ? "" : "s"}.`);
+  } catch (err) {
+    console.error(err);
+    setStatus(`Couldn't save: ${err.message}`, true);
+  } finally {
+    button.disabled = false;
+  }
+});
+
+el("printBtn").addEventListener("click", () => window.print());
+
+/* -------------------------------------------------------------- controls -- */
+
+let typing;
+const rebuildSoon = () => {
+  clearTimeout(typing);
+  typing = setTimeout(build, 160);
+};
+
+itemsBox.addEventListener("input", rebuildSoon);
+titleIn.addEventListener("input", rebuildSoon);
+subtitleIn.addEventListener("input", rebuildSoon);
+headsIn.addEventListener("input", rebuildSoon);
+freeWordIn.addEventListener("input", rebuildSoon);
+
+for (const input of [colsIn, rowsIn, countIn]) {
+  input.addEventListener("input", rebuildSoon);
+  input.addEventListener("change", build);
+}
+alwaysFree.addEventListener("change", build);
+
+// Colour and picture changes don't move a single square, so they repaint
+// rather than deal the cards again.
+for (const input of [inkColor, textColor, panelColor]) {
+  input.addEventListener("input", paint);
+}
+panelAlpha.addEventListener("input", paint);
+
+seedIn.addEventListener("input", rebuildSoon);
+el("reshuffle").addEventListener("click", () => {
+  seedIn.value = newSeed();
+  build();
+});
+
+window.addEventListener("pagehide", () => {
+  if (bgUrl) URL.revokeObjectURL(bgUrl);
+});
+
+itemsBox.value = SAMPLE.join("\n");
+seedIn.value = newSeed();
+build();
+</script>
+</body>
+</html>
