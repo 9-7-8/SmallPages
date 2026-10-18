@@ -1,0 +1,46 @@
+# The handbook's sections, in order. A flush-left line is a sidebar
+# group; the indented lines under it are `id  Label`, and the id is
+# the name of the file in sections/.
+#
+# THIS IS THE ONLY PLACE THE ORDER LIVES. build.py generates both the
+# nav buttons and the panel order from it, because publish-handbook.sh
+# compares the two and refuses the page when they disagree.
+#
+# The first section of the first group is the one that opens by default.
+
+Start
+  join      First Join
+  guides    In-Game Guides
+  qol       Quality of Life
+
+Land &amp; Money
+  land      Claiming Land
+  shops     Money &amp; Shops
+  travel    Getting Around
+
+Resources
+  ore       Mining
+  quarry    Quarries
+  farm      Farming &amp; Food
+
+Making Things
+  power     Power &amp; Automation
+  sort      Sorting Chests
+  magic     Magic
+
+Adventure
+  gear      Gear &amp; Combat
+  skills    Skills &amp; Levelling
+  mobs      Mobs &amp; Dangers
+  worlds    Dimensions &amp; Dungeons
+
+Home
+  horses    Horses
+  build     Building &amp; Decorating
+  discs     Music Discs
+
+The Server
+  discord   Discord
+  claude    Asking Claude
+  fix       Troubleshooting
+  stats     Server Stats

@@ -1,0 +1,50 @@
+  <!-- ===================== SERVER STATS ===================== -->
+  <section class="panel" id="panel-stats" role="tabpanel" aria-labelledby="tab-stats" tabindex="0">
+    <h2>Server Stats</h2>
+    <p class="lede">How the server has actually been running &mdash; when it was up, who was on, how it performed, and where the horses are. Rebuilt automatically at every nightly restart.</p>
+    <p>The <b>pack version</b> below is the one the server is on. The updater prints the same number when it runs, so if yours is behind, run it again from the <a href="http://skyfaller.taild8de30.ts.net:8080/">download page</a>.</p>
+    <p class="sp-asof" id="sp-asof">No data has been published yet.</p>
+
+    <div class="sp-tiles" id="sp-tiles"></div>
+
+    <h3>Uptime</h3>
+    <p>One cell per hour, newest day last. Every cell is evidence rather than a guess: the server writes a performance sample every five minutes, so an hour is green only because something actually answered in it.</p>
+
+    <div class="sp-legend" aria-hidden="true">
+      <span><i style="background:var(--sp-up)"></i>Up</span>
+      <span><i style="background:var(--sp-partial)"></i>Up part of the hour</span>
+      <span><i style="background:var(--sp-down)"></i>Observed down</span>
+      <span><i class="none-swatch"></i>No data</span>
+    </div>
+
+    <div class="sp-grid" id="sp-uptime"></div>
+
+    <div class="callout"><p><b>&ldquo;No data&rdquo; is not the same as &ldquo;down&rdquo;.</b> The sampler runs on the same machine as the server, so when the machine is asleep or logged out nothing is recorded and nobody was watching. The server was certainly not reachable, but it was never seen to fail &mdash; so those hours are hatched rather than red. They still count against the uptime figure.</p></div>
+
+    <h3>The longest gaps</h3>
+    <p>Stretches with no sample at all, longest first. The routine ones &mdash; the sampler stands aside for the hourly item clear and the 2am restart &mdash; are filtered out.</p>
+    <div id="sp-gaps"></div>
+
+    <h3>Players</h3>
+    <figure class="sp-fig">
+      <figcaption>Most players online in each 15-minute window. Peak, not average &mdash; a quiet stretch either side should not flatten out the evening everyone logged on.</figcaption>
+      <div class="sp-plot" id="sp-players"></div>
+    </figure>
+
+    <h3>Performance</h3>
+    <figure class="sp-fig">
+      <figcaption>Worst ticks-per-second in each 15-minute window. 20 is the ceiling; the line dropping is the server working harder than it would like. Worst rather than average, because an average hides exactly the spike worth finding.</figcaption>
+      <div class="sp-plot" id="sp-tps"></div>
+    </figure>
+
+    <h3>Horses</h3>
+    <p>Counted straight out of the saved world rather than from the running game. An in-game count only ever sees horses in loaded chunks, so it collapses to almost nothing whenever the server is empty &mdash; which looks alarming and means nothing.</p>
+
+    <div class="sp-tiles" id="sp-horse-tiles"></div>
+    <div id="sp-owners"></div>
+
+    <details>
+      <summary>Show all of it as tables</summary>
+      <div id="sp-tables"></div>
+    </details>
+  </section>

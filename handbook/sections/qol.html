@@ -1,0 +1,43 @@
+  <!-- ===================== QOL ===================== -->
+  <section class="panel" id="panel-qol" role="tabpanel" aria-labelledby="tab-qol" tabindex="0">
+    <h2>Quality of life</h2>
+    <p class="lede">Conveniences that are already installed and easy to miss. None are required — they just make the pack far less fiddly.</p>
+
+    <h3>Worth knowing on day one</h3>
+    <p>Each name links to that mod's own documentation.</p>
+    <ul class="keylist full">
+      <li><span class="act"><a href="https://github.com/mezz/JustEnoughItems/wiki" target="_blank" rel="noopener">JEI</a></span><span class="desc">Hover any item: <kbd>R</kbd> for its recipe, <kbd>U</kbd> for its uses. Your most-used keys in a pack this size</span></li>
+      <li><span class="act"><a href="https://github.com/P3pp3rF1y/SophisticatedBackpacks/wiki" target="_blank" rel="noopener">Sophisticated Backpacks</a></span><span class="desc">Openable with a key without taking it off. Upgradeable with auto-pickup, sorting and smelting</span></li>
+      <li><span class="act"><a href="https://www.curseforge.com/minecraft/mc-mods/epitaphs" target="_blank" rel="noopener">Epitaphs</a></span><span class="desc">Dying leaves a grave holding your things. Go back and get it — don't panic-rush in and die twice</span></li>
+      <li><span class="act"><a href="https://github.com/gigaherz/ToolBelt" target="_blank" rel="noopener">Tool Belt</a></span><span class="desc">Carry tools in a belt instead of the hotbar and swap without opening your inventory</span></li>
+      <li><span class="act"><a href="https://mods.twelveiterations.com/minecraft/craftingtweaks" target="_blank" rel="noopener">Crafting Tweaks</a></span><span class="desc">Balance and clear buttons in crafting grids, and shift-click behaviour that does what you meant</span></li>
+      <li><span class="act"><a href="https://modrinth.com/mod/extreme_sound_muffler" target="_blank" rel="noopener">Extreme Sound Muffler</a></span><span class="desc">Silence one specific noisy block. Invaluable once you have machines running</span></li>
+    </ul>
+
+    <h3>Building and decorating</h3>
+    <p>More than twenty decoration mods are installed, and between them the palette is several times the vanilla one. That has a page of its own now &mdash; see <b>Building &amp; decorating</b>.</p>
+
+    <h3>Shaders</h3>
+    <p><a href="https://modrinth.com/mod/iris" target="_blank" rel="noopener">Iris</a> and <a href="https://modrinth.com/mod/sodium" target="_blank" rel="noopener">Sodium</a> are both in the pack already, and the installer offers you one &mdash; <a href="https://modrinth.com/shader/makeup-ultra-fast-shaders" target="_blank" rel="noopener">MakeUp Ultra Fast</a>, chosen because it is the fastest of the well-known ones, which matters in a pack this size. Say yes on the <b>Optional extras</b> page and turn it on at <b>Options &rarr; Video Settings &rarr; Shader Packs</b>. Said no and changed your mind? Run the installer again and pick <b>Custom install</b>. The full pack zip always contains it.</p>
+    <p>To use a different one, drop its <code>.zip</code> into the <code>shaderpacks</code> folder in your instance and it appears in that same list &mdash; no need to unzip it. <a href="https://modrinth.com/shaders" target="_blank" rel="noopener">Modrinth's shader list</a> is the usual place to look; Complementary and Photon are the popular heavier ones. Nothing about shaders touches the server, so you can swap and remove them freely and nobody else is affected.</p>
+    <div class="callout lit">
+      <p><b>If the game crashes on startup and the error names Sodium, shaders are not the problem.</b> That crash means your NeoForge build is for a different Minecraft version. The build must start <code>26.1.2.</code> &mdash; &ldquo;the newest NeoForge&rdquo; is not the same thing, because 26.2 and 26.3 exist and a build from those lines launches the wrong Minecraft, which carries the wrong graphics library. Sodium is simply the one mod that touches it first, so it takes the blame every time.</p>
+    </div>
+
+    <h3>The server tidies up every hour</h3>
+    <p>On the hour, every hour, two things are removed. A warning goes out in chat two minutes before and again at thirty seconds, so there is always time to react.</p>
+    <ul>
+      <li><b>Items lying on the ground</b>, in every dimension. <b>Death drops are safe</b> &mdash; dying puts your inventory into a grave block, not loose items on the floor &mdash; but anything you deliberately left lying about to deal with later does go. Put it in a chest.</li>
+      <li><b>Zombies, skeletons and creepers more than 128 blocks from every player online.</b> That is further than you can see, so you will never watch one vanish. Husks, drowned, strays, bogged and wither skeletons go too; <b>zombie villagers never do</b>, so a cure in progress is safe, and neither does anything you have name-tagged.</li>
+    </ul>
+    <p>This is a performance measure rather than a rule. You will also see a one-line <b>[Perf]</b> summary in chat at five past the hour - TPS, tick time, entity and horse counts for the hour just gone - so it is obvious when the server is struggling and when it is fine. Thousands of forgotten items and mobs ticking away in chunks nobody is standing in is the main thing that makes the server stutter. One thing to know if you build a mob farm: a chamber that holds mobs alive will empty itself once you walk away from it, while a farm that kills them into a chest is fine.</p>
+
+    <h3>Getting unstuck</h3>
+    <ul>
+      <li><b>Can't find a recipe?</b> Search the item in the recipe viewer. If it has none it probably comes from a quest, a dungeon or a mob.</li>
+      <li><b>Machine not working?</b> Nine times out of ten it's power, or an input on the wrong face. Look at the block to see its status panel.</li>
+      <li><b>Something feels broken?</b> Say so in chat rather than working around it. Usually it's a known quirk with a one-line fix.</li>
+    </ul>
+
+
+  </section>

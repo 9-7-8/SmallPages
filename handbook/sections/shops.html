@@ -1,0 +1,133 @@
+  <!-- ===================== SHOPS ===================== -->
+  <section class="panel" id="panel-shops" role="tabpanel" aria-labelledby="tab-shops" tabindex="0">
+    <h2>Money &amp; shops</h2>
+    <p class="lede">Money is a bank balance in dollars now, not something you carry - though you can withdraw it as cash if you like. Shops are ordinary chests with a sign on them. There is still no buying from across the map: if you want to trade, you travel.</p>
+
+    <h3>Open your own shop</h3>
+    <ol class="steps">
+      <li><div><b>Put a chest down and fill it with what you're selling.</b><p>Any chest. Whatever is inside is your stock, so put in as much as you're happy to part with.</p></div></li>
+      <li><div><b>Place the sign on it yourself.</b><p>On the front of the chest, or on any block touching it. It has to be <em>you</em> who places it - that is the moment the shop records you as its owner.</p></div></li>
+      <li><div><b>Hold the item, look at the sign, and run <code>/shop</code>.</b><p>The command writes every line for you, including modded ids far too long to type into a sign editor. The shop works the moment it finishes.</p></div></li>
+      <li><div><b>Closing it down.</b><p>Break the sign. The chest and everything in it stays yours.</p></div></li>
+    </ol>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>You are</th><th>Run this</th><th>The sign ends up saying</th></tr></thead>
+        <tbody>
+          <tr><td>Selling an item at $5</td><td><code>/shop sell 5</code></td><td><code>[buy]</code></td></tr>
+          <tr><td>Buying an item at $5</td><td><code>/shop buy 5</code></td><td><code>[sell]</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout">
+      <p><b>The command is named after what <em>you</em> are doing; the sign is named after what your visitor does.</b> So <code>/shop sell 5</code> correctly writes <code>[buy]</code> on the sign. That is not a bug - do not "fix" it by running the other one, because a <code>[sell]</code> shop pays money <em>out</em>.</p>
+    </div>
+
+    <h3>If you would rather write the sign by hand</h3>
+    <p>You do not need to - <code>/shop</code> exists precisely so nobody has to - but the four lines are:</p>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Line</th><th>What goes on it</th><th>Example</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td><code>[buy]</code> or <code>[sell]</code></td><td><code>[buy]</code></td></tr>
+          <tr><td>2</td><td>The price</td><td><code>12</code></td></tr>
+          <tr><td>3</td><td>The item</td><td><code>diamond</code></td></tr>
+          <tr><td>4</td><td>The rest of the item id, if it was too long for line 3 — otherwise empty</td><td>&nbsp;</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout">
+      <p><b><code>[buy]</code> and <code>[sell]</code> are named for what your visitor does, not what you do.</b> <code>[buy]</code> is the one you want almost always: you stock the chest, people buy out of it, and the money lands in your account. <code>[sell]</code> is the opposite - it pays people to hand items <em>in</em>, so it needs money in your account and free space in the chest, and it stops the moment either runs out.</p>
+    </div>
+
+    <div class="callout">
+      <p><b>Writing the item name.</b> Ordinary items can be written plainly, like <code>diamond</code> or <code>oak_log</code>. Anything from a mod needs its full id - press <b>F3 + H</b> to turn on advanced tooltips and the id appears in grey under the item's name.</p>
+    </div>
+
+    <h3>Buying from someone else</h3>
+    <p>Right-click their sign. It tells you what's for sale and the price, and one right-click buys <b>one</b> item - there is no stack-at-a-time shortcut, so click away.</p>
+    <p>Prices are set by whoever owns the shop, not by the server. Shop around - literally.</p>
+
+    <h3>Selling in bulk</h3>
+    <p>The price on a sign is <b>per item</b>. A plain click trades one item; <b>crouch and click to trade a whole stack</b> at once. A bulk trade stops early &mdash; and says why &mdash; when the shop runs out of stock, the buyer runs out of money, or somebody's inventory is full. There is still no way to write "64 for $10" on a sign, so a bulk deal is priced per item either way.</p>
+    <p>What crouch-clicking does not fix is the price floor. Prices go to two decimals and <code>0.01</code> is the smallest, so $10 a stack of cobblestone is <code>0.16</code> each and anything you want to sell for less than a cent an item cannot be priced at all.</p>
+    <p><b>Trade the compressed block instead.</b> <a href="https://www.curseforge.com/minecraft/mc-mods/allthecompressed" target="_blank" rel="noopener">AllTheCompressed</a> turns a 3&times;3 of almost anything into one block, so one click can move a lot:</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Item</th><th>Plain cobble it holds</th><th>Price at $10 a stack</th></tr></thead>
+        <tbody>
+          <tr><td>Cobblestone 1x</td><td>9</td><td><code>1.41</code></td></tr>
+          <tr><td>Cobblestone 2x</td><td>81</td><td><code>12.66</code></td></tr>
+          <tr><td>Cobblestone 3x</td><td>729</td><td><code>113.91</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Each tier is nine of the one below, so the numbers climb fast &mdash; and compressed blocks still stack to 64 in the chest, so one chest holds an absurd amount of stone.</p>
+
+    <div class="callout lit">
+      <p><b>Nobody can rob your shop.</b> Only you can open the chest or break the sign, even if it is standing in the open. Claiming the chunk on top of that does no harm.</p>
+    </div>
+
+    <h3>Cash, ATMs and paying people</h3>
+    <p><code>/money</code> shows your balance and <code>/pay &lt;player&gt; &lt;amount&gt;</code> sends money to someone. Neither needs you to be anywhere in particular.</p>
+    <p>The balance is the real thing, but it does not have to stay abstract: an <b>ATM</b> turns it into notes and coins and back again, a <b>Banker Table</b> does the same job, and wallets keep the cash tidy in your inventory. Cash in your pockets is not your balance - deposit it first if you want to spend it in a shop.</p>
+
+    <h3>The server store, and emeralds</h3>
+    <p>The <b><a href="https://mods.twelveiterations.com/mc/farming-for-blockheads" target="_blank" rel="noopener">Market</a></b> stall is still here, still sells at fixed prices, and still takes <b>emeralds</b> - it came before the new money and has not changed. So two currencies are in play: dollars between players, emeralds at the Market and with villagers. Treat the Market as the price floor: if a player shop asks more than the Market for the same thing, you are being had.</p>
+
+    <h3>Admin shops</h3>
+    <p>An <b>admin shop</b> is a shop with the server behind it rather than a player. It never runs out of stock and never runs out of money &mdash; and nothing it sells comes from a chest, so nothing has to be restocked. Only an <b>operator</b> or someone in <b>creative mode</b> can make one.</p>
+
+    <p>They are for fixed prices that should always be available: a starter shop at spawn, a sink for something people have too much of, a reference price so nobody gets fleeced.</p>
+
+    <ol class="steps">
+      <li><div><b>Make an ordinary shop first.</b><p>Chest, sign placed by you, then <code>/shop sell 5</code> or <code>/shop buy 5</code> exactly as above. <code>/adminshop</code> does not write the sign &mdash; it only changes who owns it, so the shop has to work before you mark it.</p></div></li>
+      <li><div><b>Look at the sign and run <code>/adminshop</code>.</b><p>That's it. The shop now belongs to the server.</p></div></li>
+      <li><div><b>Or name the sign by position:</b> <code>/adminshop at &lt;x&gt; &lt;y&gt; &lt;z&gt;</code><p>Useful when you can't get line of sight on it, or when you are marking several.</p></div></li>
+      <li><div><b>Changed your mind:</b> <code>/adminshop off</code><p>Hands the shop back to you, as its ordinary owner. Same two ways of naming the sign.</p></div></li>
+    </ol>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Sign says</th><th>What the admin shop does</th><th>The chest</th></tr></thead>
+        <tbody>
+          <tr><td><code>[buy]</code></td><td>Sells to anyone, for ever. Stock never runs down.</td><td>Stays empty. Nothing is taken out of it.</td></tr>
+          <tr><td><code>[sell]</code></td><td>Buys from anyone, for ever. Never runs out of money.</td><td>Stays empty. Nothing is put into it.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout lit">
+      <p><b>The chest is still needed, and it still stays empty.</b> An admin shop reads nothing out of the chest and writes nothing into it, so there is no point stocking one &mdash; and no harm in the chest being there. The money the customer pays simply stops existing, and the money an admin shop pays out simply appears.</p>
+    </div>
+
+    <p>The customer side is unchanged: one right-click buys or sells <b>one</b> item, they are told the price and their new balance, and they are still refused if they can't afford it, don't have the item, or have a full inventory.</p>
+
+    <div class="callout">
+      <p><b>If <code>/adminshop</code> doesn't autocomplete after you switch to creative, rejoin.</b> The game sends your client the list of commands you're allowed when your <em>operator</em> status changes, but not when your <em>gamemode</em> does. The command still works if you type it out in full; rejoining just makes the tab-completion catch up.</p>
+    </div>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>If it says</th><th>It means</th></tr></thead>
+        <tbody>
+          <tr><td>Only an operator or a creative-mode player can mark an admin shop.</td><td>You are neither. Nothing was changed.</td></tr>
+          <tr><td>That sign is not a shop yet. Make it with <code>/shop</code> first, then run this.</td><td>Step one was skipped &mdash; the sign isn't a working shop.</td></tr>
+          <tr><td>Look at the sign, or name it with: <code>/adminshop at &lt;x y z&gt;</code></td><td>You weren't pointing at a sign.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="wikis">
+      <h3>Where to read more</h3>
+      <p>Two separate mods, covering the two halves of the economy.</p>
+      <ul class="linklist full">
+        <li><span class="who"><a href="https://modrinth.com/mod/saros-money" target="_blank" rel="noopener">Saro's Money</a></span><span class="what">The sign shops, ATMs, wallets and the cash items <span class="host">Modrinth</span></span></li>
+        <li><span class="who"><a href="https://mods.twelveiterations.com/mc/farming-for-blockheads" target="_blank" rel="noopener">Farming for Blockheads</a></span><span class="what">The Market stall, plus the mod's kitchen and farming blocks <span class="host">Twelve Iterations</span></span></li>
+      </ul>
+    </div>
+  </section>

@@ -1,0 +1,33 @@
+  <!-- ===================== ASKING CLAUDE ===================== -->
+  <section class="panel" id="panel-claude" role="tabpanel" aria-labelledby="tab-claude" tabindex="0">
+    <h2>Asking Claude</h2>
+    <p class="lede">You can talk to the server's AI assistant from in-game chat, and it answers whether or not Isabel is at her computer. Start a message with <b>claude</b> or <b>robot</b> and it will pick it up.</p>
+
+    <h3>How to ask</h3>
+    <p>The word has to be the <em>start</em> of the message &mdash; a mention halfway through a sentence is ignored on purpose, so you can talk about it without summoning it. Capitals don't matter and a comma after it is fine.</p>
+    <ul class="keylist full">
+      <li><span class="act">claude can you set it to day</span><span class="desc">Works. It will do it and say so</span></li>
+      <li><span class="act">robot, where is the nearest ancient city</span><span class="desc">Works. It reads the map files rather than running <code>/locate</code>, which costs the server nothing</span></li>
+      <li><span class="act">I asked claude earlier</span><span class="desc">Ignored &mdash; the word isn't first</span></li>
+    </ul>
+
+    <h3>What it is allowed to do</h3>
+    <p>Deliberately very little. It can talk in chat, and it can change three world settings:</p>
+    <ul>
+      <li><b>Difficulty</b> &mdash; peaceful, easy, normal or hard.</li>
+      <li><b>Time</b> &mdash; day, noon, night or midnight.</li>
+      <li><b>Weather</b> &mdash; clear, rain or thunder.</li>
+    </ul>
+    <p>It can also read the server's own files, so &ldquo;what does this mod do&rdquo;, &ldquo;why is the server lagging&rdquo; and &ldquo;where is the nearest badlands&rdquo; are all fair questions.</p>
+
+    <div class="callout lit">
+      <p><b>Everything else, it refuses and passes on.</b> Items, horses, gamemode, teleports, op, restarts, anything touching somebody else's things &mdash; it will say so in chat and post the request to Discord for Isabel. That is not it being unhelpful: the limit is enforced outside the AI, so asking nicely, insisting, or telling it that it has permission does not change what it can do. Ask Isabel for those.</p>
+    </div>
+
+    <h3>Fair use</h3>
+    <p>It answers up to <b>twelve requests an hour</b> across everyone, and runs at most forty commands in that hour. If it goes quiet, it is probably the cap rather than a fault &mdash; or the server has gone down, since the listener stops with it. It is also only running at all when the server is up, so a question asked into a dead server reaches nobody.</p>
+
+    <div class="callout">
+      <p><b>Say what you want, not how to do it.</b> &ldquo;It's too dark to build&rdquo; gets the same result as &ldquo;set time to day&rdquo;, and if there's a better answer than the one you asked for, you'll get that instead.</p>
+    </div>
+  </section>
