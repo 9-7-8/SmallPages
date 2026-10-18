@@ -17,7 +17,7 @@
 
   body { margin: 0; padding: 3rem 1.5rem 5rem; }
 
-  main { max-width: 860px; margin: 0 auto; }
+  main { max-width: 1140px; margin: 0 auto; }
 
   /* ------------------------------------------------------------- mast --- */
 
@@ -42,19 +42,80 @@
   }
   .build b { color: var(--text-dim); font-weight: 400; }
 
-  /* ------------------------------------------------------------- tabs --- */
+  /* ---------------------------------------------------------- sidebar --- */
+  /* The sections are grouped and live in a left column. This replaced a single
+     scrolling row of tabs on 2026-10-18: twelve buttons fitted, twenty-one did
+     not, and a scrollbar hides exactly the sections nobody has read yet. */
 
-  .tabscroll {
-    position: sticky;
-    top: 0;
-    z-index: 5;
-    background: var(--bg);
-    padding: 0.9rem 0 1.1rem;
-    margin-bottom: 2.2rem;
-    overflow-x: auto;
+  .book {
+    display: grid;
+    grid-template-columns: 13.5rem 1fr;
+    gap: 0 3rem;
+    margin-top: 2.4rem;
+    align-items: start;
   }
-  .tabscroll .seg { flex-wrap: nowrap; min-width: max-content; }
-  .tabscroll .seg button { font-size: 0.8rem; padding: 0.5rem 0.85rem; white-space: nowrap; }
+
+  /* Deliberately NOT sticky with its own overflow: seven groups and twenty-one
+     sections are about 980px tall, so a sticky nav would need an inner
+     scrollbar on any ordinary screen - which is what this layout replaced. It
+     scrolls with the page, and selecting a section scrolls its top into view. */
+  .booknav {
+    padding-right: 1.2rem;
+    border-right: 1px solid var(--line-soft);
+  }
+  .navgroup + .navgroup { margin-top: 1.5rem; }
+  .navhead {
+    font-family: var(--mono);
+    font-weight: 400;
+    font-size: 0.66rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    margin: 0 0 0.45rem;
+  }
+  .navgroup.on .navhead { color: var(--text-dim); }
+  .navlist { display: flex; flex-direction: column; }
+  .navlist button {
+    appearance: none;
+    width: 100%;
+    font: inherit;
+    font-size: 0.86rem;
+    text-align: left;
+    background: none;
+    border: none;
+    border-left: 1px solid var(--line-soft);
+    border-radius: 0;
+    box-shadow: none;
+    color: var(--text-dim);
+    padding: 0.34rem 0 0.34rem 0.7rem;
+    cursor: pointer;
+  }
+  .navlist button:hover { color: var(--text); border-left-color: var(--line); }
+  .navlist button.on {
+    color: var(--neon);
+    border-left-color: var(--neon);
+    background: hsl(var(--tint) / 0.06);
+  }
+  .navlist button:focus-visible { outline: 1px solid var(--neon); outline-offset: -1px; }
+
+  /* Narrow: the nav becomes a block of grouped lists above the content, so the
+     reading column stays a single column at phone width. */
+  @media (max-width: 900px) {
+    .book { grid-template-columns: 1fr; gap: 0; }
+    .booknav {
+      position: static;
+      max-height: none;
+      overflow: visible;
+      padding: 0 0 1.6rem;
+      margin-bottom: 2rem;
+      border-right: none;
+      border-bottom: 1px solid var(--line-soft);
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+      gap: 1.3rem 1.6rem;
+    }
+    .navgroup + .navgroup { margin-top: 0; }
+  }
 
   [role="tabpanel"][hidden] { display: none !important; }
   [role="tabpanel"] { outline: none; }
@@ -417,22 +478,69 @@
     <span class="n">The full pack and the latest update pack, always current. It only loads while Tailscale is connected &mdash; which makes opening it the quickest way to check that it is.</span>
   </a>
 
-  <div class="tabscroll">
-    <div class="seg" role="tablist" aria-label="Handbook sections">
-      <button class="on" id="tab-join" role="tab" aria-controls="panel-join" aria-selected="true">First Join</button>
-      <button id="tab-land" role="tab" aria-controls="panel-land" aria-selected="false">Claiming Land</button>
-      <button id="tab-shops" role="tab" aria-controls="panel-shops" aria-selected="false">Money &amp; Shops</button>
-      <button id="tab-ore" role="tab" aria-controls="panel-ore" aria-selected="false">Mining</button>
-      <button id="tab-quarry" role="tab" aria-controls="panel-quarry" aria-selected="false">Quarries</button>
-      <button id="tab-sort" role="tab" aria-controls="panel-sort" aria-selected="false">Sorting Chests</button>
-      <button id="tab-travel" role="tab" aria-controls="panel-travel" aria-selected="false">Getting Around</button>
-      <button id="tab-horses" role="tab" aria-controls="panel-horses" aria-selected="false">Horses</button>
-      <button id="tab-qol" role="tab" aria-controls="panel-qol" aria-selected="false">Quality of Life</button>
-      <button id="tab-discs" role="tab" aria-controls="panel-discs" aria-selected="false">Music Discs</button>
-      <button id="tab-fix" role="tab" aria-controls="panel-fix" aria-selected="false">Troubleshooting</button>
-      <button id="tab-stats" role="tab" aria-controls="panel-stats" aria-selected="false">Server Stats</button>
-    </div>
-  </div>
+  <div class="book">
+    <nav class="booknav">
+      <div class="navgroup on">
+        <h2 class="navhead" id="navhead-start">Start</h2>
+        <div class="navlist" role="tablist" aria-orientation="vertical" aria-labelledby="navhead-start">
+          <button class="on" id="tab-join" role="tab" aria-controls="panel-join" aria-selected="true">First Join</button>
+          <button id="tab-guides" role="tab" aria-controls="panel-guides" aria-selected="false">In-Game Guides</button>
+          <button id="tab-qol" role="tab" aria-controls="panel-qol" aria-selected="false">Quality of Life</button>
+        </div>
+      </div>
+      <div class="navgroup">
+        <h2 class="navhead" id="navhead-land-and-money">Land &amp; Money</h2>
+        <div class="navlist" role="tablist" aria-orientation="vertical" aria-labelledby="navhead-land-and-money">
+          <button id="tab-land" role="tab" aria-controls="panel-land" aria-selected="false">Claiming Land</button>
+          <button id="tab-shops" role="tab" aria-controls="panel-shops" aria-selected="false">Money &amp; Shops</button>
+          <button id="tab-travel" role="tab" aria-controls="panel-travel" aria-selected="false">Getting Around</button>
+        </div>
+      </div>
+      <div class="navgroup">
+        <h2 class="navhead" id="navhead-resources">Resources</h2>
+        <div class="navlist" role="tablist" aria-orientation="vertical" aria-labelledby="navhead-resources">
+          <button id="tab-ore" role="tab" aria-controls="panel-ore" aria-selected="false">Mining</button>
+          <button id="tab-quarry" role="tab" aria-controls="panel-quarry" aria-selected="false">Quarries</button>
+          <button id="tab-farm" role="tab" aria-controls="panel-farm" aria-selected="false">Farming &amp; Food</button>
+        </div>
+      </div>
+      <div class="navgroup">
+        <h2 class="navhead" id="navhead-making-things">Making Things</h2>
+        <div class="navlist" role="tablist" aria-orientation="vertical" aria-labelledby="navhead-making-things">
+          <button id="tab-power" role="tab" aria-controls="panel-power" aria-selected="false">Power &amp; Automation</button>
+          <button id="tab-sort" role="tab" aria-controls="panel-sort" aria-selected="false">Sorting Chests</button>
+          <button id="tab-magic" role="tab" aria-controls="panel-magic" aria-selected="false">Magic</button>
+        </div>
+      </div>
+      <div class="navgroup">
+        <h2 class="navhead" id="navhead-adventure">Adventure</h2>
+        <div class="navlist" role="tablist" aria-orientation="vertical" aria-labelledby="navhead-adventure">
+          <button id="tab-gear" role="tab" aria-controls="panel-gear" aria-selected="false">Gear &amp; Combat</button>
+          <button id="tab-skills" role="tab" aria-controls="panel-skills" aria-selected="false">Skills &amp; Levelling</button>
+          <button id="tab-mobs" role="tab" aria-controls="panel-mobs" aria-selected="false">Mobs &amp; Dangers</button>
+          <button id="tab-worlds" role="tab" aria-controls="panel-worlds" aria-selected="false">Dimensions &amp; Dungeons</button>
+        </div>
+      </div>
+      <div class="navgroup">
+        <h2 class="navhead" id="navhead-home">Home</h2>
+        <div class="navlist" role="tablist" aria-orientation="vertical" aria-labelledby="navhead-home">
+          <button id="tab-horses" role="tab" aria-controls="panel-horses" aria-selected="false">Horses</button>
+          <button id="tab-build" role="tab" aria-controls="panel-build" aria-selected="false">Building &amp; Decorating</button>
+          <button id="tab-discs" role="tab" aria-controls="panel-discs" aria-selected="false">Music Discs</button>
+        </div>
+      </div>
+      <div class="navgroup">
+        <h2 class="navhead" id="navhead-the-server">The Server</h2>
+        <div class="navlist" role="tablist" aria-orientation="vertical" aria-labelledby="navhead-the-server">
+          <button id="tab-discord" role="tab" aria-controls="panel-discord" aria-selected="false">Discord</button>
+          <button id="tab-claude" role="tab" aria-controls="panel-claude" aria-selected="false">Asking Claude</button>
+          <button id="tab-fix" role="tab" aria-controls="panel-fix" aria-selected="false">Troubleshooting</button>
+          <button id="tab-stats" role="tab" aria-controls="panel-stats" aria-selected="false">Server Stats</button>
+        </div>
+      </div>
+    </nav>
+
+    <div class="panels">
 
   <!-- ===================== FIRST JOIN ===================== -->
   <section class="panel" id="panel-join" role="tabpanel" aria-labelledby="tab-join" tabindex="0">
@@ -510,8 +618,20 @@
       <li><b>Death is survivable.</b> <a href="https://www.curseforge.com/minecraft/mc-mods/epitaphs" target="_blank" rel="noopener">Epitaphs</a> places a grave where you died, holding your things. Walk back and collect it.</li>
       <li><b>Sleeping is a group activity.</b> You don't need everyone in bed to skip the night, but you do need enough people. Get in bed and wait a moment.</li>
       <li><b>Check recipes in-game.</b> <a href="https://github.com/mezz/JustEnoughItems/wiki" target="_blank" rel="noopener">JEI</a> is the recipe viewer: hover any item and press <kbd>R</kbd> for how to make it, or <kbd>U</kbd> for what it's used for. With <span class="jarcount">406</span> mods this is the most useful key on your keyboard.</li>
-      <li><b>Don't build anything permanent yet.</b> Claim first — see the next tab. Unclaimed land is not protected.</li>
+      <li><b>Don't build anything permanent yet.</b> Claim first — see <b>Claiming land</b>. Unclaimed land is not protected.</li>
     </ul>
+
+    <h3>What is different about this server</h3>
+    <p>Six house rules that are not vanilla behaviour and are not written in any mod's wiki. They are all here because somebody asked for them.</p>
+    <ul class="keylist full">
+      <li><span class="act">Nothing attacks you by day</span><span class="desc">Hostile mobs will not start a fight while the sun is up. Hit one and it fights back properly &mdash; see <b>Mobs &amp; dangers</b></span></li>
+      <li><span class="act">Creepers don't grief</span><span class="desc">They still explode and still hurt. Your blocks stay where they are</span></li>
+      <li><span class="act">No phantoms</span><span class="desc">You will never be punished for not sleeping</span></li>
+      <li><span class="act">Eat widely, not well</span><span class="desc">Your maximum health comes from the <em>number of different foods</em> you have eaten &mdash; ten hearts to start, twenty by twenty-five different things. See <b>Farming &amp; food</b></span></li>
+      <li><span class="act">Nothing is level-locked</span><span class="desc">There is a character level, and it gates nothing at all. Mine what you can reach &mdash; see <b>Skills &amp; levelling</b></span></li>
+      <li><span class="act">The server sleeps</span><span class="desc">It shuts down an hour after the last person leaves, and <b>anyone</b> can bring it back with <code>/start</code> in Discord. If it's down, that's normal &mdash; see <b>Discord</b></span></li>
+    </ul>
+    <p>You can also talk to the server's assistant from chat by starting a message with <b>claude</b> or <b>robot</b>, whether or not Isabel is around. <b>Asking Claude</b> covers what it will and won't do.</p>
 
     <div class="wikis">
       <h3>Where to read more</h3>
@@ -980,9 +1100,9 @@
     <p>Not sure what something is called? <code>/sort category &lt;item&gt;</code> lists every chest name that would take it, and <b>F3 + H</b> turns on tooltips that show an item's id.</p>
 
     <h3>A chest for one mod</h3>
-    <p>Any mod's own name works as a category. Sign a chest <code>[horsegenetics]</code> and everything from Procedural Horse Coats lands in it; <code>[ae2]</code>, <code>[mekanism]</code>, <code>[occultism]</code>, <code>[railcraft]</code> and 182 others all work the same way.</p>
+    <p>Any mod's own name works as a category. Sign a chest <code>[horsegenetics]</code> and everything from Procedural Horse Coats lands in it; <code>[ae2]</code>, <code>[enderio]</code>, <code>[occultism]</code>, <code>[railcraft]</code> and 182 others all work the same way.</p>
     <p>The name to write is the mod's <b>id</b>, which is the part before the colon in an item's id rather than its pretty name. Press <b>F3 + H</b> once to turn on advanced tooltips and every item shows you its id; <code>/sort category &lt;item&gt;</code> will also tell you, and it names the mod chest along with the normal one.</p>
-    <p><b>Mod chests are checked last</b>, just ahead of <code>[misc]</code>, so everything above beats them. If you have an <code>[ingots]</code> chest and a <code>[mekanism]</code> chest, Mekanism's ingots still go to <code>[ingots]</code>. A mod chest is for the things a mod adds that fit nowhere else &mdash; machine parts, ritual components, its own oddities &mdash; not a way to pull a whole mod out of your sorting room.</p>
+    <p><b>Mod chests are checked last</b>, just ahead of <code>[misc]</code>, so everything above beats them. If you have an <code>[ingots]</code> chest and an <code>[enderio]</code> chest, Ender IO's ingots still go to <code>[ingots]</code>. A mod chest is for the things a mod adds that fit nowhere else &mdash; machine parts, ritual components, its own oddities &mdash; not a way to pull a whole mod out of your sorting room.</p>
 
     <div class="callout"><p><b><code>[misc]</code> catches everything else.</b> Build that chest and nothing is ever left behind &mdash; but you also stop noticing what has no proper home. Leaving it out is the better default: unmatched items stay in the input chest where you can see them, and you can say so in chat.</p></div>
 
@@ -1125,7 +1245,7 @@
     </ul>
 
     <h3>Building and decorating</h3>
-    <p>There's a deep set of decoration mods here — <a href="https://modrinth.com/user/sketchmacaw" target="_blank" rel="noopener">Macaw's</a> furniture, windows, doors, roofs, fences, paths, bridges, stairs and lights, plus <a href="https://github.com/XFactHD/FramedBlocks/wiki" target="_blank" rel="noopener">FramedBlocks</a>, which take on the appearance of anything else. If you enjoy the building side, browse these in the recipe viewer; there is far more available than the vanilla palette suggests.</p>
+    <p>More than twenty decoration mods are installed, and between them the palette is several times the vanilla one. That has a page of its own now &mdash; see <b>Building &amp; decorating</b>.</p>
 
     <h3>Shaders</h3>
     <p><a href="https://modrinth.com/mod/iris" target="_blank" rel="noopener">Iris</a> and <a href="https://modrinth.com/mod/sodium" target="_blank" rel="noopener">Sodium</a> are both in the pack already, and the installer offers you one &mdash; <a href="https://modrinth.com/shader/makeup-ultra-fast-shaders" target="_blank" rel="noopener">MakeUp Ultra Fast</a>, chosen because it is the fastest of the well-known ones, which matters in a pack this size. Say yes on the <b>Optional extras</b> page and turn it on at <b>Options &rarr; Video Settings &rarr; Shader Packs</b>. Said no and changed your mind? Run the installer again and pick <b>Custom install</b>. The full pack zip always contains it.</p>
@@ -1150,18 +1270,6 @@
     </ul>
 
 
-    <div class="wikis">
-      <h3>Where to read more</h3>
-      <p>Two building mod families, both much larger than a browse of the recipe list suggests.</p>
-      <ul class="linklist full">
-        <li><span class="who"><a href="https://modrinth.com/user/sketchmacaw" target="_blank" rel="noopener">Macaw's mods</a></span><span class="what">Ten separate mods — furniture, doors, windows, roofs, fences, paths, bridges, stairs, trapdoors and lights <span class="host">Modrinth</span></span></li>
-        <li><span class="who"><a href="https://github.com/XFactHD/FramedBlocks/wiki" target="_blank" rel="noopener">FramedBlocks</a></span><span class="what">Every frame shape there is, and how camouflaging one works <span class="host">GitHub wiki</span></span></li>
-      </ul>
-    </div>
-
-    <footer>
-      This handbook covers the server's own rules and conventions. For any individual mod's mechanics, follow the links at the foot of each tab — a mod's own wiki or in-game guide book will always beat anything written here.
-    </footer>
   </section>
 
   <!-- ===================== TROUBLESHOOTING ===================== -->
@@ -1431,6 +1539,544 @@
     </details>
   </section>
 
+  <!-- ===================== IN-GAME GUIDES ===================== -->
+  <section class="panel" id="panel-guides" role="tabpanel" aria-labelledby="tab-guides" tabindex="0" hidden>
+    <h2>In-game guides</h2>
+    <p class="lede">Nothing on this site goes deep, and it doesn't need to: most of the big mods here ship their own manual inside the game. Four separate guidebook systems are installed, so &ldquo;where do I even start with this mod&rdquo; usually has an answer three keypresses away.</p>
+
+    <h3>The books</h3>
+    <ul class="keylist full">
+      <li><span class="act">Patchouli</span><span class="desc">The common one. A mod's book is a craftable item &mdash; search the mod's name in the recipe viewer &mdash; and it fills itself in as you progress</span></li>
+      <li><span class="act">Modonomicon</span><span class="desc">The same idea with a progress map. Occultism's <b>Dictionary of Spirits</b> and Theurgy's book both use it</span></li>
+      <li><span class="act">GuideME</span><span class="desc">Applied Energistics 2's manual. Its blocks and items link into the relevant page rather than dumping you at the front</span></li>
+      <li><span class="act">Oracle Index</span><span class="desc">A wiki browser inside the game, pulling pages from moddedmc.wiki. Covers mods that never wrote a book of their own</span></li>
+    </ul>
+    <p>If a mod has a book, read the first two pages of it before searching the internet. Pack versions drift from whatever a three-year-old video shows, and the book in your hand is generated from the recipes this server is actually running.</p>
+
+    <h3>Tooltips earn their keep</h3>
+    <p>A lot of what you'd otherwise have to look up is already attached to the item.</p>
+    <ul class="keylist full">
+      <li><span class="act">Enchantment Descriptions</span><span class="desc">What an enchantment actually does, written into its tooltip instead of implied by a name</span></li>
+      <li><span class="act">Better Advanced Tooltips</span><span class="desc">Item ids, durability, repair cost and burn time, without <kbd>F3</kbd></span></li>
+      <li><span class="act">Just Enough Professions</span><span class="desc">Which villager profession sells a thing, shown next to the trade</span></li>
+      <li><span class="act">Polymorph</span><span class="desc">When two mods claim the same crafting grid, a chooser appears instead of one silently winning</span></li>
+      <li><span class="act">Tip of the Loom</span><span class="desc">Loom patterns, labelled</span></li>
+    </ul>
+
+    <div class="callout">
+      <p><b>The quest book is the pack's own guide.</b> FTB Quests is less a list of chores than a reading order &mdash; it points at which mod to pick up next and hands you the starting items for it. Nothing in this pack is gated behind a quest, so treat it as a suggestion.</p>
+    </div>
+
+    <div class="wikis">
+      <h3>Where to read more</h3>
+      <p>The four book systems, if you want to know how the pages themselves work.</p>
+      <ul class="linklist full">
+        <li><span class="who"><a href="https://modrinth.com/mod/patchouli" target="_blank" rel="noopener">Patchouli</a></span><span class="what">The most widely used in-game book format <span class="host">Modrinth</span></span></li>
+        <li><span class="who"><a href="https://modrinth.com/mod/modonomicon" target="_blank" rel="noopener">Modonomicon</a></span><span class="what">Books with a progress map &mdash; Occultism and Theurgy <span class="host">Modrinth</span></span></li>
+        <li><span class="who"><a href="https://guide.appliedenergistics.org/" target="_blank" rel="noopener">GuideME</a></span><span class="what">Applied Energistics 2's manual, also readable in a browser <span class="host">appliedenergistics.org</span></span></li>
+        <li><span class="who"><a href="https://modrinth.com/mod/oracle-index" target="_blank" rel="noopener">Oracle Index</a></span><span class="what">moddedmc.wiki, in game <span class="host">Modrinth</span></span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ===================== FARMING & FOOD ===================== -->
+  <section class="panel" id="panel-farm" role="tabpanel" aria-labelledby="tab-farm" tabindex="0" hidden>
+    <h2>Farming &amp; food</h2>
+    <p class="lede">Food here is not only hunger. Eating a <em>variety</em> of things is how you get more than ten hearts, and about a dozen mods stack new crops, trees, bees and machines on top of vanilla's farm.</p>
+
+    <div class="callout lit">
+      <p><b>Your maximum health comes from the number of different foods you have eaten.</b> Everyone starts at ten hearts. Every time your count of distinct foods reaches <b>5, 10, 15, 20 and 25</b>, you gain two more hearts &mdash; twenty hearts once you've eaten twenty-five different things. It carries through death, so the progress is never lost, and it is the single cheapest way to get tougher early. Eat the new crop rather than selling all of it.</p>
+      <p>This is <b>Spice of Life: Carrot Edition</b>. Your food book tracks what you've had.</p>
+    </div>
+
+    <h3>Where the new crops come from</h3>
+    <ul class="keylist full">
+      <li><span class="act">Croptopia</span><span class="desc">The big one &mdash; dozens of crops and hundreds of recipes made from them. Most of your food variety will come from here</span></li>
+      <li><span class="act">Productive Farming</span><span class="desc">More crops and flowers, and the feedstock for the Productive line of mods</span></li>
+      <li><span class="act">Primal Frontier</span><span class="desc">A harsher, earlier-game set of crops and tools. Also where the megaraptor comes from</span></li>
+      <li><span class="act">Pastry Garden</span><span class="desc">Strawberry cows and the sweet end of farming</span></li>
+      <li><span class="act">Haunted Harvest</span><span class="desc">Corn, pumpkin carving, and villagers who come trick-or-treating</span></li>
+      <li><span class="act">Fields</span><span class="desc">Large cultivated fields that generate in plains &mdash; free farmland if you find one</span></li>
+      <li><span class="act">Pantrywork</span><span class="desc">The glue. A shared set of food tags, so one mod's tomato works in another mod's recipe and you never have to hunt the &ldquo;right&rdquo; one</span></li>
+    </ul>
+
+    <h3>Making a farm worth automating</h3>
+    <ul class="keylist full">
+      <li><span class="act">Mystical Agriculture</span><span class="desc">Grow resources as crops &mdash; iron, diamond, almost anything &mdash; with Agradditions and the Growth Accelerator tiers on top. The usual answer to &ldquo;I need ten thousand of these&rdquo;</span></li>
+      <li><span class="act">AgriTech: Evolved</span><span class="desc">Agricultural automation proper: machines and modules that plant, harvest and process, with compatibility for most of the crops above</span></li>
+      <li><span class="act">Farming for Blockheads</span><span class="desc">The market, where you can simply buy seeds and animals, plus fertilised farmland and a chicken nest</span></li>
+      <li><span class="act">Cooking for Blockheads</span><span class="desc">A kitchen that works as one unit &mdash; connect the appliances and cook from any ingredient within reach, rather than carrying stacks to a crafting grid</span></li>
+      <li><span class="act">Instant Replant</span><span class="desc">Harvesting a crop replants it. Removes most of the tedium from a hand-worked farm</span></li>
+      <li><span class="act">Crops Love Rain</span><span class="desc">Rain speeds growth up, so a wet week is a good week to plant</span></li>
+    </ul>
+
+    <h3>Bees, trees, fish</h3>
+    <p><b>Productive Bees</b> is the bee progression &mdash; dozens of species, each producing something different, with <b>ModularBees</b> adding a multiblock hive once one box stops being enough. <b>Productive Trees</b> does the same for wood and fruit. For fishing, <b>Aquaculture 2</b> rebuilds the whole system with new rods, bait and a great many fish; <b>Lava Fishing</b> is exactly what it says; and <b>BBL Strainers</b> sit in water collecting drops in the background while you do something else.</p>
+
+    <div class="callout">
+      <p><b>Fence your farm before you own a horse.</b> Horses here graze &mdash; a crop is eaten whole and grass turns to dirt. They won't reach through a fence, but an open gate is an invitation. See <b>Horses</b>.</p>
+    </div>
+
+    <div class="wikis">
+      <h3>Where to read more</h3>
+      <p>The ones with real depth behind them. Everything else above is readable in the recipe viewer.</p>
+      <ul class="linklist full">
+        <li><span class="who"><a href="https://www.curseforge.com/minecraft/mc-mods/spice-of-life-carrot-edition" target="_blank" rel="noopener">Spice of Life: Carrot</a></span><span class="what">The hearts-for-variety rule, in full <span class="host">CurseForge</span></span></li>
+        <li><span class="who"><a href="https://blakesmods.com/mystical-agriculture" target="_blank" rel="noopener">Mystical Agriculture</a></span><span class="what">Essences, seeds and the tier progression <span class="host">BlakesMods</span></span></li>
+        <li><span class="who"><a href="https://modrinth.com/mod/agritech-evolved" target="_blank" rel="noopener">AgriTech: Evolved</a></span><span class="what">Farm machines, modules and what they accept <span class="host">Modrinth</span></span></li>
+        <li><span class="who"><a href="https://www.curseforge.com/minecraft/mc-mods/croptopia" target="_blank" rel="noopener">Croptopia</a></span><span class="what">Every crop and every recipe it adds <span class="host">CurseForge</span></span></li>
+        <li><span class="who"><a href="https://modrinth.com/mod/productivebees" target="_blank" rel="noopener">Productive Bees</a></span><span class="what">The species list and what each one makes <span class="host">Modrinth</span></span></li>
+        <li><span class="who"><a href="https://modrinth.com/mod/productivetrees" target="_blank" rel="noopener">Productive Trees</a></span><span class="what">Tree breeding and the wood it yields <span class="host">Modrinth</span></span></li>
+        <li><span class="who"><a href="https://mods.twelveiterations.com/mc/cooking-for-blockheads" target="_blank" rel="noopener">Cooking for Blockheads</a></span><span class="what">How the kitchen connects up <span class="host">Twelve Iterations</span></span></li>
+        <li><span class="who"><a href="https://mods.twelveiterations.com/mc/farming-for-blockheads" target="_blank" rel="noopener">Farming for Blockheads</a></span><span class="what">The market, fertiliser and the chicken nest <span class="host">Twelve Iterations</span></span></li>
+        <li><span class="who"><a href="https://modrinth.com/mod/aquaculture" target="_blank" rel="noopener">Aquaculture 2</a></span><span class="what">Rods, bait, and the full fish list <span class="host">Modrinth</span></span></li>
+        <li><span class="who"><a href="https://modrinth.com/mod/pantrywork" target="_blank" rel="noopener">Pantrywork</a></span><span class="what">The shared food tags, if a substitution surprises you <span class="host">Modrinth</span></span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ===================== POWER & AUTOMATION ===================== -->
+  <section class="panel" id="panel-power" role="tabpanel" aria-labelledby="tab-power" tabindex="0" hidden>
+    <h2>Power &amp; automation</h2>
+    <p class="lede">There is no &ldquo;which energy system should I pick&rdquo; question here. Every power mod in the pack speaks the same Forge Energy, so a generator from one mod runs a machine from another down a cable from a third. Build whatever looks good and it will connect.</p>
+
+    <h3>Making power</h3>
+    <ul class="keylist full">
+      <li><span class="act">Powah</span><span class="desc">The easy start. Furnators and thermal generators early, reactors and solar panels later, plus the best energy cells in the pack</span></li>
+      <li><span class="act">Generator Galore</span><span class="desc">One generator for nearly every fuel you might already have spare</span></li>
+      <li><span class="act">Energized Power</span><span class="desc">A broad machine set with a clean tier ladder &mdash; a good spine if you want one mod to do most things</span></li>
+      <li><span class="act">Oritech</span><span class="desc">Newer, and visually the nicest of them. Worth a look before you commit to a factory layout</span></li>
+      <li><span class="act">Ender IO</span><span class="desc">Conduits that carry power, items, fluids and redstone in one block, and the machines to go with them</span></li>
+      <li><span class="act">Productive Metalworks</span><span class="desc">Melting and casting metal. Pairs with Silent Gear, which wants cast parts &mdash; see <b>Gear &amp; combat</b></span></li>
+    </ul>
+
+    <h3>Moving things about</h3>
+    <ul class="keylist full">
+      <li><span class="act">Pipez</span><span class="desc">Start here. One pipe per type, upgrades for speed and filtering, and almost no configuration to get wrong</span></li>
+      <li><span class="act">Classic Pipes</span><span class="desc">The old-school routing feel, if you grew up on BuildCraft</span></li>
+      <li><span class="act">LaserIO</span><span class="desc">One node per machine and a card for each job, with laser connectors instead of a pipe run. Compact and fast</span></li>
+      <li><span class="act">Modular Routers</span><span class="desc">A single block you fit modules into &mdash; breaker, placer, vacuum, sender. Often one router replaces a whole contraption</span></li>
+      <li><span class="act">Logistics Networks</span><span class="desc">High-level item logistics built to be cheap on the server</span></li>
+    </ul>
+
+    <h3>Telling it what to do</h3>
+    <p><b>Super Factory Manager</b> is the one to learn if you like writing rules rather than laying pipe: label your inventories, write a short program, and one manager runs the whole factory. <b>Integrated Dynamics</b> (with Tunnels, Crafting and Terminals) is the heavier, more powerful version of the same idea. <b>More Red</b> adds logic gate plates you rotate by poking them with a stick, for the times the answer is redstone rather than software. <b>Energy Meter</b> clamps onto a cable and tells you what is actually flowing, which settles most &ldquo;why is this slow&rdquo; arguments in one look.</p>
+
+    <h3>Spending the power</h3>
+    <p><b>Iron Jetpacks</b> are the usual first luxury &mdash; a tiered, FE-powered flight upgrade path. <b>Charging Gadgets</b> keeps your tools and jetpack topped up without a machine for each. <b>Modular Force Field System</b> builds actual force fields, which is a defence and a very good wall. Quarries, storage networks and sorting all have their own pages: see <b>Quarries</b>, <b>Mining</b> and <b>Sorting chests</b>.</p>
+
+    <div class="callout">
+      <p><b>A machine that does nothing is almost always power or a face.</b> Look at the block &mdash; Jade's tooltip shows its energy buffer and status &mdash; and check which side you piped into. Second most common cause is a full output with nowhere to go.</p>
+      <p><b>Keep it inside your claim.</b> Claim protection covers machines, containers and storage networks, including AE2 systems. An unclaimed factory is not protected by anything. See <b>Claiming land</b>.</p>
+    </div>
+
+    <div class="wikis">
+      <h3>Where to read more</h3>
+      <p>Each of these has more in it than a browse of the recipe list shows.</p>
+      <ul class="linklist full">
+        <li><span class="who"><a href="https://modrinth.com/mod/powah" target="_blank" rel="noopener">Powah</a></span><span class="what">Generators, cells and the tier progression <span class="host">Modrinth</span></span></li>
+        <li><span class="who"><a href="https://enderio.com/" target="_blank" rel="noopener">Ender IO</a></span><span class="what">Conduits, machines and the painting system <span class="host">enderio.com</span></span></li>
+        <li><span class="who"><a href="https://modrinth.com/mod/oritech" target="_blank" rel="noopener">Oritech</a></span><span class="what">Its machine set and the research it gates behind <span class="host">Modrinth</span></span></li>
+        <li><span class="who"><a href="https://github.com/JDDev0/EnergizedPower" target="_blank" rel="noopener">Energized Power</a></span><span class="what">The full machine list, tier by tier <span class="host">GitHub</span></span></li>
+        <li><span class="who"><a href="https://modrinth.com/mod/generatorgalore" target="_blank" rel="noopener">Generator Galore</a></span><span class="what">Every generator and what it burns <span class="host">Modrinth</span></span></li>
+        <li><span class="who"><a href="https://modrinth.com/mod/pipez" target="_blank" rel="noopener">Pipez</a></span><span class="what">Pipe types, upgrades and filters <span class="host">Modrinth</span></span></li>
+        <li><span class="who"><a href="https://github.com/Direwolf20-MC/LaserIO" target="_blank" rel="noopener">LaserIO</a></span><span class="what">Nodes, cards and how to think about them <span class="host">GitHub</span></span></li>
+        <li><span class="who"><a href="https://modrinth.com/mod/modular-routers" target="_blank" rel="noopener">Modular Routers</a></span><span class="what">Every module, with examples <span class="host">Modrinth</span></span></li>
+        <li><span class="who"><a href="https://modrinth.com/mod/super-factory-manager" target="_blank" rel="noopener">Super Factory Manager</a></span><span class="what">The language, and worked programs <span class="host">Modrinth</span></span></li>
+        <li><span class="who"><a href="https://www.curseforge.com/minecraft/mc-mods/integrated-dynamics" target="_blank" rel="noopener">Integrated Dynamics</a></span><span class="what">Logic networks, variables and parts <span class="host">CurseForge</span></span></li>
+        <li><span class="who"><a href="https://modrinth.com/mod/iron-jetpacks" target="_blank" rel="noopener">Iron Jetpacks</a></span><span class="what">The tiers and what each one costs to run <span class="host">Modrinth</span></span></li>
+        <li><span class="who"><a href="https://www.curseforge.com/minecraft/mc-mods/more-red" target="_blank" rel="noopener">More Red</a></span><span class="what">The logic gate plates <span class="host">CurseForge</span></span></li>
+        <li><span class="who"><a href="https://github.com/BuiltBrokenModding/MFFS_Classic" target="_blank" rel="noopener">Modular Force Field System</a></span><span class="what">Projectors, shapes and modules <span class="host">GitHub</span></span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ===================== MAGIC ===================== -->
+  <section class="panel" id="panel-magic" role="tabpanel" aria-labelledby="tab-magic" tabindex="0" hidden>
+    <h2>Magic</h2>
+    <p class="lede">Eight separate magic mods are installed and none of them need each other. That is good news: pick <em>one</em>, read its book, and get somewhere. Trying to open all eight at once is the reliable way to bounce off every one of them.</p>
+
+    <h3>Pick one of these</h3>
+    <ul class="keylist full">
+      <li><span class="act">Occultism</span><span class="desc">Summoning. Ritual circles, demons who do work for you, familiars that follow you about, and dimensional storage that beats a wall of chests. Its <b>Dictionary of Spirits</b> is one of the best written books in the pack &mdash; the recommended first magic mod</span></li>
+      <li><span class="act">Theurgy</span><span class="desc">Classical alchemy. Mercury, salts, transmuting one material into another and replicating what you already have. Heavily automatable, which makes it the most tech-like of them</span></li>
+      <li><span class="act">Forbidden &amp; Arcanus</span><span class="desc">Artefacts and a darker flavour, built around the Clibano furnace and a long list of things to craft. Patchouli book</span></li>
+      <li><span class="act">Neo Vitae</span><span class="desc">Blood magic. An altar, a blood orb, sigils and rituals, paid for in health &mdash; yours at first, something else's later</span></li>
+      <li><span class="act">EvilCraft</span><span class="desc">The other blood mod, and a weirder one. Blood, dark power and a lot of cursed items</span></li>
+      <li><span class="act">Roots Classic</span><span class="desc">Druidic. Spells assembled out of herbs and rituals performed with plants. Low-tech and quick to start</span></li>
+      <li><span class="act">Mahou Tsukai</span><span class="desc">Flashy. Projected weapons and enormous magic circles, loosely inspired by <i>Fate/stay night</i>. Not a progression mod so much as a box of spectacular tools</span></li>
+      <li><span class="act">Wizards</span><span class="desc">The spellcaster. Arcane, fire and frost spells cast from a bar, learned through a skill tree, with <b>Runes</b> as ammunition. See <b>Skills &amp; levelling</b> &mdash; the trees are where the spells come from</span></li>
+    </ul>
+
+    <h3>Odds and ends worth knowing</h3>
+    <p><b>Reliquary</b> is magic-flavoured equipment rather than a progression: pedestals, charms and a handful of genuinely strong items that live in your Curios slots. <b>Pylons</b> are single blocks with an area effect &mdash; harvesting, expulsion, interdiction &mdash; useful around a base whether or not you ever touch the rest of this page. <b>Apotheosis</b> straddles magic and gear; its enchanting side is on the <b>Gear &amp; combat</b> page.</p>
+
+    <div class="callout">
+      <p><b>Spirits, rituals and altars are blocks like any other, and claim protection treats them that way.</b> Build the ritual circle inside your claim. A summoning that needs a chalk circle on the ground outside it is a summoning somebody else can walk over.</p>
+    </div>
+
+    <div class="wikis">
+      <h3>Where to read more</h3>
+      <p>Most of these have an in-game book that is better than their web page &mdash; see <b>In-game guides</b> &mdash; but these are the reference pages.</p>
+      <ul class="linklist full">
+        <li><span class="who"><a href="https://modrinth.com/mod/occultism" target="_blank" rel="noopener">Occultism</a></span><span class="what">Rituals, familiars, spirits and dimensional storage <span class="host">Modrinth</span></span></li>
+        <li><span class="who"><a href="https://www.curseforge.com/minecraft/mc-mods/theurgy" target="_blank" rel="noopener">Theurgy</a></span><span class="what">The alchemy chain, start to finish <span class="host">CurseForge</span></span></li>
+        <li><span class="who"><a href="https://modrinth.com/mod/forbidden-arcanus" target="_blank" rel="noopener">Forbidden &amp; Arcanus</a></span><span class="what">The Clibano, the artefacts and the dark matter <span class="host">Modrinth</span></span></li>
+        <li><span class="who"><a href="https://github.com/breakinblocks/NeoVitae" target="_blank" rel="noopener">Neo Vitae</a></span><span class="what">Altars, orbs, sigils and rituals <span class="host">GitHub</span></span></li>
+        <li><span class="who"><a href="https://www.curseforge.com/minecraft/mc-mods/evilcraft" target="_blank" rel="noopener">EvilCraft</a></span><span class="what">Blood, dark power and the cursed item list <span class="host">CurseForge</span></span></li>
+        <li><span class="who"><a href="https://www.curseforge.com/minecraft/mc-mods/roots-classic" target="_blank" rel="noopener">Roots Classic</a></span><span class="what">Herbs, rituals and spell components <span class="host">CurseForge</span></span></li>
+        <li><span class="who"><a href="https://modrinth.com/mod/mahou-tsukai" target="_blank" rel="noopener">Mahou Tsukai</a></span><span class="what">Every circle and what it does <span class="host">Modrinth</span></span></li>
+        <li><span class="who"><a href="https://modrinth.com/mod/wizards" target="_blank" rel="noopener">Wizards</a></span><span class="what">The spell schools and the classes that cast them <span class="host">Modrinth</span></span></li>
+        <li><span class="who"><a href="https://modrinth.com/mod/spell-engine" target="_blank" rel="noopener">Spell Engine</a></span><span class="what">The casting system underneath Wizards &mdash; bars, cooldowns, scaling <span class="host">Modrinth</span></span></li>
+        <li><span class="who"><a href="https://www.curseforge.com/minecraft/mc-mods/reliquary-reincarnations" target="_blank" rel="noopener">Reliquary</a></span><span class="what">Charms, pedestals and the strong items <span class="host">CurseForge</span></span></li>
+        <li><span class="who"><a href="https://www.curseforge.com/minecraft/mc-mods/pylons" target="_blank" rel="noopener">Pylons</a></span><span class="what">The three pylons and their ranges <span class="host">CurseForge</span></span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ===================== GEAR & COMBAT ===================== -->
+  <section class="panel" id="panel-gear" role="tabpanel" aria-labelledby="tab-gear" tabindex="0" hidden>
+    <h2>Gear &amp; combat</h2>
+    <p class="lede">Diamond to netherite is one ladder here and not the most interesting one. Nothing is locked behind a character level &mdash; see <b>Skills &amp; levelling</b> &mdash; so what you can hold is decided by what you can make.</p>
+
+    <h3>Building your own weapon</h3>
+    <p><b>Silent Gear</b> is the deep one: every tool is assembled from parts, and the material of each part decides the stats, so a sword is a recipe rather than a tier. <b>Silent's Gems</b> feeds it new materials. <b>Silent Gear Metalworks</b> changes one rule you should know up front &mdash; any part made of a meltable material has to be <b>cast in a foundry</b> rather than crafted in a grid, which means a little Productive Metalworks setup before you can make good gear. That is deliberate, not a bug.</p>
+
+    <h3>Or wear something made for the job</h3>
+    <ul class="keylist full">
+      <li><span class="act">Epic Knights</span><span class="desc">Plate armour, kite shields, pikes, halberds and arming swords. The best-looking armour in the pack and genuinely strong, with <b>Knight Helmets</b> adding more heads</span></li>
+      <li><span class="act">Apotheosis</span><span class="desc">Affixed loot. Dropped and chest weapons come with rolled bonuses and rarities, and the enchanting table becomes a real system with eterna, quanta and arcana to manage</span></li>
+      <li><span class="act">Nemo's Enchantments</span><span class="desc">A long list of extra enchantments, described in their own tooltips</span></li>
+      <li><span class="act">Iron's Arms 'n Artifice</span><span class="desc">Historical-fantasy firearms, built as an artificer rather than looted</span></li>
+      <li><span class="act">Critical Strike</span><span class="desc">Melee and ranged attacks can crit on chance, so attack speed and luck both start to matter</span></li>
+    </ul>
+
+    <h3>The slots you did not know you had</h3>
+    <p><b>Curios</b> adds the equipment slots nearly every other mod here hangs things off &mdash; rings, belts, charms, back slots. Open your inventory and look for the extra tab.</p>
+    <ul class="keylist full">
+      <li><span class="act">Iron's Gems 'n Jewelry</span><span class="desc">Jewelcrafting: cut gems, set them into rings and necklaces, and choose what they do</span></li>
+      <li><span class="act">Artifacts</span><span class="desc">Uncraftable curios found while exploring. Several are better than anything you can make at the same point</span></li>
+      <li><span class="act">Nameless Trinkets</span><span class="desc">Powerful, strange trinkets from exploration. Read what they do before you rely on one</span></li>
+      <li><span class="act">Baubley Heart Canisters</span><span class="desc">Extra hearts in a curio slot, stacking with the food-variety hearts on the <b>Farming &amp; food</b> page</span></li>
+      <li><span class="act">Transmog</span><span class="desc">Make a good item look like a different one without changing its stats. Keep the plate armour look, keep the netherite numbers</span></li>
+    </ul>
+
+    <h3>Fights worth picking</h3>
+    <p><b>Gateways to Eternity</b> is the one to aim for once you are kitted out: place a gate, survive the waves it spawns, and take the rewards. <b>Apothic Spawners</b> makes captured spawners modifiable, which is how most people end up farming a specific mob. And <b>Training Dummy</b> is quietly one of the most useful blocks in the pack &mdash; hit it to see your real damage per second, so you can compare two builds instead of guessing.</p>
+
+    <div class="callout">
+      <p><b>Dying is not a disaster.</b> Your things go into a grave block where you fell, not onto the floor, and the hourly item sweep never touches graves. Walk back and collect it &mdash; see <b>Quality of life</b>.</p>
+      <p><b>Mobs will not start a fight with you in daylight.</b> That changes how you should gear up; the detail is on <b>Mobs &amp; dangers</b>.</p>
+    </div>
+
+    <div class="wikis">
+      <h3>Where to read more</h3>
+      <p>Silent Gear and Apotheosis are the two that reward reading first.</p>
+      <ul class="linklist full">
+        <li><span class="who"><a href="https://github.com/SilentChaos512/Silent-Gear/blob/26.1.x/README.md" target="_blank" rel="noopener">Silent Gear</a></span><span class="what">Parts, materials, traits and how stats combine <span class="host">GitHub</span></span></li>
+        <li><span class="who"><a href="https://www.curseforge.com/minecraft/mc-mods/apotheosis" target="_blank" rel="noopener">Apotheosis</a></span><span class="what">Affixes, gems, and the enchanting rework <span class="host">CurseForge</span></span></li>
+        <li><span class="who"><a href="https://www.curseforge.com/minecraft/mc-mods/epic-knights-armor-and-weapons" target="_blank" rel="noopener">Epic Knights</a></span><span class="what">Every armour set, shield and weapon <span class="host">CurseForge</span></span></li>
+        <li><span class="who"><a href="https://modrinth.com/mod/curios" target="_blank" rel="noopener">Curios</a></span><span class="what">What the slots are and what fits in them <span class="host">Modrinth</span></span></li>
+        <li><span class="who"><a href="https://modrinth.com/mod/irons-jewelry" target="_blank" rel="noopener">Iron's Gems 'n Jewelry</a></span><span class="what">Cutting, setting and the modifier list <span class="host">Modrinth</span></span></li>
+        <li><span class="who"><a href="https://www.curseforge.com/minecraft/mc-mods/artifacts" target="_blank" rel="noopener">Artifacts</a></span><span class="what">Every artifact and where it is found <span class="host">CurseForge</span></span></li>
+        <li><span class="who"><a href="https://modrinth.com/mod/gateways-to-eternity" target="_blank" rel="noopener">Gateways to Eternity</a></span><span class="what">The gates, their waves and their rewards <span class="host">Modrinth</span></span></li>
+        <li><span class="who"><a href="https://modrinth.com/mod/transmog" target="_blank" rel="noopener">Transmog</a></span><span class="what">How to apply and remove an appearance <span class="host">Modrinth</span></span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ===================== SKILLS & LEVELLING ===================== -->
+  <section class="panel" id="panel-skills" role="tabpanel" aria-labelledby="tab-skills" tabindex="0" hidden>
+    <h2>Skills &amp; levelling</h2>
+    <p class="lede">You have a character level on this server, separate from vanilla experience. It buys you stat points and the odd parcel of loot. It does not decide what you are allowed to touch.</p>
+
+    <div class="callout lit">
+      <p><b>Nothing is locked behind a level here.</b> The RPG mod can gate items and blocks behind levels, and both of those lists on this server are <b>empty</b> &mdash; a stone pickaxe mines diamond on day one and a diamond sword works the moment you craft it. That was a deliberate change on 25 September after the gates were found to be doing nothing but annoying people. Carrot, not stick.</p>
+    </div>
+
+    <h3>How levelling works</h3>
+    <ul class="keylist full">
+      <li><span class="act">Where XP comes from</span><span class="desc">Killing things. It is the RPG mod's own pool, not your vanilla experience bar, so spending levels on enchanting costs you nothing here</span></li>
+      <li><span class="act">The cost</span><span class="desc">Level 1 is 140 points and each level after is a little dearer. The curve is steepest in the first twenty-five levels and flattens off after a hundred</span></li>
+      <li><span class="act">The ceiling</span><span class="desc">Level 500, which nobody is going to reach. Treat the first fifty as the real game</span></li>
+      <li><span class="act">Death</span><span class="desc">Costs you nothing. Levels and points are not reset</span></li>
+    </ul>
+
+    <h3>What a point buys</h3>
+    <p>One point per level, spent across eight attributes. Each point is small on purpose &mdash; this is a slow curve rather than a power spike.</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Attribute</th><th>Per point</th></tr></thead>
+        <tbody>
+          <tr><td>Health</td><td>+1 health, so half a heart</td></tr>
+          <tr><td>Attack damage</td><td>+0.2, so +1 damage every five points</td></tr>
+          <tr><td>Attack speed</td><td>+0.02</td></tr>
+          <tr><td>Armour</td><td>+0.25, so +1 armour every four points</td></tr>
+          <tr><td>Movement speed</td><td>+0.0025</td></tr>
+          <tr><td>Knockback resistance</td><td>+1%</td></tr>
+          <tr><td>Armour toughness</td><td>+0.1</td></tr>
+          <tr><td>Luck</td><td>+0.1, so +1 luck every ten points</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Every level also hands you something: coal and iron tools in the first few, diamonds and a golden apple by the teens, a full diamond set in the twenties and a totem at level 25. You do not have to go looking for it &mdash; it arrives when you level.</p>
+
+    <div class="callout">
+      <p><b>Spent your points badly?</b> A respec gives all of them back and costs nothing, but it needs an operator to run it. Ask in chat rather than living with it.</p>
+    </div>
+
+    <h3>The spell trees</h3>
+    <p>Separately from your attributes, <b>Pufferfish's Skills</b> provides a skill-tree system and <b>Skill Tree (RPG Series)</b> fills it with the trees for the <b>Wizards</b> spells &mdash; a couple of hundred spells across arcane, fire and frost. If you want to cast rather than swing, that is the route in; the mods themselves are on the <b>Magic</b> page.</p>
+
+    <div class="wikis">
+      <h3>Where to read more</h3>
+      <ul class="linklist full">
+        <li><span class="who"><a href="https://github.com/MeherBenSalem/RPG-Attribute-System" target="_blank" rel="noopener">RPG Attribute System</a></span><span class="what">The levelling system, its attributes and its commands <span class="host">GitHub</span></span></li>
+        <li><span class="who"><a href="https://modrinth.com/mod/skill-tree" target="_blank" rel="noopener">Skill Tree</a></span><span class="what">The spell trees and how they unlock <span class="host">Modrinth</span></span></li>
+        <li><span class="who"><a href="https://modrinth.com/mod/wizards" target="_blank" rel="noopener">Wizards</a></span><span class="what">What the spells actually do <span class="host">Modrinth</span></span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ===================== MOBS & DANGERS ===================== -->
+  <section class="panel" id="panel-mobs" role="tabpanel" aria-labelledby="tab-mobs" tabindex="0" hidden>
+    <h2>Mobs &amp; dangers</h2>
+    <p class="lede">Five rules on this server change how dangerous the world is, and none of them are vanilla behaviour you can look up elsewhere. They are all here because somebody asked.</p>
+
+    <div class="callout lit">
+      <p><b>Hostile mobs will not start a fight with you while the sun is up.</b> From dawn to dusk &mdash; the clock, not the weather, so a thunderstorm at noon is still safe &mdash; nothing picks a fight it wasn't already in.</p>
+      <p><b>Neutral, not passive.</b> Hit something and it fights back properly. You simply cannot be jumped by something you never touched. The exceptions are the ones you brought on yourself: the Wither and the Ender Dragon always fight, raiders during a raid always fight, and an iron golem will still come for you if you hit a villager. The Nether and the End have no day, so nothing changes there.</p>
+    </div>
+
+    <h3>The other four</h3>
+    <ul class="keylist full">
+      <li><span class="act">Creepers</span><span class="desc">Still explode, still hurt, still drop their loot &mdash; but they do not take your blocks with them. Only creepers; endermen, villagers and withers behave as normal</span></li>
+      <li><span class="act">Phantoms</span><span class="desc">Off. You will never be attacked for not sleeping</span></li>
+      <li><span class="act">Powder snow</span><span class="desc">You do not sink into it and it does not freeze you. Horses too</span></li>
+      <li><span class="act">Suffocating in a wall</span><span class="desc">If a block is about to kill you &mdash; or kill a horse &mdash; you get pulled out and put somewhere safe. It waits until you are nearly dead on purpose, so ordinary crawlspaces don't teleport you about</span></li>
+    </ul>
+
+    <h3>The dinosaurs</h3>
+    <p>Eight prehistoric types from <b>Fossil's Arisen</b> and <b>Primal Frontier</b> &mdash; megaraptor, carnotaurus, ornithomimus and friends &mdash; follow two extra rules, both of which cost ten horses to learn:</p>
+    <ul>
+      <li>They only <b>spawn naturally at night</b>. Hatching one from an egg or spawning one deliberately works at any hour.</li>
+      <li>They will <b>only ever hunt hostile mobs</b> &mdash; never you, never a horse, never another passive animal. A megaraptor loose in your paddock is a guard, not a problem.</li>
+    </ul>
+
+    <h3>What else lives out there</h3>
+    <ul class="keylist full">
+      <li><span class="act">Alex's Mobs</span><span class="desc">Dozens of new animals with real behaviours, spread across every biome. Many drop something worth having</span></li>
+      <li><span class="act">Ice and Fire</span><span class="desc">Dragons, hippogryphs, cyclopes and dragon caves. The dragons are a serious fight and their hoards are worth it</span></li>
+      <li><span class="act">Dragon Mounts Reforged</span><span class="desc">Hatch a dragon egg, raise it, ride it. The reward for the vanilla dragon finally being useful</span></li>
+      <li><span class="act">Cave Dweller</span><span class="desc">Something stalks you underground, and it is genuinely unpleasant. It <b>cannot break blocks or doors</b> here &mdash; that was a condition of installing it &mdash; so a closed door is a real answer</span></li>
+      <li><span class="act">Spider Overhaul</span><span class="desc">Spiders behave differently and come in variants. <b>Weaker Spider Webs</b> means cobwebs no longer glue you in place</span></li>
+      <li><span class="act">Easy Villagers &amp; Easy Piglins</span><span class="desc">Pick a villager up, carry it home, trade through a block. Removes the worst chore in the game</span></li>
+      <li><span class="act">Wither Skeleton Tweaks</span><span class="desc">Skulls drop at a sane rate, so a beacon is a project rather than a lottery</span></li>
+    </ul>
+
+    <div class="callout">
+      <p><b>Mobs more than 128 blocks from everyone get swept on the hour</b>, with two warnings first. That is further than you can see, but it does mean a chamber that holds mobs <em>alive</em> will empty itself when you walk away. A farm that kills them into a chest is fine. Full detail on <b>Quality of life</b>.</p>
+    </div>
+
+    <div class="wikis">
+      <h3>Where to read more</h3>
+      <ul class="linklist full">
+        <li><span class="who"><a href="https://modrinth.com/mod/alexs-mobs" target="_blank" rel="noopener">Alex's Mobs</a></span><span class="what">Every mob, its biome and its drops <span class="host">Modrinth</span></span></li>
+        <li><span class="who"><a href="https://modrinth.com/mod/ice-and-fire-dragons" target="_blank" rel="noopener">Ice and Fire</a></span><span class="what">Dragons, their stages, and how to fight one <span class="host">Modrinth</span></span></li>
+        <li><span class="who"><a href="https://www.curseforge.com/minecraft/mc-mods/fossils-arisen" target="_blank" rel="noopener">Fossil's Arisen</a></span><span class="what">The dinosaurs and how to hatch them <span class="host">CurseForge</span></span></li>
+        <li><span class="who"><a href="https://modrinth.com/mod/primal-frontier" target="_blank" rel="noopener">Primal Frontier</a></span><span class="what">Where the megaraptor comes from <span class="host">Modrinth</span></span></li>
+        <li><span class="who"><a href="https://modrinth.com/mod/spider-overhaul" target="_blank" rel="noopener">Spider Overhaul</a></span><span class="what">The variants and the new behaviours <span class="host">Modrinth</span></span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ===================== DIMENSIONS & DUNGEONS ===================== -->
+  <section class="panel" id="panel-worlds" role="tabpanel" aria-labelledby="tab-worlds" tabindex="0" hidden>
+    <h2>Dimensions &amp; dungeons</h2>
+    <p class="lede">The overworld is three terrain mods deep, there are two whole dimensions beyond the Nether and the End, and almost every structure you walk into was built by a mod rather than by Mojang. Worth going out.</p>
+
+    <h3>Two new dimensions</h3>
+    <ul class="keylist full">
+      <li><span class="act">The Aether II</span><span class="desc">Floating islands above the clouds. The way in is a <b>glowstone portal frame filled with water</b>, which is the one thing worth knowing before you read anything else. A full progression of its own waits on the other side</span></li>
+      <li><span class="act">The Undergarden</span><span class="desc">A deep, bioluminescent cave dimension with its own ores, mobs and bosses. It has its own portal &mdash; look up the frame block in the recipe viewer</span></li>
+    </ul>
+
+    <h3>The overworld you already have</h3>
+    <p><b>Terralith</b>, <b>Tectonic</b> and <b>Regions Unexplored</b> all generate at once, and <b>Nullscape</b> replaces the End &mdash; the <b>Getting around</b> page has the links. The practical consequence is that biomes are far stranger and much larger than vanilla, so <b>Nature's Compass</b> (find a biome) and <b>Explorer's Compass</b> (find a structure) are two of the most useful items in the pack. Craft both early.</p>
+
+    <div class="callout lit">
+      <p><b>Do not use <code>/locate</code>, and nobody needs to.</b> One <code>/locate structure</code> call on this pack took <b>39 seconds</b> of server time and disconnected the player who ran it &mdash; with 249 structure types installed it is simply too expensive. Instead, <b>ask in chat</b>: type <code>claude where is the nearest ancient city</code> and you'll get an answer, computed from the map files at no cost to the server. It only knows terrain somebody has already explored, so &ldquo;nothing found&rdquo; means &ldquo;not nearby yet&rdquo;.</p>
+    </div>
+
+    <h3>Structures worth looking for</h3>
+    <ul class="keylist full">
+      <li><span class="act">Dungeon Crawl</span><span class="desc">Huge multi-layer dungeons under the surface. The spiritual successor to Roguelike Dungeons and the best loot-per-hour in the pack</span></li>
+      <li><span class="act">YUNG's Better Dungeons</span><span class="desc">Vanilla dungeons, completely redesigned and actually worth clearing</span></li>
+      <li><span class="act">Much More Dungeons</span><span class="desc">A broad spread of smaller themed dungeons, balanced for exploring rather than grinding</span></li>
+      <li><span class="act">Underground Villages</span><span class="desc">Villages below the surface, with villagers who never asked for sunlight</span></li>
+      <li><span class="act">Overhauled Villages &amp; Towns and Towers</span><span class="desc">Villages and outposts rebuilt per biome, so a village is a destination rather than four huts</span></li>
+      <li><span class="act">Lootr</span><span class="desc">The quiet hero of a shared server: every player opens their <b>own copy</b> of a structure chest. Nobody has to rush ahead and nobody gets an empty dungeon</span></li>
+    </ul>
+
+    <div class="callout">
+      <p><b>Mark things as you find them.</b> JourneyMap waypoints cost a keypress and save an hour, and they can be shared with your team &mdash; see <b>Getting around</b>. The live map at <a href="https://ixoraatm1.lodeway.app/" target="_blank" rel="noopener">ixoraatm1.lodeway.app</a> shows the explored world in a browser.</p>
+    </div>
+
+    <div class="wikis">
+      <h3>Where to read more</h3>
+      <ul class="linklist full">
+        <li><span class="who"><a href="https://modrinth.com/mod/aether-ii" target="_blank" rel="noopener">The Aether II</a></span><span class="what">Getting in, and what to do once you are <span class="host">Modrinth</span></span></li>
+        <li><span class="who"><a href="https://www.curseforge.com/minecraft/mc-mods/the-undergarden" target="_blank" rel="noopener">The Undergarden</a></span><span class="what">The portal, the biomes and the bosses <span class="host">CurseForge</span></span></li>
+        <li><span class="who"><a href="https://modrinth.com/mod/dungeoncrawl" target="_blank" rel="noopener">Dungeon Crawl</a></span><span class="what">How the layers and themes are generated <span class="host">Modrinth</span></span></li>
+        <li><span class="who"><a href="https://modrinth.com/mod/yungs-better-dungeons" target="_blank" rel="noopener">YUNG's Better Dungeons</a></span><span class="what">What replaced the vanilla dungeon <span class="host">Modrinth</span></span></li>
+        <li><span class="who"><a href="https://www.curseforge.com/minecraft/mc-mods/underground-villages" target="_blank" rel="noopener">Underground Villages</a></span><span class="what">Where they generate <span class="host">CurseForge</span></span></li>
+        <li><span class="who"><a href="https://modrinth.com/mod/ct-overhaul-village" target="_blank" rel="noopener">Overhauled Villages</a></span><span class="what">The per-biome village and outpost sets <span class="host">Modrinth</span></span></li>
+        <li><span class="who"><a href="https://modrinth.com/mod/towns-and-towers" target="_blank" rel="noopener">Towns and Towers</a></span><span class="what">More village styles and new outposts <span class="host">Modrinth</span></span></li>
+        <li><span class="who"><a href="https://www.curseforge.com/minecraft/mc-mods/lootr" target="_blank" rel="noopener">Lootr</a></span><span class="what">Per-player loot chests, and how they decay <span class="host">CurseForge</span></span></li>
+        <li><span class="who"><a href="https://modrinth.com/mod/explorers-compass" target="_blank" rel="noopener">Explorer's Compass</a></span><span class="what">Searching for a structure by name <span class="host">Modrinth</span></span></li>
+        <li><span class="who"><a href="https://modrinth.com/mod/natures-compass" target="_blank" rel="noopener">Nature's Compass</a></span><span class="what">Searching for a biome by name <span class="host">Modrinth</span></span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ===================== BUILDING & DECORATING ===================== -->
+  <section class="panel" id="panel-build" role="tabpanel" aria-labelledby="tab-build" tabindex="0" hidden>
+    <h2>Building &amp; decorating</h2>
+    <p class="lede">This is the part of the pack that a browse of the recipe list undersells most. There are more than twenty decoration mods installed, and between them the palette is several times the vanilla one.</p>
+
+    <h3>Shapes vanilla never gave you</h3>
+    <ul class="keylist full">
+      <li><span class="act">EverySlab</span><span class="desc">Over a thousand slabs, stairs, walls, fences and gates for the three hundred blocks that never had them. Start here &mdash; most &ldquo;I can't make that shape&rdquo; problems end on this mod</span></li>
+      <li><span class="act">FramedBlocks</span><span class="desc">Frames in every shape there is, which then take on the appearance of whatever block you camouflage them with. One mod, infinite textures</span></li>
+      <li><span class="act">Chisel</span><span class="desc">One tool, and dozens of variants of each stone and metal. The cheapest way to stop everything looking like the same four blocks</span></li>
+      <li><span class="act">Diagonal Fences</span><span class="desc">Fences that connect at 45&deg;</span></li>
+      <li><span class="act">Reconnectible Chains</span><span class="desc">Run a decorative chain between two fences or posts</span></li>
+      <li><span class="act">Horizontal Reinforced Deepslate</span><span class="desc">The one block vanilla forgot to let you rotate</span></li>
+    </ul>
+
+    <h3>Furnishing it</h3>
+    <ul class="keylist full">
+      <li><span class="act">Macaw's</span><span class="desc">Ten separate mods &mdash; furniture, doors, windows, roofs, fences, paths, bridges, stairs, trapdoors and lights. The backbone of most builds here</span></li>
+      <li><span class="act">MrCrayfish's Refurbished Furniture</span><span class="desc">Hundreds of furniture pieces, and an electricity system so the appliances actually work</span></li>
+      <li><span class="act">Ketket's Furnicraft</span><span class="desc">A second, chunkier furniture set with a different feel</span></li>
+      <li><span class="act">Faye's Rugs &amp; Curtains and Pet Furniture</span><span class="desc">Soft furnishings, and beds and bowls for the animals</span></li>
+      <li><span class="act">Arts and Crafts</span><span class="desc">A broad decoration set &mdash; a good one to browse rather than describe</span></li>
+      <li><span class="act">TerracottaThings</span><span class="desc">Functional blocks made out of terracotta, for when the colour matters</span></li>
+      <li><span class="act">Plushables</span><span class="desc">Plush toys. There is no mechanical reason for these and everyone makes them anyway</span></li>
+    </ul>
+
+    <h3>Light, sound and flags</h3>
+    <p><b>Luminax</b> and <b>Moog's Glow Up</b> add light sources that are not torches; <b>Macaw's Lights</b> covers lamps and lanterns. <b>Windchimes</b> and <b>Tiny Flowers</b> are small touches that make a place feel lived in. <b>Banner Flags</b> hangs your banners as proper flags, and <b>Banner Tweaks</b> makes designing one less painful &mdash; with <b>Banner Capes</b> you can wear it.</p>
+
+    <h3>Building faster</h3>
+    <ul class="keylist full">
+      <li><span class="act">Building Gadgets 2</span><span class="desc">Place, copy, paste and exchange whole areas. The single biggest time saver in the pack for anything larger than a house</span></li>
+      <li><span class="act">Construction Sticks</span><span class="desc">Extend a surface by pointing at it. Lighter-weight than the gadgets and often enough</span></li>
+      <li><span class="act">Measurements</span><span class="desc">Measure a distance before you commit to it</span></li>
+      <li><span class="act">Elevator Mod &amp; Moving Elevators</span><span class="desc">Two kinds of vertical travel: an instant teleport pad, and a platform that actually moves. Both beat a ladder</span></li>
+      <li><span class="act">Laser Bridges</span><span class="desc">Walkable light bridges, for the gaps you don't want to fill</span></li>
+      <li><span class="act">Double Doors &amp; Openable</span><span class="desc">Both halves of a double door open together, and more blocks open than used to</span></li>
+    </ul>
+
+    <div class="callout">
+      <p><b>Paths are not just decoration.</b> Every one of Macaw's 316 path blocks makes you about 40% faster to walk on, horses and carts included &mdash; the full rules are on <b>Getting around</b>. And you can step up a full block anywhere, on any block, without jumping.</p>
+    </div>
+
+    <div class="wikis">
+      <h3>Where to read more</h3>
+      <p>The families worth browsing properly before you start a build.</p>
+      <ul class="linklist full">
+        <li><span class="who"><a href="https://modrinth.com/user/sketchmacaw" target="_blank" rel="noopener">Macaw's mods</a></span><span class="what">All ten &mdash; furniture, doors, windows, roofs, fences, paths, bridges, stairs, trapdoors and lights <span class="host">Modrinth</span></span></li>
+        <li><span class="who"><a href="https://github.com/XFactHD/FramedBlocks/wiki" target="_blank" rel="noopener">FramedBlocks</a></span><span class="what">Every frame shape, and how camouflaging one works <span class="host">GitHub wiki</span></span></li>
+        <li><span class="who"><a href="https://modrinth.com/mod/everyslab" target="_blank" rel="noopener">EverySlab</a></span><span class="what">Which blocks gained which shapes <span class="host">Modrinth</span></span></li>
+        <li><span class="who"><a href="https://chiselteam.github.io/" target="_blank" rel="noopener">Chisel</a></span><span class="what">The variant sets and the chisel itself <span class="host">chiselteam.github.io</span></span></li>
+        <li><span class="who"><a href="https://mrcrayfish.com/mods/furniture_refurbished" target="_blank" rel="noopener">Refurbished Furniture</a></span><span class="what">The furniture list and the electricity system <span class="host">mrcrayfish.com</span></span></li>
+        <li><span class="who"><a href="https://modrinth.com/mod/diagonal-fences" target="_blank" rel="noopener">Diagonal Fences</a></span><span class="what">How the diagonal connections work <span class="host">Modrinth</span></span></li>
+        <li><span class="who"><a href="https://github.com/Direwolf20-MC/BuildingGadgets2" target="_blank" rel="noopener">Building Gadgets</a></span><span class="what">Each gadget, its modes and its templates <span class="host">GitHub</span></span></li>
+        <li><span class="who"><a href="https://github.com/VsnGamer/ElevatorMod" target="_blank" rel="noopener">Elevator Mod</a></span><span class="what">The teleport pads, and how to colour them <span class="host">GitHub</span></span></li>
+        <li><span class="who"><a href="https://www.curseforge.com/minecraft/mc-mods/moving-elevators" target="_blank" rel="noopener">Moving Elevators</a></span><span class="what">Cabins, floors and call buttons <span class="host">CurseForge</span></span></li>
+      </ul>
+    </div>
+  </section>
+
+
+  <!-- ===================== DISCORD ===================== -->
+  <section class="panel" id="panel-discord" role="tabpanel" aria-labelledby="tab-discord" tabindex="0" hidden>
+    <h2>Discord</h2>
+    <p class="lede">The server is not on a timetable. It is off until somebody asks for it, and <b>anybody can ask</b> &mdash; type <code>/start</code> in Discord and it comes up. Nobody has to wait for Isabel to be at her desk.</p>
+
+    <div class="callout lit">
+      <p><b>The server takes itself down after an hour with nobody on it.</b> That is not a punishment, it is the electricity bill &mdash; and it is why bringing it back up has to be something you can do yourself. If it is down, that is normal. Start it.</p>
+    </div>
+
+    <h3>What anyone can run</h3>
+    <ul class="keylist full">
+      <li><span class="act">/start</span><span class="desc">Bring the server up. The first one each day also runs the full morning chain, so give it a few minutes; after that it is a plain boot. Either way it takes a couple of minutes &mdash; this pack has never booted in under 143 seconds</span></li>
+      <li><span class="act">/stop</span><span class="desc">Shut it down cleanly. It <b>refuses while anybody is online</b>, so you cannot end somebody else's evening by accident</span></li>
+      <li><span class="act">/status</span><span class="desc">Up or down, who is on, and how the server is performing</span></li>
+      <li><span class="act">/players</span><span class="desc">Who is online right now</span></li>
+      <li><span class="act">/tps</span><span class="desc">Performance in ticks. Below 20 means the server is working hard</span></li>
+      <li><span class="act">/links</span><span class="desc">The pack download, this handbook and the live map, so you never have to find the addresses again</span></li>
+      <li><span class="act">/help</span><span class="desc">The same list, from the bot itself, which is always the current one</span></li>
+    </ul>
+
+    <h3>What needs the role</h3>
+    <p>Four of them change the world for everybody else, so they sit behind a Discord role. Ask Isabel if you want it.</p>
+    <ul class="keylist full">
+      <li><span class="act">/difficulty</span><span class="desc">Peaceful, easy, normal or hard</span></li>
+      <li><span class="act">/time</span><span class="desc">Day, noon, night or midnight</span></li>
+      <li><span class="act">/weather</span><span class="desc">Clear, rain or thunder</span></li>
+      <li><span class="act">/stop force: True</span><span class="desc">Stop the server <i>while</i> people are on it. The only genuinely rude button on the bot</span></li>
+    </ul>
+
+    <div class="callout">
+      <p><b>The bot cannot read anything you type.</b> It has no message permissions at all &mdash; only the slash commands above ever reach it. It cannot pass a message to Isabel, to the server, or to anyone in game. If you want to say something in game, say it in game; to reach Claude, see <b>Asking Claude</b>.</p>
+      <p><b>It posts as well as listens.</b> Server up and down, the nightly performance digest, new pack versions and new Horse Genetics builds all arrive in the channel without anyone asking.</p>
+    </div>
+
+    <h3>If nothing happens</h3>
+    <p>A slash command that times out usually means the bot itself is not running, which is separate from the server being down &mdash; the bot is what starts the server, so if the bot is out nothing can bring it up remotely. Say so in the channel; it needs a hand at the machine. And if <code>/start</code> reports success but you still cannot connect, give it another two minutes before assuming anything: the chain is long and the Minecraft port opens last.</p>
+  </section>
+
+  <!-- ===================== ASKING CLAUDE ===================== -->
+  <section class="panel" id="panel-claude" role="tabpanel" aria-labelledby="tab-claude" tabindex="0" hidden>
+    <h2>Asking Claude</h2>
+    <p class="lede">You can talk to the server's AI assistant from in-game chat, and it answers whether or not Isabel is at her computer. Start a message with <b>claude</b> or <b>robot</b> and it will pick it up.</p>
+
+    <h3>How to ask</h3>
+    <p>The word has to be the <em>start</em> of the message &mdash; a mention halfway through a sentence is ignored on purpose, so you can talk about it without summoning it. Capitals don't matter and a comma after it is fine.</p>
+    <ul class="keylist full">
+      <li><span class="act">claude can you set it to day</span><span class="desc">Works. It will do it and say so</span></li>
+      <li><span class="act">robot, where is the nearest ancient city</span><span class="desc">Works. It reads the map files rather than running <code>/locate</code>, which costs the server nothing</span></li>
+      <li><span class="act">I asked claude earlier</span><span class="desc">Ignored &mdash; the word isn't first</span></li>
+    </ul>
+
+    <h3>What it is allowed to do</h3>
+    <p>Deliberately very little. It can talk in chat, and it can change three world settings:</p>
+    <ul>
+      <li><b>Difficulty</b> &mdash; peaceful, easy, normal or hard.</li>
+      <li><b>Time</b> &mdash; day, noon, night or midnight.</li>
+      <li><b>Weather</b> &mdash; clear, rain or thunder.</li>
+    </ul>
+    <p>It can also read the server's own files, so &ldquo;what does this mod do&rdquo;, &ldquo;why is the server lagging&rdquo; and &ldquo;where is the nearest badlands&rdquo; are all fair questions.</p>
+
+    <div class="callout lit">
+      <p><b>Everything else, it refuses and passes on.</b> Items, horses, gamemode, teleports, op, restarts, anything touching somebody else's things &mdash; it will say so in chat and post the request to Discord for Isabel. That is not it being unhelpful: the limit is enforced outside the AI, so asking nicely, insisting, or telling it that it has permission does not change what it can do. Ask Isabel for those.</p>
+    </div>
+
+    <h3>Fair use</h3>
+    <p>It answers up to <b>twelve requests an hour</b> across everyone, and runs at most forty commands in that hour. If it goes quiet, it is probably the cap rather than a fault &mdash; or the server has gone down, since the listener stops with it. It is also only running at all when the server is up, so a question asked into a dead server reaches nobody.</p>
+
+    <div class="callout">
+      <p><b>Say what you want, not how to do it.</b> &ldquo;It's too dark to build&rdquo; gets the same result as &ldquo;set time to day&rdquo;, and if there's a better answer than the one you asked for, you'll get that instead.</p>
+    </div>
+  </section>
+    </div>
+
+    <footer>
+      This handbook covers the server's own rules and conventions. For any individual mod's mechanics, follow the links at the foot of each tab — a mod's own wiki or in-game guide book will always beat anything written here.
+    </footer>
+  </div>
 </main>
 
 <script>
@@ -1444,8 +2090,15 @@
       t.setAttribute('aria-selected', on ? 'true' : 'false');
       t.classList.toggle('on', on);
       if (panel) panel.hidden = !on;
+      var group = t.closest('.navgroup');
+      if (group && on) { group.classList.add('on'); }
+      else if (group && group !== tab.closest('.navgroup')) { group.classList.remove('on'); }
     });
     if (focus) tab.focus();
+    var book = document.querySelector('.book');
+    if (book && book.getBoundingClientRect().top < 0) {
+      book.scrollIntoView({ block: 'start', behavior: 'auto' });
+    }
     try { history.replaceState(null, '', '#' + tab.id.replace(/^tab-/, '')); } catch (e) {}
   }
 
@@ -1453,8 +2106,8 @@
     tab.addEventListener('click', function () { select(tab, false); });
     tab.addEventListener('keydown', function (e) {
       var i = tabs.indexOf(tab), next = null;
-      if (e.key === 'ArrowRight') next = tabs[(i + 1) % tabs.length];
-      else if (e.key === 'ArrowLeft') next = tabs[(i - 1 + tabs.length) % tabs.length];
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') next = tabs[(i + 1) % tabs.length];
+      else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') next = tabs[(i - 1 + tabs.length) % tabs.length];
       else if (e.key === 'Home') next = tabs[0];
       else if (e.key === 'End') next = tabs[tabs.length - 1];
       if (next) { e.preventDefault(); select(next, true); }
