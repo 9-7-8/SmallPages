@@ -428,6 +428,7 @@
       <button id="tab-travel" role="tab" aria-controls="panel-travel" aria-selected="false">Getting Around</button>
       <button id="tab-horses" role="tab" aria-controls="panel-horses" aria-selected="false">Horses</button>
       <button id="tab-qol" role="tab" aria-controls="panel-qol" aria-selected="false">Quality of Life</button>
+      <button id="tab-discs" role="tab" aria-controls="panel-discs" aria-selected="false">Music Discs</button>
       <button id="tab-fix" role="tab" aria-controls="panel-fix" aria-selected="false">Troubleshooting</button>
       <button id="tab-stats" role="tab" aria-controls="panel-stats" aria-selected="false">Server Stats</button>
     </div>
@@ -1164,6 +1165,39 @@
   </section>
 
   <!-- ===================== TROUBLESHOOTING ===================== -->
+  <section class="panel" id="panel-discs" role="tabpanel" aria-labelledby="tab-discs" tabindex="0" hidden>
+    <h2>Music discs</h2>
+    <p class="lede">Turn any track on the internet into a playable disc, collect discs into albums, and play them somewhere everyone can hear. All of it comes from <a href="https://modrinth.com/mod/music-disc-maker" target="_blank" rel="noopener">Music Disc Maker</a>.</p>
+
+    <h3>What you craft</h3>
+    <ul class="keylist full">
+      <li><span class="act">Music Disc Maker</span><span class="desc">A note block ringed by iron and lapis. This is the machine that writes a disc</span></li>
+      <li><span class="act">Blank Disc</span><span class="desc">An iron ingot with lapis above, below and either side. You can also turn any ordinary music disc back into a blank one &mdash; just put it in the grid on its own</span></li>
+      <li><span class="act">Album</span><span class="desc">Two leather and two paper, corner to corner. Holds a stack of discs in one item</span></li>
+      <li><span class="act">Golden Jukebox</span><span class="desc">Eight gold ingots around a jukebox. The one with real controls &mdash; volume, range, repeat, shuffle, next and previous</span></li>
+      <li><span class="act">Boombox</span><span class="desc">A jukebox with iron, wool and redstone. The portable one: carry it and it keeps playing</span></li>
+      <li><span class="act">Speaker</span><span class="desc">Gold, a note block, iron and redstone. Point it at a jukebox or boombox to repeat that sound further away, and a redstone signal mutes it</span></li>
+      <li><span class="act">Disc Pedestal</span><span class="desc">Gold and planks. Displays a disc on a stand instead of hiding it in a chest</span></li>
+      <li><span class="act">Disc Dyeing Table</span><span class="desc">Any dye over planks. Colours discs and albums so you can tell them apart at a glance</span></li>
+    </ul>
+
+    <h3>Making a disc</h3>
+    <p>Place the Music Disc Maker and open it. Paste a link into the box, drop a Blank Disc into the slot, and you get a Custom Music Disc that remembers the track's title, artist and length. YouTube links and direct links to an audio file both work. SoundCloud usually does not &mdash; it tends to hand out a thirty-second preview rather than the track, and the mod will tell you so.</p>
+    <p>If a link fails, the message says why rather than making you guess: private or deleted, age-restricted, blocked in your region, or the site asking the server to prove it is not a bot. Any of those means try a different link, not that anything is broken.</p>
+
+    <h3>Albums</h3>
+    <p>An album is one item holding several discs. Craft it, open it, and put discs in; dye it at the Disc Dyeing Table so the blue one is obvious at a glance. Put the album into a Golden Jukebox and the next, previous and shuffle buttons work across the whole thing, so you get a playlist rather than one song on repeat.</p>
+    <p>Two limits are worth knowing before you fill one. An album has a size budget rather than a simple slot count, so a handful of discs that each hold many tracks can fill it before the slots run out &mdash; <i>&ldquo;too much disc data to store&rdquo;</i> means exactly that, and swapping one crowded disc for a shorter one fixes it. And if an album ever refuses to open because it is too large, <b>sneak and use it while aiming at the air</b>: the discs drop at your feet undamaged and you can rebuild it.</p>
+
+    <h3>Playing it where people can hear</h3>
+    <p>A Golden Jukebox has a range setting and a directional toggle: leave it positional and the sound comes from the box, or turn it off and it fills the whole radius evenly, which is the one you want for a shop or a bar. A Speaker linked to that jukebox repeats it further out, and wiring redstone to the speaker mutes it &mdash; a lever by the door is enough to turn the music off without going back to the box.</p>
+
+    <div class="callout">
+      <p><b>The audio is streamed, not stored.</b> A disc holds the link, not the song, so it plays by fetching the track at the moment you press play. A video that gets taken down stops working, and so does a disc made from a link that was never public. Nothing is downloaded into your world save.</p>
+      <p><b>Everyone needs the same pack version.</b> This mod refuses to play along with a server running a different build of it, so if your discs do nothing while everybody else's work, run the updater before looking for any other explanation.</p>
+    </div>
+  </section>
+
   <section class="panel" id="panel-fix" role="tabpanel" aria-labelledby="tab-fix" tabindex="0" hidden>
     <h2>Troubleshooting</h2>
     <p class="lede">Nearly every failure here is a version mismatch wearing a disguise. The error text almost never names the real cause &mdash; so find your message below rather than trusting what it blames.</p>
