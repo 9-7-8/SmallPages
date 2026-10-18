@@ -281,7 +281,7 @@ button.chip:hover, button.chip:focus-visible { border-color: var(--neon); box-sh
 
   <header class="mast">
     <a class="home" href="index.html">&larr; index</a>
-    <h1>colour picker</h1>
+    <h1>Colour Picker</h1>
     <p>Pick a colour by hand, pull one out of an image, or type a value, and read it
     back as hex, RGB, HSL, HSV, OKLCH, CSS and CMYK. Build a palette to a harmony
     rule, check contrast, mix a gradient, and find the embroidery thread or Pantone
@@ -290,16 +290,16 @@ button.chip:hover, button.chip:focus-visible { border-color: var(--neon); box-sh
 
   <div class="bar">
     <div class="tabs seg" role="tablist" id="tabs">
-      <button role="tab" id="tab-pick"     aria-controls="panel-pick"     aria-selected="true">picker</button>
-      <button role="tab" id="tab-image"    aria-controls="panel-image"    aria-selected="false">image</button>
-      <button role="tab" id="tab-palette"  aria-controls="panel-palette"  aria-selected="false">palette</button>
-      <button role="tab" id="tab-contrast" aria-controls="panel-contrast" aria-selected="false">contrast</button>
-      <button role="tab" id="tab-gradient" aria-controls="panel-gradient" aria-selected="false">gradient</button>
-      <button role="tab" id="tab-match"    aria-controls="panel-match"    aria-selected="false">thread &amp; pantone</button>
+      <button role="tab" id="tab-pick"     aria-controls="panel-pick"     aria-selected="true">Picker</button>
+      <button role="tab" id="tab-image"    aria-controls="panel-image"    aria-selected="false">Image</button>
+      <button role="tab" id="tab-palette"  aria-controls="panel-palette"  aria-selected="false">Palette</button>
+      <button role="tab" id="tab-contrast" aria-controls="panel-contrast" aria-selected="false">Contrast</button>
+      <button role="tab" id="tab-gradient" aria-controls="panel-gradient" aria-selected="false">Gradient</button>
+      <button role="tab" id="tab-match"    aria-controls="panel-match"    aria-selected="false">Thread &amp; Pantone</button>
     </div>
     <div class="dock">
-      <button class="chip" id="dock-chip" title="the colour everything else on this page works from"></button>
-      <button class="hex" id="dock-hex" title="click to copy">#000000</button>
+      <button class="chip" id="dock-chip" title="The colour everything else on this page works from"></button>
+      <button class="hex" id="dock-hex" title="Click to copy">#000000</button>
       <span class="spacer"></span>
       <span class="tiny" id="toast"></span>
     </div>
@@ -316,11 +316,11 @@ button.chip:hover, button.chip:focus-visible { border-color: var(--neon); box-sh
     <div class="block">
       <div class="pick-grid">
         <div class="sv" id="sv" tabindex="0" role="application"
-             aria-label="saturation and brightness field, arrow keys to adjust">
+             aria-label="Saturation and brightness field, arrow keys to adjust">
           <canvas id="sv-canvas"></canvas>
           <div class="knob" id="sv-knob"></div>
         </div>
-        <div class="hue" id="hue" tabindex="0" role="slider" aria-label="hue"
+        <div class="hue" id="hue" tabindex="0" role="slider" aria-label="Hue"
              aria-valuemin="0" aria-valuemax="359" aria-valuenow="0">
           <canvas id="hue-canvas"></canvas>
           <div class="knob" id="hue-knob"></div>
@@ -329,54 +329,54 @@ button.chip:hover, button.chip:focus-visible { border-color: var(--neon); box-sh
           <div class="big-chip" id="big-chip"></div>
           <div class="vals">
             <div class="row">
-              <span class="k">hex</span>
+              <span class="k">HEX</span>
               <input id="f-hex" type="text" spellcheck="false" autocomplete="off" maxlength="9">
-              <button class="ghost cp" data-copy="hex">copy</button>
+              <button class="ghost cp" data-copy="hex">Copy</button>
             </div>
             <div class="row">
-              <span class="k">rgb</span>
+              <span class="k">RGB</span>
               <div class="trio">
-                <input id="f-r" type="number" min="0" max="255" step="1" aria-label="red">
-                <input id="f-g" type="number" min="0" max="255" step="1" aria-label="green">
-                <input id="f-b" type="number" min="0" max="255" step="1" aria-label="blue">
+                <input id="f-r" type="number" min="0" max="255" step="1" aria-label="Red">
+                <input id="f-g" type="number" min="0" max="255" step="1" aria-label="Green">
+                <input id="f-b" type="number" min="0" max="255" step="1" aria-label="Blue">
               </div>
-              <button class="ghost cp" data-copy="rgb">copy</button>
+              <button class="ghost cp" data-copy="rgb">Copy</button>
             </div>
             <div class="row">
-              <span class="k">hsv</span>
+              <span class="k">HSV</span>
               <div class="trio">
-                <input id="f-hh" type="number" min="0" max="360" step="1" aria-label="hue">
-                <input id="f-ss" type="number" min="0" max="100" step="1" aria-label="saturation">
-                <input id="f-vv" type="number" min="0" max="100" step="1" aria-label="value">
+                <input id="f-hh" type="number" min="0" max="360" step="1" aria-label="Hue">
+                <input id="f-ss" type="number" min="0" max="100" step="1" aria-label="Saturation">
+                <input id="f-vv" type="number" min="0" max="100" step="1" aria-label="Value">
               </div>
-              <button class="ghost cp" data-copy="hsv">copy</button>
+              <button class="ghost cp" data-copy="hsv">Copy</button>
             </div>
             <div class="row">
-              <span class="k">hsl</span><span class="v" id="f-hsl"></span>
-              <button class="ghost cp" data-copy="hsl">copy</button>
+              <span class="k">HSL</span><span class="v" id="f-hsl"></span>
+              <button class="ghost cp" data-copy="hsl">Copy</button>
             </div>
             <div class="row">
-              <span class="k">oklch</span><span class="v" id="f-oklch"></span>
-              <button class="ghost cp" data-copy="oklch">copy</button>
+              <span class="k">OKLCH</span><span class="v" id="f-oklch"></span>
+              <button class="ghost cp" data-copy="oklch">Copy</button>
             </div>
             <div class="row">
-              <span class="k">lab</span><span class="v" id="f-lab"></span>
-              <button class="ghost cp" data-copy="lab">copy</button>
+              <span class="k">Lab</span><span class="v" id="f-lab"></span>
+              <button class="ghost cp" data-copy="lab">Copy</button>
             </div>
             <div class="row">
-              <span class="k">cmyk</span><span class="v" id="f-cmyk"></span>
-              <button class="ghost cp" data-copy="cmyk">copy</button>
+              <span class="k">CMYK</span><span class="v" id="f-cmyk"></span>
+              <button class="ghost cp" data-copy="cmyk">Copy</button>
             </div>
             <div class="row">
-              <span class="k">css</span><span class="v" id="f-css"></span>
-              <button class="ghost cp" data-copy="css">copy</button>
+              <span class="k">CSS</span><span class="v" id="f-css"></span>
+              <button class="ghost cp" data-copy="css">Copy</button>
             </div>
           </div>
           <div class="ctl" style="margin-top:0.9rem">
-            <label>cmyk from</label>
+            <label>CMYK from</label>
             <div class="seg" id="cmyk-mode">
-              <button data-mode="coated" class="on">a coated press</button>
-              <button data-mode="straight">straight maths</button>
+              <button data-mode="coated" class="on">A coated press</button>
+              <button data-mode="straight">Straight maths</button>
             </div>
           </div>
           <p class="note" id="gamut"></p>
@@ -385,54 +385,54 @@ button.chip:hover, button.chip:focus-visible { border-color: var(--neon); box-sh
     </div>
 
     <div class="block">
-      <h2>channels</h2>
+      <h2>Channels</h2>
       <div class="chans" id="rgb-chans">
-        <div class="chan"><span class="k">R</span><input type="range" id="s-r" min="0" max="255" step="1" aria-label="red"><input type="number" id="n-r" min="0" max="255" step="1" aria-label="red value"></div>
-        <div class="chan"><span class="k">G</span><input type="range" id="s-g" min="0" max="255" step="1" aria-label="green"><input type="number" id="n-g" min="0" max="255" step="1" aria-label="green value"></div>
-        <div class="chan"><span class="k">B</span><input type="range" id="s-b" min="0" max="255" step="1" aria-label="blue"><input type="number" id="n-b" min="0" max="255" step="1" aria-label="blue value"></div>
+        <div class="chan"><span class="k">R</span><input type="range" id="s-r" min="0" max="255" step="1" aria-label="Red"><input type="number" id="n-r" min="0" max="255" step="1" aria-label="Red value"></div>
+        <div class="chan"><span class="k">G</span><input type="range" id="s-g" min="0" max="255" step="1" aria-label="Green"><input type="number" id="n-g" min="0" max="255" step="1" aria-label="Green value"></div>
+        <div class="chan"><span class="k">B</span><input type="range" id="s-b" min="0" max="255" step="1" aria-label="Blue"><input type="number" id="n-b" min="0" max="255" step="1" aria-label="Blue value"></div>
       </div>
       <div class="chans chan-group" id="hsl-chans">
-        <div class="cap">hue, saturation, lightness</div>
-        <div class="chan"><span class="k">H</span><input type="range" id="s-h" min="0" max="360" step="1" aria-label="hue"><input type="number" id="n-h" min="0" max="360" step="1" aria-label="hue value"></div>
-        <div class="chan"><span class="k">S</span><input type="range" id="s-s" min="0" max="100" step="1" aria-label="saturation"><input type="number" id="n-s" min="0" max="100" step="1" aria-label="saturation value"></div>
-        <div class="chan"><span class="k">L</span><input type="range" id="s-l" min="0" max="100" step="1" aria-label="lightness"><input type="number" id="n-l" min="0" max="100" step="1" aria-label="lightness value"></div>
+        <div class="cap">Hue, saturation, lightness</div>
+        <div class="chan"><span class="k">H</span><input type="range" id="s-h" min="0" max="360" step="1" aria-label="Hue"><input type="number" id="n-h" min="0" max="360" step="1" aria-label="Hue value"></div>
+        <div class="chan"><span class="k">S</span><input type="range" id="s-s" min="0" max="100" step="1" aria-label="Saturation"><input type="number" id="n-s" min="0" max="100" step="1" aria-label="Saturation value"></div>
+        <div class="chan"><span class="k">L</span><input type="range" id="s-l" min="0" max="100" step="1" aria-label="Lightness"><input type="number" id="n-l" min="0" max="100" step="1" aria-label="Lightness value"></div>
       </div>
       <p class="note">Each track is drawn for the colour you have now: it shows where
       that one channel can take it, with everything else held still.</p>
     </div>
 
     <div class="block">
-      <h2>quick actions</h2>
+      <h2>Quick actions</h2>
       <div class="btn-row">
-        <button id="q-random">random</button>
-        <button class="ghost" id="q-lighten">lighten</button>
-        <button class="ghost" id="q-darken">darken</button>
-        <button class="ghost" id="q-sat">saturate</button>
-        <button class="ghost" id="q-desat">desaturate</button>
-        <button class="ghost" id="q-warm">warmer</button>
-        <button class="ghost" id="q-cool">cooler</button>
-        <button class="ghost" id="q-comp">complement</button>
-        <button class="ghost" id="q-invert">invert</button>
-        <button class="ghost" id="q-copy-all">copy every value</button>
+        <button id="q-random">Random</button>
+        <button class="ghost" id="q-lighten">Lighten</button>
+        <button class="ghost" id="q-darken">Darken</button>
+        <button class="ghost" id="q-sat">Saturate</button>
+        <button class="ghost" id="q-desat">Desaturate</button>
+        <button class="ghost" id="q-warm">Warmer</button>
+        <button class="ghost" id="q-cool">Cooler</button>
+        <button class="ghost" id="q-comp">Complement</button>
+        <button class="ghost" id="q-invert">Invert</button>
+        <button class="ghost" id="q-copy-all">Copy every value</button>
       </div>
     </div>
 
     <div class="block">
-      <h2>tints &amp; shades</h2>
+      <h2>Tints &amp; shades</h2>
       <div class="ramp" id="ramp"></div>
       <p class="note">Mixed toward white and black in OKLab, so the middle of the ramp
       doesn't go muddy the way an sRGB blend does.</p>
     </div>
 
     <div class="block">
-      <h2>harmony</h2>
+      <h2>Harmony</h2>
       <div id="harmony"></div>
       <p class="note">The same rules the palette tab builds to, read straight off the
       colour you have. Click any chip to make it the current colour.</p>
     </div>
 
     <div class="block">
-      <h2>recent</h2>
+      <h2>Recent</h2>
       <div class="recents" id="recents"></div>
     </div>
   </section>
@@ -444,23 +444,23 @@ button.chip:hover, button.chip:focus-visible { border-color: var(--neon); box-sh
 
     <div class="block">
       <div class="dropzone" id="drop" tabindex="0" role="button">
-        <span>drop an image, click to choose, or paste one</span>
-        <span class="hint">png &middot; jpeg &middot; webp &middot; gif &middot; avif &middot; svg &mdash; it is read in the page and never uploaded</span>
+        <span>Drop an image, click to choose, or paste one</span>
+        <span class="hint">PNG &middot; JPEG &middot; WEBP &middot; GIF &middot; AVIF &middot; SVG &mdash; read in the page and never uploaded</span>
       </div>
       <input type="file" id="file" accept="image/*" hidden>
       <div class="ctl-row" id="img-tools" style="margin-top:1.25rem" hidden>
         <div class="ctl">
-          <label for="sample">sample</label>
+          <label for="sample">Sample</label>
           <select id="sample">
-            <option value="1">one pixel</option>
+            <option value="1">One pixel</option>
             <option value="3" selected>3 &times; 3 average</option>
             <option value="5">5 &times; 5 average</option>
             <option value="9">9 &times; 9 average</option>
           </select>
         </div>
         <div class="btn-row">
-          <button class="ghost" id="img-palette">build a palette from this</button>
-          <button class="ghost" id="img-clear">clear</button>
+          <button class="ghost" id="img-palette">Build a palette from this</button>
+          <button class="ghost" id="img-clear">Clear</button>
         </div>
       </div>
       <div class="stage-wrap" id="stage-wrap" hidden>
@@ -485,34 +485,34 @@ button.chip:hover, button.chip:focus-visible { border-color: var(--neon); box-sh
         <div>
           <div class="ctl-row">
             <div class="ctl">
-              <label>built from</label>
+              <label>Built from</label>
               <div class="seg" id="pal-src">
-                <button data-src="image" class="on">the image</button>
-                <button data-src="current">the current colour</button>
+                <button data-src="image" class="on">The image</button>
+                <button data-src="current">The current colour</button>
               </div>
             </div>
             <div class="ctl">
-              <label for="pal-rule">rule</label>
+              <label for="pal-rule">Rule</label>
               <select id="pal-rule">
-                <option value="dominant">dominant &mdash; whatever is actually there</option>
-                <option value="complementary">complementary &mdash; opposite hues</option>
-                <option value="split">split-complementary</option>
-                <option value="analogous" selected>analogous &mdash; neighbours</option>
-                <option value="triadic">triadic &mdash; three, evenly spaced</option>
-                <option value="tetradic">tetradic &mdash; two complementary pairs</option>
-                <option value="square">square &mdash; four, evenly spaced</option>
-                <option value="monochromatic">monochromatic &mdash; one hue, many steps</option>
+                <option value="dominant">Dominant &mdash; whatever is actually there</option>
+                <option value="complementary">Complementary &mdash; opposite hues</option>
+                <option value="split">Split-complementary</option>
+                <option value="analogous" selected>Analogous &mdash; neighbours</option>
+                <option value="triadic">Triadic &mdash; three, evenly spaced</option>
+                <option value="tetradic">Tetradic &mdash; two complementary pairs</option>
+                <option value="square">Square &mdash; four, evenly spaced</option>
+                <option value="monochromatic">Monochromatic &mdash; one hue, many steps</option>
               </select>
             </div>
             <div class="ctl">
-              <label for="pal-count">colours</label>
+              <label for="pal-count">Colours</label>
               <input type="number" id="pal-count" min="2" max="16" step="1" value="5">
             </div>
             <div class="btn-row">
-              <button id="pal-go">build</button>
-              <button class="ghost" id="pal-copy">copy hex</button>
-              <button class="ghost" id="pal-css">copy css</button>
-              <button class="ghost" id="pal-json">copy json</button>
+              <button id="pal-go">Build</button>
+              <button class="ghost" id="pal-copy">Copy hex</button>
+              <button class="ghost" id="pal-css">Copy CSS</button>
+              <button class="ghost" id="pal-json">Copy JSON</button>
             </div>
           </div>
         </div>
@@ -542,20 +542,20 @@ button.chip:hover, button.chip:focus-visible { border-color: var(--neon); box-sh
         <div>
           <div class="con-pair">
             <div class="con-slot">
-              <button class="chip" id="con-fg-chip" title="use as the current colour"></button>
-              <input type="text" id="con-fg" spellcheck="false" aria-label="foreground">
-              <button class="ghost" data-con-set="fg">&larr; current</button>
+              <button class="chip" id="con-fg-chip" title="Use as the current colour"></button>
+              <input type="text" id="con-fg" spellcheck="false" aria-label="Foreground">
+              <button class="ghost" data-con-set="fg">&larr; Current</button>
             </div>
             <div class="con-slot">
-              <button class="chip" id="con-bg-chip" title="use as the current colour"></button>
-              <input type="text" id="con-bg" spellcheck="false" aria-label="background">
-              <button class="ghost" data-con-set="bg">&larr; current</button>
+              <button class="chip" id="con-bg-chip" title="Use as the current colour"></button>
+              <input type="text" id="con-bg" spellcheck="false" aria-label="Background">
+              <button class="ghost" data-con-set="bg">&larr; Current</button>
             </div>
           </div>
           <div class="btn-row" style="margin-top:0.9rem">
-            <button class="ghost" id="con-swap">swap</button>
-            <button class="ghost" id="con-fix-fg">fix the text</button>
-            <button class="ghost" id="con-fix-bg">fix the background</button>
+            <button class="ghost" id="con-swap">Swap</button>
+            <button class="ghost" id="con-fix-fg">Fix the text</button>
+            <button class="ghost" id="con-fix-bg">Fix the background</button>
           </div>
           <div class="grades" id="grades"></div>
           <p class="note" id="con-note"></p>
@@ -585,19 +585,19 @@ button.chip:hover, button.chip:focus-visible { border-color: var(--neon); box-sh
       <div class="grad-preview" id="grad-preview"></div>
       <div class="ctl-row" style="margin-top:1.25rem">
         <div class="ctl">
-          <label>shape</label>
+          <label>Shape</label>
           <div class="seg" id="grad-kind">
-            <button data-kind="linear" class="on">linear</button>
-            <button data-kind="radial">radial</button>
-            <button data-kind="conic">conic</button>
+            <button data-kind="linear" class="on">Linear</button>
+            <button data-kind="radial">Radial</button>
+            <button data-kind="conic">Conic</button>
           </div>
         </div>
         <div class="ctl">
-          <label for="grad-angle">angle <span class="v" id="grad-angle-v"></span></label>
+          <label for="grad-angle">Angle <span class="v" id="grad-angle-v"></span></label>
           <input type="range" id="grad-angle" min="0" max="360" step="1" value="90">
         </div>
         <div class="ctl">
-          <label for="grad-space">interpolated in</label>
+          <label for="grad-space">Interpolated in</label>
           <select id="grad-space">
             <option value="srgb">sRGB &mdash; what every browser has always done</option>
             <option value="oklab" selected>OKLab &mdash; even, no grey middle</option>
@@ -605,10 +605,10 @@ button.chip:hover, button.chip:focus-visible { border-color: var(--neon); box-sh
           </select>
         </div>
         <div class="btn-row">
-          <button class="ghost" id="grad-add">add the current colour</button>
-          <button class="ghost" id="grad-even">space evenly</button>
-          <button class="ghost" id="grad-rev">reverse</button>
-          <button class="ghost" id="grad-copy">copy css</button>
+          <button class="ghost" id="grad-add">Add the current colour</button>
+          <button class="ghost" id="grad-even">Space evenly</button>
+          <button class="ghost" id="grad-rev">Reverse</button>
+          <button class="ghost" id="grad-copy">Copy CSS</button>
         </div>
       </div>
       <div class="stops" id="stops"></div>
@@ -631,25 +631,25 @@ button.chip:hover, button.chip:focus-visible { border-color: var(--neon); box-sh
     <div class="block">
       <div class="ctl-row">
         <div class="ctl">
-          <label for="brand">thread chart</label>
+          <label for="brand">Thread chart</label>
           <select id="brand"></select>
         </div>
         <div class="ctl">
-          <label for="pbook">pantone book</label>
+          <label for="pbook">Pantone book</label>
           <select id="pbook"></select>
         </div>
         <div class="ctl">
-          <label for="match-search">or search by name or number</label>
+          <label for="match-search">Or search by name or number</label>
           <input type="text" id="match-search" spellcheck="false" placeholder="e.g. 310, reflex blue, celadon">
         </div>
       </div>
       <div class="match-grid" style="margin-top:1.5rem">
         <div>
-          <h2 id="thread-head">thread</h2>
+          <h2 id="thread-head">Thread</h2>
           <div class="hits" id="thread-hits"></div>
         </div>
         <div>
-          <h2 id="pantone-head">pantone</h2>
+          <h2 id="pantone-head">Pantone</h2>
           <div class="chips" id="pantone-hits"></div>
         </div>
       </div>
@@ -1085,7 +1085,7 @@ function toast(msg) {
   toastTimer = setTimeout(() => { el.textContent = ''; }, 1600);
 }
 function copy(text, what) {
-  const done = () => toast((what || 'copied') + ' → clipboard');
+  const done = () => toast((what || 'Copied') + ' → clipboard');
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(text).then(done, () => fallback());
   } else fallback();
@@ -1093,7 +1093,7 @@ function copy(text, what) {
     const ta = document.createElement('textarea');
     ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
     document.body.appendChild(ta); ta.select();
-    try { document.execCommand('copy'); done(); } catch (e) { toast('could not copy'); }
+    try { document.execCommand('copy'); done(); } catch (e) { toast('Could not copy'); }
     ta.remove();
   }
 }
@@ -1273,12 +1273,12 @@ function drawRamp() {
 }
 
 const HARMONIES = [
-  ['complementary', [0, 180]],
-  ['split-complementary', [0, 150, 210]],
-  ['analogous', [-30, 0, 30]],
-  ['triadic', [0, 120, 240]],
-  ['tetradic', [0, 60, 180, 240]],
-  ['square', [0, 90, 180, 270]]
+  ['Complementary', [0, 180]],
+  ['Split-complementary', [0, 150, 210]],
+  ['Analogous', [-30, 0, 30]],
+  ['Triadic', [0, 120, 240]],
+  ['Tetradic', [0, 60, 180, 240]],
+  ['Square', [0, 90, 180, 270]]
 ];
 
 function drawHarmony() {
@@ -1302,7 +1302,7 @@ function drawHarmony() {
   const row = document.createElement('div');
   row.className = 'harm-row';
   const lab = document.createElement('span');
-  lab.className = 'name'; lab.textContent = 'monochromatic';
+  lab.className = 'name'; lab.textContent = 'Monochromatic';
   const chips = document.createElement('div');
   chips.className = 'chips';
   [[0.35, 0.55], [0.6, 0.75], [1, 1], [0.85, 0.6], [0.5, 0.35]].forEach(([sm, vm]) => {
@@ -1320,7 +1320,7 @@ function drawRecents() {
   if (!recents.length) {
     const p = document.createElement('span');
     p.className = 'note'; p.style.margin = '0';
-    p.textContent = 'nothing yet — every colour you settle on lands here.';
+    p.textContent = 'Nothing yet — every colour you settle on lands here.';
     host.appendChild(p);
     return;
   }
@@ -1609,7 +1609,7 @@ window.addEventListener('paste', e => {
   const text = e.clipboardData && e.clipboardData.getData('text');
   if (text && document.activeElement === document.body && parseColor(text.trim())) {
     setHex(text.trim(), { commit: true });
-    toast('pasted ' + curHex());
+    toast('Pasted ' + curHex());
   }
 });
 $('img-clear').addEventListener('click', () => {
@@ -1702,7 +1702,7 @@ imgCanvas.addEventListener('pointermove', e => {
   if (c) setRgb(c.r, c.g, c.b, {});
 });
 ['pointerup', 'pointercancel'].forEach(k => imgCanvas.addEventListener(k, () => {
-  if (picking) { picking = false; remember(); toast('picked ' + curHex()); }
+  if (picking) { picking = false; remember(); toast('Picked ' + curHex()); }
 }));
 
 /* ════════════════════════════════════════════════════════════════════════
@@ -1818,9 +1818,9 @@ const RULE_OFFSETS = {
   square: [0, 90, 180, 270]
 };
 const RULE_LABEL = {
-  dominant: 'dominant', complementary: 'complementary', split: 'split-complementary',
-  analogous: 'analogous', triadic: 'triadic', tetradic: 'tetradic', square: 'square',
-  monochromatic: 'monochromatic'
+  dominant: 'Dominant', complementary: 'Complementary', split: 'Split-complementary',
+  analogous: 'Analogous', triadic: 'Triadic', tetradic: 'Tetradic', square: 'Square',
+  monochromatic: 'Monochromatic'
 };
 
 function targetHues(rule, n, baseH) {
@@ -1941,7 +1941,7 @@ function drawPalette() {
     const chip = document.createElement('button');
     chip.type = 'button'; chip.className = 'chip';
     chip.style.background = p.hex;
-    chip.title = 'open ' + p.hex + ' in the picker';
+    chip.title = 'Open ' + p.hex + ' in the picker';
     chip.addEventListener('click', () => {
       setHex(p.hex, { commit: true });
       toast(p.hex + ' → picker');
@@ -1961,7 +1961,7 @@ function drawPalette() {
     const acts = document.createElement('div');
     acts.className = 'acts';
     const cp = document.createElement('button');
-    cp.type = 'button'; cp.className = 'ghost'; cp.textContent = 'copy';
+    cp.type = 'button'; cp.className = 'ghost'; cp.textContent = 'Copy';
     cp.addEventListener('click', () => copy(p.hex, p.hex));
     acts.appendChild(cp);
     box.append(chip, hex, meta, acts);
@@ -2073,7 +2073,7 @@ function grade(label, ok, detail) {
   const l = document.createElement('div');
   l.className = 'lab'; l.textContent = label;
   const r = document.createElement('div');
-  r.className = 'res'; r.textContent = (ok ? 'passes' : 'fails') + ' · ' + detail;
+  r.className = 'res'; r.textContent = (ok ? 'Passes' : 'Fails') + ' · ' + detail;
   d.append(l, r);
   return d;
 }
@@ -2094,10 +2094,10 @@ function paintContrast() {
   const g = $('grades');
   g.textContent = '';
   g.append(
-    grade('body text, AA', ratio >= 4.5, 'needs 4.5'),
-    grade('body text, AAA', ratio >= 7, 'needs 7'),
-    grade('large text, AA', ratio >= 3, 'needs 3'),
-    grade('icons & borders', ratio >= 3, 'needs 3')
+    grade('Body text, AA', ratio >= 4.5, 'needs 4.5'),
+    grade('Body text, AAA', ratio >= 7, 'needs 7'),
+    grade('Large text, AA', ratio >= 3, 'needs 3'),
+    grade('Icons & borders', ratio >= 3, 'needs 3')
   );
   const lc = apcaLc(fg, bg);
   const abs = Math.abs(lc);
@@ -2164,7 +2164,7 @@ function fixSide(which) {
       if (L === 0 || L === 1) break;
     }
   }
-  if (!best) { toast('no lightness of that colour reaches 4.5:1'); return; }
+  if (!best) { toast('No lightness of that colour reaches 4.5:1'); return; }
   if (conFollow === which) conFollow = null;
   setCon(which, best.hex);
   toast(which === 'fg' ? 'text moved to ' + best.hex : 'background moved to ' + best.hex);
@@ -2251,25 +2251,25 @@ function drawStops() {
     const chip = document.createElement('button');
     chip.type = 'button'; chip.className = 'chip';
     chip.style.background = s.hex;
-    chip.title = 'open in the picker';
+    chip.title = 'Open in the picker';
     chip.addEventListener('click', () => { setHex(s.hex, { commit: true }); toast(s.hex + ' → picker'); });
     const hex = document.createElement('input');
     hex.type = 'text'; hex.spellcheck = false; hex.value = s.hex;
-    hex.setAttribute('aria-label', 'stop ' + (i + 1) + ' colour');
+    hex.setAttribute('aria-label', 'Stop ' + (i + 1) + ' colour');
     hex.addEventListener('input', () => {
       const c = parseColor(hex.value);
       if (c) { s.hex = rgbToHex(c.r, c.g, c.b); chip.style.background = s.hex; drawGradientOnly(); }
     });
     const pos = document.createElement('input');
     pos.type = 'range'; pos.min = '0'; pos.max = '100'; pos.step = '0.5'; pos.value = String(s.pos);
-    pos.setAttribute('aria-label', 'stop ' + (i + 1) + ' position');
+    pos.setAttribute('aria-label', 'Stop ' + (i + 1) + ' position');
     const pc = document.createElement('span');
     pc.className = 'pc'; pc.textContent = rnd(s.pos, 1) + '%';
     pos.addEventListener('input', () => {
       s.pos = parseFloat(pos.value); pc.textContent = rnd(s.pos, 1) + '%'; drawGradientOnly();
     });
     const kill = document.createElement('button');
-    kill.type = 'button'; kill.className = 'ghost'; kill.textContent = 'remove';
+    kill.type = 'button'; kill.className = 'ghost'; kill.textContent = 'Remove';
     kill.disabled = stops.length <= 2;
     kill.addEventListener('click', () => { stops.splice(i, 1); drawGradient(); });
     row.append(chip, hex, pos, pc, kill);
@@ -2313,7 +2313,7 @@ $('grad-rev').addEventListener('click', () => {
   stops.sort((a, b) => a.pos - b.pos).forEach((s, i) => { s.hex = hexes[i]; });
   drawGradient();
 });
-$('grad-copy').addEventListener('click', () => copy($('grad-css').textContent, 'gradient css'));
+$('grad-copy').addEventListener('click', () => copy($('grad-css').textContent, 'Gradient CSS'));
 
 /* ════════════════════════════════════════════════════════════════════════
    thread & pantone
@@ -2520,7 +2520,7 @@ async function saveChip(entry, book) {
     link.download = 'pantone-' + slug(code) + '.png';
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 10000);
-    toast('saved ' + link.download);
+    toast('Saved ' + link.download);
   } catch (err) {
     console.error(err);
     toast("couldn't save that chip");
@@ -2558,13 +2558,13 @@ function renderMatches() {
   panHits.sort((a, b) => a.h.de - b.h.de);
   panHits.slice(0, want).forEach(x => panHost.appendChild(pantoneChip(x.h.e, x.book, x.h.de)));
 
-  if (!threadHits.length) threadHost.appendChild(emptyNote('nothing in that chart matches "' + q + '".'));
-  if (!panHits.length) panHost.appendChild(emptyNote('no Pantone chip matches "' + q + '".'));
+  if (!threadHits.length) threadHost.appendChild(emptyNote('Nothing in that chart matches "' + q + '".'));
+  if (!panHits.length) panHost.appendChild(emptyNote('No Pantone chip matches "' + q + '".'));
 
   const nThread = data.threads.reduce((n, b) => n + b.list.length, 0);
   const nPan = data.pantone.reduce((n, b) => n + b.list.length, 0);
-  $('thread-head').textContent = 'thread — ' + (brandPick === '*' ? 'every chart' : brandPick);
-  $('pantone-head').textContent = 'pantone — ' + (bookPick === '*' ? 'both books' : bookPick.toLowerCase());
+  $('thread-head').textContent = 'Thread — ' + (brandPick === '*' ? 'every chart' : brandPick);
+  $('pantone-head').textContent = 'Pantone — ' + (bookPick === '*' ? 'both books' : bookPick.toLowerCase());
   $('match-note').innerHTML = nThread.toLocaleString() + ' thread colours across '
     + data.threads.length + ' charts and ' + nPan.toLocaleString() + ' Pantone chips, ranked by '
     + 'CIEDE2000 &mdash; the distance measure that tries to match how different two '
@@ -2603,9 +2603,9 @@ $('match-search').addEventListener('input', renderMatches);
     sel.appendChild(o);
   };
   if (data) {
-    opt(brand, '*', 'every chart');
+    opt(brand, '*', 'Every chart');
     data.threads.forEach(b => opt(brand, b.name, b.name + ' · ' + b.fibre + ' · ' + b.list.length));
-    opt(pbook, '*', 'both books');
+    opt(pbook, '*', 'Both books');
     data.pantone.forEach(b => opt(pbook, b.name, b.name + ' · ' + b.list.length));
   } else {
     opt(brand, '*', 'no charts loaded');

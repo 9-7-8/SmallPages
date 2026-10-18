@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>audio &rarr; text</title>
+<title>Audio &rarr; Text</title>
 <link rel="stylesheet" href="theme.css">
 <style>
   /* Layout and sizing only. Colour, type and component styling live in theme.css. */
@@ -157,7 +157,7 @@
 <body>
 <main>
   <a class="home" href="index.html">&larr; index</a>
-  <h1>audio &rarr; text</h1>
+  <h1>Audio &rarr; Text</h1>
   <p class="lede">Record something, or drop in a file, and read back what was said as it is heard
   &mdash; a timestamp on every line, the audio alongside to check it against, and the finished
   transcript saved to your downloads the moment it's done. Whisper does the listening,
@@ -293,9 +293,9 @@ const actsEl    = el("acts");
 // The jump from tiny to base is the one most people hear; small is where it
 // stops mishearing names, and costs a quarter of a gigabyte to find that out.
 const MODELS = [
-  { id: "Xenova/whisper-tiny.en",  name: "tiny",  mb: 42,  note: "roughest, and the quickest by far" },
-  { id: "Xenova/whisper-base.en",  name: "base",  mb: 78,  note: "the usual choice" },
-  { id: "Xenova/whisper-small.en", name: "small", mb: 250, note: "best with names and jargon, and slow" },
+  { id: "Xenova/whisper-tiny.en",  name: "Tiny",  mb: 42,  note: "Roughest, and the quickest by far" },
+  { id: "Xenova/whisper-base.en",  name: "Base",  mb: 78,  note: "The usual choice" },
+  { id: "Xenova/whisper-small.en", name: "Small", mb: 250, note: "Best with names and jargon, and slow" },
 ];
 const DEFAULT_MODEL = 1;          // base
 
@@ -303,15 +303,15 @@ const DEFAULT_MODEL = 1;          // base
 // buttons and the save-it-for-me menu both read from here, so a format is
 // added once and appears in both.
 const FORMATS = {
-  txt:  { ext: "txt",  mime: "text/plain",           menu: "save a .txt of just the words", make: () => plainText() },
-  ttxt: { ext: "txt",  mime: "text/plain",           menu: "save a .txt with timestamps",   make: () => stampedText() },
-  md:   { ext: "md",   mime: "text/markdown",        menu: "save a .md with timestamps",    make: () => asMarkdown() },
-  srt:  { ext: "srt",  mime: "application/x-subrip", menu: "save an .srt of subtitles",     make: () => asSrt() },
-  vtt:  { ext: "vtt",  mime: "text/vtt",             menu: "save a .vtt of subtitles",      make: () => asVtt() },
+  txt:  { ext: "txt",  mime: "text/plain",           menu: "Save a .txt of just the words", make: () => plainText() },
+  ttxt: { ext: "txt",  mime: "text/plain",           menu: "Save a .txt with timestamps",   make: () => stampedText() },
+  md:   { ext: "md",   mime: "text/markdown",        menu: "Save a .md with timestamps",    make: () => asMarkdown() },
+  srt:  { ext: "srt",  mime: "application/x-subrip", menu: "Save an .srt of subtitles",     make: () => asSrt() },
+  vtt:  { ext: "vtt",  mime: "text/vtt",             menu: "Save a .vtt of subtitles",      make: () => asVtt() },
   // Excel reads a .csv as the local code page unless a byte order mark tells
   // it otherwise, and a transcript full of names is exactly where that shows.
-  csv:  { ext: "csv",  mime: "text/csv", bom: true,  menu: "save a .csv, a row per line",   make: () => asCsv() },
-  json: { ext: "json", mime: "application/json",     menu: "save a .json with the timings", make: () => asJson() },
+  csv:  { ext: "csv",  mime: "text/csv", bom: true,  menu: "Save a .csv, a row per line",   make: () => asCsv() },
+  json: { ext: "json", mime: "application/json",     menu: "Save a .json with the timings", make: () => asJson() },
 };
 const SAVE_KEY = "audio-to-text:save";
 const DEFAULT_SAVE = "txt";
@@ -417,7 +417,7 @@ for (const [key, format] of Object.entries(FORMATS)) {
 }
 const keepIt = document.createElement("option");
 keepIt.value = "";
-keepIt.textContent = "leave it on the page";
+keepIt.textContent = "Leave it on the page";
 saveSel.appendChild(keepIt);
 
 // The choice is a preference rather than a property of the recording, so it
@@ -428,7 +428,7 @@ saveSel.value = remembered !== null && (remembered === "" || FORMATS[remembered]
   ? remembered : DEFAULT_SAVE;
 
 function syncSave() {
-  saveNote.textContent = saveSel.value ? "straight to your downloads" : "nothing is saved for you";
+  saveNote.textContent = saveSel.value ? "Straight to your downloads" : "Nothing is saved for you";
   try { localStorage.setItem(SAVE_KEY, saveSel.value); } catch {}
 }
 saveSel.addEventListener("change", syncSave);
@@ -1094,7 +1094,7 @@ function stampedText() {
 function asMarkdown() {
   return `# ${sourceName || "Transcript"}\n\n`
     + `${clock(duration)} of audio · ${words(plainText()).toLocaleString()} words`
-    + `${ranWith ? ` · whisper ${ranWith}` : ""}\n`
+    + `${ranWith ? ` · Whisper ${ranWith}` : ""}\n`
     + segments.map((line) => `\n\`${clock(line.start)}\` ${line.text}\n`).join("");
 }
 

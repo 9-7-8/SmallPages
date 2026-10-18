@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>mic monitor</title>
+<title>Mic Monitor</title>
 <link rel="stylesheet" href="theme.css">
 <style>
   /* Layout and sizing only. Colour, type and component styling live in theme.css. */
@@ -202,7 +202,7 @@
 <body>
 <main>
   <a class="home" href="index.html">&larr; index</a>
-  <h1>mic monitor</h1>
+  <h1>Mic Monitor</h1>
   <p class="lede">Takes whatever the microphone hears and puts it straight back out of the speakers, with a meter for how loud it is and a volume you can ride. It runs as close to live as a browser can be talked into, and says underneath how far behind it actually is. Nothing is recorded and nothing is sent anywhere &mdash; the sound goes from the input to the output and no further.</p>
 
   <div class="card">
@@ -213,14 +213,14 @@
     </div>
 
     <div class="meter">
-      <span class="tag">in</span>
+      <span class="tag">In</span>
       <div class="track" id="inTrack" role="meter" aria-label="Microphone level"
            aria-valuemin="-60" aria-valuemax="0"><i id="inFill"></i><b id="inPeak"></b></div>
       <span class="num" id="inRead">&mdash;</span>
     </div>
 
     <div class="meter">
-      <span class="tag">out</span>
+      <span class="tag">Out</span>
       <div class="track" id="outTrack" role="meter" aria-label="Broadcast level"
            aria-valuemin="-60" aria-valuemax="0"><i id="outFill"></i><b id="outPeak"></b></div>
       <span class="num" id="outRead">&mdash;</span>

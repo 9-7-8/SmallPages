@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>palette → gem</title>
+<title>Palette → Gem</title>
 <link rel="stylesheet" href="theme.css">
 <style>
   /* Layout and sizing only — every colour and the typeface come from
@@ -216,7 +216,7 @@
 
 <header>
   <a class="home" href="index.html">&larr; index</a>
-  <h1>palette <em>→</em> gem</h1>
+  <h1>Palette <em>→</em> Gem</h1>
   <p>Pick a palette, or pull one out of any image, and this grows a faceted stone from it — sharp plane changes, cool light facets against warm shadow ones, and whatever fire the cut can carry.</p>
 </header>
 
@@ -226,7 +226,7 @@
     <div class="stage-wrap">
       <div class="stage" id="stage"><canvas id="main" width="900" height="900"></canvas></div>
       <div class="stage-bar">
-        <span class="seed">seed <span id="seedOut">—</span></span>
+        <span class="seed">Seed <span id="seedOut">—</span></span>
         <button class="ghost" id="reroll" type="button">Reroll</button>
         <span class="spacer"></span>
         <select id="exportSize" aria-label="Export size">
@@ -248,7 +248,7 @@
       <div class="presets" id="presets"></div>
       <label class="drop" id="drop" tabindex="0">
         Drop an image, tap to browse, or paste one
-        <span class="sub">colours get pulled straight out of it</span>
+        <span class="sub">Colours get pulled straight out of it</span>
         <input type="file" id="file" accept="image/*">
       </label>
       <div class="source" id="source"><img id="sourceImg" alt="Image the palette came from"><span id="sourceName"></span></div>
@@ -1403,7 +1403,8 @@
         dots.appendChild(i);
       }
       b.appendChild(dots);
-      b.appendChild(document.createTextNode(name));
+      // The key names the preset; the button shows it as a word.
+      b.appendChild(document.createTextNode(name.charAt(0).toUpperCase() + name.slice(1)));
       b.addEventListener("click", () => {
         S.palette = PRESETS[name].slice();
         if (name === "pearl") S.cut = "pearl";

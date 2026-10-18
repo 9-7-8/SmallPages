@@ -399,6 +399,8 @@ function luminance(h) {
 }
 const readable = h => (luminance(h) > 0.22 ? '#111111' : '#f2f2f2');
 
+const upperFirst = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+
 /* A rough hue name, so the row labels say something useful. */
 function colourName(h) {
   const c = parseHex(h) || [0, 0, 0];
@@ -527,7 +529,7 @@ function renderBases() {
       '<button type="button" class="chip" style="background:' + h + '" title="Change this colour"></button>' +
       '<input type="color" value="' + h + '">' +
       '<input type="text" class="hex" value="' + h + '" spellcheck="false" aria-label="Colour ' + (i + 1) + ' hex">' +
-      '<button type="button" class="kill">remove</button>';
+      '<button type="button" class="kill">Remove</button>';
 
     const chip = el.querySelector('.chip');
     const picker = el.querySelector('input[type="color"]');
@@ -601,7 +603,7 @@ function renderGrid() {
   g.forEach((row, r) => {
     const lab = document.createElement('div');
     lab.className = 'rowlab';
-    lab.innerHTML = '<i style="background:' + u[r] + '"></i>' + colourName(u[r]) + ' row';
+    lab.innerHTML = '<i style="background:' + u[r] + '"></i>' + upperFirst(colourName(u[r])) + ' row';
     box.appendChild(lab);
 
     row.forEach((c, col) => {
@@ -636,8 +638,8 @@ function renderSheet() {
     const t = (n <= 1) ? 0 : (i / (n - 1)) * 2 - 1;
     const lab = document.createElement('div');
     lab.className = 'sheet-lab';
-    lab.textContent = Math.abs(t) < 0.001 ? 'as mixed'
-      : (t < 0 ? 'lighter ' : 'darker ') + Math.round(Math.abs(t) * state.varLight * 100) + '%';
+    lab.textContent = Math.abs(t) < 0.001 ? 'As mixed'
+      : (t < 0 ? 'Lighter ' : 'Darker ') + Math.round(Math.abs(t) * state.varLight * 100) + '%';
     row.appendChild(lab);
 
     g.forEach(c => {

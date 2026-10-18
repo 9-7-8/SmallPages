@@ -49,11 +49,11 @@ accent is white. Raise it and `--h` starts to show; `0.35` gives a faint wash,
 
 | `--h` | |
 | --- | --- |
-| `288` | violet-magenta |
-| `190` | cyan |
-| `330` | hot pink |
-| `155` | acid green |
-| `40` | amber |
+| `288` | Violet-magenta |
+| `190` | Cyan |
+| `330` | Hot pink |
+| `155` | Acid green |
+| `40` | Amber |
 
 Saturation is scaled by `--sat` throughout, and accents brighten toward white as
 colour drains out, so they stay accents instead of collapsing into mid-grey.

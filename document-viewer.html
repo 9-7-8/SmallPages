@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>document viewer</title>
+<title>Document Viewer</title>
 <link rel="stylesheet" href="theme.css">
 <style>
   /* Layout and sizing only. Colour, type and component styling live in theme.css. */
@@ -179,7 +179,7 @@
 <body>
 <main>
   <a class="home" href="index.html">&larr; index</a>
-  <h1>document viewer</h1>
+  <h1>Document Viewer</h1>
   <p class="lede">Drop in a document and read it here &mdash; logs, plain text and Markdown,
   config and data files like JSON, XML, TOML, CSV and TSV, with PDF and Word files too. Find walks
   the matches one at a time; the line filters keep only the lines that match a string or a regular
@@ -205,36 +205,36 @@
 
     <div class="tools" id="tools">
       <div class="toolrow find">
-        <label for="findInput">find</label>
-        <input type="text" id="findInput" placeholder="text to find, or a regular expression"
+        <label for="findInput">Find</label>
+        <input type="text" id="findInput" placeholder="Text to find, or a regular expression"
                autocomplete="off" spellcheck="false">
-        <label class="chk" title="read what you typed as a regular expression"><input type="checkbox" id="findRe"> .*</label>
-        <label class="chk" title="match upper and lower case exactly"><input type="checkbox" id="findCase"> Aa</label>
-        <button class="ghost nav" id="findPrev" title="previous match — Shift+Enter" aria-label="previous match">&uarr;</button>
-        <button class="ghost nav" id="findNext" title="next match — Enter" aria-label="next match">&darr;</button>
+        <label class="chk" title="Read what you typed as a regular expression"><input type="checkbox" id="findRe"> .*</label>
+        <label class="chk" title="Match upper and lower case exactly"><input type="checkbox" id="findCase"> Aa</label>
+        <button class="ghost nav" id="findPrev" title="Previous match — Shift+Enter" aria-label="Previous match">&uarr;</button>
+        <button class="ghost nav" id="findNext" title="Next match — Enter" aria-label="Next match">&darr;</button>
         <span class="tally" id="findTally"></span>
       </div>
 
       <div class="toolrow">
-        <label class="chk"><input type="checkbox" id="wrapChk"> wrap long lines</label>
-        <label class="chk"><input type="checkbox" id="lnChk" checked> line numbers</label>
+        <label class="chk"><input type="checkbox" id="wrapChk"> Wrap long lines</label>
+        <label class="chk"><input type="checkbox" id="lnChk" checked> Line numbers</label>
         <span class="spacer"></span>
-        <label class="goto">go to line <input type="number" id="gotoInput" min="1" placeholder="1"></label>
-        <button class="ghost" id="copyBtn" title="every line on screen, filters and all">Copy all</button>
-        <button class="ghost" id="saveBtn" title="the lines on screen, saved in the file's own format">Download visible</button>
+        <label class="goto">Go to line <input type="number" id="gotoInput" min="1" placeholder="1"></label>
+        <button class="ghost" id="copyBtn" title="Every line on screen, filters and all">Copy all</button>
+        <button class="ghost" id="saveBtn" title="The lines on screen, saved in the file's own format">Download visible</button>
       </div>
 
       <div id="rules"></div>
-      <p class="rulehint">Find reads the lines themselves rather than the handful on screen, which is the only way to reach past what's drawn &mdash; <kbd>ctrl</kbd>+<kbd>F</kbd> puts the cursor in it, <kbd>enter</kbd> walks forward, <kbd>shift</kbd>+<kbd>enter</kbd> back, <kbd>esc</kbd> clears. It searches what the filters have left on screen. The filters themselves are on <kbd>/</kbd>.</p>
+      <p class="rulehint">Find reads the lines themselves rather than the handful on screen, which is the only way to reach past what's drawn &mdash; <kbd>Ctrl</kbd>+<kbd>F</kbd> puts the cursor in it, <kbd>Enter</kbd> walks forward, <kbd>Shift</kbd>+<kbd>Enter</kbd> back, <kbd>Esc</kbd> clears. It searches what the filters have left on screen. The filters themselves are on <kbd>/</kbd>.</p>
 
-      <p class="rulehint" id="ruleHint">A line is shown when it matches at least one <b>include</b> rule &mdash; or when there are none &mdash; and no <b>exclude</b> rule. Turn on <code>.*</code> to read the pattern as a regular expression. <b>Before</b> and <b>after</b> keep that many neighbouring lines either side of every line a rule kept, the way <code>grep -B</code> and <code>-A</code> do; they come through dimmed, and they come whether or not they would have been kept on their own. Copy and download take whatever is on screen, context and all.</p>
+      <p class="rulehint" id="ruleHint">A line is shown when it matches at least one <b>Include</b> rule &mdash; or when there are none &mdash; and no <b>Exclude</b> rule. Turn on <code>.*</code> to read the pattern as a regular expression. <b>Before</b> and <b>After</b> keep that many neighbouring lines either side of every line a rule kept, the way <code>grep -B</code> and <code>-A</code> do; they come through dimmed, and they come whether or not they would have been kept on their own. Copy and download take whatever is on screen, context and all.</p>
 
       <div class="toolrow">
         <button class="ghost" id="addInclude">+ include lines matching</button>
         <button class="ghost" id="addExclude">+ exclude lines matching</button>
-        <span class="ctx">keep
-          <input type="number" id="ctxBefore" min="0" max="9999" value="0" aria-label="lines of context before a match"> before,
-          <input type="number" id="ctxAfter" min="0" max="9999" value="0" aria-label="lines of context after a match"> after
+        <span class="ctx">Keep
+          <input type="number" id="ctxBefore" min="0" max="9999" value="0" aria-label="Lines of context before a match"> before,
+          <input type="number" id="ctxAfter" min="0" max="9999" value="0" aria-label="Lines of context after a match"> after
         </span>
         <span class="spacer"></span>
         <span class="count" id="count"></span>
@@ -691,19 +691,19 @@ function addRule(mode, pattern = "", focus = true) {
   pat.type = "text";
   pat.className = "pat";
   pat.value = pattern;
-  pat.placeholder = "text to match, or a regular expression";
-  pat.setAttribute("aria-label", "pattern");
+  pat.placeholder = "Text to match, or a regular expression";
+  pat.setAttribute("aria-label", "Pattern");
 
   const reLabel = document.createElement("label");
   reLabel.className = "chk";
-  reLabel.title = "read the pattern as a regular expression";
+  reLabel.title = "Read the pattern as a regular expression";
   const reBox = document.createElement("input");
   reBox.type = "checkbox";
   reLabel.append(reBox, document.createTextNode(".*"));
 
   const caseLabel = document.createElement("label");
   caseLabel.className = "chk";
-  caseLabel.title = "match upper and lower case exactly";
+  caseLabel.title = "Match upper and lower case exactly";
   const caseBox = document.createElement("input");
   caseBox.type = "checkbox";
   caseLabel.append(caseBox, document.createTextNode("Aa"));
@@ -711,7 +711,7 @@ function addRule(mode, pattern = "", focus = true) {
   const x = document.createElement("button");
   x.className = "ghost x";
   x.textContent = "×";
-  x.setAttribute("aria-label", "remove this rule");
+  x.setAttribute("aria-label", "Remove this rule");
   x.addEventListener("click", () => {
     rules = rules.filter((r) => r !== rule);
     row.remove();
@@ -965,7 +965,7 @@ function compileFind() {
   } catch (err) {
     findInput.classList.add("bad");
     const hint = regexHint(text);
-    findTally.textContent = "bad pattern";
+    findTally.textContent = "Bad pattern";
     findTally.title = `${err.message}${hint ? ` — ${hint}` : ""}`;
     return undefined;                 // told apart from null: typed, but broken
   }

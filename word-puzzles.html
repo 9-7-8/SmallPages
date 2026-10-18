@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>word puzzles</title>
+<title>Word Puzzles</title>
 <link rel="stylesheet" href="theme.css">
 <style>
   /* Layout and sizing only — colour and type live in theme.css. The one
@@ -209,14 +209,14 @@
 <body>
 <main>
   <a class="home no-print" href="index.html">&larr; index</a>
-  <h1 class="no-print">word puzzles</h1>
+  <h1 class="no-print">Word Puzzles</h1>
   <p class="lede no-print">Give it a list of words &mdash; with clues, if you have them &mdash; and it builds the
   puzzle around them: a crossword, a word search, a criss-cross, a scramble, fill-the-blanks, a
   matching sheet, a code cracker or bingo cards. The grid is worked out in the page, and the sheet
   prints as it looks, answer key and all.</p>
 
   <div class="card no-print">
-    <h2 class="section">the words</h2>
+    <h2 class="section">The words</h2>
     <div class="io" id="io">
       <div class="col">
         <label for="words">One per line. A clue after the word, split off by a tab, a comma, a colon, a pipe or a dash.</label>
@@ -232,13 +232,13 @@ the softer edge of a shadow"></textarea>
       </div>
     </div>
     <div class="row">
-      <label class="check"><input type="checkbox" id="split-clues"> clues in their own column</label>
-      <button class="ghost" id="example">load an example</button>
-      <button class="ghost" id="clear">clear</button>
+      <label class="check"><input type="checkbox" id="split-clues"> Clues in their own column</label>
+      <button class="ghost" id="example">Load an example</button>
+      <button class="ghost" id="clear">Clear</button>
     </div>
     <div class="dropzone" id="drop">
       <div>Drop a CSV, a TSV or an <code>.xlsx</code> here, or click to choose one</div>
-      <div class="hint">first column the word, second the clue &mdash; a header row is skipped; read in your
+      <div class="hint">First column the word, second the clue &mdash; a header row is skipped; read in your
       browser, nothing is uploaded</div>
       <input type="file" id="file" accept=".csv,.tsv,.tab,.txt,.xlsx,.xlsm,text/csv,text/tab-separated-values,text/plain">
     </div>
@@ -246,27 +246,27 @@ the softer edge of a shadow"></textarea>
   </div>
 
   <div class="card no-print">
-    <h2 class="section">the puzzle</h2>
+    <h2 class="section">The puzzle</h2>
     <div class="seg" id="types">
-      <button data-type="crossword" class="on">crossword</button>
-      <button data-type="wordsearch">word search</button>
-      <button data-type="crisscross">criss-cross</button>
-      <button data-type="scramble">scramble</button>
-      <button data-type="blanks">fill the blanks</button>
-      <button data-type="matching">matching</button>
-      <button data-type="cipher">code cracker</button>
-      <button data-type="bingo">bingo</button>
+      <button data-type="crossword" class="on">Crossword</button>
+      <button data-type="wordsearch">Word search</button>
+      <button data-type="crisscross">Criss-cross</button>
+      <button data-type="scramble">Scramble</button>
+      <button data-type="blanks">Fill the blanks</button>
+      <button data-type="matching">Matching</button>
+      <button data-type="cipher">Code cracker</button>
+      <button data-type="bingo">Bingo</button>
     </div>
 
     <div class="opt" data-for="all">
-      <label for="title">heading</label>
+      <label for="title">Heading</label>
       <input type="text" id="title" placeholder="Word puzzle" style="flex:1;min-width:12rem">
     </div>
 
     <div class="opt" data-for="wordsearch">
-      <label for="ws-size">grid</label>
+      <label for="ws-size">Grid</label>
       <select id="ws-size">
-        <option value="0" selected>as small as it fits</option>
+        <option value="0" selected>As small as it fits</option>
         <option value="10">10 &times; 10</option>
         <option value="12">12 &times; 12</option>
         <option value="14">14 &times; 14</option>
@@ -278,75 +278,75 @@ the softer edge of a shadow"></textarea>
       </select>
     </div>
     <div class="opt" data-for="wordsearch">
-      <label>directions</label>
+      <label>Directions</label>
       <div class="seg" id="ws-dirs">
-        <button data-dirs="plain">across &amp; down</button>
-        <button data-dirs="diagonal" class="on">and diagonals</button>
-        <button data-dirs="all">every direction</button>
+        <button data-dirs="plain">Across &amp; down</button>
+        <button data-dirs="diagonal" class="on">And diagonals</button>
+        <button data-dirs="all">Every direction</button>
       </div>
     </div>
     <div class="opt" data-for="wordsearch">
-      <label>the list under it</label>
+      <label>The list under it</label>
       <div class="seg" id="ws-list">
-        <button data-mode="words" class="on">the words</button>
-        <button data-mode="clues" data-needs-clues="1">the clues</button>
+        <button data-mode="words" class="on">The words</button>
+        <button data-mode="clues" data-needs-clues="1">The clues</button>
       </div>
     </div>
 
     <div class="opt" data-for="crisscross">
-      <label>word bank</label>
+      <label>Word bank</label>
       <div class="seg" id="cc-bank">
-        <button data-bank="length" class="on">grouped by length</button>
-        <button data-bank="alpha">alphabetical</button>
-        <button data-bank="clues" data-needs-clues="1">clues instead</button>
+        <button data-bank="length" class="on">Grouped by length</button>
+        <button data-bank="alpha">Alphabetical</button>
+        <button data-bank="clues" data-needs-clues="1">Clues instead</button>
       </div>
     </div>
 
     <div class="opt" data-for="scramble blanks">
-      <label>a leg-up</label>
-      <label class="check"><input type="checkbox" id="first-letter"> give the first letter</label>
+      <label>A leg-up</label>
+      <label class="check"><input type="checkbox" id="first-letter"> Give the first letter</label>
     </div>
     <div class="opt" data-for="scramble">
-      <label>word bank</label>
-      <label class="check"><input type="checkbox" id="sc-bank"> print the words alongside</label>
+      <label>Word bank</label>
+      <label class="check"><input type="checkbox" id="sc-bank"> Print the words alongside</label>
     </div>
     <div class="opt" data-for="blanks">
-      <label>word bank</label>
-      <label class="check"><input type="checkbox" id="bl-bank" checked> print the words alongside</label>
+      <label>Word bank</label>
+      <label class="check"><input type="checkbox" id="bl-bank" checked> Print the words alongside</label>
     </div>
 
     <div class="opt" data-for="cipher">
-      <label>the code</label>
+      <label>The code</label>
       <div class="seg" id="ci-mode">
-        <button data-mode="letters" class="on">letter for letter</button>
-        <button data-mode="numbers">a number per letter</button>
+        <button data-mode="letters" class="on">Letter for letter</button>
+        <button data-mode="numbers">A number per letter</button>
       </div>
     </div>
     <div class="opt" data-for="cipher">
-      <label for="ci-free">given away</label>
+      <label for="ci-free">Given away</label>
       <input type="number" id="ci-free" min="0" max="8" step="1" value="2">
-      <span class="note">letters filled in on the key to start you off</span>
+      <span class="note">Letters filled in on the key to start you off</span>
     </div>
 
     <div class="opt" data-for="bingo">
-      <label>card</label>
+      <label>Card</label>
       <div class="seg" id="bg-size">
         <button data-size="3">3 &times; 3</button>
         <button data-size="4">4 &times; 4</button>
         <button data-size="5" class="on">5 &times; 5</button>
       </div>
-      <label class="check"><input type="checkbox" id="bg-free" checked> free square in the middle</label>
+      <label class="check"><input type="checkbox" id="bg-free" checked> Free square in the middle</label>
     </div>
     <div class="opt" data-for="bingo">
-      <label for="bg-cards">how many</label>
+      <label for="bg-cards">How many</label>
       <input type="number" id="bg-cards" min="1" max="24" step="1" value="4">
-      <span class="note">each card draws its own words from the list</span>
+      <span class="note">Each card draws its own words from the list</span>
     </div>
 
     <div class="row tight">
-      <button class="ghost" id="reroll">re-roll</button>
-      <label class="check"><input type="checkbox" id="with-key" checked> include the answer key</label>
-      <label class="check"><input type="checkbox" id="key-page" checked> key on its own page</label>
+      <button class="ghost" id="reroll">Re-roll</button>
+      <label class="check"><input type="checkbox" id="with-key" checked> Include the answer key</label>
+      <label class="check"><input type="checkbox" id="key-page" checked> Key on its own page</label>
     </div>
   </div>
 
@@ -1807,7 +1807,7 @@ function saveSvg() {
 async function copyText() {
   try {
     await navigator.clipboard.writeText(state.text);
-    noteEl.textContent = "copied";
+    noteEl.textContent = "Copied";
   } catch (err) {
     noteEl.textContent = "the browser wouldn't hand over the clipboard — select the sheet and copy it instead";
   }
