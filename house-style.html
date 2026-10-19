@@ -109,6 +109,26 @@
 
   /* -------------------------------------------------------------- words -- */
 
+  .icons { display: flex; flex-wrap: wrap; gap: 1.6rem; margin-top: 1.4rem; }
+  .icons figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 0.5rem; }
+  .icons figcaption { font-family: var(--mono); font-size: 0.66rem; color: var(--text-faint); }
+  .icons svg {
+    width: 26px;
+    height: 26px;
+    display: block;
+    color: var(--neon-deep);
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.25;
+    stroke-linecap: square;
+    stroke-linejoin: miter;
+    transition: color 0.15s ease, filter 0.15s ease;
+  }
+  .icons figure:hover svg {
+    color: var(--neon);
+    filter: drop-shadow(0 0 6px hsl(var(--tint) / 0.5));
+  }
+
   .words { border-collapse: collapse; width: 100%; font-size: 0.85rem; }
   .words th, .words td { text-align: left; padding: 0.55rem 0.9rem 0.55rem 0; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
   .words th { font-weight: 400; color: var(--text-faint); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; }
@@ -242,6 +262,15 @@
     <code>--sunken</code> for anything you type into.</li>
     <li><b>One reading column.</b> Pages cap at 760&ndash;900px and running text at 56&ndash;68ch.
     Below 620px rows stack and action buttons go full width.</li>
+    <li><b>A grid once a list gets long.</b> Up to about a dozen entries a list reads as a set of
+    things you pick from. Past that it reads as a column of text you have to scan, and it becomes
+    a grid of tiles instead &mdash; <code>auto-fill</code> on a minimum tile width, so it finds
+    its own column count and comes down to one on a phone without a breakpoint deciding where.
+    <a href="index.html">The index</a> crossed that line at twenty-three.</li>
+    <li><b>Hairlines on the tiles, not behind them.</b> A grid of hairlines is tempting to build
+    as a 1px gap over a coloured ground. Do not: the last row is nearly always short, and the
+    empty slot shows the ground through as a block of grey with nothing in it. Put the lines on
+    the tiles and the gap simply ends where the tiles do.</li>
   </ul>
 
   <h2>The shared vocabulary</h2>
@@ -283,6 +312,44 @@
       <code>1.5rem</code> of padding and no radius. It groups one step of a job.</div>
     </div>
   </div>
+
+  <h2>Icons</h2>
+  <p class="dim">The index gives every tool an icon. They are drawn to the same geometry as
+  everything else here, which is most of what makes a set of twenty-three look like one set:</p>
+
+  <ul class="rules">
+    <li><b>A 24-unit box</b>, drawn at 26px, with nothing crossing the edge.</li>
+    <li><b>Strokes, not fills.</b> <code>stroke: currentColor</code> at <code>1.25</code>, and
+    <code>fill: none</code> unless a shape is meant to read as solid &mdash; those get
+    <code>fill="currentColor"</code> at about <code>0.4</code> opacity, so a filled cell is a
+    shade rather than a block.</li>
+    <li><b>Square caps, mitred joins.</b> <code>stroke-linecap: square</code> and
+    <code>stroke-linejoin: miter</code>, because nothing else in the repo has a rounded corner
+    either.</li>
+    <li><b>Colour from the theme, never their own.</b> <code>--neon-deep</code> at rest: present,
+    but not claiming to be the live thing on the page. On hover and on focus they go to
+    <code>--neon</code> with a drop shadow, so the glow still means what it means everywhere else.</li>
+    <li><b>One <code>&lt;symbol&gt;</code> each, referenced.</b> The page holds one copy of each
+    drawing rather than one per tile.</li>
+    <li><b>About its own tool.</b> Not a generic glyph: the texture strip for
+    <code>.mcmeta</code>, bezier nodes on a curve for the tracer, two overlapping circles for
+    cross-mixing, the pivot tick for the speed reader, the two sliders for this page.</li>
+  </ul>
+
+  <div class="icons" id="icons"></div>
+
+  <p class="note"><strong>Draw it, then look at it.</strong> Two of the index's icons were wrong
+  the first time and only reading as wrong on screen: the colour picker came out looking like a
+  pencil until its bulb and barrel were turned forty-five degrees, and bingo and the word puzzles
+  were the same grid twice, sitting next to each other, until bingo became three round daubs on a
+  diagonal. At 26px the difference between two icons has to survive being glanced at.</p>
+
+  <p class="note"><strong>These six are a copy, and the only one on the page.</strong> Everything
+  else here reads the real thing back out of <code>theme.css</code>, but an icon set cannot be
+  shared that way: an external <code>&lt;use href="icons.svg#id"&gt;</code> does not resolve from
+  a <code>file://</code> page, and every page here has to work when it is handed over on its own.
+  The set lives in <a href="index.html">index.html</a>; these are six of it, at the size they are
+  used, to show the weight.</p>
 
   <h2>Motion</h2>
   <p class="dim">Transitions run at <code>0.15s ease</code> on colour, border and shadow, and on
@@ -359,6 +426,49 @@
 
 const el = (id) => document.getElementById(id);
 const root = document.documentElement;
+
+/* ---------------------------------------------------------------- icons -- */
+
+// Six of the index's set, at the size they are used there. They are built
+// here rather than written into the markup only so the rules above sit next
+// to one list of shapes instead of twelve lines of path data.
+const ICONS = [
+  ["vector", 'Image \u2192 SVG',
+    '<path d="M3.5 18.5C6.5 8.5 14 6.5 20.5 6"/>'
+    + '<rect x="2" y="17" width="3" height="3" fill="currentColor" stroke="none"/>'
+    + '<rect x="19" y="4.5" width="3" height="3" fill="currentColor" stroke="none"/>'
+    + '<rect x="10" y="8" width="3" height="3"/>'],
+  ["mix", "Unified Palette",
+    '<circle cx="9" cy="12" r="6"/><circle cx="15" cy="12" r="6"/>'
+    + '<path d="M12 6.7a6 6 0 0 0 0 10.6 6 6 0 0 0 0-10.6z" fill="currentColor" stroke="none" opacity=".4"/>'],
+  ["transcribe", 'Audio \u2192 Text',
+    '<path d="M3 9.5v5M6.5 5.5v13M10 10.5v3"/><path d="M14 8h7M14 12h7M14 16h4.5"/>'],
+  ["bingo", "Bingo Cards",
+    '<rect x="3" y="3" width="18" height="18"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/>'
+    + '<circle cx="6" cy="6" r="1.7" fill="currentColor" stroke="none"/>'
+    + '<circle cx="12" cy="12" r="1.7" fill="currentColor" stroke="none"/>'
+    + '<circle cx="18" cy="18" r="1.7" fill="currentColor" stroke="none"/>'],
+  ["pivot", "Speed Reader",
+    '<path d="M12 3.5v3.5M12 17v3.5"/><path d="M3.5 12h6M14.5 12h6"/>'
+    + '<path d="M12 9.5v5" stroke-width="2.25"/>'],
+  ["knobs", "House Style",
+    '<path d="M3 8.5h18M3 15.5h18"/>'
+    + '<rect x="6.5" y="6" width="5" height="5" fill="currentColor" stroke="none" opacity=".55"/>'
+    + '<rect x="13.5" y="13" width="5" height="5" fill="currentColor" stroke="none" opacity=".55"/>'],
+];
+
+const iconHost = el("icons");
+for (const [id, label, shapes] of ICONS) {
+  const figure = document.createElement("figure");
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("aria-hidden", "true");
+  svg.innerHTML = shapes;
+  const caption = document.createElement("figcaption");
+  caption.textContent = label;
+  figure.append(svg, caption);
+  iconHost.appendChild(figure);
+}
 
 const satIn  = el("sat");
 const hueIn  = el("hue");
