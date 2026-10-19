@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Combat Health Tracker</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  /* Layout and sizing only. Colour, type and component styling live in theme.css. */
+
+  body { margin: 0; padding: 3rem 1.5rem 5rem; }
+  main { max-width: 760px; margin: 0 auto; }
+  p.lede { margin: 0 0 2.2rem; max-width: 58ch; }
+  .card { margin-bottom: 1.5rem; }
+
+  .rank { display: flex; flex-wrap: wrap; gap: 1.2rem; align-items: flex-end; }
+  .rank + .rank { margin-top: 1.3rem; }
+  .field { display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; }
+  .field label { font-size: 0.8rem; }
+  .field .unit { font-size: 0.72rem; margin-top: 0.1rem; }
+  .acts { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-left: auto; }
+
+  /* ---------------------------------------------------------- the number -- */
+
+  .hp { text-align: center; padding: 0.5rem 0 0.2rem; }
+
+  /* The one number you look at from across the table, so it is set as large
+     as the card will take and nothing else on the page competes with it. */
+  .hp input {
+    width: 100%;
+    background: transparent;
+    border: none;
+    text-align: center;
+    font-family: var(--sans);
+    font-weight: 200;
+    font-size: clamp(4rem, 18vw, 8rem);
+    line-height: 1;
+    letter-spacing: 0.01em;
+    font-variant-numeric: tabular-nums;
+    color: var(--neon);
+    text-shadow: var(--text-glow);
+    padding: 0;
+    -moz-appearance: textfield;
+  }
+  .hp input::-webkit-outer-spin-button,
+  .hp input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .hp input:focus { outline: none; box-shadow: none; border: none; }
+
+  /* Down is the only direction that gets a mark of its own: at nothing left
+     the number stops glowing and takes the bar the theme gives an error. */
+  body.down .hp input { color: var(--text-dim); text-shadow: none; }
+
+  .hp .state {
+    font-size: 0.78rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    margin-top: 0.3rem;
+    min-height: 1.2em;
+  }
+  body.hurt .hp .state { color: var(--text); }
+  body.down .hp .state { color: var(--neon-hot); text-shadow: var(--text-glow); }
+
+  /* A bar only when there is a maximum to measure against. Without one there
+     is no such thing as a proportion, and a bar would be inventing one. */
+  .bar { height: 3px; background: var(--line-soft); margin-top: 1.1rem; display: none; }
+  .bar.on { display: block; }
+  .bar i {
+    display: block;
+    height: 100%;
+    background: var(--neon);
+    box-shadow: var(--glow-soft);
+    transition: width 0.2s ease;
+  }
+
+  .big { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-top: 1.4rem; }
+  .big button { flex: 1 1 10rem; padding: 0.8rem 1.1rem; font-size: 0.95rem; }
+
+  .by { display: grid; grid-template-columns: 1fr auto 1fr; gap: 0.6rem; align-items: center; margin-top: 0.9rem; }
+  .by input {
+    text-align: center;
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    min-width: 0;
+    width: 6rem;
+  }
+
+  /* ------------------------------------------------------------- the log -- */
+
+  .log { max-height: 20rem; overflow: auto; margin-top: 0.3rem; }
+  .entry {
+    display: flex;
+    gap: 0.9rem;
+    padding: 0.4rem 0.2rem;
+    border-bottom: 1px solid var(--line-soft);
+    font-size: 0.85rem;
+    align-items: baseline;
+  }
+  .entry:last-child { border-bottom: none; }
+  .entry .at {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.72rem;
+    color: var(--text-faint);
+    flex: none;
+    width: 9ch;
+  }
+  .entry .what { flex: 1; color: var(--text-dim); min-width: 0; }
+  .entry.hurt .what { color: var(--text); }
+  .entry .delta {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.78rem;
+    color: var(--text-faint);
+    flex: none;
+  }
+  .entry.hurt .delta { color: var(--neon); }
+
+  .empty { font-size: 0.85rem; color: var(--text-faint); padding: 0.6rem 0.2rem; }
+
+  .note { font-size: 0.78rem; margin-top: 1.2rem; max-width: 64ch; }
+  .note strong { color: var(--text-dim); font-weight: 400; }
+  kbd { font-family: var(--mono); font-size: 0.9em; border: 1px solid var(--line); padding: 0 0.3em; }
+
+  @media (max-width: 620px) {
+    body { padding: 2rem 1rem 4rem; }
+    .acts { margin-left: 0; width: 100%; }
+    .acts button { flex: 1; }
+    .by { grid-template-columns: 1fr; }
+    .by input { width: 100%; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <a class="home" href="index.html">&larr; index</a>
+  <h1>Combat Health Tracker</h1>
+  <p class="lede">One number, big enough to read across a table, with the hits and the healing
+  kept underneath it. Type a figure straight in, step it by one, or name an amount and take it off
+  &mdash; and it is all still there when you come back to the tab.</p>
+
+  <div class="card">
+    <div class="hp">
+      <input type="number" id="hp" value="0" inputmode="numeric" aria-label="Current hit points">
+      <div class="state" id="state"></div>
+    </div>
+
+    <div class="bar" id="bar"><i id="barFill"></i></div>
+
+    <div class="big">
+      <button type="button" id="healOne">Heal 1</button>
+      <button type="button" id="hurtOne" class="ghost">Damage 1</button>
+    </div>
+
+    <div class="by">
+      <button type="button" id="healBy">Heal by</button>
+      <input type="number" id="amount" min="1" step="1" placeholder="0" aria-label="How much">
+      <button type="button" id="hurtBy" class="ghost">Damage by</button>
+    </div>
+
+    <div class="rank" style="margin-top:1.4rem">
+      <div class="field">
+        <label for="maxHp">Maximum</label>
+        <input type="number" id="maxHp" min="1" step="1" placeholder="none" style="width:7rem">
+        <span class="unit" id="maxNote"></span>
+      </div>
+
+      <div class="acts">
+        <button type="button" id="fullBtn" class="ghost">Back to full</button>
+        <button type="button" id="resetBtn" class="ghost">Reset to zero</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="rank" style="margin-bottom:0.6rem">
+      <div class="field"><label>The fight so far</label></div>
+      <div class="acts">
+        <button type="button" id="copyBtn" class="ghost">Copy</button>
+        <button type="button" id="clearBtn" class="ghost">Clear the log</button>
+      </div>
+    </div>
+    <div class="log" id="log"></div>
+  </div>
+
+  <p class="note"><strong>It remembers.</strong> The number, the log and the amount you last typed
+  are kept in this browser, on this page, so closing the tab mid-fight costs you nothing. They are
+  kept as a list of what happened rather than as a lump of saved markup, which is the difference
+  between a log you can copy out and one that is only a picture of itself. Nothing is sent
+  anywhere, and nothing is shared between two people looking at their own copy.</p>
+
+  <p class="note"><strong>Bloodied means half.</strong> Give it a maximum and the states go by
+  proportion, which is what the words actually mean at a table: bloodied at half or less, wounded
+  under three quarters, down at nothing. Leave the maximum empty and it falls back to counting in
+  flat numbers &mdash; bloodied at ten or less, wounded at twenty-five &mdash; which is what this
+  did before, and which is only right for a character whose maximum happens to suit it.</p>
+
+  <p class="note"><strong>It will not go below zero.</strong> Damage past nothing stops at
+  nothing, and the log records what actually happened rather than what was rolled: at 3 hit points
+  a hit for 10 reads as 3 to 0, not 10 to 0. If you want death saves and the negatives that go
+  with them, that is a different tool than this one.</p>
+
+  <p class="note"><strong><kbd>Enter</kbd> in the amount box heals</strong>, and
+  <kbd>Shift</kbd>+<kbd>Enter</kbd> damages, because reaching for the mouse every round is how a
+  tracker stops getting used. The last amount you typed stays put between rounds, since most
+  fights hit for the same handful of numbers.</p>
+</main>
+
+<script>
+"use strict";
+
+const el = (id) => document.getElementById(id);
+
+const hpIn    = el("hp");
+const maxIn   = el("maxHp");
+const maxNote = el("maxNote");
+const amountIn= el("amount");
+const stateEl = el("state");
+const barEl   = el("bar");
+const barFill = el("barFill");
+const logEl   = el("log");
+
+const KEY = "combat-health-tracker";
+const CAP = 50;          // entries kept; the rest fall off the bottom
+
+let hp = 0;
+let max = null;
+let entries = [];        // { at, from, to, by, kind }
+
+/* ----------------------------------------------------------------- store -- */
+
+// Stored as what happened rather than as the markup that showed it. The page
+// this came from saved the log's innerHTML and put it back by assignment,
+// which makes the record unreadable to anything but itself and hands whatever
+// is in storage straight to the parser.
+function save() {
+  try {
+    localStorage.setItem(KEY, JSON.stringify({
+      hp, max, amount: amountIn.value, entries: entries.slice(0, CAP),
+    }));
+  } catch {}
+}
+
+function load() {
+  let held = null;
+  try { held = JSON.parse(localStorage.getItem(KEY) || "null"); } catch {}
+  if (!held || typeof held !== "object") return;
+  hp = Number.isFinite(held.hp) ? held.hp : 0;
+  max = Number.isFinite(held.max) && held.max > 0 ? held.max : null;
+  entries = Array.isArray(held.entries) ? held.entries.slice(0, CAP) : [];
+  if (typeof held.amount === "string") amountIn.value = held.amount;
+  if (max !== null) maxIn.value = String(max);
+}
+
+/* --------------------------------------------------------------- showing -- */
+
+// With a maximum these are proportions, which is what the words mean at a
+// table. Without one they are the flat numbers this carried before, and the
+// note on the page says as much rather than letting them look authoritative.
+function state() {
+  if (hp <= 0) return { word: "Down", mood: "down" };
+  if (max) {
+    const part = hp / max;
+    if (part <= 0.5) return { word: "Bloodied", mood: "hurt" };
+    if (part < 0.75) return { word: "Wounded", mood: "" };
+    if (part >= 1) return { word: "Untouched", mood: "" };
+    return { word: "Steady", mood: "" };
+  }
+  if (hp <= 10) return { word: "Bloodied", mood: "hurt" };
+  if (hp <= 25) return { word: "Wounded", mood: "" };
+  if (hp >= 50) return { word: "Hale", mood: "" };
+  return { word: "Steady", mood: "" };
+}
+
+function show() {
+  if (document.activeElement !== hpIn) hpIn.value = String(hp);
+
+  const { word, mood } = state();
+  stateEl.textContent = word;
+  document.body.classList.toggle("down", mood === "down");
+  document.body.classList.toggle("hurt", mood === "hurt");
+
+  barEl.classList.toggle("on", max !== null);
+  if (max !== null) {
+    barFill.style.width = `${Math.max(0, Math.min(1, hp / max)) * 100}%`;
+  }
+
+  maxNote.textContent = max === null
+    ? "empty counts in flat numbers"
+    : `${hp} of ${max}`;
+
+  paintLog();
+}
+
+function paintLog() {
+  logEl.textContent = "";
+  if (!entries.length) {
+    const none = document.createElement("div");
+    none.className = "empty";
+    none.textContent = "Nothing has happened yet.";
+    logEl.appendChild(none);
+    return;
+  }
+  for (const entry of entries) {
+    const row = document.createElement("div");
+    row.className = "entry" + (entry.kind === "hurt" ? " hurt" : "");
+
+    const at = document.createElement("span");
+    at.className = "at";
+    at.textContent = entry.at;
+
+    const what = document.createElement("span");
+    what.className = "what";
+    what.textContent = entry.kind === "set"
+      ? `Set to ${entry.to}`
+      : entry.kind === "hurt"
+        ? `Took ${entry.by}`
+        : `Healed ${entry.by}`;
+
+    const delta = document.createElement("span");
+    delta.className = "delta";
+    delta.textContent = `${entry.from} → ${entry.to}`;
+
+    row.append(at, what, delta);
+    logEl.appendChild(row);
+  }
+}
+
+/* --------------------------------------------------------------- changing -- */
+
+function note(kind, from, to, by) {
+  entries.unshift({
+    // 24 hour, always eight characters, so the column is a column rather than
+    // something that wraps the moment a locale adds " PM" to the end of it.
+    at: new Date().toLocaleTimeString("en-GB", { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+    from, to, by, kind,
+  });
+  if (entries.length > CAP) entries.length = CAP;
+}
+
+// The log records what happened, not what was rolled: at 3 hit points a hit
+// for 10 is 3 to 0. The page this came from worked the previous total back out
+// of the new one after the clamp, so it reported that hit as 10 to 0.
+function change(by) {
+  if (!by) return;
+  const from = hp;
+  hp = Math.max(0, hp + by);
+  const moved = hp - from;
+  if (!moved && by < 0) {
+    // Already at nothing; there is nothing to record.
+    show();
+    return;
+  }
+  note(moved < 0 ? "hurt" : "heal", from, hp, Math.abs(moved));
+  save();
+  show();
+}
+
+function asked() {
+  const n = Math.floor(Number(amountIn.value));
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+el("healOne").addEventListener("click", () => change(1));
+el("hurtOne").addEventListener("click", () => change(-1));
+el("healBy").addEventListener("click", () => change(asked()));
+el("hurtBy").addEventListener("click", () => change(-asked()));
+
+amountIn.addEventListener("input", save);
+amountIn.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter") return;
+  e.preventDefault();
+  change(e.shiftKey ? -asked() : asked());
+});
+
+// Typing straight into the number is the quickest way to start a fight, so it
+// is a real input rather than a readout — but it is only committed on change,
+// not on every keystroke, or "25" would log a stop at 2.
+hpIn.addEventListener("change", () => {
+  const n = Math.floor(Number(hpIn.value));
+  const to = Number.isFinite(n) ? Math.max(0, n) : 0;
+  if (to === hp) { show(); return; }
+  note("set", hp, to, Math.abs(to - hp));
+  hp = to;
+  save();
+  show();
+});
+
+maxIn.addEventListener("input", () => {
+  const n = Math.floor(Number(maxIn.value));
+  max = Number.isFinite(n) && n > 0 ? n : null;
+  save();
+  show();
+});
+
+el("fullBtn").addEventListener("click", () => {
+  if (max === null) { maxIn.focus(); return; }
+  change(max - hp);
+});
+
+el("resetBtn").addEventListener("click", () => {
+  if (hp !== 0) note("set", hp, 0, hp);
+  hp = 0;
+  save();
+  show();
+});
+
+el("clearBtn").addEventListener("click", () => {
+  entries = [];
+  save();
+  show();
+});
+
+el("copyBtn").addEventListener("click", async () => {
+  const lines = entries.map((e) => {
+    const what = e.kind === "set" ? `set to ${e.to}`
+      : e.kind === "hurt" ? `took ${e.by}` : `healed ${e.by}`;
+    return `${e.at}  ${what} (${e.from} → ${e.to})`;
+  });
+  const text = lines.length ? lines.join("\n") : "Nothing has happened yet.";
+  try {
+    if (!navigator.clipboard || !window.isSecureContext) throw new Error("no clipboard here");
+    await navigator.clipboard.writeText(`${text}\n`);
+    stateEl.textContent = "Copied";
+    setTimeout(show, 900);
+  } catch (err) {
+    console.error(err);
+  }
+});
+
+load();
+show();
+</script>
+</body>
+</html>
