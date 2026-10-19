@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Make CD Image</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  /* Layout and sizing only. Colour, type and component styling live in theme.css. */
+
+  /* The display faces the artwork is set in. They are files in vendor/ rather
+     than links to somebody's Dropbox: a hotlinked font that stops resolving
+     turns every cover you make after that into a fallback sans. */
+  @font-face { font-family: "Another"; src: url("vendor/cd-image/fonts/Another_.ttf"); font-display: block; }
+  @font-face { font-family: "Berosong"; src: url("vendor/cd-image/fonts/Berosong-Regular.ttf"); font-display: block; }
+  @font-face { font-family: "Bitmgothic"; src: url("vendor/cd-image/fonts/Bitmgothic.otf"); font-display: block; }
+  @font-face { font-family: "Black Takora"; src: url("vendor/cd-image/fonts/BlackTakora-Regular.ttf"); font-display: block; }
+  @font-face { font-family: "Blackout Oldskull"; src: url("vendor/cd-image/fonts/BlackoutOldskull.ttf"); font-display: block; }
+  @font-face { font-family: "Brush Story"; src: url("vendor/cd-image/fonts/BrushStory.ttf"); font-display: block; }
+  @font-face { font-family: "Children"; src: url("vendor/cd-image/fonts/Children.ttf"); font-display: block; }
+  @font-face { font-family: "Festival Valentine"; src: url("vendor/cd-image/fonts/Festival-Valentine.otf"); font-display: block; }
+  @font-face { font-family: "Flaster"; src: url("vendor/cd-image/fonts/FLASTER.ttf"); font-display: block; }
+  @font-face { font-family: "Flunkies BB"; src: url("vendor/cd-image/fonts/FlunkiesBB.otf"); font-display: block; }
+  @font-face { font-family: "Higher Jump"; src: url("vendor/cd-image/fonts/Higher-Jump.ttf"); font-display: block; }
+  @font-face { font-family: "Holitter Gothic"; src: url("vendor/cd-image/fonts/Holitter_Gothic.ttf"); font-display: block; }
+  @font-face { font-family: "Jawarde"; src: url("vendor/cd-image/fonts/Jawarde.ttf"); font-display: block; }
+  @font-face { font-family: "KALOOT"; src: url("vendor/cd-image/fonts/KALOOT.ttf"); font-display: block; }
+  @font-face { font-family: "Kind Handwriting"; src: url("vendor/cd-image/fonts/Kind-Handwriting.ttf"); font-display: block; }
+  @font-face { font-family: "League Gothic"; src: url("vendor/cd-image/fonts/LeagueGothic-Regular.otf"); font-display: block; }
+  @font-face { font-family: "Peppermint Pen"; src: url("vendor/cd-image/fonts/Peppermint-Pen.otf"); font-display: block; }
+  @font-face { font-family: "Permanent Marker"; src: url("vendor/cd-image/fonts/PermanentMarker.ttf"); font-display: block; }
+  @font-face { font-family: "Roasted Ketchup"; src: url("vendor/cd-image/fonts/Roasted-Ketchup.ttf"); font-display: block; }
+  @font-face { font-family: "Saphifen"; src: url("vendor/cd-image/fonts/Saphifen.ttf"); font-display: block; }
+  @font-face { font-family: "Sevarothz"; src: url("vendor/cd-image/fonts/Sevarothz.ttf"); font-display: block; }
+  @font-face { font-family: "Sketch Gothic"; src: url("vendor/cd-image/fonts/Sketch-Gothic-School.ttf"); font-display: block; }
+  @font-face { font-family: "Smiley"; src: url("vendor/cd-image/fonts/Smiley.ttf"); font-display: block; }
+  @font-face { font-family: "Stylish Marker"; src: url("vendor/cd-image/fonts/Stylish-Marker-demo.ttf"); font-display: block; }
+  @font-face { font-family: "Sunny Brush"; src: url("vendor/cd-image/fonts/Sunny-Brush.ttf"); font-display: block; }
+  @font-face { font-family: "Ye Olde Oak"; src: url("vendor/cd-image/fonts/Ye-Olde-Oak.ttf"); font-display: block; }
+
+  body { margin: 0; padding: 3rem 1.5rem 5rem; }
+  main { max-width: 1120px; margin: 0 auto; }
+  p.lede { margin: 0 0 2.2rem; max-width: 60ch; }
+  .card { margin-bottom: 1.5rem; }
+
+  /* Controls on the left, the disc on the right and staying put while you
+     scroll the controls, because every control here is judged by looking. */
+  .bench { display: flex; gap: 1.5rem; align-items: flex-start; }
+  .bench .controls { flex: 1 1 24rem; min-width: 0; }
+  .bench .viewer { flex: 0 1 26rem; min-width: 0; position: sticky; top: 1.5rem; }
+
+  .dropzone { padding: 1.6rem 1.5rem; text-align: center; cursor: pointer; }
+  .dropzone input { display: none; }
+  .dropzone .hint { font-size: 0.85rem; margin-top: 0.35rem; }
+  .dropzone.slim { padding: 1rem 1.2rem; }
+
+  h2 { margin: 1.8rem 0 0.9rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--line-soft); }
+  h2:first-of-type { margin-top: 0; }
+
+  .field { display: flex; flex-direction: column; gap: 0.35rem; margin-bottom: 1rem; min-width: 0; }
+  .field label { font-size: 0.8rem; }
+  .field .unit { font-size: 0.72rem; margin-top: 0.1rem; }
+  .field input[type="text"], .field select { width: 100%; }
+
+  /* A slider, its readout and the button that puts it back where it started.
+     The original marked reset with a red circle; nothing here is red. */
+  .slider { display: grid; grid-template-columns: 1fr 5.5ch auto; gap: 0.7rem; align-items: center; }
+  .slider input[type="range"] { width: 100%; min-width: 0; }
+  .slider .val {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.76rem;
+    color: var(--text-dim);
+    text-align: right;
+  }
+  .slider .put-back { padding: 0.15rem 0.45rem; font-size: 0.68rem; line-height: 1.4; }
+
+  .swatch-row { display: flex; gap: 0.6rem; align-items: center; }
+  .swatch-row input[type="color"] { width: 3.4rem; height: 2.1rem; padding: 2px; flex: none; }
+  .swatch-row .hex {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.76rem;
+    color: var(--text-faint);
+    flex: 1;
+    min-width: 0;
+  }
+
+  .stage { padding: 0.9rem; }
+  canvas { width: 100%; height: auto; display: block; max-width: 100%; }
+
+  .acts { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-top: 1rem; }
+  .acts button { flex: 1 1 9rem; }
+
+  .status { font-size: 0.85rem; margin-top: 0.9rem; min-height: 1.2em; }
+
+  .note { font-size: 0.78rem; margin-top: 1.2rem; max-width: 66ch; }
+  .note strong { color: var(--text-dim); font-weight: 400; }
+
+  @media (max-width: 860px) {
+    .bench { flex-direction: column; }
+    .bench .viewer { position: static; flex: 1 1 100%; width: 100%; }
+    .bench .controls { flex: 1 1 100%; width: 100%; }
+  }
+  @media (max-width: 620px) {
+    body { padding: 2rem 1rem 4rem; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <a class="home" href="index.html">&larr; index</a>
+  <h1>Make CD Image</h1>
+  <p class="lede">Put a picture on a disc, title it, and take away a CD that looks like it came out
+  of a case &mdash; the gloss, the plastic and the strip of tape are real scans laid over your
+  image rather than filters applied to it. Everything happens on a canvas in this tab.</p>
+
+  <div class="bench">
+    <div class="controls">
+      <div class="card">
+        <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Choose a picture">
+          <div id="dropLabel">Drop a picture here, or click to choose one</div>
+          <div class="hint">It is cropped to fill the disc &mdash; paste one in and it lands too</div>
+          <input type="file" id="fileInput" accept="image/*">
+        </div>
+        <div class="status" id="status">Nothing on the disc yet.</div>
+      </div>
+
+      <div class="card">
+        <h2>The picture</h2>
+
+        <div class="field">
+          <label for="imgZoom">Zoom</label>
+          <div class="slider">
+            <input type="range" id="imgZoom" min="0.1" max="3" step="0.01" value="1" data-home="1" data-unit="x">
+            <span class="val" id="imgZoomVal"></span>
+            <button type="button" class="ghost put-back" data-put-back="imgZoom">Reset</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="imgBright">Brightness</label>
+          <div class="slider">
+            <input type="range" id="imgBright" min="0" max="200" value="100" data-home="100" data-unit="%">
+            <span class="val" id="imgBrightVal"></span>
+            <button type="button" class="ghost put-back" data-put-back="imgBright">Reset</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="imgContrast">Contrast</label>
+          <div class="slider">
+            <input type="range" id="imgContrast" min="0" max="200" value="100" data-home="100" data-unit="%">
+            <span class="val" id="imgContrastVal"></span>
+            <button type="button" class="ghost put-back" data-put-back="imgContrast">Reset</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="bgTint">Tint</label>
+          <div class="swatch-row">
+            <input type="color" id="bgTint" value="#ffffff" data-home="#ffffff">
+            <span class="hex" id="bgTintHex"></span>
+            <button type="button" class="ghost put-back" data-put-back="bgTint">Reset</button>
+          </div>
+          <span class="unit">multiplied over the picture &mdash; white leaves it alone</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>The case</h2>
+
+        <div class="field">
+          <label for="caseBlendMode">How the gloss mixes</label>
+          <select id="caseBlendMode">
+            <option value="source-over">Normal &mdash; a flat overlay</option>
+            <option value="screen">Screen &mdash; shiny highlights</option>
+            <option value="overlay">Overlay &mdash; balanced</option>
+            <option value="hard-light">Hard light &mdash; punchy shine</option>
+            <option value="color-dodge">Colour dodge &mdash; glowing gloss</option>
+            <option value="multiply">Multiply &mdash; dark plastic</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="opacCase">Gloss strength</label>
+          <div class="slider">
+            <input type="range" id="opacCase" min="0" max="100" value="100" data-home="100" data-unit="%">
+            <span class="val" id="opacCaseVal"></span>
+            <button type="button" class="ghost put-back" data-put-back="opacCase">Reset</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="tapeColor">Tape</label>
+          <div class="swatch-row">
+            <input type="color" id="tapeColor" value="#ffffff" data-home="#ffffff">
+            <span class="hex" id="tapeColorHex"></span>
+            <button type="button" class="ghost put-back" data-put-back="tapeColor">Reset</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>The title</h2>
+
+        <div class="field">
+          <label for="text1">Words</label>
+          <input type="text" id="text1" value="Album Title">
+        </div>
+
+        <div class="field">
+          <label for="fontSel">Face</label>
+          <select id="fontSel"></select>
+          <span class="unit" id="fontNote"></span>
+        </div>
+
+        <div class="field">
+          <label for="fontSize1">Size</label>
+          <div class="slider">
+            <input type="range" id="fontSize1" min="10" max="250" value="120" data-home="120" data-unit="px">
+            <span class="val" id="fontSize1Val"></span>
+            <button type="button" class="ghost put-back" data-put-back="fontSize1">Reset</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="textY">Height on the disc</label>
+          <div class="slider">
+            <input type="range" id="textY" min="80" max="920" value="280" data-home="280" data-unit="px">
+            <span class="val" id="textYVal"></span>
+            <button type="button" class="ghost put-back" data-put-back="textY">Reset</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="textColor1">Colour</label>
+          <div class="swatch-row">
+            <input type="color" id="textColor1" value="#000000" data-home="#000000">
+            <span class="hex" id="textColor1Hex"></span>
+            <button type="button" class="ghost put-back" data-put-back="textColor1">Reset</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="viewer">
+      <div class="card stage">
+        <canvas id="canvas" width="1000" height="1000" aria-label="The disc as it stands"></canvas>
+      </div>
+      <div class="acts">
+        <button type="button" id="pngBtn">Save a .png</button>
+        <button type="button" id="jpgBtn" class="ghost">.jpg on white</button>
+      </div>
+    </div>
+  </div>
+
+  <p class="note"><strong>The artwork lives in this repo.</strong> The four scans the disc is built
+  from &mdash; the disc itself, the glossy case layer, the plastic and the tape &mdash; are in
+  <a href="vendor/">vendor/cd-image/</a>, and the display faces beside them. The original tool
+  linked both out to an image host and a Dropbox share, which works right up until a link stops
+  resolving and every cover made after that is a black circle in a fallback sans.</p>
+
+  <p class="note"><strong>Tinting the tape used to wipe the disc.</strong> The version this came
+  from tinted it by filling the whole canvas and then keeping only the pixels under the tape with
+  <code>destination-in</code>, which also discards everything already drawn underneath, so any
+  tape colour but white left you with a strip floating on nothing. Here the tape is tinted on a
+  canvas of its own and that one is laid over the disc, which is the same idea without the
+  casualty.</p>
+
+  <p class="note"><strong>The picture is cropped, not squashed.</strong> It is scaled to cover the
+  disc at whatever zoom you set and centred, so the aspect ratio it arrived with is the aspect
+  ratio it keeps. Brightness and contrast are the canvas filter, which means they apply to the
+  picture and not to the gloss over it.</p>
+
+  <p class="note"><strong>It runs here.</strong> Nothing is uploaded; the canvas is read back
+  into a file by your own browser. A <code>.png</code> keeps the transparency around the disc,
+  which is what you want for laying it on something else. The <code>.jpg</code> flattens it onto
+  white first, because a JPEG has no transparency and would otherwise come out with a black
+  square behind it.</p>
+</main>
+
+<script>
+"use strict";
+
+const el = (id) => document.getElementById(id);
+
+const canvas   = el("canvas");
+const ctx      = canvas.getContext("2d");
+const dropzone = el("dropzone");
+const fileInput= el("fileInput");
+const statusEl = el("status");
+const fontSel  = el("fontSel");
+const fontNote = el("fontNote");
+
+const SIZE = 1000;
+
+// The scans, in the order they go down. Each is its own file so a missing one
+// is a named failure rather than a disc that quietly renders wrong.
+const PARTS = {
+  disc:    "vendor/cd-image/cd.png",
+  gloss:   "vendor/cd-image/case.png",
+  plastic: "vendor/cd-image/plastic.png",
+  tape:    "vendor/cd-image/tape.png",
+};
+
+const FACES = [
+  ["Another", "Another_.ttf"],
+  ["Berosong", "Berosong-Regular.ttf"],
+  ["Bitmgothic", "Bitmgothic.otf"],
+  ["Black Takora", "BlackTakora-Regular.ttf"],
+  ["Blackout Oldskull", "BlackoutOldskull.ttf"],
+  ["Brush Story", "BrushStory.ttf"],
+  ["Children", "Children.ttf"],
+  ["Festival Valentine", "Festival-Valentine.otf"],
+  ["Flaster", "FLASTER.ttf"],
+  ["Flunkies BB", "FlunkiesBB.otf"],
+  ["Higher Jump", "Higher-Jump.ttf"],
+  ["Holitter Gothic", "Holitter_Gothic.ttf"],
+  ["Jawarde", "Jawarde.ttf"],
+  ["KALOOT", "KALOOT.ttf"],
+  ["Kind Handwriting", "Kind-Handwriting.ttf"],
+  ["League Gothic", "LeagueGothic-Regular.otf"],
+  ["Peppermint Pen", "Peppermint-Pen.otf"],
+  ["Permanent Marker", "PermanentMarker.ttf"],
+  ["Roasted Ketchup", "Roasted-Ketchup.ttf"],
+  ["Saphifen", "Saphifen.ttf"],
+  ["Sevarothz", "Sevarothz.ttf"],
+  ["Sketch Gothic", "Sketch-Gothic-School.ttf"],
+  ["Smiley", "Smiley.ttf"],
+  ["Stylish Marker", "Stylish-Marker-demo.ttf"],
+  ["Sunny Brush", "Sunny-Brush.ttf"],
+  ["Ye Olde Oak", "Ye-Olde-Oak.ttf"]
+];
+const SYSTEM_FACES = ["Arial", "Impact", "Courier New", "Georgia", "Verdana"];
+
+let art = null;          // the picture the user gave us
+let parts = {};          // the scans that loaded
+let missing = [];
+
+/* ----------------------------------------------------------------- faces -- */
+
+for (const [name] of FACES) {
+  const option = document.createElement("option");
+  option.value = name;
+  option.textContent = name;
+  option.style.fontFamily = `"${name}", sans-serif`;
+  fontSel.appendChild(option);
+}
+for (const name of SYSTEM_FACES) {
+  const option = document.createElement("option");
+  option.value = name;
+  option.textContent = `${name} \u2014 on your machine already`;
+  option.style.fontFamily = `"${name}", sans-serif`;
+  fontSel.appendChild(option);
+}
+fontSel.value = "Permanent Marker";
+
+function syncFont() {
+  const picked = fontSel.value;
+  fontSel.style.fontFamily = `"${picked}", sans-serif`;
+  fontNote.textContent = SYSTEM_FACES.includes(picked)
+    ? "a face your system supplies"
+    : "from vendor/cd-image/fonts/";
+}
+
+/* ----------------------------------------------------------------- parts -- */
+
+function load(src) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
+}
+
+async function start() {
+  const got = await Promise.all(Object.values(PARTS).map(load));
+  Object.keys(PARTS).forEach((key, i) => {
+    if (got[i]) parts[key] = got[i];
+    else missing.push(PARTS[key]);
+  });
+
+  // The faces are files too, and a face that has not arrived measures wrong
+  // rather than drawing wrong, so the title would land in the wrong place.
+  try { await document.fonts.ready; } catch {}
+
+  if (missing.length) {
+    setStatus(`${missing.length} of the four scans didn't load (${missing.join(", ")}).`
+      + " Everything still works; the disc will just be missing those layers.", true);
+  }
+  render();
+}
+
+function setStatus(message, isError = false) {
+  statusEl.textContent = message;
+  statusEl.classList.toggle("error", isError);
+}
+
+/* ---------------------------------------------------------------- render -- */
+
+function render() {
+  ctx.clearRect(0, 0, SIZE, SIZE);
+
+  // 1. The picture, cropped to cover and held inside the disc.
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(SIZE / 2, SIZE / 2, 485, 0, Math.PI * 2);
+  ctx.clip();
+  ctx.filter = `brightness(${el("imgBright").value}%) contrast(${el("imgContrast").value}%)`;
+  if (art) {
+    const k = Math.max(SIZE / art.width, SIZE / art.height) * Number(el("imgZoom").value);
+    ctx.drawImage(art, (SIZE - art.width * k) / 2, (SIZE - art.height * k) / 2,
+                  art.width * k, art.height * k);
+  } else {
+    ctx.fillStyle = "#222222";
+    ctx.fillRect(0, 0, SIZE, SIZE);
+  }
+  ctx.filter = "none";
+  ctx.globalCompositeOperation = "multiply";
+  ctx.fillStyle = el("bgTint").value;
+  ctx.fillRect(0, 0, SIZE, SIZE);
+  ctx.restore();
+
+  // 2. The disc's own edges, which the circle above only approximates.
+  if (parts.disc) {
+    ctx.globalCompositeOperation = "destination-in";
+    ctx.drawImage(parts.disc, 0, 0, SIZE, SIZE);
+    ctx.globalCompositeOperation = "source-over";
+  }
+
+  // 3. The gloss, mixed however you asked for it.
+  if (parts.gloss) {
+    ctx.save();
+    ctx.globalCompositeOperation = el("caseBlendMode").value;
+    ctx.globalAlpha = Number(el("opacCase").value) / 100;
+    ctx.drawImage(parts.gloss, 0, 0, SIZE, SIZE);
+    ctx.restore();
+  }
+
+  // 4. The plastic, flat over the top.
+  if (parts.plastic) ctx.drawImage(parts.plastic, 0, 0, SIZE, SIZE);
+
+  // 5. The tape, tinted on a canvas of its own. Tinting it in place would mean
+  //    masking in place, and masking in place takes the disc with it.
+  if (parts.tape) {
+    const tint = el("tapeColor").value.toLowerCase();
+    if (tint === "#ffffff") {
+      ctx.drawImage(parts.tape, 0, 0, SIZE, SIZE);
+    } else {
+      const strip = document.createElement("canvas");
+      strip.width = strip.height = SIZE;
+      const sCtx = strip.getContext("2d");
+      sCtx.drawImage(parts.tape, 0, 0, SIZE, SIZE);
+      sCtx.globalCompositeOperation = "multiply";
+      sCtx.fillStyle = tint;
+      sCtx.fillRect(0, 0, SIZE, SIZE);
+      sCtx.globalCompositeOperation = "destination-in";
+      sCtx.drawImage(parts.tape, 0, 0, SIZE, SIZE);
+      ctx.drawImage(strip, 0, 0);
+    }
+  }
+
+  // 6. The title.
+  ctx.fillStyle = el("textColor1").value;
+  ctx.font = `${el("fontSize1").value}px "${fontSel.value}", sans-serif`;
+  ctx.textAlign = "center";
+  ctx.fillText(el("text1").value, SIZE / 2, Number(el("textY").value));
+}
+
+/* ---------------------------------------------------------------- inputs -- */
+
+// Every slider shows its own value in its own unit, and the reset puts it back
+// to the figure the markup says it started at rather than one repeated here.
+function syncRange(input) {
+  const out = el(`${input.id}Val`);
+  if (out) out.textContent = `${input.value}${input.dataset.unit || ""}`;
+}
+
+for (const input of document.querySelectorAll('input[type="range"]')) {
+  syncRange(input);
+  input.addEventListener("input", () => { syncRange(input); render(); });
+}
+
+for (const input of document.querySelectorAll('input[type="color"]')) {
+  const out = el(`${input.id}Hex`);
+  const sync = () => { if (out) out.textContent = input.value.toUpperCase(); };
+  sync();
+  input.addEventListener("input", () => { sync(); render(); });
+}
+
+for (const button of document.querySelectorAll("[data-put-back]")) {
+  button.addEventListener("click", () => {
+    const input = el(button.dataset.putBack);
+    input.value = input.dataset.home;
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+}
+
+el("text1").addEventListener("input", render);
+el("caseBlendMode").addEventListener("change", render);
+fontSel.addEventListener("change", () => { syncFont(); render(); });
+
+/* ----------------------------------------------------------------- image -- */
+
+dropzone.addEventListener("click", () => fileInput.click());
+dropzone.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInput.click(); }
+});
+fileInput.addEventListener("change", () => {
+  if (fileInput.files.length) open(fileInput.files[0]);
+});
+for (const type of ["dragover", "dragenter"]) {
+  document.addEventListener(type, (e) => { e.preventDefault(); dropzone.classList.add("drag"); });
+}
+document.addEventListener("dragleave", (e) => {
+  if (e.relatedTarget === null) dropzone.classList.remove("drag");
+});
+document.addEventListener("drop", (e) => {
+  e.preventDefault();
+  dropzone.classList.remove("drag");
+  const file = e.dataTransfer.files && e.dataTransfer.files[0];
+  if (file) open(file);
+});
+document.addEventListener("paste", (e) => {
+  const file = [...(e.clipboardData ? e.clipboardData.files : [])][0];
+  if (file && file.type.startsWith("image/")) open(file);
+});
+
+async function open(file) {
+  if (!file.type.startsWith("image/")) {
+    setStatus("That is not a picture this page can open.", true);
+    return;
+  }
+  try {
+    art = await createImageBitmap(file, { imageOrientation: "from-image" });
+    dropzone.classList.add("slim");
+    el("dropLabel").textContent = "Open another picture";
+    setStatus(`${file.name} \u00b7 ${art.width}\u00d7${art.height}`);
+    render();
+  } catch (err) {
+    console.error(err);
+    setStatus(`Couldn't open that: ${err.message}`, true);
+  }
+}
+
+/* ---------------------------------------------------------------- saving -- */
+
+function stem() {
+  const words = el("text1").value.replace(/[^\w.-]+/g, "-").replace(/^-+|-+$/g, "");
+  return (words || "cd-design").slice(0, 60).toLowerCase();
+}
+
+function save(blob, extension) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${stem()}.${extension}`;
+  document.body.appendChild(link);
+  try { link.click(); } finally {
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  }
+  setStatus(`Saved ${link.download}.`);
+}
+
+el("pngBtn").addEventListener("click", () => {
+  canvas.toBlob((blob) => blob && save(blob, "png"), "image/png");
+});
+
+el("jpgBtn").addEventListener("click", () => {
+  // A JPEG has no alpha, so the disc is flattened onto white first rather
+  // than onto the black a bare conversion would leave behind it.
+  const flat = document.createElement("canvas");
+  flat.width = flat.height = SIZE;
+  const fCtx = flat.getContext("2d");
+  fCtx.fillStyle = "#ffffff";
+  fCtx.fillRect(0, 0, SIZE, SIZE);
+  fCtx.drawImage(canvas, 0, 0);
+  flat.toBlob((blob) => blob && save(blob, "jpg"), "image/jpeg", 0.92);
+});
+
+syncFont();
+start();
+</script>
+</body>
+</html>
