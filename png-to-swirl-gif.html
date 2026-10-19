@@ -169,17 +169,16 @@
   </div>
 </main>
 
+<script src="vendor/gifenc/gifenc.js"></script>
 <script>
 "use strict";
 
-// Loaded lazily on first conversion, so a CDN hiccup can't break drag/drop
-// or the file picker (those are wired up unconditionally, below).
-let gifencLib = null;
+// The encoder is in this repo rather than fetched from a CDN, so the page
+// works offline and off the filesystem like the rest of them.
+const gifencLib = window.gifenc || null;
 async function loadGifenc() {
-  if (gifencLib) return gifencLib;
-  const mod = await import("https://unpkg.com/gifenc@1.0.3/dist/gifenc.esm.js");
-  gifencLib = mod;
-  return mod;
+  if (!gifencLib) throw new Error("vendor/gifenc/gifenc.js did not load");
+  return gifencLib;
 }
 
 const dropzone = document.getElementById("dropzone");
@@ -508,11 +507,7 @@ convertBtn.addEventListener("click", async () => {
     setStatus("Done.");
   } catch (err) {
     console.error(err);
-    if (!gifencLib) {
-      setStatus("Couldn't load the GIF encoder from the CDN. Check your connection and try again.", true);
-    } else {
-      setStatus(`Failed: ${err.message}`, true);
-    }
+    setStatus(`Failed: ${err.message}`, true);
   } finally {
     convertBtn.disabled = false;
   }

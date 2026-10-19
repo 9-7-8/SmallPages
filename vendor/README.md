@@ -102,3 +102,23 @@ loads it and the page works off the filesystem.
 ```
 npm pack pdf-lib@1.17.1
 ```
+
+---
+
+`gifenc/` is [gifenc](https://github.com/mattdesl/gifenc) 1.0.3, the GIF encoder behind
+[`../video-to-animation.html`](../video-to-animation.html) and
+[`../png-to-swirl-gif.html`](../png-to-swirl-gif.html). MIT.
+
+Upstream ships CommonJS and an ES module and nothing else, and a module script cannot be
+fetched from a `file://` folder, so the vendored copy is the CommonJS build with four
+lines of scaffolding around it that hand its exports to a `gifenc` global. The swirl page
+used to `import()` it from unpkg at run time, which meant it did not work offline; it
+uses this now.
+
+`webm-muxer/` is [webm-muxer](https://github.com/Vanilagy/webm-muxer) 5.1.4, which packs
+the chunks WebCodecs produces into a WebM file. MIT. Its `build/webm-muxer.js` is already
+an IIFE exposing a `WebMMuxer` global, so it is vendored as it comes.
+
+```
+npm pack gifenc@1.0.3 webm-muxer@5.1.4
+```

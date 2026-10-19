@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Video &rarr; Animation</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  /* Layout and sizing only. Colour, type and component styling live in theme.css. */
+
+  body { margin: 0; padding: 3rem 1.5rem 5rem; }
+  main { max-width: 1120px; margin: 0 auto; }
+  p.lede { margin: 0 0 2.2rem; max-width: 62ch; }
+  .card { margin-bottom: 1.5rem; }
+  .card.off { opacity: 0.45; pointer-events: none; }
+
+  .dropzone { padding: 2rem 1.5rem; text-align: center; cursor: pointer; }
+  .dropzone input { display: none; }
+  .dropzone .hint { font-size: 0.85rem; margin-top: 0.4rem; }
+
+  h2 { margin: 0 0 0.9rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--line-soft); }
+
+  .bench { display: flex; gap: 1.5rem; align-items: flex-start; }
+  .bench .controls { flex: 1 1 22rem; min-width: 0; }
+  .bench .viewer { flex: 0 1 26rem; min-width: 0; position: sticky; top: 1.5rem; }
+
+  .rank { display: flex; flex-wrap: wrap; gap: 1.1rem; align-items: flex-start; }
+  .rank + .rank { margin-top: 1.1rem; }
+  .field { display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; }
+  .field label { font-size: 0.8rem; }
+  .field .unit { font-size: 0.72rem; margin-top: 0.1rem; }
+  .field select, .field input[type="number"] { width: 100%; min-width: 7rem; }
+  .field.grow { flex: 1 1 11rem; }
+  .field[hidden] { display: none; }
+
+  .slider { display: grid; grid-template-columns: 1fr 7ch; gap: 0.7rem; align-items: center; }
+  .slider input[type="range"] { width: 100%; min-width: 0; }
+  .slider .val {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.76rem;
+    color: var(--text-dim);
+    text-align: right;
+  }
+
+  .checks { display: flex; flex-wrap: wrap; gap: 0.5rem 1.2rem; margin-top: 1rem; }
+  .checks label { display: flex; align-items: center; gap: 0.45rem; font-size: 0.8rem; }
+  .checks input { flex: none; }
+
+  .stage { padding: 0.8rem; background: var(--sunken); text-align: center; min-height: 6rem; }
+  .stage img, .stage video { max-width: 100%; max-height: 24rem; display: inline-block; }
+  .stage .nothing { font-size: 0.8rem; color: var(--text-faint); padding: 2rem 0; }
+
+  .acts { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-top: 1rem; }
+  .acts button { flex: 1 1 9rem; }
+
+  .tally {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    margin-top: 0.9rem;
+  }
+  .tally b { color: var(--text); font-weight: 400; }
+  .tally .try { display: block; color: var(--text-faint); }
+
+  .status { font-size: 0.85rem; margin-top: 0.9rem; min-height: 1.2em; }
+  .bar { height: 3px; background: var(--line-soft); margin-top: 0.8rem; display: none; }
+  .bar.on { display: block; }
+  .bar i { display: block; height: 100%; background: var(--neon); box-shadow: var(--glow-soft); transition: width 0.15s ease; }
+
+  .note { font-size: 0.78rem; margin-top: 1.2rem; max-width: 70ch; }
+  .note strong { color: var(--text-dim); font-weight: 400; }
+
+  @media (max-width: 860px) {
+    .bench { flex-direction: column; }
+    .bench .viewer, .bench .controls { position: static; flex: 1 1 100%; width: 100%; }
+  }
+  @media (max-width: 620px) {
+    body { padding: 2rem 1rem 4rem; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <a class="home" href="index.html">&larr; index</a>
+  <h1>Video &rarr; Animation</h1>
+  <p class="lede">A clip out of a video, silent and looping, in whichever of the moving-picture
+  formats you need: a GIF because something old will only take a GIF, an animated WebP or APNG
+  because they are a fraction of the size, or a WebM because it is a fraction of that again. Give
+  it a size to come in under and it will find the largest version that fits.</p>
+
+  <div class="card">
+    <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Choose a video">
+      <div id="dropLabel">Drop a video here, or click to choose one</div>
+      <div class="hint">Anything this browser can play &mdash; MP4, WebM, MOV. The sound is left behind, and nothing is uploaded</div>
+      <input type="file" id="fileInput" accept="video/*">
+    </div>
+    <div class="status" id="status">No video yet.</div>
+    <div class="bar" id="bar"><i id="barFill"></i></div>
+  </div>
+
+  <div class="bench">
+    <div class="controls">
+      <div class="card off" id="clipCard">
+        <h2>The clip</h2>
+        <div class="rank">
+          <div class="field grow">
+            <label for="startIn">From</label>
+            <div class="slider">
+              <input type="range" id="startIn" min="0" max="100" step="0.1" value="0">
+              <span class="val" id="startVal">0.0s</span>
+            </div>
+          </div>
+          <div class="field grow">
+            <label for="endIn">To</label>
+            <div class="slider">
+              <input type="range" id="endIn" min="0" max="100" step="0.1" value="100">
+              <span class="val" id="endVal">0.0s</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="rank">
+          <div class="field">
+            <label for="fpsIn">Frames a second</label>
+            <input type="number" id="fpsIn" min="1" max="50" step="1" value="12">
+          </div>
+          <div class="field">
+            <label for="widthIn">Width</label>
+            <input type="number" id="widthIn" min="32" max="1920" step="2" value="480">
+            <span class="unit" id="widthNote">pixels &mdash; height follows</span>
+          </div>
+          <div class="field">
+            <label for="loopSel">Looping</label>
+            <select id="loopSel">
+              <option value="0" selected>For ever</option>
+              <option value="1">Once</option>
+              <option value="3">Three times</option>
+            </select>
+          </div>
+        </div>
+        <div class="tally" id="clipTally"></div>
+      </div>
+
+      <div class="card off" id="outCard">
+        <h2>The format</h2>
+        <div class="rank">
+          <div class="field grow">
+            <label for="formatSel">Write it as</label>
+            <select id="formatSel">
+              <option value="gif" selected>GIF &mdash; works anywhere, biggest</option>
+              <option value="webp">Animated WebP &mdash; much smaller</option>
+              <option value="apng">APNG &mdash; lossless, no colour limit</option>
+              <option value="webm">WebM &mdash; smallest by far, a video</option>
+            </select>
+            <span class="unit" id="formatNote"></span>
+          </div>
+          <div class="field" id="colourField">
+            <label for="coloursIn">Colours</label>
+            <select id="coloursIn">
+              <option value="256" selected>256</option>
+              <option value="128">128</option>
+              <option value="64">64</option>
+              <option value="32">32</option>
+            </select>
+          </div>
+          <div class="field" id="qualityField" hidden>
+            <label for="qualityIn">Quality</label>
+            <div class="slider">
+              <input type="range" id="qualityIn" min="20" max="100" step="5" value="80">
+              <span class="val" id="qualityVal">80</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="checks">
+          <label><input type="checkbox" id="capOn" checked> Keep it under</label>
+          <label><input type="number" id="capMb" min="0.1" step="0.5" value="10" style="width:5.5rem"> MB</label>
+        </div>
+        <span class="unit">it shrinks the picture until it fits, and says what it did</span>
+
+        <div class="acts">
+          <button type="button" id="makeBtn">Make it</button>
+        </div>
+        <div class="tally" id="outTally"></div>
+      </div>
+    </div>
+
+    <div class="viewer">
+      <div class="card off" id="viewCard">
+        <div class="stage" id="stage"><div class="nothing">Nothing made yet.</div></div>
+        <div class="acts">
+          <button type="button" id="saveBtn" disabled>Save it</button>
+        </div>
+        <div class="status" id="outStatus"></div>
+      </div>
+    </div>
+  </div>
+
+  <p class="note"><strong>It decodes once.</strong> The script this came from re-opened the video
+  and walked it again on every attempt at getting under the size limit, which is the slow part done
+  repeatedly for no reason. Here the frames are pulled out once at the width you asked for and kept;
+  every later attempt re-encodes those, and shrinking only ever scales them down, which it can do
+  without touching the video again.</p>
+
+  <p class="note"><strong>It aims rather than creeps.</strong> The original multiplied the
+  dimensions by 0.8 and tried again, over and over, which overshoots as often as it undershoots.
+  A file's size here goes roughly with its area, so the first correction is the square root of how
+  far out it was, and after that each attempt uses the two nearest measurements to aim at the
+  target. It usually lands in two or three tries, and it tells you each one it made.</p>
+
+  <p class="note"><strong>Three bugs in the original, for the record.</strong> Its recursive call
+  passed <code>duration</code> into the <code>max_size</code> slot, so every argument after it
+  shifted along and the retry ran with nonsense. It called <code>clip.set_speed</code>, which
+  moviepy has never had. And <code>original_fps = fps</code> was assigned <em>after</em>
+  <code>fps</code> had already defaulted to <code>clip.fps</code>, so the test for whether to speed
+  the clip up was comparing a number with itself and the branch could never run.</p>
+
+  <p class="note"><strong>Which format to pick.</strong> GIF is here because something somewhere
+  will still only take a GIF; it is limited to 256 colours a frame and it is by far the biggest.
+  Animated WebP and APNG are the same idea done later and better &mdash; WebP lossy for
+  photographic clips, APNG lossless when you want the pixels exactly and the colours unlimited.
+  WebM is a video rather than an animated image, which makes it smaller than all of them by a wide
+  margin and means it needs a <code>&lt;video&gt;</code> tag rather than an
+  <code>&lt;img&gt;</code> &mdash; that is the only catch, and it is why the other three have not
+  gone away.</p>
+
+  <p class="note"><strong>The containers are built here.</strong> For WebP and APNG the browser
+  encodes each frame on its own &mdash; it will happily write a single WebP or PNG &mdash; and this
+  page assembles the animation around them: the <code>VP8X</code>, <code>ANIM</code> and
+  <code>ANMF</code> chunks for WebP, the <code>acTL</code>, <code>fcTL</code> and <code>fdAT</code>
+  chunks for APNG. So neither costs a frame encoder. WebM is WebCodecs doing the encoding with
+  <a href="https://github.com/Vanilagy/webm-muxer">webm-muxer</a> packing it, and GIF is
+  <a href="https://github.com/mattdesl/gifenc">gifenc</a>, both <a href="vendor/">in this repo</a>.</p>
+
+  <p class="note"><strong>It runs here.</strong> Nothing is uploaded, and no sound is carried
+  across in any of the four, because none of them is a format that would hold it.</p>
+</main>
+
+<script src="vendor/gifenc/gifenc.js"></script>
+<script src="vendor/webm-muxer/webm-muxer.js"></script>
+<script>
+"use strict";
+
+const el = (id) => document.getElementById(id);
+
+const dropzone = el("dropzone");
+const fileInput= el("fileInput");
+const statusEl = el("status");
+const stage    = el("stage");
+
+let clip = null;        // { file, url, video, w, h, duration }
+let frames = [];        // ImageBitmap, at the extracted width
+let frameSize = { w: 0, h: 0 };
+let extractedFor = "";  // the settings those frames belong to
+let made = null;        // { blob, url, kind, w, h, tries }
+
+function setStatus(message, bad = false) {
+  statusEl.textContent = message;
+  statusEl.style.color = bad ? "var(--neon-hot)" : "";
+}
+
+const FORMATS = {
+  gif:  { ext: "gif",  mime: "image/gif",  what: "256 colours a frame, and every program ever written reads it" },
+  webp: { ext: "webp", mime: "image/webp", what: "an image tag will show it, at a fraction of a GIF's size" },
+  apng: { ext: "png",  mime: "image/apng", what: "lossless and unlimited colour, so bigger than WebP but exact" },
+  webm: { ext: "webm", mime: "video/webm", what: "a silent video, far smaller, but it needs a video tag" },
+};
+
+/* ---------------------------------------------------------------- taking -- */
+
+// A browser that cannot open an MP4 is usually a Chromium built without the
+// patented codecs rather than a broken file, and saying so saves the guessing.
+function whyNot(file) {
+  const probe = document.createElement("video");
+  if (/mp4|quicktime|m4v/i.test(file.type) && !probe.canPlayType('video/mp4; codecs="avc1.42E01E"')) {
+    return "this browser has no H.264, which is what is almost certainly inside that MP4 — "
+      + "Chrome, Edge and Safari have it, and a plain Chromium build often does not. "
+      + "A WebM will work here";
+  }
+  return "this browser will not play that video";
+}
+
+async function take(file) {
+  if (!file || !file.type.startsWith("video/")) { setStatus("That is not a video.", true); return; }
+  if (clip) URL.revokeObjectURL(clip.url);
+  dropFrames();
+
+  const url = URL.createObjectURL(file);
+  const video = document.createElement("video");
+  video.preload = "auto";
+  video.muted = true;
+  video.playsInline = true;
+  video.src = url;
+
+  try {
+    await new Promise((done, fail) => {
+      video.onloadedmetadata = done;
+      video.onerror = () => fail(new Error(whyNot(file)));
+      setTimeout(() => fail(new Error("that video took too long to open")), 30000);
+    });
+  } catch (err) {
+    URL.revokeObjectURL(url);
+    setStatus(err.message, true);
+    return;
+  }
+
+  clip = {
+    file, url, video,
+    w: video.videoWidth, h: video.videoHeight,
+    duration: Number.isFinite(video.duration) ? video.duration : 0,
+  };
+
+  for (const id of ["clipCard", "outCard", "viewCard"]) el(id).classList.remove("off");
+  const end = Math.min(clip.duration, 10);        // ten seconds, as the original capped it
+  el("startIn").max = clip.duration.toFixed(2);
+  el("endIn").max = clip.duration.toFixed(2);
+  el("startIn").value = 0;
+  el("endIn").value = end.toFixed(2);
+  el("widthIn").value = Math.min(480, clip.w);
+  el("widthIn").max = clip.w;
+
+  setStatus(`${file.name} — ${clip.w} × ${clip.h}, ${clip.duration.toFixed(1)}s`);
+  syncClip();
+}
+
+dropzone.addEventListener("click", () => fileInput.click());
+dropzone.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInput.click(); }
+});
+fileInput.addEventListener("change", () => { if (fileInput.files[0]) take(fileInput.files[0]); });
+for (const kind of ["dragenter", "dragover"]) {
+  dropzone.addEventListener(kind, (e) => { e.preventDefault(); dropzone.classList.add("over"); });
+}
+for (const kind of ["dragleave", "drop"]) {
+  dropzone.addEventListener(kind, () => dropzone.classList.remove("over"));
+}
+dropzone.addEventListener("drop", (e) => { e.preventDefault(); take(e.dataTransfer.files[0]); });
+
+/* ------------------------------------------------------------ the frames -- */
+
+const MAX_FRAMES = 400;          // past this a browser tab is not the right tool
+
+function plan() {
+  const start = Math.max(0, Number(el("startIn").value) || 0);
+  const end = Math.max(start + 0.05, Number(el("endIn").value) || 0);
+  const fps = Math.max(1, Math.min(50, Number(el("fpsIn").value) || 12));
+  const width = Math.max(32, Math.min(clip ? clip.w : 1920, Number(el("widthIn").value) || 480));
+  const span = Math.min(end, clip ? clip.duration : end) - start;
+  const count = Math.max(1, Math.min(MAX_FRAMES, Math.round(span * fps)));
+  const height = Math.max(2, Math.round((width * clip.h) / clip.w / 2) * 2);
+  return { start, end, span, fps, width, height, count };
+}
+
+function syncClip() {
+  if (!clip) return;
+  const p = plan();
+  el("startVal").textContent = `${p.start.toFixed(1)}s`;
+  el("endVal").textContent = `${Math.min(p.end, clip.duration).toFixed(1)}s`;
+  el("clipTally").innerHTML =
+    `<b>${p.span.toFixed(1)}s</b> at ${p.fps}/s &rarr; <b>${p.count}</b> frames, `
+    + `<b>${p.width} × ${p.height}</b>`
+    + (p.count >= MAX_FRAMES ? ` · capped at ${MAX_FRAMES}` : "");
+}
+
+function dropFrames() {
+  for (const bitmap of frames) bitmap.close && bitmap.close();
+  frames = [];
+  extractedFor = "";
+}
+
+// One seek per frame. Slower than decoding the stream but it needs no demuxer
+// and it lands on the times asked for rather than wherever the keyframes are.
+function seekTo(video, time) {
+  return new Promise((done, fail) => {
+    let settled = false;
+    const on = () => {
+      if (settled) return;
+      settled = true;
+      video.removeEventListener("seeked", on);
+      done();
+    };
+    video.addEventListener("seeked", on);
+    setTimeout(() => { if (!settled) { settled = true; video.removeEventListener("seeked", on); fail(new Error("the video stopped seeking")); } }, 10000);
+    video.currentTime = time;
+  });
+}
+
+async function extract() {
+  const p = plan();
+  const key = `${p.start}|${p.fps}|${p.width}|${p.count}`;
+  if (key === extractedFor && frames.length) return p;
+
+  dropFrames();
+  frameSize = { w: p.width, h: p.height };
+  const sheet = document.createElement("canvas");
+  sheet.width = p.width;
+  sheet.height = p.height;
+  const ctx = sheet.getContext("2d");
+  ctx.imageSmoothingQuality = "high";
+
+  el("bar").classList.add("on");
+  try {
+    for (let i = 0; i < p.count; i++) {
+      const at = Math.min(p.start + i / p.fps, Math.max(0, clip.duration - 0.001));
+      await seekTo(clip.video, at);
+      ctx.drawImage(clip.video, 0, 0, p.width, p.height);
+      frames.push(await createImageBitmap(sheet));
+      if (i % 4 === 0 || i === p.count - 1) {
+        setStatus(`Pulling out frame ${i + 1} of ${p.count}…`);
+        el("barFill").style.width = `${((i + 1) / p.count) * 100}%`;
+        await new Promise((r) => setTimeout(r, 0));
+      }
+    }
+  } finally {
+    el("bar").classList.remove("on");
+    el("barFill").style.width = "0%";
+  }
+  extractedFor = key;
+  return p;
+}
+
+// Pixels for one frame at a size, which is what every encoder here wants.
+function pixelsOf(bitmap, w, h, sheet, ctx) {
+  ctx.clearRect(0, 0, w, h);
+  ctx.drawImage(bitmap, 0, 0, w, h);
+  return ctx.getImageData(0, 0, w, h);
+}
+
+/* --------------------------------------------------------------- encoders -- */
+
+function sized(scale) {
+  const w = scale >= 0.999 ? frameSize.w : Math.max(2, Math.round((frameSize.w * scale) / 2) * 2);
+  const h = scale >= 0.999 ? frameSize.h : Math.max(2, Math.round((frameSize.h * scale) / 2) * 2);
+  const sheet = document.createElement("canvas");
+  sheet.width = w;
+  sheet.height = h;
+  return { w, h, sheet, ctx: sheet.getContext("2d", { willReadFrequently: true }) };
+}
+
+async function encodeGif(scale, p) {
+  const { w, h, sheet, ctx } = sized(scale);
+  const colours = Number(el("coloursIn").value);
+  const delay = Math.round(1000 / p.fps);
+
+  // One palette for the whole animation, built from a sample of the frames, so
+  // the colours do not crawl from frame to frame.
+  const step = Math.max(1, Math.floor(frames.length / 12));
+  const sample = [];
+  for (let i = 0; i < frames.length; i += step) {
+    sample.push(pixelsOf(frames[i], w, h, sheet, ctx).data);
+  }
+  const joined = new Uint8ClampedArray(sample.reduce((n, a) => n + a.length, 0));
+  let at = 0;
+  for (const part of sample) { joined.set(part, at); at += part.length; }
+  const palette = gifenc.quantize(joined, colours, { format: "rgb565" });
+
+  const encoder = gifenc.GIFEncoder();
+  for (let i = 0; i < frames.length; i++) {
+    const data = pixelsOf(frames[i], w, h, sheet, ctx).data;
+    const indexed = gifenc.applyPalette(data, palette, "rgb565");
+    encoder.writeFrame(indexed, w, h, {
+      palette: i === 0 ? palette : undefined,
+      delay,
+      repeat: Number(el("loopSel").value) === 0 ? 0 : Number(el("loopSel").value) - 1,
+      transparent: false,
+    });
+    if (i % 8 === 0) await new Promise((r) => setTimeout(r, 0));
+  }
+  encoder.finish();
+  return { blob: new Blob([encoder.bytes()], { type: "image/gif" }), w, h };
+}
+
+// --- the two containers this page builds by hand ---------------------------
+
+function riffChunk(tag, payload) {
+  const pad = payload.length % 2;
+  const out = new Uint8Array(8 + payload.length + pad);
+  out.set(new TextEncoder().encode(tag), 0);
+  new DataView(out.buffer).setUint32(4, payload.length, true);
+  out.set(payload, 8);
+  return out;
+}
+
+// The browser writes each frame as a complete little WEBP file; the VP8 or
+// VP8L bitstream inside it is what an animation frame holds.
+function webpBitstream(bytes) {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  let at = 12;                                   // past "RIFF" size "WEBP"
+  while (at + 8 <= bytes.length) {
+    const tag = String.fromCharCode(bytes[at], bytes[at + 1], bytes[at + 2], bytes[at + 3]);
+    const size = view.getUint32(at + 4, true);
+    if (tag === "VP8 " || tag === "VP8L") {
+      return { tag, data: bytes.subarray(at + 8, at + 8 + size) };
+    }
+    at += 8 + size + (size % 2);
+  }
+  throw new Error("that frame came back as something other than a WebP");
+}
+
+async function encodeWebp(scale, p) {
+  const { w, h, sheet, ctx } = sized(scale);
+  const quality = Number(el("qualityIn").value) / 100;
+  const delay = Math.round(1000 / p.fps);
+  const loops = Number(el("loopSel").value);
+
+  const parts = [];
+  // Flags, three reserved bytes, then width-1 and height-1 as 24-bit
+  // little-endian — which is why they are written a byte at a time.
+  const vp8x = new Uint8Array(10);
+  vp8x[0] = 0x02;                                 // the animation flag
+  vp8x[4] = (w - 1) & 0xff; vp8x[5] = ((w - 1) >> 8) & 0xff; vp8x[6] = ((w - 1) >> 16) & 0xff;
+  vp8x[7] = (h - 1) & 0xff; vp8x[8] = ((h - 1) >> 8) & 0xff; vp8x[9] = ((h - 1) >> 16) & 0xff;
+  parts.push(riffChunk("VP8X", vp8x));
+
+  const anim = new Uint8Array(6);
+  new DataView(anim.buffer).setUint16(4, loops, true);   // 0 means for ever
+  parts.push(riffChunk("ANIM", anim));
+
+  for (let i = 0; i < frames.length; i++) {
+    ctx.clearRect(0, 0, w, h);
+    ctx.drawImage(frames[i], 0, 0, w, h);
+    const blob = await new Promise((done) => sheet.toBlob(done, "image/webp", quality));
+    if (!blob) throw new Error("this browser will not write WebP");
+    const { tag, data } = webpBitstream(new Uint8Array(await blob.arrayBuffer()));
+
+    const header = new Uint8Array(16);
+    const set3 = (at, value) => {
+      header[at] = value & 0xff;
+      header[at + 1] = (value >> 8) & 0xff;
+      header[at + 2] = (value >> 16) & 0xff;
+    };
+    set3(0, 0);                                   // x, in units of two pixels
+    set3(3, 0);                                   // y
+    set3(6, w - 1);
+    set3(9, h - 1);
+    set3(12, delay);
+    header[15] = 0;                               // blend over, do not dispose
+
+    // The frame's image goes in as a whole sub-chunk, fourcc and length and
+    // all — not as the bare bitstream, which is a file nothing will open.
+    const inner = riffChunk(tag, data);
+    const body = new Uint8Array(header.length + inner.length);
+    body.set(header, 0);
+    body.set(inner, header.length);
+    parts.push(riffChunk("ANMF", body));
+    if (i % 8 === 0) await new Promise((r) => setTimeout(r, 0));
+  }
+
+  const payloadLength = parts.reduce((n, part) => n + part.length, 0) + 4;
+  const file = new Uint8Array(8 + payloadLength);
+  file.set(new TextEncoder().encode("RIFF"), 0);
+  new DataView(file.buffer).setUint32(4, payloadLength, true);
+  file.set(new TextEncoder().encode("WEBP"), 8);
+  let at = 12;
+  for (const part of parts) { file.set(part, at); at += part.length; }
+  return { blob: new Blob([file], { type: "image/webp" }), w, h };
+}
+
+const CRC_TABLE = (() => {
+  const table = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    table[n] = c >>> 0;
+  }
+  return table;
+})();
+
+function crc32(bytes) {
+  let c = 0xffffffff;
+  for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xff] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+}
+
+function pngChunk(tag, payload) {
+  const out = new Uint8Array(12 + payload.length);
+  const view = new DataView(out.buffer);
+  view.setUint32(0, payload.length);
+  out.set(new TextEncoder().encode(tag), 4);
+  out.set(payload, 8);
+  view.setUint32(8 + payload.length, crc32(out.subarray(4, 8 + payload.length)));
+  return out;
+}
+
+// Each frame is a whole PNG; APNG is those PNGs' image data re-labelled and
+// hung off one header, with a control chunk saying how long each is shown.
+function pngParts(bytes) {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  let at = 8;
+  let header = null;
+  const data = [];
+  while (at + 8 <= bytes.length) {
+    const size = view.getUint32(at);
+    const tag = String.fromCharCode(bytes[at + 4], bytes[at + 5], bytes[at + 6], bytes[at + 7]);
+    const payload = bytes.subarray(at + 8, at + 8 + size);
+    if (tag === "IHDR") header = payload;
+    else if (tag === "IDAT") data.push(payload);
+    else if (tag === "IEND") break;
+    at += 12 + size;
+  }
+  if (!header) throw new Error("that frame came back as something other than a PNG");
+  const joined = new Uint8Array(data.reduce((n, d) => n + d.length, 0));
+  let o = 0;
+  for (const d of data) { joined.set(d, o); o += d.length; }
+  return { header, data: joined };
+}
+
+async function encodeApng(scale, p) {
+  const { w, h, sheet, ctx } = sized(scale);
+  const delay = Math.round(1000 / p.fps);
+  const loops = Number(el("loopSel").value);
+
+  const pieces = [new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])];
+  let sequence = 0;
+  let wroteHeader = false;
+
+  for (let i = 0; i < frames.length; i++) {
+    ctx.clearRect(0, 0, w, h);
+    ctx.drawImage(frames[i], 0, 0, w, h);
+    const blob = await new Promise((done) => sheet.toBlob(done, "image/png"));
+    const { header, data } = pngParts(new Uint8Array(await blob.arrayBuffer()));
+
+    if (!wroteHeader) {
+      pieces.push(pngChunk("IHDR", header));
+      const actl = new Uint8Array(8);
+      const av = new DataView(actl.buffer);
+      av.setUint32(0, frames.length);
+      av.setUint32(4, loops);                     // 0 means for ever
+      pieces.push(pngChunk("acTL", actl));
+      wroteHeader = true;
+    }
+
+    const fctl = new Uint8Array(26);
+    const fv = new DataView(fctl.buffer);
+    fv.setUint32(0, sequence++);
+    fv.setUint32(4, w);
+    fv.setUint32(8, h);
+    fv.setUint32(12, 0);                          // x
+    fv.setUint32(16, 0);                          // y
+    fv.setUint16(20, delay);                      // numerator, in milliseconds
+    fv.setUint16(22, 1000);                       // denominator
+    fctl[24] = 0;                                 // leave the frame up
+    fctl[25] = 0;                                 // write over what is there
+    pieces.push(pngChunk("fcTL", fctl));
+
+    if (i === 0) {
+      pieces.push(pngChunk("IDAT", data));
+    } else {
+      const fdat = new Uint8Array(4 + data.length);
+      new DataView(fdat.buffer).setUint32(0, sequence++);
+      fdat.set(data, 4);
+      pieces.push(pngChunk("fdAT", fdat));
+    }
+    if (i % 8 === 0) await new Promise((r) => setTimeout(r, 0));
+  }
+
+  pieces.push(pngChunk("IEND", new Uint8Array(0)));
+  return { blob: new Blob(pieces, { type: "image/png" }), w, h };
+}
+
+async function encodeWebm(scale, p) {
+  if (typeof VideoEncoder === "undefined") {
+    throw new Error("this browser has no WebCodecs, so it cannot write a WebM here");
+  }
+  const { w, h, sheet, ctx } = sized(scale);
+  const quality = Number(el("qualityIn").value) / 100;
+  // Bits per pixel per second, scaled by the quality knob: enough for a clean
+  // screen recording at the top and visibly lossy at the bottom.
+  const bitrate = Math.max(80_000, Math.round(w * h * p.fps * (0.02 + quality * 0.14)));
+
+  const muxer = new WebMMuxer.Muxer({
+    target: new WebMMuxer.ArrayBufferTarget(),
+    video: { codec: "V_VP9", width: w, height: h, frameRate: p.fps },
+  });
+
+  const encoder = new VideoEncoder({
+    output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
+    error: (err) => { throw err; },
+  });
+  encoder.configure({ codec: "vp09.00.10.08", width: w, height: h, bitrate, framerate: p.fps });
+
+  const step = 1_000_000 / p.fps;
+  for (let i = 0; i < frames.length; i++) {
+    ctx.clearRect(0, 0, w, h);
+    ctx.drawImage(frames[i], 0, 0, w, h);
+    const vf = new VideoFrame(sheet, { timestamp: Math.round(i * step), duration: Math.round(step) });
+    encoder.encode(vf, { keyFrame: i % 60 === 0 });
+    vf.close();
+    if (i % 8 === 0) await new Promise((r) => setTimeout(r, 0));
+  }
+  await encoder.flush();
+  encoder.close();
+  muxer.finalize();
+  return { blob: new Blob([muxer.target.buffer], { type: "video/webm" }), w, h };
+}
+
+const ENCODERS = { gif: encodeGif, webp: encodeWebp, apng: encodeApng, webm: encodeWebm };
+
+/* ------------------------------------------------------- the size it fits -- */
+
+// Size goes roughly with area, so the first correction is the square root of
+// how far out we are. After that, two measurements bracket the answer and the
+// next guess is read off the line between them, which is a lot fewer attempts
+// than stepping down by a fifth each time and hoping.
+async function makeUnder(limit, p) {
+  const encode = ENCODERS[el("formatSel").value];
+  const tries = [];
+  let scale = 1;
+
+  for (let attempt = 0; attempt < 6; attempt++) {
+    setStatus(`Encoding${attempt ? ` — attempt ${attempt + 1}` : ""}…`);
+    const result = await encode(scale, p);
+    const size = result.blob.size;
+    tries.push({ scale, size, w: result.w, h: result.h });
+
+    if (!limit || size <= limit) return { ...result, tries };
+    if (scale <= 0.08) return { ...result, tries, gaveUp: true };
+
+    const under = tries.filter((t) => t.size <= limit).sort((a, b) => b.scale - a.scale)[0];
+    const over = tries.filter((t) => t.size > limit).sort((a, b) => a.scale - b.scale)[0];
+
+    let next;
+    if (under && over) {
+      // Between a size that fit and one that did not: aim at the target along
+      // the line joining them.
+      const span = over.size - under.size;
+      const want = span > 0 ? (limit - under.size) / span : 0.5;
+      next = under.scale + (over.scale - under.scale) * Math.min(0.9, Math.max(0.1, want));
+    } else {
+      next = scale * Math.sqrt(limit / size) * 0.97;
+    }
+    next = Math.max(0.08, Math.min(scale * 0.95, next));
+    if (Math.abs(next - scale) < 0.01) break;
+    scale = next;
+  }
+
+  const best = tries.filter((t) => !limit || t.size <= limit).sort((a, b) => b.scale - a.scale)[0];
+  if (best) {
+    const again = await encode(best.scale, p);
+    return { ...again, tries };
+  }
+  const last = tries[tries.length - 1];
+  const again = await encode(last.scale, p);
+  return { ...again, tries, gaveUp: true };
+}
+
+el("makeBtn").addEventListener("click", async () => {
+  if (!clip) return;
+  el("makeBtn").disabled = true;
+  el("saveBtn").disabled = true;
+  try {
+    const p = await extract();
+    const limit = el("capOn").checked ? Math.max(0.05, Number(el("capMb").value) || 10) * 1024 * 1024 : 0;
+    const started = performance.now();
+    const result = await makeUnder(limit, p);
+    const took = Math.round(performance.now() - started);
+
+    if (made) URL.revokeObjectURL(made.url);
+    const kind = el("formatSel").value;
+    made = { blob: result.blob, url: URL.createObjectURL(result.blob), kind, w: result.w, h: result.h };
+
+    stage.textContent = "";
+    if (kind === "webm") {
+      const video = document.createElement("video");
+      video.src = made.url;
+      video.controls = true;
+      video.autoplay = true;
+      video.loop = Number(el("loopSel").value) === 0;
+      video.muted = true;
+      stage.appendChild(video);
+    } else {
+      const img = document.createElement("img");
+      img.src = made.url;
+      img.alt = "the animation";
+      stage.appendChild(img);
+    }
+
+    const lines = [`<b>${(result.blob.size / 1024 / 1024).toFixed(2)} MB</b> · `
+      + `${result.w} × ${result.h} · ${frames.length} frames · ${took} ms`];
+    if (result.tries.length > 1) {
+      lines.push(`<span class="try">${result.tries.map((t) =>
+        `${t.w}×${t.h} ${(t.size / 1024 / 1024).toFixed(2)} MB`).join("  →  ")}</span>`);
+    }
+    if (result.gaveUp) {
+      lines.push(`<span class="try">could not get under the limit — try fewer frames a second</span>`);
+    }
+    el("outTally").innerHTML = lines.join("");
+
+    el("saveBtn").disabled = false;
+    setStatus(`Made a ${FORMATS[kind].ext.toUpperCase()} from ${clip.file.name}.`);
+  } catch (err) {
+    console.error(err);
+    setStatus(`Couldn't make that: ${err.message}`, true);
+  } finally {
+    el("makeBtn").disabled = false;
+  }
+});
+
+el("saveBtn").addEventListener("click", () => {
+  if (!made) return;
+  const stem = clip.file.name.replace(/\.[^.]+$/, "").replace(/[^\w.-]+/g, "-").slice(0, 50) || "clip";
+  const link = document.createElement("a");
+  link.href = made.url;
+  link.download = `${stem}.${FORMATS[made.kind].ext}`;
+  link.click();
+  el("outStatus").textContent =
+    `Saved ${link.download} — ${(made.blob.size / 1024 / 1024).toFixed(2)} MB.`;
+});
+
+/* ----------------------------------------------------------------- knobs -- */
+
+function syncFormat() {
+  const kind = el("formatSel").value;
+  el("formatNote").textContent = FORMATS[kind].what;
+  el("colourField").hidden = kind !== "gif";
+  el("qualityField").hidden = kind === "gif" || kind === "apng";
+}
+
+el("formatSel").addEventListener("change", syncFormat);
+el("qualityIn").addEventListener("input", () => { el("qualityVal").textContent = el("qualityIn").value; });
+
+for (const id of ["startIn", "endIn", "fpsIn", "widthIn"]) {
+  el(id).addEventListener("input", () => {
+    // Moving the start past the end, or vice versa, should push the other one.
+    if (id === "startIn" && Number(el("startIn").value) >= Number(el("endIn").value)) {
+      el("endIn").value = Math.min(clip.duration, Number(el("startIn").value) + 0.2).toFixed(2);
+    }
+    if (id === "endIn" && Number(el("endIn").value) <= Number(el("startIn").value)) {
+      el("startIn").value = Math.max(0, Number(el("endIn").value) - 0.2).toFixed(2);
+    }
+    syncClip();
+  });
+}
+
+syncFormat();
+</script>
+</body>
+</html>
