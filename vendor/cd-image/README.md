@@ -17,6 +17,18 @@ circle set in a fallback sans.
 Note the rename: the original's `overlay.png` is the plastic and `overlay2.png` is the case,
 which is the sort of pairing you only get to work out once.
 
+## scans.js
+
+`scans.js` carries the four scans again, inlined as data URIs and resized to the
+1000×1000 the canvas draws them at. It exists because a page opened straight off
+the filesystem counts a sibling `file://` image as cross-origin: it draws fine
+and then taints the canvas, so `toBlob` throws and every save silently fails. A
+classic `<script src>` is not subject to that and a data URI taints nothing, so
+the page saves the same locally as it does served. The full-size PNGs above stay
+as the originals, and the page falls back to them if the bundle goes missing.
+
+Regenerate it with the `convert` command quoted at the top of the file.
+
 ## The faces
 
 `fonts/`, twenty-six of them, named below as the page lists them. Each was a
@@ -40,7 +52,6 @@ are kept so a missing one can be fetched again.
 | Jawarde | `fonts/Jawarde.ttf` | <https://dl.dropboxusercontent.com/scl/fi/aocl6itmadd3zpnn3id2u/Jawarde.ttf?rlkey=q6lapc74blvnv1nw7buwrt50k&raw=1> |
 | KALOOT | `fonts/KALOOT.ttf` | <https://dl.dropboxusercontent.com/scl/fi/6i999rqtbt1h4ky4tvuld/KALOOT.ttf?rlkey=8xcawla5rzw8f5f9a0kqjn5sg&raw=1> |
 | Kind Handwriting | `fonts/Kind-Handwriting.ttf` | <https://dl.dropboxusercontent.com/scl/fi/zmo16f70jgvj325relsha/Kind-Handwriting.ttf?rlkey=pbc2oka5jbm114ann2pplr2j8&raw=1> |
-| League Gothic | `fonts/LeagueGothic-Regular.otf` | <https://dl.dropboxusercontent.com/scl/fi/u592wpkq4pe2agctmvbor/LeagueGothic-Regular.otf?rlkey=q55hcwtzm0dd8ft88qm98jn&raw=1> |
 | Peppermint Pen | `fonts/Peppermint-Pen.otf` | <https://dl.dropboxusercontent.com/scl/fi/77pb6doh738qtbwavfta9/Peppermint-Pen.otf?rlkey=8r3xetfl6g9v39q51sx5kfi6g&raw=1> |
 | Permanent Marker | `fonts/PermanentMarker.ttf` | <https://dl.dropboxusercontent.com/scl/fi/0h22s5rrybn6b4pv890nn/PermanentMarker.ttf?rlkey=mler26y1ij9ypida7bgeykqb7&raw=1> |
 | Roasted Ketchup | `fonts/Roasted-Ketchup.ttf` | <https://dl.dropboxusercontent.com/scl/fi/ylxjswo2795ou8q9pdkt/Roasted-Ketchup.ttf?rlkey=rvhrh98i94p7lx2xe0nrvbavz&raw=1> |
@@ -51,6 +62,12 @@ are kept so a missing one can be fetched again.
 | Stylish Marker | `fonts/Stylish-Marker-demo.ttf` | <https://dl.dropboxusercontent.com/scl/fi/aj8h7h0sr9a8u24aym6yz/Stylish-Marker-demo.ttf?rlkey=pnvgsyt78g2cgspsmsy2rvn90&raw=1> |
 | Sunny Brush | `fonts/Sunny-Brush.ttf` | <https://dl.dropboxusercontent.com/scl/fi/n7pk5akyxi3ukhthhspl4/Sunny-Brush.ttf?rlkey=cu8wpneop8ujc0l51ajvxwhjf&raw=1> |
 | Ye Olde Oak | `fonts/Ye-Olde-Oak.ttf` | <https://dl.dropboxusercontent.com/scl/fi/todur3erqwb867uigg89c/Ye-Olde-Oak.ttf?rlkey=jt33vs1tt0q67sudnibgojtsw&raw=1> |
+
+League Gothic is **not** here and is not offered in the page. Its share answers
+403 — its `rlkey` is 23 characters where every other one is 25, so the link was
+truncated or revoked well before this port, which means the face has been
+falling back to a plain sans on the original site too. It is open source (SIL
+OFL) and could be fetched from its own home if you want it back.
 
 Five more faces are offered in the page and are not here, because they come from whatever
 machine is looking at it: Arial, Impact, Courier New, Georgia and Verdana.

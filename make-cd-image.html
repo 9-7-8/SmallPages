@@ -26,7 +26,6 @@
   @font-face { font-family: "Jawarde"; src: url("vendor/cd-image/fonts/Jawarde.ttf"); font-display: block; }
   @font-face { font-family: "KALOOT"; src: url("vendor/cd-image/fonts/KALOOT.ttf"); font-display: block; }
   @font-face { font-family: "Kind Handwriting"; src: url("vendor/cd-image/fonts/Kind-Handwriting.ttf"); font-display: block; }
-  @font-face { font-family: "League Gothic"; src: url("vendor/cd-image/fonts/LeagueGothic-Regular.otf"); font-display: block; }
   @font-face { font-family: "Peppermint Pen"; src: url("vendor/cd-image/fonts/Peppermint-Pen.otf"); font-display: block; }
   @font-face { font-family: "Permanent Marker"; src: url("vendor/cd-image/fonts/PermanentMarker.ttf"); font-display: block; }
   @font-face { font-family: "Roasted Ketchup"; src: url("vendor/cd-image/fonts/Roasted-Ketchup.ttf"); font-display: block; }
@@ -261,6 +260,15 @@
   linked both out to an image host and a Dropbox share, which works right up until a link stops
   resolving and every cover made after that is a black circle in a fallback sans.</p>
 
+  <p class="note"><strong>The scans are inlined rather than loaded.</strong> They come in through
+  <code>vendor/cd-image/scans.js</code> as data URIs, which looks like a strange way to ship four
+  PNGs until you open this page straight off the filesystem: a browser counts a sibling
+  <code>file://</code> image as cross-origin, draws it quite happily, and then marks the canvas
+  tainted, so every save throws and the buttons appear to do nothing. A classic script has no
+  such rule and a data URI taints nothing, so the page saves the same locally as it does served.
+  The full-size PNGs are in <code>vendor/cd-image/</code> too, and the page falls back to them if
+  the bundle ever goes missing.</p>
+
   <p class="note"><strong>Tinting the tape used to wipe the disc.</strong> The version this came
   from tinted it by filling the whole canvas and then keeping only the pixels under the tape with
   <code>destination-in</code>, which also discards everything already drawn underneath, so any
@@ -280,6 +288,7 @@
   square behind it.</p>
 </main>
 
+<script src="vendor/cd-image/scans.js"></script>
 <script>
 "use strict";
 
@@ -295,14 +304,22 @@ const fontNote = el("fontNote");
 
 const SIZE = 1000;
 
-// The scans, in the order they go down. Each is its own file so a missing one
-// is a named failure rather than a disc that quietly renders wrong.
-const PARTS = {
+// The scans, in the order they go down. They arrive from scans.js as data
+// URIs rather than as sibling .png files, because a page opened straight off
+// the filesystem treats a file:// image as cross-origin: it draws fine and
+// then taints the canvas, so toBlob throws and the save buttons do nothing.
+// A classic script is not subject to that, and a data: URI taints nothing.
+// The .png files are still in vendor/ as the full-size originals, and the
+// page falls back to them if the bundle is missing — served, that works too.
+const FALLBACK = {
   disc:    "vendor/cd-image/cd.png",
   gloss:   "vendor/cd-image/case.png",
   plastic: "vendor/cd-image/plastic.png",
   tape:    "vendor/cd-image/tape.png",
 };
+const PARTS = Object.fromEntries(
+  Object.keys(FALLBACK).map((key) => [key, (window.CD_SCANS || {})[key] || FALLBACK[key]]));
+const INLINED = Boolean(window.CD_SCANS);
 
 const FACES = [
   ["Another", "Another_.ttf"],
@@ -320,7 +337,6 @@ const FACES = [
   ["Jawarde", "Jawarde.ttf"],
   ["KALOOT", "KALOOT.ttf"],
   ["Kind Handwriting", "Kind-Handwriting.ttf"],
-  ["League Gothic", "LeagueGothic-Regular.otf"],
   ["Peppermint Pen", "Peppermint-Pen.otf"],
   ["Permanent Marker", "PermanentMarker.ttf"],
   ["Roasted Ketchup", "Roasted-Ketchup.ttf"],
@@ -387,8 +403,15 @@ async function start() {
   try { await document.fonts.ready; } catch {}
 
   if (missing.length) {
-    setStatus(`${missing.length} of the four scans didn't load (${missing.join(", ")}).`
+    setStatus(`${missing.length} of the four scans didn't load`
+      + `${INLINED ? "" : ` (${missing.join(", ")})`}.`
       + " Everything still works; the disc will just be missing those layers.", true);
+  } else if (!INLINED) {
+    // Worth saying, because the page looks perfectly fine right up until the
+    // moment the save button quietly refuses.
+    setStatus("vendor/cd-image/scans.js didn't load, so the scans came from the"
+      + " .png files instead. Opened as a local file that taints the canvas and"
+      + " saving will fail; served, it is fine.", true);
   }
   render();
 }
