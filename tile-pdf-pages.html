@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tile PDF Pages</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  /* Layout and sizing only. Colour, type and component styling live in theme.css. */
+
+  body { margin: 0; padding: 3rem 1.5rem 5rem; }
+  main { max-width: 1120px; margin: 0 auto; }
+  p.lede { margin: 0 0 2.2rem; max-width: 62ch; }
+  .card { margin-bottom: 1.5rem; }
+  .card.off { opacity: 0.45; pointer-events: none; }
+
+  .dropzone { padding: 2rem 1.5rem; text-align: center; cursor: pointer; }
+  .dropzone input { display: none; }
+  .dropzone .hint { font-size: 0.85rem; margin-top: 0.4rem; }
+
+  h2 { margin: 0 0 0.9rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--line-soft); }
+
+  .bench { display: flex; gap: 1.5rem; align-items: flex-start; }
+  .bench .controls { flex: 1 1 22rem; min-width: 0; }
+  .bench .viewer { flex: 0 1 28rem; min-width: 0; position: sticky; top: 1.5rem; }
+
+  .rank { display: flex; flex-wrap: wrap; gap: 1.1rem; align-items: flex-start; }
+  .rank + .rank { margin-top: 1.1rem; }
+  .field { display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; }
+  .field label { font-size: 0.8rem; }
+  .field .unit { font-size: 0.72rem; margin-top: 0.1rem; }
+  .field select, .field input[type="text"], .field input[type="number"] { width: 100%; min-width: 7rem; }
+  .field.grow { flex: 1 1 12rem; }
+  .field[hidden] { display: none; }
+
+  .checks { display: flex; flex-wrap: wrap; gap: 0.5rem 1.2rem; margin-top: 1rem; }
+  .checks label { display: flex; align-items: center; gap: 0.45rem; font-size: 0.8rem; }
+  .checks input { flex: none; }
+
+  /* ------------------------------------------------------------ the files -- */
+
+  .files { display: flex; flex-direction: column; margin-top: 0.3rem; }
+  .doc {
+    display: flex;
+    align-items: baseline;
+    gap: 0.7rem;
+    padding: 0.45rem 0.2rem;
+    border-bottom: 1px solid var(--line-soft);
+    font-size: 0.82rem;
+    cursor: grab;
+  }
+  .doc:last-child { border-bottom: none; }
+  .doc.dragging { opacity: 0.35; }
+  .doc.over { border-bottom-color: var(--neon); }
+  .doc .no { font-family: var(--mono); font-size: 0.7rem; color: var(--text-faint); width: 2ch; flex: none; }
+  .doc .name { flex: 1; min-width: 0; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .doc .count { font-family: var(--mono); font-size: 0.72rem; color: var(--text-faint); flex: none; }
+  .doc .drop {
+    border: none; background: none; color: var(--text-dim);
+    font-size: 0.8rem; line-height: 1; padding: 0 0.2rem; cursor: pointer; flex: none;
+  }
+  .doc .drop:hover { color: var(--neon); }
+
+  /* ----------------------------------------------------------- the viewer -- */
+
+  .stage { padding: 0.8rem; background: var(--sunken); text-align: center; }
+  .stage canvas { max-width: 100%; max-height: 32rem; width: auto; height: auto; display: inline-block; }
+  .flip { display: flex; gap: 0.6rem; align-items: center; justify-content: center; margin-top: 0.7rem; }
+  .flip .which {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.76rem;
+    color: var(--text-dim);
+    min-width: 9ch;
+    text-align: center;
+  }
+  .acts { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-top: 1rem; }
+  .acts button { flex: 1 1 9rem; }
+
+  .tally {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    margin-top: 0.9rem;
+  }
+  .tally b { color: var(--text); font-weight: 400; }
+
+  .status { font-size: 0.85rem; margin-top: 0.9rem; min-height: 1.2em; }
+
+  .note { font-size: 0.78rem; margin-top: 1.2rem; max-width: 70ch; }
+  .note strong { color: var(--text-dim); font-weight: 400; }
+
+  @media (max-width: 860px) {
+    .bench { flex-direction: column; }
+    .bench .viewer, .bench .controls { position: static; flex: 1 1 100%; width: 100%; }
+  }
+  @media (max-width: 620px) {
+    body { padding: 2rem 1rem 4rem; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <a class="home" href="index.html">&larr; index</a>
+  <h1>Tile PDF Pages</h1>
+  <p class="lede">Lay the pages of a PDF out side by side on big sheets &mdash; n-up imposition,
+  for printing a whole document on a plotter, pinning a storyboard to a wall, or getting sixteen
+  pages onto one piece of paper. The pages go in as pages, not as pictures of pages, so the text
+  stays text and the lines stay sharp at any size you print it.</p>
+
+  <div class="card">
+    <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Choose a PDF">
+      <div id="dropLabel">Drop a PDF here, or click to choose one</div>
+      <div class="hint">Several at once is fine &mdash; they run on in the order below, and nothing is uploaded</div>
+      <input type="file" id="fileInput" accept=".pdf,application/pdf" multiple>
+    </div>
+    <div class="files" id="files"></div>
+    <div class="status" id="status">Nothing loaded yet.</div>
+  </div>
+
+  <div class="bench">
+    <div class="controls">
+      <div class="card off" id="setCard">
+        <h2>The sheet</h2>
+        <div class="rank">
+          <div class="field grow">
+            <label for="sheetSel">Size</label>
+            <select id="sheetSel">
+              <option value="2384x3370">A0 &mdash; 841 &times; 1189 mm</option>
+              <option value="1684x2384" selected>A1 &mdash; 594 &times; 841 mm</option>
+              <option value="1191x1684">A2 &mdash; 420 &times; 594 mm</option>
+              <option value="842x1191">A3 &mdash; 297 &times; 420 mm</option>
+              <option value="595x842">A4 &mdash; 210 &times; 297 mm</option>
+              <option value="612x792">Letter &mdash; 8.5 &times; 11 in</option>
+              <option value="612x1008">Legal &mdash; 8.5 &times; 14 in</option>
+              <option value="792x1224">Tabloid &mdash; 11 &times; 17 in</option>
+              <option value="custom">Custom&hellip;</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="turned">Way up</label>
+            <select id="turned">
+              <option value="tall" selected>Portrait</option>
+              <option value="wide">Landscape</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="rank" id="customRank" hidden>
+          <div class="field">
+            <label for="customW">Width</label>
+            <input type="number" id="customW" min="10" step="1" value="594">
+          </div>
+          <div class="field">
+            <label for="customH">Height</label>
+            <input type="number" id="customH" min="10" step="1" value="841">
+          </div>
+          <div class="field">
+            <label for="customUnit">In</label>
+            <select id="customUnit">
+              <option value="mm" selected>millimetres</option>
+              <option value="in">inches</option>
+              <option value="pt">points</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="rank">
+          <div class="field">
+            <label for="margin">Margin</label>
+            <input type="number" id="margin" min="0" step="1" value="0">
+            <span class="unit">mm, round the sheet</span>
+          </div>
+          <div class="field">
+            <label for="gap">Gap</label>
+            <input type="number" id="gap" min="0" step="1" value="0">
+            <span class="unit">mm, between pages</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card off" id="layCard">
+        <h2>The arrangement</h2>
+        <div class="rank">
+          <div class="field grow">
+            <label for="modeSel">How they go on</label>
+            <select id="modeSel">
+              <option value="pack" selected>Packed at their own size</option>
+              <option value="grid">A grid I choose, scaled to fit</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="rank" id="gridRank" hidden>
+          <div class="field">
+            <label for="cols">Across</label>
+            <input type="number" id="cols" min="1" max="20" step="1" value="2">
+          </div>
+          <div class="field">
+            <label for="rows">Down</label>
+            <input type="number" id="rows" min="1" max="20" step="1" value="2">
+          </div>
+        </div>
+
+        <div class="rank">
+          <div class="field grow">
+            <label for="orderSel">Order</label>
+            <select id="orderSel">
+              <option value="across" selected>Left to right, then down</option>
+              <option value="down">Top to bottom, then across</option>
+            </select>
+          </div>
+          <div class="field grow">
+            <label for="rangeIn">Pages</label>
+            <input type="text" id="rangeIn" placeholder="all of them">
+            <span class="unit">like 1-4, 7, 11-</span>
+          </div>
+        </div>
+
+        <div class="checks">
+          <label><input type="checkbox" id="cutLines"> Draw cut lines</label>
+          <label><input type="checkbox" id="shrinkBig" checked> Shrink a page too big for the sheet</label>
+        </div>
+
+        <div class="tally" id="tally"></div>
+      </div>
+    </div>
+
+    <div class="viewer">
+      <div class="card off" id="viewCard">
+        <div class="stage"><canvas id="preview" width="300" height="420" aria-label="The first sheet"></canvas></div>
+        <div class="flip">
+          <button type="button" id="prevBtn" class="ghost">&larr;</button>
+          <span class="which" id="which"></span>
+          <button type="button" id="nextBtn" class="ghost">&rarr;</button>
+        </div>
+        <div class="acts">
+          <button type="button" id="saveBtn">Save the .pdf</button>
+        </div>
+        <div class="status" id="outStatus"></div>
+      </div>
+    </div>
+  </div>
+
+  <p class="note"><strong>The pages go in as pages.</strong> Each one is carried across as a form
+  object with its own content and its own resources, which is what imposition means and why the
+  result is still a PDF rather than a contact sheet: the text is still selectable and searchable,
+  a vector drawing still prints at the plotter's resolution rather than the screen's, and a
+  hundred pages of line art come out a few hundred kilobytes rather than a few hundred megabytes.</p>
+
+  <p class="note"><strong>The script this came from had never run.</strong> It called
+  <code>page.draw_onto(c, matrix=…)</code>, which is not a method PyMuPDF has or has ever had. The
+  reason it could not have one is the real fault underneath: the script read the PDF with PyMuPDF
+  and wrote it with a reportlab canvas, two libraries with no way to hand a page to one another.
+  Nothing short of replacing one of them was going to fix it.</p>
+
+  <p class="note"><strong>It would also have come out upside down.</strong> It tracked its position
+  by increasing <code>y_offset</code> as it filled the sheet, which is how you count downwards, but
+  a PDF counts upwards from the bottom-left corner. Page one would have landed at the bottom and
+  each new row stacked above the last, so a document read bottom to top. Here the rows run down the
+  sheet, which is the only way anyone reads one.</p>
+
+  <p class="note"><strong>A page bigger than the sheet is a decision, not a crash.</strong> The
+  original would have placed it anyway and let it hang off the edge. Packed mode scales an
+  oversized page down until it fits and says how many it did that to; turn that off and those pages
+  are left out instead, which is at least honest about it.</p>
+
+  <p class="note"><strong>It runs here.</strong> Nothing is uploaded. The imposition is
+  <a href="https://github.com/Hopding/pdf-lib">pdf-lib</a> and the preview is
+  <a href="https://github.com/mozilla/pdf.js">PDF.js</a>, both
+  <a href="vendor/">in this repo</a>, so the page works the same opened off the filesystem as it
+  does served.</p>
+</main>
+
+<script src="vendor/pdf-lib/pdf-lib.min.js"></script>
+<script src="vendor/pdfjs/pdf.min.js"></script>
+<script src="vendor/pdfjs/pdf.worker.min.js"></script>
+<script>
+"use strict";
+
+const el = (id) => document.getElementById(id);
+
+const dropzone = el("dropzone");
+const fileInput= el("fileInput");
+const statusEl = el("status");
+const filesEl  = el("files");
+const preview  = el("preview");
+
+const MM = 72 / 25.4;             // points in a millimetre
+const INCH = 72;
+
+let docs = [];                    // { name, bytes, count }
+let built = null;                 // { bytes, sheets, placed, shrunk, skipped }
+let sheetIndex = 0;
+let rendering = null;
+
+function setStatus(message, bad = false) {
+  statusEl.textContent = message;
+  statusEl.style.color = bad ? "var(--neon-hot)" : "";
+}
+
+/* ---------------------------------------------------------------- taking -- */
+
+async function take(fileList) {
+  const picked = [...fileList].filter((f) => /pdf$/i.test(f.type) || /\.pdf$/i.test(f.name));
+  if (!picked.length) { setStatus("Nothing in there was a PDF.", true); return; }
+
+  for (const file of picked) {
+    try {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const probe = await PDFLib.PDFDocument.load(bytes, { ignoreEncryption: true });
+      docs.push({ name: file.name, bytes, count: probe.getPageCount() });
+    } catch (err) {
+      console.error(err);
+      setStatus(`${file.name} would not open: ${err.message}`, true);
+      return;
+    }
+  }
+
+  el("setCard").classList.remove("off");
+  el("layCard").classList.remove("off");
+  el("viewCard").classList.remove("off");
+  paintFiles();
+  redraw();
+}
+
+dropzone.addEventListener("click", () => fileInput.click());
+dropzone.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInput.click(); }
+});
+fileInput.addEventListener("change", () => { take(fileInput.files); fileInput.value = ""; });
+for (const kind of ["dragenter", "dragover"]) {
+  dropzone.addEventListener(kind, (e) => { e.preventDefault(); dropzone.classList.add("over"); });
+}
+for (const kind of ["dragleave", "drop"]) {
+  dropzone.addEventListener(kind, () => dropzone.classList.remove("over"));
+}
+dropzone.addEventListener("drop", (e) => { e.preventDefault(); take(e.dataTransfer.files); });
+
+let dragFrom = null;
+
+function paintFiles() {
+  filesEl.textContent = "";
+  docs.forEach((doc, i) => {
+    const row = document.createElement("div");
+    row.className = "doc";
+    row.draggable = true;
+
+    const no = document.createElement("span");
+    no.className = "no";
+    no.textContent = String(i + 1);
+
+    const name = document.createElement("span");
+    name.className = "name";
+    name.textContent = doc.name;
+
+    const count = document.createElement("span");
+    count.className = "count";
+    count.textContent = `${doc.count} page${doc.count === 1 ? "" : "s"}`;
+
+    const drop = document.createElement("button");
+    drop.className = "drop";
+    drop.type = "button";
+    drop.textContent = "×";
+    drop.setAttribute("aria-label", `Remove ${doc.name}`);
+    drop.addEventListener("click", () => {
+      docs.splice(i, 1);
+      paintFiles();
+      if (!docs.length) {
+        for (const id of ["setCard", "layCard", "viewCard"]) el(id).classList.add("off");
+        setStatus("Nothing loaded yet.");
+        built = null;
+      } else redraw();
+    });
+
+    row.addEventListener("dragstart", () => { dragFrom = i; row.classList.add("dragging"); });
+    row.addEventListener("dragend", () => { dragFrom = null; row.classList.remove("dragging"); });
+    row.addEventListener("dragover", (e) => { e.preventDefault(); row.classList.add("over"); });
+    row.addEventListener("dragleave", () => row.classList.remove("over"));
+    row.addEventListener("drop", (e) => {
+      e.preventDefault();
+      row.classList.remove("over");
+      if (dragFrom === null || dragFrom === i) return;
+      const [moved] = docs.splice(dragFrom, 1);
+      docs.splice(i, 0, moved);
+      paintFiles();
+      redraw();
+    });
+
+    row.append(no, name, count, drop);
+    filesEl.appendChild(row);
+  });
+}
+
+/* --------------------------------------------------------------- choices -- */
+
+function sheetSize() {
+  let w;
+  let h;
+  if (el("sheetSel").value === "custom") {
+    const unit = el("customUnit").value;
+    const scale = unit === "mm" ? MM : unit === "in" ? INCH : 1;
+    w = Math.max(10, Number(el("customW").value) || 0) * scale;
+    h = Math.max(10, Number(el("customH").value) || 0) * scale;
+  } else {
+    [w, h] = el("sheetSel").value.split("x").map(Number);
+  }
+  return el("turned").value === "wide" ? { w: Math.max(w, h), h: Math.min(w, h) }
+                                       : { w: Math.min(w, h), h: Math.max(w, h) };
+}
+
+// "1-4, 7, 11-" over a total, as a set of zero-based indexes. An empty box
+// means all of them.
+function wantedPages(total) {
+  const raw = el("rangeIn").value.trim();
+  if (!raw) return [...Array(total).keys()];
+
+  const want = new Set();
+  for (const part of raw.split(",")) {
+    const bit = part.trim();
+    if (!bit) continue;
+    const span = /^(\d*)\s*-\s*(\d*)$/.exec(bit);
+    if (span) {
+      const from = span[1] ? Number(span[1]) : 1;
+      const to = span[2] ? Number(span[2]) : total;
+      for (let n = Math.max(1, from); n <= Math.min(total, to); n++) want.add(n - 1);
+    } else if (/^\d+$/.test(bit)) {
+      const n = Number(bit);
+      if (n >= 1 && n <= total) want.add(n - 1);
+    }
+  }
+  return [...want].sort((a, b) => a - b);
+}
+
+/* ------------------------------------------------------------ the tiling -- */
+
+async function impose() {
+  const { PDFDocument, rgb } = PDFLib;
+  const sheet = sheetSize();
+  const margin = Math.max(0, Number(el("margin").value) || 0) * MM;
+  const gap = Math.max(0, Number(el("gap").value) || 0) * MM;
+  const room = { w: sheet.w - margin * 2, h: sheet.h - margin * 2 };
+  if (room.w <= 0 || room.h <= 0) throw new Error("that margin leaves no room on the sheet");
+
+  const out = await PDFDocument.create();
+
+  // Every source page, in file order, as something that can be drawn.
+  const tiles = [];
+  for (const doc of docs) {
+    const source = await PDFDocument.load(doc.bytes, { ignoreEncryption: true });
+    const wanted = wantedPages(source.getPageCount());
+    if (!wanted.length) continue;
+    const embedded = await out.embedPdf(doc.bytes, wanted);
+    for (const page of embedded) tiles.push(page);
+  }
+  if (!tiles.length) throw new Error("that page range leaves nothing to place");
+
+  const mode = el("modeSel").value;
+  const down = el("orderSel").value === "down";
+  const lines = el("cutLines").checked;
+  const shrink = el("shrinkBig").checked;
+
+  let placed = 0;
+  let shrunk = 0;
+  let skipped = 0;
+  const rules = [];
+  let sheetPage = null;
+
+  const newSheet = () => {
+    sheetPage = out.addPage([sheet.w, sheet.h]);
+    rules.push([]);
+    return sheetPage;
+  };
+
+  const rule = (x1, y1, x2, y2) => {
+    if (lines) rules[rules.length - 1].push([x1, y1, x2, y2]);
+  };
+
+  if (mode === "grid") {
+    const cols = Math.max(1, Math.min(20, Number(el("cols").value) || 1));
+    const rows = Math.max(1, Math.min(20, Number(el("rows").value) || 1));
+    const cell = {
+      w: (room.w - gap * (cols - 1)) / cols,
+      h: (room.h - gap * (rows - 1)) / rows,
+    };
+    if (cell.w <= 0 || cell.h <= 0) throw new Error("that gap leaves no room for the cells");
+
+    tiles.forEach((tile, i) => {
+      const slot = i % (cols * rows);
+      if (slot === 0) newSheet();
+      const col = down ? Math.floor(slot / rows) : slot % cols;
+      const row = down ? slot % rows : Math.floor(slot / cols);
+
+      const scale = Math.min(cell.w / tile.width, cell.h / tile.height);
+      const w = tile.width * scale;
+      const h = tile.height * scale;
+      const cellX = margin + col * (cell.w + gap);
+      // Counting down the sheet, which means counting up from the bottom.
+      const cellTop = sheet.h - margin - row * (cell.h + gap);
+      const x = cellX + (cell.w - w) / 2;
+      const y = cellTop - cell.h + (cell.h - h) / 2;
+
+      sheetPage.drawPage(tile, { x, y, width: w, height: h });
+      rule(cellX, cellTop - cell.h, cellX + cell.w, cellTop - cell.h);
+      rule(cellX, cellTop, cellX + cell.w, cellTop);
+      rule(cellX, cellTop - cell.h, cellX, cellTop);
+      rule(cellX + cell.w, cellTop - cell.h, cellX + cell.w, cellTop);
+      placed++;
+    });
+  } else {
+    // Packed: each page at its own size, flowed across and then down, a new
+    // sheet when the next row will not fit.
+    let x = 0;
+    let top = 0;                  // how far down the sheet the current row starts
+    let rowHeight = 0;
+    newSheet();
+
+    for (const tile of tiles) {
+      let w = tile.width;
+      let h = tile.height;
+
+      if (w > room.w || h > room.h) {
+        if (!shrink) { skipped++; continue; }
+        const scale = Math.min(room.w / w, room.h / h);
+        w *= scale;
+        h *= scale;
+        shrunk++;
+      }
+
+      if (x > 0 && x + gap + w > room.w) {        // no room along this row
+        x = 0;
+        top += rowHeight + gap;
+        rowHeight = 0;
+      }
+      if (top + h > room.h) {                     // no room down the sheet
+        newSheet();
+        x = 0;
+        top = 0;
+        rowHeight = 0;
+      }
+
+      const atX = margin + x;
+      const atY = sheet.h - margin - top - h;     // down the sheet, up the page
+      sheetPage.drawPage(tile, { x: atX, y: atY, width: w, height: h });
+      rule(atX, atY, atX + w, atY);
+      rule(atX, atY + h, atX + w, atY + h);
+      rule(atX, atY, atX, atY + h);
+      rule(atX + w, atY, atX + w, atY + h);
+
+      x += w + gap;
+      rowHeight = Math.max(rowHeight, h);
+      placed++;
+    }
+  }
+
+  if (lines) {
+    out.getPages().forEach((page, i) => {
+      for (const [x1, y1, x2, y2] of rules[i] || []) {
+        page.drawLine({
+          start: { x: x1, y: y1 }, end: { x: x2, y: y2 },
+          thickness: 0.4, color: rgb(0.7, 0.7, 0.7),
+        });
+      }
+    });
+  }
+
+  return {
+    bytes: await out.save(),
+    sheets: out.getPageCount(),
+    placed, shrunk, skipped,
+    total: tiles.length,
+  };
+}
+
+/* --------------------------------------------------------------- showing -- */
+
+let pending = null;
+
+function redraw() {
+  clearTimeout(pending);
+  pending = setTimeout(run, 180);
+}
+
+async function run() {
+  if (!docs.length) return;
+  setStatus("Laying them out…");
+  try {
+    built = await impose();
+    sheetIndex = Math.min(sheetIndex, built.sheets - 1);
+
+    const bits = [`<b>${built.placed}</b> of ${built.total} pages on <b>${built.sheets}</b> sheet`
+      + (built.sheets === 1 ? "" : "s")];
+    if (built.shrunk) bits.push(`${built.shrunk} shrunk to fit`);
+    if (built.skipped) bits.push(`${built.skipped} too big, left out`);
+    el("tally").innerHTML = bits.join(" · ");
+
+    setStatus(`${docs.length} file${docs.length === 1 ? "" : "s"}, `
+      + `${docs.reduce((n, d) => n + d.count, 0)} pages in`);
+    await showSheet();
+  } catch (err) {
+    console.error(err);
+    built = null;
+    setStatus(`Couldn't lay that out: ${err.message}`, true);
+    el("tally").textContent = "";
+  }
+}
+
+async function showSheet() {
+  if (!built) return;
+  el("which").textContent = `${sheetIndex + 1} / ${built.sheets}`;
+  el("prevBtn").disabled = sheetIndex === 0;
+  el("nextBtn").disabled = sheetIndex >= built.sheets - 1;
+
+  // One render at a time: the controls can move faster than a big sheet draws.
+  const mine = {};
+  rendering = mine;
+  const doc = await pdfjsLib.getDocument({ data: built.bytes.slice() }).promise;
+  try {
+    const page = await doc.getPage(sheetIndex + 1);
+    const base = page.getViewport({ scale: 1 });
+    const scale = Math.min(900 / base.width, 1200 / base.height, 1);
+    const viewport = page.getViewport({ scale });
+    if (rendering !== mine) return;
+
+    preview.width = Math.ceil(viewport.width);
+    preview.height = Math.ceil(viewport.height);
+    const ctx = preview.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, preview.width, preview.height);
+    await page.render({ canvasContext: ctx, viewport }).promise;
+  } finally {
+    doc.destroy();
+  }
+}
+
+el("prevBtn").addEventListener("click", () => { sheetIndex--; showSheet(); });
+el("nextBtn").addEventListener("click", () => { sheetIndex++; showSheet(); });
+
+el("sheetSel").addEventListener("change", () => {
+  el("customRank").hidden = el("sheetSel").value !== "custom";
+  redraw();
+});
+el("modeSel").addEventListener("change", () => {
+  el("gridRank").hidden = el("modeSel").value !== "grid";
+  redraw();
+});
+for (const id of ["turned", "customW", "customH", "customUnit", "margin", "gap",
+                  "cols", "rows", "orderSel", "rangeIn", "cutLines", "shrinkBig"]) {
+  el(id).addEventListener("input", redraw);
+  el(id).addEventListener("change", redraw);
+}
+
+el("saveBtn").addEventListener("click", () => {
+  if (!built) return;
+  const stem = (docs[0] ? docs[0].name.replace(/\.[^.]+$/, "") : "tiled")
+    .replace(/[^\w.-]+/g, "-").slice(0, 50) || "tiled";
+  const blob = new Blob([built.bytes], { type: "application/pdf" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${stem}-tiled.pdf`;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  el("outStatus").textContent =
+    `Saved ${link.download} — ${built.sheets} sheet${built.sheets === 1 ? "" : "s"}, `
+    + `${(blob.size / 1024).toFixed(1)} KB.`;
+});
+</script>
+</body>
+</html>

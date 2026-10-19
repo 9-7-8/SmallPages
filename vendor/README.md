@@ -89,3 +89,16 @@ Fetch them again with:
 ```
 npm pack tesseract.js@7.0.0 tesseract.js-core@7.0.0 @tesseract.js-data/eng@1.0.0
 ```
+
+---
+
+`pdf-lib/` is [pdf-lib](https://github.com/Hopding/pdf-lib) 1.17.1, which does the
+imposition in [`../tile-pdf-pages.html`](../tile-pdf-pages.html): it can embed a page of
+one PDF into another as a form object, resources and all, which is what keeps the text
+text and the vectors vector. MIT; the licence is beside it. The UMD build
+(`dist/pdf-lib.min.js`, 525 kB) rather than the ES module, so a classic `<script src>`
+loads it and the page works off the filesystem.
+
+```
+npm pack pdf-lib@1.17.1
+```
