@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Image Compressor</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  /* Layout and sizing only. Colour, type and component styling live in theme.css. */
+
+  body { margin: 0; padding: 3rem 1.5rem 5rem; }
+  main { max-width: 900px; margin: 0 auto; }
+  p.lede { margin: 0 0 2.2rem; max-width: 58ch; }
+  .card { margin-bottom: 1.5rem; }
+
+  .dropzone { padding: 2.5rem 1.5rem; text-align: center; cursor: pointer; }
+  .dropzone input { display: none; }
+  .dropzone .hint { font-size: 0.85rem; margin-top: 0.4rem; }
+  .dropzone.slim { padding: 1.1rem 1.5rem; }
+
+  .rank { display: flex; flex-wrap: wrap; gap: 1.2rem; align-items: flex-end; }
+  .rank + .rank { margin-top: 1.3rem; }
+  .field { display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; }
+  .field label { font-size: 0.8rem; }
+  .field .unit { font-size: 0.72rem; margin-top: 0.1rem; }
+  .field input[type="range"] { width: 12rem; max-width: 100%; }
+  .field.off { display: none; }
+  .acts { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-left: auto; }
+
+  .status { font-size: 0.85rem; margin-top: 0.9rem; min-height: 1.2em; }
+
+  .out { display: none; }
+  .out.ready { display: block; }
+
+  /* ----------------------------------------------------------- the wipe -- */
+
+  /* The same component the tracer uses: two images stacked, the top one
+     clipped at a seam you drag. Comparing compression any other way means
+     flicking between two tabs and trusting your memory of the last one. */
+  .wipe { position: relative; }
+  .wipe .layer { position: absolute; inset: 0; }
+  .wipe .layer img { width: 100%; height: 100%; display: block; object-fit: contain; }
+  .wipe .base { position: relative; }
+  .wipe .base img { width: 100%; display: block; object-fit: contain; }
+  .wipe .seam { position: absolute; top: 0; bottom: 0; width: 1px; pointer-events: none; }
+  .wipe-ctl { margin-top: 0.7rem; }
+  .wipe-ctl input { width: 100%; }
+  .wipe-ctl label { font-size: 0.78rem; }
+
+  .stage { padding: 0; }
+
+  /* ---------------------------------------------------------- the tally -- */
+
+  .tally { display: flex; flex-wrap: wrap; gap: 1.6rem 2.6rem; margin-top: 1.3rem; }
+  .tally .cell { min-width: 0; }
+  .tally .cap { font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-faint); }
+  .tally .n {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 1.25rem;
+    font-weight: 300;
+    color: var(--text);
+    margin-top: 0.25rem;
+  }
+  .tally .cell.win .n { color: var(--neon); text-shadow: var(--text-glow); }
+  .tally .sub { font-size: 0.72rem; color: var(--text-faint); margin-top: 0.15rem; }
+
+  .bar { height: 3px; background: var(--line-soft); margin-top: 1.1rem; overflow: hidden; }
+  .bar i { display: block; height: 100%; width: 100%; background: var(--neon); box-shadow: var(--glow-soft); transition: width 0.25s ease; }
+
+  .note { font-size: 0.78rem; margin-top: 1.2rem; max-width: 66ch; }
+  .note strong { color: var(--text-dim); font-weight: 400; }
+
+  @media (max-width: 620px) {
+    body { padding: 2rem 1rem 4rem; }
+    .acts { margin-left: 0; width: 100%; }
+    .acts button { flex: 1; }
+    .tally { gap: 1.1rem 1.8rem; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <a class="home" href="index.html">&larr; index</a>
+  <h1>Image Compressor</h1>
+  <p class="lede">Shrink a picture before you send it, and see exactly what you gave up for the
+  saving &mdash; drag the seam and the original is on one side, the compressed on the other, at
+  the same size on the same screen. The encoding is the browser's own, so nothing is uploaded
+  and nothing is queued behind anybody else's job.</p>
+
+  <div class="card">
+    <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Choose an image">
+      <div id="dropLabel">Drop an image here, or click to choose one</div>
+      <div class="hint"><code>.jpg</code> <code>.png</code> <code>.webp</code> <code>.gif</code>
+      <code>.bmp</code> <code>.avif</code> &mdash; whatever your browser can open. You can paste one too.</div>
+      <input type="file" id="fileInput" accept="image/*">
+    </div>
+    <div class="status" id="status">Nothing open yet.</div>
+  </div>
+
+  <div class="out" id="out">
+    <div class="card">
+      <div class="rank">
+        <div class="field">
+          <label for="formatSel">Save as</label>
+          <select id="formatSel"></select>
+          <span class="unit" id="formatNote"></span>
+        </div>
+
+        <div class="field" id="qualityField">
+          <label for="quality">Quality <span id="qualityOut"></span></label>
+          <input type="range" id="quality" min="20" max="100" step="1" value="78">
+          <span class="unit">lower is smaller, and softer</span>
+        </div>
+
+        <div class="field">
+          <label for="scale">Longest side <span id="scaleOut"></span></label>
+          <input type="range" id="scale" min="240" max="6000" step="40" value="6000">
+          <span class="unit" id="scaleNote">pixels &mdash; it is never enlarged</span>
+        </div>
+
+        <div class="acts">
+          <button type="button" id="saveBtn">Save it</button>
+        </div>
+      </div>
+
+      <div class="tally" id="tally"></div>
+      <div class="bar"><i id="barFill"></i></div>
+    </div>
+
+    <div class="card">
+      <div class="stage wipe" id="wipeStage">
+        <div class="base" id="wipeBase"></div>
+        <div class="layer" id="wipeTop"></div>
+        <div class="seam" id="wipeSeam"></div>
+      </div>
+      <div class="wipe-ctl">
+        <label for="wipePos">Original on the left, compressed on the right</label>
+        <input type="range" id="wipePos" min="0" max="100" step="0.5" value="50">
+      </div>
+    </div>
+  </div>
+
+  <p class="note"><strong>What it actually does.</strong> The picture is drawn onto a canvas at
+  whatever size you asked for and handed back to the browser's own encoder. That is the same
+  encoder behind every photo your browser has ever saved, and on photographs it is within a few
+  per cent of what a dedicated tool will get you. It is not as good as a modern purpose-built
+  encoder on flat graphics and screenshots, where a real PNG optimiser still wins.</p>
+
+  <p class="note"><strong>PNG will often come out bigger.</strong> Canvas writes a plain PNG with
+  no palette reduction and no filter search, so a PNG that came from a tool which did both will
+  usually grow here. PNG is in the list for the case where you need lossless output or an alpha
+  channel; if the file is a photograph and you want it smaller, WebP at 75 or so beats JPEG at the
+  same apparent quality by a comfortable margin.</p>
+
+  <p class="note"><strong>Everything but the pixels is dropped.</strong> Re-encoding loses the
+  EXIF block, which takes the camera model, the timestamp and the GPS coordinates with it. That is
+  usually what you want before sending a photo on, but it also means the rotation flag is gone
+  &mdash; the browser applies it while drawing, so the picture comes out the right way up and
+  stays that way.</p>
+
+  <p class="note"><strong>Once is free, twice is not.</strong> A JPEG re-saved as a JPEG is being
+  compressed on top of compression, and the artefacts compound even at high quality. Go back to
+  the original each time rather than compressing yesterday's output again.</p>
+</main>
+
+<script>
+"use strict";
+
+const el = (id) => document.getElementById(id);
+
+const dropzone   = el("dropzone");
+const dropLabel  = el("dropLabel");
+const fileInput  = el("fileInput");
+const statusEl   = el("status");
+const outEl      = el("out");
+const formatSel  = el("formatSel");
+const formatNote = el("formatNote");
+const qualityIn  = el("quality");
+const qualityOut = el("qualityOut");
+const qualityFld = el("qualityField");
+const scaleIn    = el("scale");
+const scaleOut   = el("scaleOut");
+const scaleNote  = el("scaleNote");
+const tallyEl    = el("tally");
+const barFill    = el("barFill");
+const wipeBase   = el("wipeBase");
+const wipeTop    = el("wipeTop");
+const wipeSeam   = el("wipeSeam");
+const wipePos    = el("wipePos");
+
+let source = null;        // { bitmap, name, type, size, w, h }
+let sourceUrl = "";
+let outUrl = "";
+let outBlob = null;
+let busy = false;
+let again = false;        // a change arrived while the last encode was running
+
+/* --------------------------------------------------------------- formats -- */
+
+// Asked rather than assumed: Safari only learned WebP recently and AVIF
+// encoding is still missing nearly everywhere, so the list is built from what
+// this browser will actually produce.
+function canWrite(type) {
+  const probe = document.createElement("canvas");
+  probe.width = probe.height = 1;
+  try {
+    return probe.toDataURL(type).startsWith(`data:${type}`);
+  } catch {
+    return false;
+  }
+}
+
+const FORMATS = [
+  { type: "image/jpeg", ext: "jpg",  name: "JPEG",  lossy: true,
+    note: "the safe one — opens anywhere" },
+  { type: "image/webp", ext: "webp", name: "WebP",  lossy: true,
+    note: "smaller than JPEG at the same quality" },
+  { type: "image/png",  ext: "png",  name: "PNG",   lossy: false,
+    note: "lossless, keeps transparency, often bigger" },
+].filter((f) => canWrite(f.type));
+
+for (const f of FORMATS) {
+  const option = document.createElement("option");
+  option.value = f.type;
+  option.textContent = f.name;
+  formatSel.appendChild(option);
+}
+formatSel.value = FORMATS.some((f) => f.type === "image/webp") ? "image/webp" : FORMATS[0].type;
+
+const format = () => FORMATS.find((f) => f.type === formatSel.value) || FORMATS[0];
+
+/* ----------------------------------------------------------------- bytes -- */
+
+function humanBytes(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1048576) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / 1048576).toFixed(bytes < 10485760 ? 1 : 0)} MB`;
+}
+
+function setStatus(message, isError = false) {
+  statusEl.textContent = message;
+  statusEl.classList.toggle("error", isError);
+}
+
+/* ----------------------------------------------------------------- input -- */
+
+dropzone.addEventListener("click", () => fileInput.click());
+dropzone.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInput.click(); }
+});
+fileInput.addEventListener("change", () => {
+  if (fileInput.files.length) open(fileInput.files[0]);
+});
+
+for (const type of ["dragover", "dragenter"]) {
+  document.addEventListener(type, (e) => { e.preventDefault(); dropzone.classList.add("drag"); });
+}
+document.addEventListener("dragleave", (e) => {
+  if (e.relatedTarget === null) dropzone.classList.remove("drag");
+});
+document.addEventListener("drop", (e) => {
+  e.preventDefault();
+  dropzone.classList.remove("drag");
+  const file = e.dataTransfer.files && e.dataTransfer.files[0];
+  if (file) open(file);
+});
+
+document.addEventListener("paste", (e) => {
+  const item = [...(e.clipboardData ? e.clipboardData.files : [])][0];
+  if (item && item.type.startsWith("image/")) open(item);
+});
+
+async function open(file) {
+  if (!file.type.startsWith("image/")) {
+    setStatus("That is not an image this page can open.", true);
+    return;
+  }
+  setStatus(`Reading ${file.name}…`);
+  try {
+    // createImageBitmap applies the EXIF rotation for us, which an <img>
+    // drawn to a canvas does not reliably do.
+    const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+
+    if (sourceUrl) URL.revokeObjectURL(sourceUrl);
+    sourceUrl = URL.createObjectURL(file);
+    source = { bitmap, name: file.name, type: file.type, size: file.size,
+               w: bitmap.width, h: bitmap.height };
+
+    const longest = Math.max(bitmap.width, bitmap.height);
+    scaleIn.max = String(Math.max(240, longest));
+    scaleIn.value = String(Math.max(240, longest));
+
+    wipeBase.innerHTML = "";
+    const img = document.createElement("img");
+    img.src = sourceUrl;
+    img.alt = "The original";
+    wipeBase.appendChild(img);
+
+    dropzone.classList.add("slim");
+    dropLabel.textContent = "Open another image";
+    outEl.classList.add("ready");
+    syncScale();
+    setStatus(`${file.name} · ${bitmap.width}×${bitmap.height} · ${humanBytes(file.size)}`);
+    encode();
+  } catch (err) {
+    console.error(err);
+    setStatus(`Couldn't open that: ${err.message}`, true);
+  }
+}
+
+/* -------------------------------------------------------------- encoding -- */
+
+function targetSize() {
+  const cap = Number(scaleIn.value);
+  const longest = Math.max(source.w, source.h);
+  // Never enlarged: asking for more pixels than the file has only invents them.
+  const k = Math.min(1, cap / longest);
+  return { w: Math.max(1, Math.round(source.w * k)), h: Math.max(1, Math.round(source.h * k)), k };
+}
+
+async function encode() {
+  if (!source) return;
+  if (busy) { again = true; return; }
+  busy = true;
+
+  try {
+    const { w, h } = targetSize();
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    ctx.imageSmoothingQuality = "high";
+    // A JPEG has no alpha, so anything transparent would come out black
+    // rather than as nothing. White is what every other tool does here.
+    if (format().type === "image/jpeg") {
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, w, h);
+    }
+    ctx.drawImage(source.bitmap, 0, 0, w, h);
+
+    const f = format();
+    const blob = await new Promise((resolve, reject) => {
+      canvas.toBlob(
+        (b) => (b ? resolve(b) : reject(new Error("the encoder gave nothing back"))),
+        f.type,
+        f.lossy ? Number(qualityIn.value) / 100 : undefined,
+      );
+    });
+
+    if (outUrl) URL.revokeObjectURL(outUrl);
+    outUrl = URL.createObjectURL(blob);
+    outBlob = blob;
+
+    wipeTop.innerHTML = "";
+    const img = document.createElement("img");
+    img.src = outUrl;
+    img.alt = "The compressed version";
+    wipeTop.appendChild(img);
+    slide();
+
+    showTally(blob, w, h);
+  } catch (err) {
+    console.error(err);
+    setStatus(`Couldn't encode that: ${err.message}`, true);
+  } finally {
+    busy = false;
+    if (again) { again = false; encode(); }
+  }
+}
+
+function showTally(blob, w, h) {
+  const saved = source.size - blob.size;
+  const pct = (saved / source.size) * 100;
+
+  tallyEl.textContent = "";
+  const cells = [
+    ["Original", humanBytes(source.size), `${source.w}×${source.h} · ${source.type.replace("image/", "")}`],
+    ["Compressed", humanBytes(blob.size), `${w}×${h} · ${format().name.toLowerCase()}`],
+    [saved >= 0 ? "Saved" : "Added",
+      `${saved >= 0 ? "" : "+"}${humanBytes(Math.abs(saved))}`,
+      `${pct >= 0 ? "" : "+"}${Math.abs(pct).toFixed(1)}% ${saved >= 0 ? "smaller" : "bigger"}`],
+  ];
+  for (const [cap, n, sub] of cells) {
+    const cell = document.createElement("div");
+    cell.className = "cell" + (cap === "Saved" ? " win" : "");
+    const c = document.createElement("div"); c.className = "cap"; c.textContent = cap;
+    const v = document.createElement("div"); v.className = "n"; v.textContent = n;
+    const s = document.createElement("div"); s.className = "sub"; s.textContent = sub;
+    cell.append(c, v, s);
+    tallyEl.appendChild(cell);
+  }
+
+  barFill.style.width = `${Math.max(2, Math.min(100, (blob.size / source.size) * 100))}%`;
+
+  setStatus(saved >= 0
+    ? `${humanBytes(blob.size)} — ${pct.toFixed(1)}% off the original.`
+    : `${humanBytes(blob.size)} — bigger than the original. ${
+        format().lossy ? "Try a lower quality." : "PNG from a canvas usually is; try WebP."}`);
+}
+
+/* ------------------------------------------------------------- the wipe -- */
+
+function slide() {
+  const p = Number(wipePos.value);
+  // The top layer is clipped from the seam rightwards, so the left of the
+  // seam is always the untouched original underneath.
+  wipeTop.style.clipPath = `inset(0 0 0 ${p}%)`;
+  wipeSeam.style.left = `${p}%`;
+}
+wipePos.addEventListener("input", slide);
+
+/* -------------------------------------------------------------- controls -- */
+
+function syncQuality() {
+  qualityOut.textContent = qualityIn.value;
+  qualityFld.classList.toggle("off", !format().lossy);
+}
+
+function syncScale() {
+  if (!source) return;
+  const { w, h, k } = targetSize();
+  scaleOut.textContent = `${scaleIn.value}px`;
+  scaleNote.textContent = k < 1
+    ? `${w}×${h} — down from ${source.w}×${source.h}`
+    : `${w}×${h} — full size`;
+}
+
+function syncFormat() {
+  formatNote.textContent = format().note;
+  syncQuality();
+}
+
+// Dragging a slider fires on every pixel; encoding a large photo takes long
+// enough that doing it on every one of those would stack them up.
+let settle = null;
+function later() {
+  clearTimeout(settle);
+  settle = setTimeout(encode, 140);
+}
+
+formatSel.addEventListener("change", () => { syncFormat(); later(); });
+qualityIn.addEventListener("input", () => { syncQuality(); later(); });
+scaleIn.addEventListener("input", () => { syncScale(); later(); });
+
+el("saveBtn").addEventListener("click", () => {
+  if (!outBlob) return;
+  const base = (source.name || "image").replace(/\.[^.]+$/, "").replace(/[^\w.-]+/g, "-");
+  const link = document.createElement("a");
+  link.href = outUrl;
+  link.download = `${(base || "image").slice(0, 60)}-small.${format().ext}`;
+  document.body.appendChild(link);
+  try { link.click(); } finally { link.remove(); }
+  setStatus(`Saved ${link.download} · ${humanBytes(outBlob.size)}.`);
+});
+
+syncFormat();
+
+window.addEventListener("pagehide", () => {
+  if (sourceUrl) URL.revokeObjectURL(sourceUrl);
+  if (outUrl) URL.revokeObjectURL(outUrl);
+});
+</script>
+</body>
+</html>
