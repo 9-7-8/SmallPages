@@ -701,6 +701,15 @@
     </ul>
     <p>The first time you use it, the game asks for your microphone &mdash; say yes, or it will look broken. <b>No voice icon in the corner at all</b> means you do not have the mod yet: run the pack updater. You can still play without it, you just will not hear anybody.</p>
 
+    <h3>Turning the blood down</h3>
+    <p>The pack includes <b>Iron's Simple Blood</b> &mdash; hits spray, and it leaves stains on the ground for a while. It is entirely your own setting: <b>what you see is not what anyone else sees</b>, so turning it off changes nothing for the people you are playing with.</p>
+    <p>Edit <code>config/simpleblood-client.toml</code> in your instance folder. The file writes itself the first time you run the game, so if it is not there yet, launch once and look again. Two settings:</p>
+    <ul class="keylist full">
+      <li><span class="act">allowGraphicParticles</span><span class="desc">In the mod's words, &ldquo;whether blood particles marked as graphics are allowed to spawn&rdquo;. Set it to <code>false</code> for the squeamish option</span></li>
+      <li><span class="act">groundDecalDurationMultiplier</span><span class="desc">How long the stains stay on the floor. Lower it to clean up faster</span></li>
+    </ul>
+    <p>You have to restart the game after editing it. Nothing here touches the server, so nobody else is affected and you will not be refused at connect for changing it.</p>
+
     <h3>Worth knowing on day one</h3>
     <p>Each name links to that mod's own documentation.</p>
     <ul class="keylist full">
