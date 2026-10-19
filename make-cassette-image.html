@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Make Cassette Image</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  /* Layout and sizing only. Colour, type and component styling live in theme.css. */
+
+  /* The display faces, shared with make-cd-image.html out of vendor/fonts/. */
+  @font-face { font-family: "Another"; src: url("vendor/fonts/Another_.ttf"); font-display: block; }
+  @font-face { font-family: "Berosong"; src: url("vendor/fonts/Berosong-Regular.ttf"); font-display: block; }
+  @font-face { font-family: "Bitmgothic"; src: url("vendor/fonts/Bitmgothic.otf"); font-display: block; }
+  @font-face { font-family: "Black Takora"; src: url("vendor/fonts/BlackTakora-Regular.ttf"); font-display: block; }
+  @font-face { font-family: "Blackout Oldskull"; src: url("vendor/fonts/BlackoutOldskull.ttf"); font-display: block; }
+  @font-face { font-family: "Brush Story"; src: url("vendor/fonts/BrushStory.ttf"); font-display: block; }
+  @font-face { font-family: "Bubble Stacked"; src: url("vendor/fonts/Bubble-Stacked.ttf"); font-display: block; }
+  @font-face { font-family: "Chewy Bubble"; src: url("vendor/fonts/Chewy-Bubble.otf"); font-display: block; }
+  @font-face { font-family: "Children"; src: url("vendor/fonts/Children.ttf"); font-display: block; }
+  @font-face { font-family: "Cubby Brush"; src: url("vendor/fonts/Cubby-Brush.ttf"); font-display: block; }
+  @font-face { font-family: "Festival Valentine"; src: url("vendor/fonts/Festival-Valentine.otf"); font-display: block; }
+  @font-face { font-family: "Flaster"; src: url("vendor/fonts/FLASTER.ttf"); font-display: block; }
+  @font-face { font-family: "Flunkies BB"; src: url("vendor/fonts/FlunkiesBB.otf"); font-display: block; }
+  @font-face { font-family: "Higher Jump"; src: url("vendor/fonts/Higher-Jump.ttf"); font-display: block; }
+  @font-face { font-family: "Holitter Gothic"; src: url("vendor/fonts/Holitter_Gothic.ttf"); font-display: block; }
+  @font-face { font-family: "Jawarde"; src: url("vendor/fonts/Jawarde.ttf"); font-display: block; }
+  @font-face { font-family: "KALOOT"; src: url("vendor/fonts/KALOOT.ttf"); font-display: block; }
+  @font-face { font-family: "Kids Line"; src: url("vendor/fonts/KidsLineDemo.otf"); font-display: block; }
+  @font-face { font-family: "Kind Handwriting"; src: url("vendor/fonts/Kind-Handwriting.ttf"); font-display: block; }
+  @font-face { font-family: "League Gothic"; src: url("vendor/fonts/LeagueGothic-Regular.otf"); font-display: block; }
+  @font-face { font-family: "Peppermint Pen"; src: url("vendor/fonts/Peppermint-Pen.otf"); font-display: block; }
+  @font-face { font-family: "Permanent Marker"; src: url("vendor/fonts/PermanentMarker.ttf"); font-display: block; }
+  @font-face { font-family: "Puppy Love Brush"; src: url("vendor/fonts/Puppy-Love-Brush.ttf"); font-display: block; }
+  @font-face { font-family: "Roasted Ketchup"; src: url("vendor/fonts/Roasted-Ketchup.ttf"); font-display: block; }
+  @font-face { font-family: "Saphifen"; src: url("vendor/fonts/Saphifen.ttf"); font-display: block; }
+  @font-face { font-family: "Sevarothz"; src: url("vendor/fonts/Sevarothz.ttf"); font-display: block; }
+  @font-face { font-family: "Sketch Gothic"; src: url("vendor/fonts/Sketch-Gothic-School.ttf"); font-display: block; }
+  @font-face { font-family: "Smiley"; src: url("vendor/fonts/Smiley.ttf"); font-display: block; }
+  @font-face { font-family: "Stylish Marker"; src: url("vendor/fonts/Stylish-Marker-demo.ttf"); font-display: block; }
+  @font-face { font-family: "Sunny Brush"; src: url("vendor/fonts/Sunny-Brush.ttf"); font-display: block; }
+  @font-face { font-family: "Ye Olde Oak"; src: url("vendor/fonts/Ye-Olde-Oak.ttf"); font-display: block; }
+
+  body { margin: 0; padding: 3rem 1.5rem 5rem; }
+  main { max-width: 1120px; margin: 0 auto; }
+  p.lede { margin: 0 0 2.2rem; max-width: 60ch; }
+  .card { margin-bottom: 1.5rem; }
+
+  /* Controls on the left, the tape on the right and staying put while you
+     scroll the controls, because every control here is judged by looking. */
+  .bench { display: flex; gap: 1.5rem; align-items: flex-start; }
+  .bench .controls { flex: 1 1 24rem; min-width: 0; }
+  .bench .viewer { flex: 0 1 26rem; min-width: 0; position: sticky; top: 1.5rem; }
+
+  .dropzone { padding: 1.6rem 1.5rem; text-align: center; cursor: pointer; }
+  .dropzone input { display: none; }
+  .dropzone .hint { font-size: 0.85rem; margin-top: 0.35rem; }
+
+  h2 { margin: 1.8rem 0 0.9rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--line-soft); }
+  h2:first-of-type { margin-top: 0; }
+
+  .field { display: flex; flex-direction: column; gap: 0.35rem; margin-bottom: 1rem; min-width: 0; }
+  .field label { font-size: 0.8rem; }
+  .field .unit { font-size: 0.72rem; margin-top: 0.1rem; }
+  .field input[type="text"], .field select { width: 100%; }
+
+  /* A slider, its readout and the button that puts it back where it started. */
+  .slider { display: grid; grid-template-columns: 1fr 5.5ch auto; gap: 0.7rem; align-items: center; }
+  .slider input[type="range"] { width: 100%; min-width: 0; }
+  .slider .val {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.76rem;
+    color: var(--text-dim);
+    text-align: right;
+  }
+  .slider .put-back { padding: 0.15rem 0.45rem; font-size: 0.68rem; line-height: 1.4; }
+
+  .swatch-row { display: flex; gap: 0.6rem; align-items: center; }
+  .swatch-row input[type="color"] { width: 3.4rem; height: 2.1rem; padding: 2px; flex: none; }
+  .swatch-row .hex {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.76rem;
+    color: var(--text-faint);
+    flex: 1;
+    min-width: 0;
+  }
+
+  .stage { padding: 0.9rem; }
+  canvas { width: 100%; height: auto; display: block; max-width: 100%; }
+
+  .acts { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-top: 1rem; }
+  .acts button { flex: 1 1 9rem; }
+
+  .status { font-size: 0.85rem; margin-top: 0.9rem; min-height: 1.2em; }
+
+  .note { font-size: 0.78rem; margin-top: 1.2rem; max-width: 66ch; }
+  .note strong { color: var(--text-dim); font-weight: 400; }
+
+  @media (max-width: 860px) {
+    .bench { flex-direction: column; }
+    .bench .viewer { position: static; flex: 1 1 100%; width: 100%; }
+    .bench .controls { flex: 1 1 100%; width: 100%; }
+  }
+  @media (max-width: 620px) {
+    body { padding: 2rem 1rem 4rem; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <a class="home" href="index.html">&larr; index</a>
+  <h1>Make Cassette Image</h1>
+  <p class="lede">Put a picture in the window of a VHS cassette, write the title on the tape stuck
+  across the front, and take away a square cover. The shell and the label are photographs laid over
+  your image rather than filters applied to it, and the whole thing happens on a canvas in this tab.</p>
+
+  <div class="bench">
+    <div class="controls">
+      <div class="card">
+        <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Choose a picture">
+          <div id="dropLabel">Drop a picture here, or click to choose one</div>
+          <div class="hint">It is cropped to fill the window &mdash; paste one in and it lands too</div>
+          <input type="file" id="fileInput" accept="image/*">
+        </div>
+        <div class="status" id="status">Nothing in the window yet.</div>
+      </div>
+
+      <div class="card">
+        <h2>The picture</h2>
+
+        <div class="field">
+          <label for="imgZoom">Zoom</label>
+          <div class="slider">
+            <input type="range" id="imgZoom" min="0.1" max="3" step="0.01" value="1" data-home="1" data-unit="x">
+            <span class="val" id="imgZoomVal"></span>
+            <button type="button" class="ghost put-back" data-put-back="imgZoom">Reset</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="imgX">Across</label>
+          <div class="slider">
+            <input type="range" id="imgX" min="-100" max="100" value="0" data-home="0" data-unit="%">
+            <span class="val" id="imgXVal"></span>
+            <button type="button" class="ghost put-back" data-put-back="imgX">Reset</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="imgY">Down</label>
+          <div class="slider">
+            <input type="range" id="imgY" min="-100" max="100" value="0" data-home="0" data-unit="%">
+            <span class="val" id="imgYVal"></span>
+            <button type="button" class="ghost put-back" data-put-back="imgY">Reset</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="imgBright">Brightness</label>
+          <div class="slider">
+            <input type="range" id="imgBright" min="0" max="200" value="100" data-home="100" data-unit="%">
+            <span class="val" id="imgBrightVal"></span>
+            <button type="button" class="ghost put-back" data-put-back="imgBright">Reset</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="imgContrast">Contrast</label>
+          <div class="slider">
+            <input type="range" id="imgContrast" min="0" max="200" value="100" data-home="100" data-unit="%">
+            <span class="val" id="imgContrastVal"></span>
+            <button type="button" class="ghost put-back" data-put-back="imgContrast">Reset</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="imgTint">Tint</label>
+          <div class="swatch-row">
+            <input type="color" id="imgTint" value="#ffffff" data-home="#ffffff">
+            <span class="hex" id="imgTintHex"></span>
+            <button type="button" class="ghost put-back" data-put-back="imgTint">Reset</button>
+          </div>
+          <span class="unit">multiplied over the picture &mdash; white leaves it alone</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>The title</h2>
+
+        <div class="field">
+          <label for="titleText">Words</label>
+          <input type="text" id="titleText" value="Home Movies">
+          <span class="unit">drop a picture in and its file name lands here</span>
+        </div>
+
+        <div class="field">
+          <label for="fontSel">Face</label>
+          <select id="fontSel"></select>
+          <span class="unit" id="fontNote"></span>
+        </div>
+
+        <div class="field">
+          <label for="textColor">Ink</label>
+          <div class="swatch-row">
+            <input type="color" id="textColor" value="#000000" data-home="#000000">
+            <span class="hex" id="textColorHex"></span>
+            <button type="button" class="ghost put-back" data-put-back="textColor">Reset</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="outlineW">Outline</label>
+          <div class="slider">
+            <input type="range" id="outlineW" min="0" max="12" step="0.5" value="2" data-home="2" data-unit="px">
+            <span class="val" id="outlineWVal"></span>
+            <button type="button" class="ghost put-back" data-put-back="outlineW">Reset</button>
+          </div>
+          <span class="unit">zero turns it off</span>
+        </div>
+
+        <div class="field">
+          <label for="outlineColor">Outline colour</label>
+          <div class="swatch-row">
+            <input type="color" id="outlineColor" value="#ffffff" data-home="#ffffff">
+            <span class="hex" id="outlineColorHex"></span>
+            <button type="button" class="ghost put-back" data-put-back="outlineColor">Reset</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>The cover</h2>
+
+        <div class="field">
+          <label for="backing">Behind the tape</label>
+          <div class="swatch-row">
+            <input type="color" id="backing" value="#030303" data-home="#030303">
+            <span class="hex" id="backingHex"></span>
+            <button type="button" class="ghost put-back" data-put-back="backing">Reset</button>
+          </div>
+          <span class="unit">the bands above and below, where the shell does not reach</span>
+        </div>
+
+        <div class="field">
+          <label for="outSize">Saved size</label>
+          <select id="outSize">
+            <option value="750">750 &times; 750 &mdash; what the original produced</option>
+            <option value="1000">1000 &times; 1000 &mdash; the full working size</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="viewer">
+      <div class="card stage">
+        <canvas id="canvas" width="1000" height="1000" aria-label="The cover as it stands"></canvas>
+      </div>
+      <div class="acts">
+        <button type="button" id="pngBtn">Save a .png</button>
+        <button type="button" id="jpgBtn" class="ghost">.jpg on white</button>
+      </div>
+    </div>
+  </div>
+
+  <p class="note"><strong>The window was in the wrong place.</strong> The script this came from
+  hard-coded the window as 1358&times;825 but worked out where to put it by centring it on the
+  canvas, which lands it at 1155 pixels down when the hole in the shell actually starts at 1222.
+  Every cover it made was therefore 67 pixels out: the top of the picture hidden behind the shell,
+  and a strip of bare backing showing along the bottom of the window. The folder even carried a
+  <code>window.png</code> mask giving the true position &mdash; the script opened it and then
+  never used it. Here the measured position is the one used.</p>
+
+  <p class="note"><strong>The artwork lives in this repo.</strong> The shell and the label are in
+  <a href="vendor/">vendor/cassette/</a>, and the display faces are in <code>vendor/fonts/</code>
+  alongside the ones <a href="make-cd-image.html">Make CD Image</a> draws with, since the two
+  tools were always reaching for the same drawer. They come in through
+  <code>vendor/cassette/art.js</code> as data URIs, which looks like a strange way to ship two
+  PNGs until you open this page straight off the filesystem: a browser counts a sibling
+  <code>file://</code> image as cross-origin, draws it quite happily, and then marks the canvas
+  tainted, so every save throws and the buttons appear to do nothing. The full-size PNGs are in
+  the same folder and the page falls back to them if the bundle goes missing.</p>
+
+  <p class="note"><strong>The title is fitted, not set.</strong> As in the original, the size is
+  found by binary search &mdash; the largest that fits the label with a margin &mdash; so a long
+  title shrinks to fit rather than running off the tape. The difference is that it is measured on
+  the ink rather than on the font's ascender box, so a title with descenders in it sits centred on
+  the tape instead of riding low. The outline is a stroke rather than four offset copies of the
+  text, and it has a width you can set: the original asked for one pixel on a 3135-pixel canvas
+  and then scaled the result down to 750, which is a way of asking for nothing.</p>
+
+  <p class="note"><strong>The picture is cropped, not squashed.</strong> It is scaled to cover the
+  window at whatever zoom you set, and across and down move it inside that window, so the aspect
+  ratio it arrived with is the aspect ratio it keeps. Brightness and contrast are the canvas
+  filter, so they apply to the picture and not to the shell over it.</p>
+
+  <p class="note"><strong>It runs here.</strong> Nothing is uploaded; the canvas is read back into
+  a file by your own browser. The original wrote one file per picture per face, every combination,
+  into an output folder; this is the same drawing with the choice made by looking at it.</p>
+</main>
+
+<script src="vendor/cassette/art.js"></script>
+<script>
+"use strict";
+
+const el = (id) => document.getElementById(id);
+
+const canvas   = el("canvas");
+const ctx      = canvas.getContext("2d");
+const dropzone = el("dropzone");
+const fileInput= el("fileInput");
+const statusEl = el("status");
+const fontSel  = el("fontSel");
+const fontNote = el("fontNote");
+
+/* -------------------------------------------------------------- geometry -- */
+
+// The overlays are 3135 x 3135 and every measurement below is in that space,
+// because that is the space they were drawn in; SIZE is what we work at and
+// everything is scaled on the way through. The window is where the hole in the
+// shell actually is, read off window.png's mask rather than assumed to be
+// centred — see the note on the page.
+const SRC = 3135;
+const SIZE = 1000;
+const k = SIZE / SRC;
+
+const WINDOW = { x: 889, y: 1222, w: 1358, h: 825 };
+
+// The label box the title is fitted into, as fractions of the canvas, straight
+// from the original. It is not centred: the tape sits a little left.
+const LABEL = { x0: 0.12, x1: 0.85, y0: 0.67, y1: 0.75 };
+const MARGIN = 10;          // in 3135 space, as the original had it
+
+const win = {
+  x: WINDOW.x * k, y: WINDOW.y * k,
+  w: WINDOW.w * k, h: WINDOW.h * k,
+};
+
+/* ----------------------------------------------------------------- faces -- */
+
+const FACES = [
+  ["Another", "Another_.ttf"],
+  ["Berosong", "Berosong-Regular.ttf"],
+  ["Bitmgothic", "Bitmgothic.otf"],
+  ["Black Takora", "BlackTakora-Regular.ttf"],
+  ["Blackout Oldskull", "BlackoutOldskull.ttf"],
+  ["Brush Story", "BrushStory.ttf"],
+  ["Bubble Stacked", "Bubble-Stacked.ttf"],
+  ["Chewy Bubble", "Chewy-Bubble.otf"],
+  ["Children", "Children.ttf"],
+  ["Cubby Brush", "Cubby-Brush.ttf"],
+  ["Festival Valentine", "Festival-Valentine.otf"],
+  ["Flaster", "FLASTER.ttf"],
+  ["Flunkies BB", "FlunkiesBB.otf"],
+  ["Higher Jump", "Higher-Jump.ttf"],
+  ["Holitter Gothic", "Holitter_Gothic.ttf"],
+  ["Jawarde", "Jawarde.ttf"],
+  ["KALOOT", "KALOOT.ttf"],
+  ["Kids Line", "KidsLineDemo.otf"],
+  ["Kind Handwriting", "Kind-Handwriting.ttf"],
+  ["League Gothic", "LeagueGothic-Regular.otf"],
+  ["Peppermint Pen", "Peppermint-Pen.otf"],
+  ["Permanent Marker", "PermanentMarker.ttf"],
+  ["Puppy Love Brush", "Puppy-Love-Brush.ttf"],
+  ["Roasted Ketchup", "Roasted-Ketchup.ttf"],
+  ["Saphifen", "Saphifen.ttf"],
+  ["Sevarothz", "Sevarothz.ttf"],
+  ["Sketch Gothic", "Sketch-Gothic-School.ttf"],
+  ["Smiley", "Smiley.ttf"],
+  ["Stylish Marker", "Stylish-Marker-demo.ttf"],
+  ["Sunny Brush", "Sunny-Brush.ttf"],
+  ["Ye Olde Oak", "Ye-Olde-Oak.ttf"]
+];
+
+const SYSTEM_FACES = ["Arial", "Impact", "Courier New", "Georgia", "Verdana"];
+
+for (const [name] of FACES) {
+  const option = document.createElement("option");
+  option.value = name;
+  option.textContent = name;
+  option.style.fontFamily = `"${name}", sans-serif`;
+  fontSel.appendChild(option);
+}
+for (const name of SYSTEM_FACES) {
+  const option = document.createElement("option");
+  option.value = name;
+  option.textContent = `${name} (system)`;
+  option.style.fontFamily = `"${name}", sans-serif`;
+  fontSel.appendChild(option);
+}
+fontSel.value = "Permanent Marker";
+
+function syncFont() {
+  const picked = fontSel.value;
+  fontSel.style.fontFamily = `"${picked}", sans-serif`;
+  fontNote.textContent = SYSTEM_FACES.includes(picked)
+    ? "from your own system"
+    : "from vendor/fonts/";
+}
+
+/* ---------------------------------------------------------------- the art -- */
+
+let shell = null;
+let label = null;
+let photo = null;
+
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error(`could not load ${src.slice(0, 40)}`));
+    img.src = src;
+  });
+}
+
+// The bundle first, the loose PNGs second. Under file:// only the first of
+// those leaves the canvas clean enough to save from.
+async function loadArt() {
+  const bundle = window.CASSETTE_ART;
+  const from = bundle
+    ? { shell: bundle.shell, label: bundle.label }
+    : { shell: "vendor/cassette/shell.png", label: "vendor/cassette/label.png" };
+  [shell, label] = await Promise.all([loadImage(from.shell), loadImage(from.label)]);
+  return Boolean(bundle);
+}
+
+/* -------------------------------------------------------------- the paint -- */
+
+function fitSize(text, face, boxW, boxH) {
+  // The largest size that fits the box with the margin, found the way the
+  // original found it. Measured on the ink box rather than the ascender box.
+  const margin = MARGIN * k;
+  let low = 1;
+  let high = Math.ceil(boxW);
+  let best = 1;
+  let bestInk = null;
+
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2);
+    ctx.font = `${mid}px "${face}", sans-serif`;
+    const m = ctx.measureText(text);
+    const w = m.actualBoundingBoxLeft + m.actualBoundingBoxRight;
+    const h = m.actualBoundingBoxAscent + m.actualBoundingBoxDescent;
+    if (w + margin <= boxW && h + margin <= boxH) {
+      best = mid;
+      bestInk = m;
+      low = mid + 1;
+    } else {
+      high = mid - 1;
+    }
+  }
+
+  if (!bestInk) {
+    ctx.font = `1px "${face}", sans-serif`;
+    bestInk = ctx.measureText(text);
+  }
+  return { size: best, m: bestInk };
+}
+
+function drawTitle() {
+  const text = el("titleText").value;
+  if (!text.trim()) return;
+
+  const face = fontSel.value;
+  const x0 = LABEL.x0 * SIZE;
+  const x1 = LABEL.x1 * SIZE;
+  const y0 = LABEL.y0 * SIZE;
+  const y1 = LABEL.y1 * SIZE;
+
+  const { size, m } = fitSize(text, face, x1 - x0, y1 - y0);
+  ctx.font = `${size}px "${face}", sans-serif`;
+
+  const inkW = m.actualBoundingBoxLeft + m.actualBoundingBoxRight;
+  const inkH = m.actualBoundingBoxAscent + m.actualBoundingBoxDescent;
+
+  // Place the ink box, not the advance box, so the words sit centred on the
+  // tape whatever the face does above and below the baseline.
+  const x = (x0 + x1) / 2 - inkW / 2 + m.actualBoundingBoxLeft;
+  const y = (y0 + y1) / 2 - inkH / 2 + m.actualBoundingBoxAscent;
+
+  ctx.textAlign = "left";
+  ctx.textBaseline = "alphabetic";
+
+  const outline = Number(el("outlineW").value);
+  if (outline > 0) {
+    ctx.strokeStyle = el("outlineColor").value;
+    ctx.lineWidth = outline * 2;       // a stroke straddles the edge
+    ctx.lineJoin = "round";
+    ctx.miterLimit = 2;
+    ctx.strokeText(text, x, y);
+  }
+
+  ctx.fillStyle = el("textColor").value;
+  ctx.fillText(text, x, y);
+}
+
+function drawWindow() {
+  // Built on a canvas of its own and laid in afterwards, so that the tint
+  // multiply cannot reach anything but the picture it is meant for.
+  const pane = document.createElement("canvas");
+  pane.width = Math.round(win.w);
+  pane.height = Math.round(win.h);
+  const pctx = pane.getContext("2d");
+
+  pctx.fillStyle = el("backing").value;
+  pctx.fillRect(0, 0, pane.width, pane.height);
+
+  if (photo) {
+    const zoom = Number(el("imgZoom").value);
+    const scale = Math.max(pane.width / photo.width, pane.height / photo.height) * zoom;
+    const dw = photo.width * scale;
+    const dh = photo.height * scale;
+    const dx = (pane.width - dw) / 2 + (Number(el("imgX").value) / 100) * (pane.width / 2);
+    const dy = (pane.height - dh) / 2 + (Number(el("imgY").value) / 100) * (pane.height / 2);
+
+    pctx.filter = `brightness(${el("imgBright").value}%) contrast(${el("imgContrast").value}%)`;
+    pctx.drawImage(photo, dx, dy, dw, dh);
+    pctx.filter = "none";
+
+    const tint = el("imgTint").value;
+    if (tint.toLowerCase() !== "#ffffff") {
+      pctx.globalCompositeOperation = "multiply";
+      pctx.fillStyle = tint;
+      pctx.fillRect(0, 0, pane.width, pane.height);
+      pctx.globalCompositeOperation = "source-over";
+    }
+  }
+
+  ctx.drawImage(pane, win.x, win.y, win.w, win.h);
+}
+
+function render() {
+  ctx.clearRect(0, 0, SIZE, SIZE);
+
+  ctx.fillStyle = el("backing").value;
+  ctx.fillRect(0, 0, SIZE, SIZE);
+
+  drawWindow();
+
+  if (shell) ctx.drawImage(shell, 0, 0, SIZE, SIZE);
+  if (label) ctx.drawImage(label, 0, 0, SIZE, SIZE);
+
+  drawTitle();
+}
+
+/* --------------------------------------------------------------- the file -- */
+
+function takePicture(file) {
+  if (!file || !file.type.startsWith("image/")) return;
+  const reader = new FileReader();
+  reader.onload = async () => {
+    try {
+      photo = await loadImage(reader.result);
+      // The original titled each cover with the picture's file name, which is
+      // a good enough guess to start from.
+      const stem = file.name.replace(/\.[^.]+$/, "").trim();
+      if (stem) el("titleText").value = stem;
+      statusEl.textContent = `${file.name} — ${photo.width} × ${photo.height}`;
+      el("dropLabel").textContent = "Drop another picture, or click to choose one";
+      render();
+    } catch (err) {
+      console.error(err);
+      statusEl.textContent = "That file would not open as an image.";
+    }
+  };
+  reader.onerror = () => { statusEl.textContent = "That file would not read."; };
+  reader.readAsDataURL(file);
+}
+
+dropzone.addEventListener("click", () => fileInput.click());
+dropzone.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInput.click(); }
+});
+fileInput.addEventListener("change", () => takePicture(fileInput.files[0]));
+
+for (const kind of ["dragenter", "dragover"]) {
+  dropzone.addEventListener(kind, (e) => { e.preventDefault(); dropzone.classList.add("over"); });
+}
+for (const kind of ["dragleave", "drop"]) {
+  dropzone.addEventListener(kind, () => dropzone.classList.remove("over"));
+}
+dropzone.addEventListener("drop", (e) => {
+  e.preventDefault();
+  takePicture(e.dataTransfer.files[0]);
+});
+
+window.addEventListener("paste", (e) => {
+  for (const item of e.clipboardData.files) {
+    if (item.type.startsWith("image/")) { takePicture(item); return; }
+  }
+});
+
+/* --------------------------------------------------------------- the save -- */
+
+function save(type, extension) {
+  const want = Number(el("outSize").value);
+  let source = canvas;
+
+  if (want !== SIZE || type === "image/jpeg") {
+    const out = document.createElement("canvas");
+    out.width = want;
+    out.height = want;
+    const octx = out.getContext("2d");
+    if (type === "image/jpeg") {
+      octx.fillStyle = "#ffffff";
+      octx.fillRect(0, 0, want, want);
+    }
+    octx.drawImage(canvas, 0, 0, want, want);
+    source = out;
+  }
+
+  const stem = (el("titleText").value.trim() || "cassette").replace(/[^\w -]+/g, "").slice(0, 60);
+  source.toBlob((blob) => {
+    if (!blob) { statusEl.textContent = "The canvas would not save."; return; }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${stem || "cassette"}.${extension}`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    statusEl.textContent = `Saved ${a.download} at ${want} × ${want}.`;
+  }, type, type === "image/jpeg" ? 0.92 : undefined);
+}
+
+el("pngBtn").addEventListener("click", () => {
+  try { save("image/png", "png"); }
+  catch (err) { console.error(err); statusEl.textContent = "The canvas would not save."; }
+});
+el("jpgBtn").addEventListener("click", () => {
+  try { save("image/jpeg", "jpg"); }
+  catch (err) { console.error(err); statusEl.textContent = "The canvas would not save."; }
+});
+
+/* -------------------------------------------------------------- the knobs -- */
+
+function syncReadouts() {
+  for (const input of document.querySelectorAll('input[type="range"][data-unit]')) {
+    const out = el(`${input.id}Val`);
+    if (out) out.textContent = `${input.value}${input.dataset.unit}`;
+  }
+  for (const input of document.querySelectorAll('input[type="color"]')) {
+    const out = el(`${input.id}Hex`);
+    if (out) out.textContent = input.value;
+  }
+}
+
+for (const input of document.querySelectorAll("input[type=range], input[type=color]")) {
+  input.addEventListener("input", () => { syncReadouts(); render(); });
+}
+for (const button of document.querySelectorAll("[data-put-back]")) {
+  button.addEventListener("click", () => {
+    const input = el(button.dataset.putBack);
+    input.value = input.dataset.home;
+    syncReadouts();
+    render();
+  });
+}
+
+el("titleText").addEventListener("input", render);
+el("outSize").addEventListener("change", () => {
+  statusEl.textContent = `Saves at ${el("outSize").value} × ${el("outSize").value}.`;
+});
+fontSel.addEventListener("change", () => { syncFont(); render(); });
+
+/* ---------------------------------------------------------------- the boot -- */
+
+(async () => {
+  syncFont();
+  syncReadouts();
+  try {
+    const inlined = await loadArt();
+    if (!inlined) {
+      statusEl.textContent = "Drawing from the loose PNGs; saving may not work from file://.";
+    }
+  } catch (err) {
+    console.error(err);
+    statusEl.textContent = "The shell artwork would not load.";
+  }
+  try { await document.fonts.ready; } catch {}
+  render();
+})();
+</script>
+</body>
+</html>
