@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dragon Tree</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  /* Layout and sizing only. Colour, type and component styling live in theme.css. */
+
+  body { margin: 0; padding: 3rem 1.5rem 5rem; }
+  main { max-width: 1180px; margin: 0 auto; }
+  p.lede { margin: 0 0 2.2rem; max-width: 62ch; }
+  .card { margin-bottom: 1.5rem; }
+  .card.off { opacity: 0.45; pointer-events: none; }
+
+  .dropzone { padding: 2rem 1.5rem; text-align: center; cursor: pointer; }
+  .dropzone input { display: none; }
+  .dropzone .hint { font-size: 0.85rem; margin-top: 0.4rem; }
+
+  h2 { margin: 0 0 0.9rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--line-soft); }
+
+  .rank { display: flex; flex-wrap: wrap; gap: 1.1rem; align-items: flex-start; }
+  .rank + .rank { margin-top: 1.1rem; }
+  .field { display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; }
+  .field label { font-size: 0.8rem; }
+  .field .unit { font-size: 0.72rem; margin-top: 0.1rem; }
+  .field select, .field input[type="number"] { min-width: 10rem; }
+  .field.grow { flex: 1 1 16rem; }
+  .acts { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-left: auto; }
+
+  .checks { display: flex; flex-wrap: wrap; gap: 0.5rem 1.2rem; margin-top: 1rem; }
+  .checks label { display: flex; align-items: center; gap: 0.45rem; font-size: 0.8rem; }
+  .checks input { flex: none; }
+
+  /* ------------------------------------------------------------- the tree -- */
+
+  .stage {
+    padding: 0.8rem;
+    background: var(--sunken);
+    overflow: auto;
+    max-height: 72vh;
+  }
+  .stage svg { display: block; margin: 0 auto; height: auto; max-width: 100%; }
+  .stage .nothing { font-size: 0.8rem; color: var(--text-faint); padding: 3rem 0; text-align: center; }
+
+  .tally {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    margin-top: 0.9rem;
+  }
+  .tally b { color: var(--text); font-weight: 400; }
+  .tally .aside { display: block; color: var(--text-faint); }
+
+  .status { font-size: 0.85rem; margin-top: 0.9rem; min-height: 1.2em; }
+
+  .note { font-size: 0.78rem; margin-top: 1.2rem; max-width: 70ch; }
+  .note strong { color: var(--text-dim); font-weight: 400; }
+
+  @media (max-width: 620px) {
+    body { padding: 2rem 1rem 4rem; }
+    .acts { margin-left: 0; width: 100%; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <a class="home" href="index.html">&larr; index</a>
+  <h1>Dragon Tree</h1>
+  <p class="lede">Drop the Flight Rising dragon pages you have saved and get the family tree out of
+  them. Parents sit above their children, each dragon shows its own sprite, and the colour of a
+  lineage runs down the tree and blends where two lineages meet &mdash; mixed in a space where
+  averaging two colours gives the colour halfway between them rather than mud.</p>
+
+  <div class="card">
+    <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Choose the saved pages">
+      <div id="dropLabel">Drop the folder of saved pages here, or click to choose the files</div>
+      <div class="hint">The <code>.html</code> pages, their <code>&lt;id&gt;_350.png</code> sprites,
+      and a <code>lineages.csv</code> if you keep one &mdash; nothing is uploaded, and nothing is fetched
+      from Flight Rising</div>
+      <input type="file" id="fileInput" multiple webkitdirectory>
+    </div>
+    <div class="rank" style="margin-top:0.8rem">
+      <button type="button" id="pickFiles" class="ghost">Choose files instead of a folder</button>
+      <input type="file" id="plainInput" multiple accept=".html,.htm,.png,.gif,.csv" hidden>
+      <button type="button" id="clearBtn" class="ghost">Start again</button>
+    </div>
+    <div class="status" id="status">Nothing loaded yet.</div>
+  </div>
+
+  <div class="card off" id="treeCard">
+    <h2>The tree</h2>
+    <div class="rank">
+      <div class="field grow">
+        <label for="rootSel">Show</label>
+        <select id="rootSel"></select>
+        <span class="unit">one tree for each dragon that has no children of its own</span>
+      </div>
+      <div class="field">
+        <label for="spacing">Spacing</label>
+        <input type="number" id="spacing" min="80" max="400" step="10" value="170">
+        <span class="unit">pixels between dragons</span>
+      </div>
+      <div class="field">
+        <label for="noLineage">Dragons with no lineage</label>
+        <input type="color" id="noLineage" value="#808080" style="width:4rem;height:2.1rem;padding:2px">
+      </div>
+    </div>
+
+    <div class="checks">
+      <label><input type="checkbox" id="showSprites" checked> Sprites</label>
+      <label><input type="checkbox" id="showNames" checked> Names</label>
+      <label><input type="checkbox" id="showEggs" checked> Mark the founders</label>
+      <label><input type="checkbox" id="malesFirst" checked> Fathers to the left</label>
+      <label><input type="checkbox" id="pruneGrey"> Drop branches with no lineage colour</label>
+    </div>
+
+    <div class="tally" id="tally"></div>
+  </div>
+
+  <div class="card off" id="viewCard">
+    <div class="stage" id="stage"><div class="nothing">Nothing drawn yet.</div></div>
+    <div class="rank" style="margin-top:1rem">
+      <div class="acts" style="margin-left:0">
+        <button type="button" id="svgBtn">Save the .svg</button>
+        <button type="button" id="pngBtn" class="ghost">.png</button>
+        <button type="button" id="csvBtn" class="ghost">The dragons as .csv</button>
+      </div>
+    </div>
+    <div class="status" id="outStatus"></div>
+  </div>
+
+  <p class="note"><strong>Colour runs down the tree.</strong> A lineage gives its founders a
+  colour, and any dragon without one of its own takes the average of its parents' &mdash; so a
+  dragon descended from two lineages comes out between them, and the further down you go the more
+  the two are mixed. The averaging happens in CIELAB rather than in RGB, because the midpoint of
+  two colours in RGB is often darker and duller than either of them, and in LAB it is the colour
+  you would have picked by eye. The original imported a function for CIEDE2000 colour difference
+  and never called it; nothing here needs one, since this is a midpoint and not a comparison.</p>
+
+  <p class="note"><strong>Generations are placed, not guessed.</strong> The original put each
+  parent exactly one row above its nearest child, which is fine until a dragon has children in two
+  different generations &mdash; then one of its edges runs upward through the tree. Here a dragon
+  sits one row below its lowest parent, which is the rule that keeps every line pointing the same
+  way. Within a row the order comes from walking up from the youngest dragon, fathers before
+  mothers, so families stay together; then each row is nudged so parents sit over the middle of
+  their children.</p>
+
+  <p class="note"><strong>It draws the tree it has, at the size that tree needs.</strong> The
+  original worked out how big the picture should be, wrote the number to its log, and then drew
+  every tree at twenty inches by ten at 300 dpi regardless &mdash; so a pair of dragons came out on
+  a six thousand pixel canvas of mostly nothing and a hundred came out unreadable. It also gave up
+  silently above sixty-four dragons. This sizes the drawing to the tree and tells you when one is
+  getting big rather than stopping.</p>
+
+  <p class="note"><strong>The pages are read, not fetched.</strong> Nothing here touches Flight
+  Rising: it parses the HTML you already saved, with the browser's own parser rather than a
+  scraping library, and the sprites come from the files saved beside them. A dragon whose page you
+  do not have is not drawn, exactly as before &mdash; it can only be known by the link on a page
+  you do have, and that gives a number and no picture.</p>
+
+  <p class="note"><strong>It runs here.</strong> Nothing is uploaded. The tree saves as an SVG with
+  the sprites embedded in it, so the file stands on its own, or as a PNG, and the table of dragons
+  saves as a CSV the way the original wrote one.</p>
+</main>
+
+<script>
+"use strict";
+
+const el = (id) => document.getElementById(id);
+
+const dropzone = el("dropzone");
+const statusEl = el("status");
+const stage    = el("stage");
+
+let dragons = new Map();      // did -> { did, name, parents[], sex, lineage, colour, file }
+let sprites = new Map();      // did -> data URI
+let lineages = [];            // { name, founders: Set, colour }
+let lastSvg = "";
+
+function setStatus(message, bad = false) {
+  statusEl.textContent = message;
+  statusEl.style.color = bad ? "var(--neon-hot)" : "";
+}
+
+/* ---------------------------------------------------------------- colour -- */
+
+// sRGB to CIELAB and back. Only needed so that the midpoint of two colours is
+// the one halfway between them to look at, which it is not in RGB.
+function srgbToLinear(v) { return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }
+function linearToSrgb(v) { return v <= 0.0031308 ? v * 12.92 : 1.055 * v ** (1 / 2.4) - 0.055; }
+
+const WHITE = [0.95047, 1, 1.08883];      // D65, which is what sRGB is defined against
+
+function hexToLab(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  const rgb = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => srgbToLinear(v / 255));
+  const x = (rgb[0] * 0.4124 + rgb[1] * 0.3576 + rgb[2] * 0.1805) / WHITE[0];
+  const y = (rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722) / WHITE[1];
+  const z = (rgb[0] * 0.0193 + rgb[1] * 0.1192 + rgb[2] * 0.9505) / WHITE[2];
+  const f = (t) => (t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116);
+  const [fx, fy, fz] = [f(x), f(y), f(z)];
+  return [116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)];
+}
+
+function labToHex(lab) {
+  const fy = (lab[0] + 16) / 116;
+  const fx = fy + lab[1] / 500;
+  const fz = fy - lab[2] / 200;
+  const inv = (t) => (t ** 3 > 0.008856 ? t ** 3 : (t - 16 / 116) / 7.787);
+  const [x, y, z] = [inv(fx) * WHITE[0], inv(fy) * WHITE[1], inv(fz) * WHITE[2]];
+  const rgb = [
+    x * 3.2406 + y * -1.5372 + z * -0.4986,
+    x * -0.9689 + y * 1.8758 + z * 0.0415,
+    x * 0.0557 + y * -0.2040 + z * 1.0570,
+  ].map((v) => Math.round(Math.min(1, Math.max(0, linearToSrgb(v))) * 255));
+  return `#${rgb.map((v) => v.toString(16).padStart(2, "0")).join("")}`;
+}
+
+function tidyHex(value) {
+  const named = { black: "#000000", white: "#ffffff", red: "#ff0000", green: "#00ff00",
+    blue: "#0000ff", grey: "#808080", gray: "#808080" };
+  const text = String(value || "").trim().toLowerCase();
+  if (named[text]) return named[text];
+  const short = /^#?([0-9a-f]{3})$/.exec(text);
+  if (short) return `#${[...short[1]].map((c) => c + c).join("")}`;
+  const full = /^#?([0-9a-f]{6})$/.exec(text);
+  return full ? `#${full[1]}` : null;
+}
+
+function blend(a, b) {
+  if (!a) return b;
+  if (!b) return a;
+  const x = hexToLab(a);
+  const y = hexToLab(b);
+  return labToHex([(x[0] + y[0]) / 2, (x[1] + y[1]) / 2, (x[2] + y[2]) / 2]);
+}
+
+/* ---------------------------------------------------------------- taking -- */
+
+// Everything the original pulled out of a saved page, read with the browser's
+// own parser. The two shapes are a normal profile and an exalted one.
+function readDragon(html, filename) {
+  const doc = new DOMParser().parseFromString(html, "text/html");
+
+  let did = doc.querySelector('input[type="hidden"][name="did"]')?.value?.trim();
+  if (!did) {
+    const url = doc.querySelector('meta[property="og:url"]')?.getAttribute("content") || "";
+    did = /\/dragon\/(\d+)/.exec(url)?.[1];
+  }
+  if (!did) return null;
+
+  const title = doc.querySelector("title")?.textContent?.trim() || "";
+  const name = title.replace(/\s*\|\s*Flight Rising$/, "") || `Dragon ${did}`;
+
+  const parents = [];
+  const headers = [...doc.querySelectorAll("h3.dragon-profile-details-subheader")];
+  const parentHeader = headers.find((h) => h.textContent.trim() === "Parents");
+  let list = null;
+  if (parentHeader) {
+    let next = parentHeader.nextElementSibling;
+    while (next && !next.matches("ul.dragon-profile-lineage-parents")) next = next.nextElementSibling;
+    list = next;
+  }
+  if (!list) list = doc.querySelector("ul.exalted-lineage-list");
+  if (list) {
+    for (const link of list.querySelectorAll("a[href]")) {
+      const match = /dragon\/(\d+)/.exec(link.getAttribute("href"));
+      if (match) parents.push(match[1]);
+    }
+  }
+
+  let sex = null;
+  const exalted = doc.querySelector("img.exalted-image[data-gender]");
+  if (exalted) {
+    sex = exalted.getAttribute("data-gender") === "0" ? "Male" : "Female";
+  } else {
+    const icon = doc.querySelector('span.dragon-profile-icon[data-tooltip-source="#dragon-profile-icon-sex-tooltip"] img[alt]');
+    if (icon) sex = /male/i.test(icon.getAttribute("alt")) && !/female/i.test(icon.getAttribute("alt")) ? "Male" : "Female";
+  }
+
+  return { did, name, parents, sex, lineage: "", colour: null, file: filename };
+}
+
+function readLineages(text) {
+  const rows = parseCsv(text);
+  if (!rows.length) return [];
+  const header = rows[0].map((h) => h.trim().toLowerCase());
+  const at = (want) => header.findIndex((h) => h === want);
+  const nameAt = at("lineage name");
+  const colourAt = at("color") >= 0 ? at("color") : at("colour");
+  const founderAts = header.map((h, i) => (/^founder/.test(h) ? i : -1)).filter((i) => i >= 0);
+  if (nameAt < 0 || !founderAts.length) return [];
+
+  const byName = new Map();
+  for (const row of rows.slice(1)) {
+    const name = (row[nameAt] || "").trim();
+    if (!name) continue;
+    if (!byName.has(name)) {
+      byName.set(name, { name, founders: new Set(), colour: tidyHex(row[colourAt]) || null });
+    }
+    const entry = byName.get(name);
+    if (!entry.colour) entry.colour = tidyHex(row[colourAt]) || null;
+    for (const i of founderAts) {
+      const id = (row[i] || "").trim();
+      if (id) entry.founders.add(id);
+    }
+  }
+  return [...byName.values()];
+}
+
+function parseCsv(text) {
+  const rows = [];
+  let row = [];
+  let cell = "";
+  let quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (quoted) {
+      if (c === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else quoted = false; }
+      else cell += c;
+      continue;
+    }
+    if (c === '"') { quoted = true; continue; }
+    if (c === ",") { row.push(cell); cell = ""; continue; }
+    if (c === "\r") continue;
+    if (c === "\n") { row.push(cell); rows.push(row); row = []; cell = ""; continue; }
+    cell += c;
+  }
+  row.push(cell);
+  rows.push(row);
+  while (rows.length && rows[rows.length - 1].every((v) => !v.trim())) rows.pop();
+  return rows;
+}
+
+function readAsDataUrl(file) {
+  return new Promise((done) => {
+    const reader = new FileReader();
+    reader.onload = () => done(reader.result);
+    reader.onerror = () => done(null);
+    reader.readAsDataURL(file);
+  });
+}
+
+async function take(fileList) {
+  const files = [...fileList];
+  if (!files.length) return;
+  setStatus(`Reading ${files.length} file${files.length === 1 ? "" : "s"}…`);
+
+  const pages = files.filter((f) => /\.html?$/i.test(f.name));
+  const pictures = files.filter((f) => /\.(png|gif|jpe?g|webp)$/i.test(f.name));
+  const sheets = files.filter((f) => /\.csv$/i.test(f.name));
+
+  for (const sheet of sheets) {
+    const found = readLineages(await sheet.text());
+    if (found.length) lineages = found;
+  }
+
+  for (const page of pages) {
+    try {
+      const dragon = readDragon(await page.text(), page.name);
+      if (dragon) dragons.set(dragon.did, dragon);
+    } catch (err) {
+      console.error(page.name, err);
+    }
+  }
+
+  // The original looked for "<id>_350.png"; any picture whose name starts with
+  // the id is taken, so a differently sized save still finds its dragon.
+  for (const picture of pictures) {
+    const id = /^(\d+)/.exec(picture.name)?.[1];
+    if (id) sprites.set(id, await readAsDataUrl(picture));
+  }
+
+  // A dragon is in a lineage if it is one of its founders; the colour then
+  // runs down from there.
+  for (const dragon of dragons.values()) {
+    const found = lineages.find((l) => l.founders.has(dragon.did));
+    dragon.lineage = found ? found.name : "";
+    dragon.colour = found ? found.colour : null;
+  }
+
+  if (!dragons.size) {
+    setStatus("None of those were saved dragon pages — the page needs the HTML, not the picture.", true);
+    return;
+  }
+
+  el("treeCard").classList.remove("off");
+  el("viewCard").classList.remove("off");
+  fillRoots();
+
+  const withSprite = [...dragons.keys()].filter((d) => sprites.has(d)).length;
+  setStatus(`${dragons.size} dragon${dragons.size === 1 ? "" : "s"}, `
+    + `${withSprite} with a sprite, ${lineages.length} lineage${lineages.length === 1 ? "" : "s"}`);
+  draw();
+}
+
+dropzone.addEventListener("click", () => el("fileInput").click());
+dropzone.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" || e.key === " ") { e.preventDefault(); el("fileInput").click(); }
+});
+el("fileInput").addEventListener("change", (e) => { take(e.target.files); e.target.value = ""; });
+el("pickFiles").addEventListener("click", () => el("plainInput").click());
+el("plainInput").addEventListener("change", (e) => { take(e.target.files); e.target.value = ""; });
+
+for (const kind of ["dragenter", "dragover"]) {
+  dropzone.addEventListener(kind, (e) => { e.preventDefault(); dropzone.classList.add("over"); });
+}
+for (const kind of ["dragleave", "drop"]) {
+  dropzone.addEventListener(kind, () => dropzone.classList.remove("over"));
+}
+dropzone.addEventListener("drop", async (e) => {
+  e.preventDefault();
+  const entries = [...(e.dataTransfer.items || [])]
+    .map((i) => i.webkitGetAsEntry && i.webkitGetAsEntry()).filter(Boolean);
+  if (entries.some((en) => en.isDirectory)) {
+    const out = [];
+    for (const en of entries) await walk(en, out);
+    take(out);
+    return;
+  }
+  take(e.dataTransfer.files);
+});
+
+async function walk(entry, out) {
+  if (entry.isFile) {
+    await new Promise((res) => entry.file((f) => { out.push(f); res(); }, res));
+    return;
+  }
+  if (!entry.isDirectory) return;
+  const reader = entry.createReader();
+  for (;;) {
+    const batch = await new Promise((res) => reader.readEntries(res, () => res([])));
+    if (!batch.length) break;
+    for (const child of batch) await walk(child, out);
+  }
+}
+
+el("clearBtn").addEventListener("click", () => {
+  dragons = new Map();
+  sprites = new Map();
+  lineages = [];
+  lastSvg = "";
+  stage.innerHTML = '<div class="nothing">Nothing drawn yet.</div>';
+  el("tally").textContent = "";
+  for (const id of ["treeCard", "viewCard"]) el(id).classList.add("off");
+  setStatus("Nothing loaded yet.");
+});
+
+/* ------------------------------------------------------------- the graph -- */
+
+// Only dragons whose page you have. A parent known solely by a link is a
+// number with no picture and no name, so it is not drawn — as before.
+function edgesOf() {
+  const children = new Map();
+  const parents = new Map();
+  for (const did of dragons.keys()) { children.set(did, []); parents.set(did, []); }
+  for (const dragon of dragons.values()) {
+    for (const parent of dragon.parents) {
+      if (!dragons.has(parent)) continue;
+      children.get(parent).push(dragon.did);
+      parents.get(dragon.did).push(parent);
+    }
+  }
+  return { children, parents };
+}
+
+function ancestorsOf(did, parents) {
+  const seen = new Set([did]);
+  const stack = [did];
+  while (stack.length) {
+    const at = stack.pop();
+    for (const parent of parents.get(at) || []) {
+      if (!seen.has(parent)) { seen.add(parent); stack.push(parent); }
+    }
+  }
+  return seen;
+}
+
+function fillRoots() {
+  const { children } = edgesOf();
+  const leaves = [...dragons.keys()]
+    .filter((did) => (children.get(did) || []).length === 0)
+    .sort((a, b) => dragons.get(a).name.localeCompare(dragons.get(b).name));
+
+  const select = el("rootSel");
+  const held = select.value;
+  select.textContent = "";
+
+  const all = document.createElement("option");
+  all.value = "*";
+  all.textContent = `Everything together — ${dragons.size} dragons`;
+  select.appendChild(all);
+
+  for (const did of leaves) {
+    const option = document.createElement("option");
+    option.value = did;
+    option.textContent = `${dragons.get(did).name} and its ancestors`;
+    select.appendChild(option);
+  }
+  select.value = [...select.options].some((o) => o.value === held) ? held : (leaves[0] || "*");
+}
+
+/* -------------------------------------------------------------- colouring -- */
+
+// A dragon with no lineage of its own takes the average of its parents'. Done
+// from the oldest down, so a colour that was itself blended passes on.
+function colourAll(ids, parents, levels) {
+  const colours = new Map();
+  const order = [...ids].sort((a, b) => levels.get(a) - levels.get(b));
+
+  for (const did of order) {
+    const own = dragons.get(did).colour;
+    if (own) { colours.set(did, own); continue; }
+    const fromParents = (parents.get(did) || [])
+      .map((p) => colours.get(p))
+      .filter(Boolean);
+    if (fromParents.length >= 2) colours.set(did, blend(fromParents[0], fromParents[1]));
+    else if (fromParents.length === 1) colours.set(did, fromParents[0]);
+  }
+  return colours;
+}
+
+/* ----------------------------------------------------------- the layout -- */
+
+// One row below the lowest parent. The original put a parent one row above its
+// nearest child instead, which sends an edge upward as soon as a dragon has
+// children a generation apart.
+function levelsFor(ids, parents) {
+  const levels = new Map();
+  const inside = (did) => ids.has(did);
+
+  const settle = (did, guard) => {
+    if (levels.has(did)) return levels.get(did);
+    if (guard.has(did)) return 0;                 // a cycle cannot happen, but it must not hang
+    guard.add(did);
+    const above = (parents.get(did) || []).filter(inside).map((p) => settle(p, guard));
+    const level = above.length ? Math.max(...above) + 1 : 0;
+    levels.set(did, level);
+    return level;
+  };
+
+  for (const did of ids) settle(did, new Set());
+  return levels;
+}
+
+// Walking up from the youngest keeps families next to each other, and taking
+// fathers before mothers is the original's convention kept.
+function orderFor(ids, parents, children, levels) {
+  const rows = new Map();
+  const seen = new Set();
+  const fathersFirst = el("malesFirst").checked;
+
+  const place = (did) => {
+    if (seen.has(did)) return;
+    seen.add(did);
+    const level = levels.get(did);
+    if (!rows.has(level)) rows.set(level, []);
+    rows.get(level).push(did);
+    const above = (parents.get(did) || []).filter((p) => ids.has(p)).slice();
+    above.sort((a, b) => {
+      if (fathersFirst) {
+        const rank = (d) => (dragons.get(d).sex === "Male" ? 0 : dragons.get(d).sex === "Female" ? 1 : 2);
+        if (rank(a) !== rank(b)) return rank(a) - rank(b);
+      }
+      return Number(a) - Number(b);
+    });
+    for (const parent of above) place(parent);
+  };
+
+  const youngest = [...ids]
+    .filter((did) => (children.get(did) || []).filter((c) => ids.has(c)).length === 0)
+    .sort((a, b) => Number(a) - Number(b));
+  for (const did of youngest) place(did);
+  for (const did of [...ids].sort((a, b) => Number(a) - Number(b))) place(did);
+
+  return rows;
+}
+
+// Evenly spaced, then a few passes pulling each dragon toward the middle of
+// its children — which is what stops the lines crossing the whole drawing.
+function positionsFor(rows, children, ids, step) {
+  const pos = new Map();
+  for (const [level, list] of rows) {
+    list.forEach((did, i) => pos.set(did, { x: (i - (list.length - 1) / 2) * step, y: level * step }));
+  }
+
+  const levels = [...rows.keys()].sort((a, b) => b - a);
+  for (let pass = 0; pass < 4; pass++) {
+    for (const level of levels) {
+      const list = rows.get(level);
+      const want = list.map((did) => {
+        const kids = (children.get(did) || []).filter((c) => ids.has(c) && pos.has(c));
+        if (!kids.length) return pos.get(did).x;
+        return kids.reduce((n, c) => n + pos.get(c).x, 0) / kids.length;
+      });
+      // Keep the row's order and a minimum gap, so nudging cannot shuffle it.
+      const order = list.map((did, i) => ({ did, x: want[i] })).sort((a, b) => a.x - b.x);
+      let previous = -Infinity;
+      for (const item of order) {
+        const x = Math.max(item.x, previous + step);
+        pos.get(item.did).x = x;
+        previous = x;
+      }
+      const xs = list.map((did) => pos.get(did).x);
+      const middle = (Math.min(...xs) + Math.max(...xs)) / 2;
+      for (const did of list) pos.get(did).x -= middle;
+    }
+  }
+  return pos;
+}
+
+/* -------------------------------------------------------------- drawing -- */
+
+const escapeXml = (text) => String(text)
+  .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+  .replace(/"/g, "&quot;").replace(/'/g, "&apos;");
+
+function draw() {
+  if (!dragons.size) return;
+  const { children, parents } = edgesOf();
+
+  const pick = el("rootSel").value;
+  let ids = pick === "*" ? new Set(dragons.keys()) : ancestorsOf(pick, parents);
+
+  let levels = levelsFor(ids, parents);
+  let colours = colourAll(ids, parents, levels);
+
+  const fallback = el("noLineage").value;
+  let dropped = 0;
+  if (el("pruneGrey").checked) {
+    // The original's "prune": a dragon with no colour of its own and no
+    // coloured child is a branch that never meets a lineage.
+    const keep = new Set([...ids].filter((did) =>
+      colours.get(did) || (children.get(did) || []).some((c) => ids.has(c) && colours.get(c))));
+    dropped = ids.size - keep.size;
+    const stillLinked = new Set([...keep].filter((did) =>
+      (parents.get(did) || []).some((p) => keep.has(p))
+      || (children.get(did) || []).some((c) => keep.has(c))
+      || keep.size === 1));
+    ids = stillLinked.size ? stillLinked : keep;
+    levels = levelsFor(ids, parents);
+    colours = colourAll(ids, parents, levels);
+  }
+
+  if (!ids.size) {
+    stage.innerHTML = '<div class="nothing">Nothing left after dropping the uncoloured branches.</div>';
+    el("tally").textContent = "";
+    return;
+  }
+
+  const step = Math.max(80, Number(el("spacing").value) || 170);
+  const rows = orderFor(ids, parents, children, levels);
+  const pos = positionsFor(rows, children, ids, step);
+
+  const sprite = step * 0.62;
+  const boxWidth = step * 0.92;
+  const boxHeight = 22;
+  const pad = step;
+
+  const xs = [...pos.values()].map((p) => p.x);
+  const ys = [...pos.values()].map((p) => p.y);
+  const minX = Math.min(...xs) - pad;
+  const maxX = Math.max(...xs) + pad;
+  const minY = Math.min(...ys) - pad;
+  const maxY = Math.max(...ys) + pad;
+  const width = Math.round(maxX - minX);
+  const height = Math.round(maxY - minY);
+
+  const showSprites = el("showSprites").checked;
+  const showNames = el("showNames").checked;
+  const showEggs = el("showEggs").checked;
+
+  const parts = [];
+  parts.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" `
+    + `viewBox="${Math.round(minX)} ${Math.round(minY)} ${width} ${height}" `
+    + `font-family="Lexend Deca, Helvetica, Arial, sans-serif">`);
+  parts.push(`<rect x="${Math.round(minX)}" y="${Math.round(minY)}" width="${width}" height="${height}" fill="#0b0b0b"/>`);
+
+  // Lines first so the dragons sit over them.
+  for (const did of ids) {
+    for (const child of children.get(did) || []) {
+      if (!ids.has(child) || !pos.has(child)) continue;
+      const a = pos.get(did);
+      const b = pos.get(child);
+      const colour = colours.get(child) || colours.get(did) || fallback;
+      // The name box hangs under the sprite, so a line leaves below the box
+      // and arrives at the top of the sprite, not through either of them.
+      const from = a.y + sprite / 2 + (showNames ? boxHeight : 0);
+      const to = b.y - sprite / 2;
+      const midY = (from + to) / 2;
+      parts.push(`<path d="M${a.x.toFixed(1)} ${from.toFixed(1)} `
+        + `C${a.x.toFixed(1)} ${midY.toFixed(1)} ${b.x.toFixed(1)} ${midY.toFixed(1)} `
+        + `${b.x.toFixed(1)} ${to.toFixed(1)}" `
+        + `fill="none" stroke="${colour}" stroke-width="1.6" opacity="0.75"/>`);
+    }
+  }
+
+  for (const did of ids) {
+    const at = pos.get(did);
+    if (!at) continue;
+    const dragon = dragons.get(did);
+    const colour = colours.get(did) || fallback;
+    const art = sprites.get(did);
+
+    if (showSprites && art) {
+      parts.push(`<image href="${art}" x="${(at.x - sprite / 2).toFixed(1)}" `
+        + `y="${(at.y - sprite / 2).toFixed(1)}" width="${sprite.toFixed(1)}" height="${sprite.toFixed(1)}" `
+        + `preserveAspectRatio="xMidYMid meet"/>`);
+    } else {
+      parts.push(`<circle cx="${at.x.toFixed(1)}" cy="${at.y.toFixed(1)}" r="${(sprite / 3).toFixed(1)}" `
+        + `fill="none" stroke="${colour}" stroke-width="1.5"/>`);
+    }
+
+    if (showEggs && !(parents.get(did) || []).some((p) => ids.has(p))) {
+      // A dragon with no parent in this tree is where a line starts.
+      const ex = at.x + sprite / 2 - 4;
+      const ey = at.y - sprite / 2 + 4;
+      parts.push(`<ellipse cx="${ex.toFixed(1)}" cy="${ey.toFixed(1)}" rx="5" ry="6.5" `
+        + `fill="${colour}" stroke="#0b0b0b" stroke-width="1"/>`);
+    }
+
+    if (showNames) {
+      const label = dragon.name.length > 22 ? `${dragon.name.slice(0, 21)}…` : dragon.name;
+      const top = at.y + sprite / 2;
+      parts.push(`<rect x="${(at.x - boxWidth / 2).toFixed(1)}" y="${top.toFixed(1)}" `
+        + `width="${boxWidth.toFixed(1)}" height="${boxHeight}" rx="3" `
+        + `fill="#f6f6f6" stroke="${colour}" stroke-width="1.5"/>`);
+      parts.push(`<text x="${at.x.toFixed(1)}" y="${(top + boxHeight / 2 + 4).toFixed(1)}" `
+        + `text-anchor="middle" font-size="11" fill="#111111">${escapeXml(label)}</text>`);
+    }
+  }
+
+  parts.push("</svg>");
+  lastSvg = parts.join("\n");
+  stage.innerHTML = lastSvg;
+
+  const generations = new Set([...ids].map((d) => levels.get(d))).size;
+  const coloured = [...ids].filter((d) => colours.get(d)).length;
+  const missing = [...ids].filter((d) => !sprites.has(d)).length;
+  const bits = [`<b>${ids.size}</b> dragons · <b>${generations}</b> generations · `
+    + `<b>${width} × ${height}</b>`];
+  const asides = [];
+  if (coloured < ids.size) asides.push(`${ids.size - coloured} with no lineage colour`);
+  if (missing) asides.push(`${missing} with no sprite`);
+  if (dropped) asides.push(`${dropped} dropped as uncoloured`);
+  if (ids.size > 64) asides.push("this is a big tree — the original gave up above 64");
+  if (asides.length) bits.push(`<span class="aside">${asides.join(" · ")}</span>`);
+  el("tally").innerHTML = bits.join("");
+}
+
+for (const id of ["rootSel", "spacing", "noLineage", "showSprites", "showNames",
+                  "showEggs", "malesFirst", "pruneGrey"]) {
+  el(id).addEventListener("change", draw);
+  el(id).addEventListener("input", draw);
+}
+
+/* ----------------------------------------------------------------- saves -- */
+
+function saveBlob(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = name;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  el("outStatus").textContent = `Saved ${name} — ${(blob.size / 1024).toFixed(1)} KB.`;
+}
+
+function stem() {
+  const pick = el("rootSel").value;
+  const name = pick === "*" ? "every-dragon" : dragons.get(pick).name;
+  return (name.replace(/[^\w\-. ]+/g, "").replace(/\s+/g, "_") || "dragon-tree").slice(0, 50);
+}
+
+el("svgBtn").addEventListener("click", () => {
+  if (!lastSvg) return;
+  saveBlob(new Blob([lastSvg], { type: "image/svg+xml" }), `${stem()}.svg`);
+});
+
+el("pngBtn").addEventListener("click", async () => {
+  if (!lastSvg) return;
+  try {
+    const svg = stage.querySelector("svg");
+    const width = Number(svg.getAttribute("width"));
+    const height = Number(svg.getAttribute("height"));
+    const image = new Image();
+    // A data URI rather than a blob URL: the sprites are already inlined, so
+    // nothing here taints the canvas and the save cannot fail silently.
+    image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(lastSvg)}`;
+    await image.decode();
+
+    const scale = Math.min(2, 8000 / Math.max(width, height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(width * scale);
+    canvas.height = Math.round(height * scale);
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob((blob) => {
+      if (!blob) { el("outStatus").textContent = "The canvas would not save."; return; }
+      saveBlob(blob, `${stem()}.png`);
+    }, "image/png");
+  } catch (err) {
+    console.error(err);
+    el("outStatus").textContent = `Couldn't write the PNG: ${err.message}`;
+  }
+});
+
+el("csvBtn").addEventListener("click", () => {
+  if (!dragons.size) return;
+  const quote = (v) => (/[",\r\n]/.test(String(v ?? "")) ? `"${String(v).replace(/"/g, '""')}"` : String(v ?? ""));
+  const { parents } = edgesOf();
+  const levels = levelsFor(new Set(dragons.keys()), parents);
+  const colours = colourAll(new Set(dragons.keys()), parents, levels);
+  const rows = [["did", "dragon_name", "parents", "sex", "lineage", "color", "filename"]];
+  for (const dragon of dragons.values()) {
+    rows.push([dragon.did, dragon.name, dragon.parents.join(","), dragon.sex || "",
+      dragon.lineage, colours.get(dragon.did) || "", dragon.file]);
+  }
+  const text = rows.map((r) => r.map(quote).join(",")).join("\r\n") + "\r\n";
+  saveBlob(new Blob([text], { type: "text/csv" }), "dragons.csv");
+});
+</script>
+</body>
+</html>
