@@ -16,3 +16,13 @@ commit. Push the working branch too, so the two stay in step.
 
 Only hold off if the merge would land something broken, or if the user asks for
 a pull request instead.
+
+## The index
+
+The tiles in [`index.html`](index.html) are in alphabetical order by the name shown
+on the tile. A new page goes in its alphabetical place, not on the end.
+
+Sort on the visible name with the arrows and punctuation taken out, so
+`Palette &rarr; Gem` sorts under *palette gem* and lands before `PNG &rarr; Swirl
+GIF`. Case is ignored. The `<symbol>` sprite above the list is referenced by id and
+its order does not matter.
