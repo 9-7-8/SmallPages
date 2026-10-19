@@ -1747,7 +1747,16 @@ recallPace();
 syncWpm();
 
 // ?url=… opens the page on an article, which is what makes a bookmarklet of it.
-const asked = new URLSearchParams(location.search).get("url");
+// &relay=… names a relay of your own for that link, so whatever sends you here
+// can say how to fetch it ({url} marks where the link goes, or it is appended).
+const params = new URLSearchParams(location.search);
+const askedRelay = params.get("relay");
+if (askedRelay && /^https:\/\//i.test(askedRelay)) {
+  relaySel.value = "custom";
+  relayIn.hidden = false;
+  relayIn.value = askedRelay;
+}
+const asked = params.get("url");
 if (asked) { urlIn.value = asked; fromLink(); }
 </script>
 </body>
