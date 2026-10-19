@@ -57,6 +57,8 @@
   .field label { font-size: 0.8rem; }
   .field.grow { flex: 1; min-width: 12rem; }
   .field select { min-width: 12rem; max-width: 20rem; }
+  .field .check { display: flex; align-items: center; gap: 0.45rem; }
+  .field .check input { flex: none; }
 
   /* A one-page result hides the page picker, and .field's own display would
      otherwise win over the attribute. */
@@ -85,13 +87,13 @@
 <main>
   <a class="home" href="index.html">&larr; index</a>
   <h1>Anything → Image</h1>
-  <p class="lede">Paste, drop, or pick anything at all — a screenshot, a cell range out of a spreadsheet, a shape off a slide, an SVG, a paragraph of text, a link — and it comes back as an image you can copy or save. Drop a whole <code>.xlsx</code> and every tab comes back as its own page, trimmed to the cells that have something in them.</p>
+  <p class="lede">Paste, drop, or pick anything at all — a screenshot, a cell range out of a spreadsheet, a shape off a slide, an SVG, a paragraph of text, a link — and it comes back as an image you can copy or save. Drop a whole <code>.xlsx</code> and every tab comes back as its own page, trimmed to the cells that have something in them; drop a <code>.pdf</code> and every page does, cropped to the ink rather than the paper. Anything that comes back as more than one page saves as a single <code>.zip</code>.</p>
 
   <div class="card">
     <div class="dropzone" id="dropzone" tabindex="0">
       <div>Hit <kbd>Ctrl</kbd>+<kbd>V</kbd> anywhere on this page</div>
-      <div class="hint">Or drop a file here, or click to choose one — images, SVG, markup, text, a spreadsheet; nothing leaves your browser</div>
-      <input type="file" id="fileInput" accept="image/*,.svg,.txt,.html,.xlsx,.xlsm">
+      <div class="hint">Or drop a file here, or click to choose one — images, SVG, markup, text, a spreadsheet, a PDF; nothing leaves your browser</div>
+      <input type="file" id="fileInput" accept="image/*,.svg,.txt,.html,.xlsx,.xlsm,.pdf,application/pdf">
     </div>
     <div class="link-row">
       <input type="text" id="urlInput" placeholder="…or paste a link and press Enter">
@@ -108,6 +110,17 @@
         <div class="field" id="pageField" hidden>
           <label for="pageSel">Page</label>
           <select id="pageSel"></select>
+        </div>
+
+        <div class="field" id="pdfField" hidden>
+          <label for="pdfScale">PDF pages</label>
+          <select id="pdfScale">
+            <option value="1">72 dpi &mdash; screen</option>
+            <option value="2" selected>144 dpi</option>
+            <option value="3">216 dpi</option>
+            <option value="4">288 dpi &mdash; print</option>
+          </select>
+          <label class="check"><input type="checkbox" id="pdfTrim" checked> Crop to the ink</label>
         </div>
 
         <div class="field">
@@ -145,6 +158,13 @@
   </div>
 </main>
 
+<!-- Both of these are classic scripts on purpose. pdf.js would normally fetch
+     its worker, and a page opened straight off the filesystem cannot fetch a
+     sibling file at all; loading the worker here instead puts it on the global
+     where pdf.js finds it already in hand, so PDFs work the same locally as
+     they do served. -->
+<script src="vendor/pdfjs/pdf.min.js"></script>
+<script src="vendor/pdfjs/pdf.worker.min.js"></script>
 <script>
 "use strict";
 
@@ -166,12 +186,18 @@ const saveBtn = document.getElementById("saveBtn");
 const allBtn = document.getElementById("allBtn");
 const pageField = document.getElementById("pageField");
 const pageSel = document.getElementById("pageSel");
+const pdfField = document.getElementById("pdfField");
+const pdfScale = document.getElementById("pdfScale");
+const pdfTrim = document.getElementById("pdfTrim");
 
 // The drawn source, before format and background are applied. Most things
 // make one page; a workbook makes one per tab, and `source` is whichever of
 // them is on screen.
 let pages = [];
 let pageIndex = 0;
+// What a multi-page save is called. Without it the zip would be named after
+// whichever page happened to be on screen.
+let bundleStem = "";
 let source = null;
 let format = "image/png";
 let background = "transparent";
@@ -256,6 +282,9 @@ async function fromFile(file) {
     // What a spreadsheet actually is beats what it's called: an .xlsx renamed
     // to .xls is still a ZIP, and a real .xls still isn't one.
     const head = new Uint8Array(await file.slice(0, 4).arrayBuffer());
+    if (looksPdf(head)) {
+      return await fromPdf(file, file.name || "document.pdf");
+    }
     if (looksLegacy(head)) {
       throw new Error("that's the old binary .xls format, which this page can't read — "
         + "re-saving it as .xlsx is all it takes");
@@ -340,6 +369,143 @@ const TABLE_STYLE = "border-collapse:collapse;font:14px Helvetica,Arial,sans-ser
 const CELL_STYLE = "border:1px solid #d8d8d8;padding:4px 9px;vertical-align:top;"
   + "white-space:pre-wrap;overflow-wrap:anywhere;max-width:340px;";
 const NOTE_STYLE = "font:12px Helvetica,Arial,sans-serif;color:#666666;margin-top:10px";
+
+/* ------------------------------------------------------------------- pdf -- */
+
+function looksPdf(head) {
+  return head[0] === 0x25 && head[1] === 0x50 && head[2] === 0x44 && head[3] === 0x46;
+}
+
+// Kept so the scale and the crop can be changed without asking for the file
+// again. pdf.js takes ownership of the array it is handed and detaches it, so
+// each pass gets a copy of this rather than this itself.
+let pdfBytes = null;
+let pdfStem = "document";
+
+async function fromPdf(file, name) {
+  if (!window.pdfjsLib) {
+    throw new Error("the PDF reader didn't load — vendor/pdfjs/ is missing");
+  }
+  pdfBytes = new Uint8Array(await file.arrayBuffer());
+  pdfStem = name.replace(/\.[^.]+$/, "").replace(/[^\w.-]+/g, "-").slice(0, 50) || "document";
+  return await renderPdf(name);
+}
+
+async function renderPdf(name = `${pdfStem}.pdf`) {
+  const scale = Number(pdfScale.value);
+  const crop = pdfTrim.checked;
+
+  const doc = await pdfjsLib.getDocument({ data: pdfBytes.slice() }).promise;
+  const list = [];
+  let cropped = 0;
+
+  try {
+    for (let n = 1; n <= doc.numPages; n++) {
+      setStatus(`Rendering page ${n} of ${doc.numPages}…`);
+      const page = await doc.getPage(n);
+      const viewport = page.getViewport({ scale });
+
+      const sheet = document.createElement("canvas");
+      sheet.width = Math.max(1, Math.ceil(viewport.width));
+      sheet.height = Math.max(1, Math.ceil(viewport.height));
+      const ctx = sheet.getContext("2d");
+
+      // A PDF page is paper: it has no transparency, and rendering onto a
+      // clear canvas would leave the gaps between glyphs transparent.
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, sheet.width, sheet.height);
+      await page.render({ canvasContext: ctx, viewport }).promise;
+      page.cleanup();
+
+      const canvas = crop ? cropToInk(sheet) : sheet;
+      if (canvas !== sheet) cropped++;
+      list.push({
+        canvas,
+        label: `page ${n}`,
+        name: `${pdfStem}-page-${String(n).padStart(String(doc.numPages).length, "0")}`,
+      });
+    }
+  } finally {
+    doc.destroy();
+  }
+
+  const aside = [
+    `${list.length} page${list.length === 1 ? "" : "s"} from ${name}`,
+    crop ? (cropped ? `${cropped} cropped to the ink` : "nothing to crop") : "full pages",
+    `at ${scale * 72} dpi`,
+  ].join(" — ");
+
+  showPages(list, "#ffffff", `${aside}.`);
+  pdfField.hidden = false;
+  bundleStem = pdfStem;
+  return list;
+}
+
+// Where the ink is. Rows are scanned from the top and the bottom until one of
+// them has something on it, then only those rows are scanned sideways, which
+// is a good deal less work than looking at every pixel and is all the original
+// needed its contour hunt for.
+function inkBox(data, w, h, cut) {
+  const inked = (i) => data[i] < cut || data[i + 1] < cut || data[i + 2] < cut;
+
+  let top = -1;
+  for (let y = 0; y < h && top < 0; y++) {
+    for (let x = 0; x < w; x++) if (inked((y * w + x) * 4)) { top = y; break; }
+  }
+  if (top < 0) return null;
+
+  let bottom = top;
+  for (let y = h - 1; y > top; y--) {
+    let found = false;
+    for (let x = 0; x < w; x++) if (inked((y * w + x) * 4)) { found = true; break; }
+    if (found) { bottom = y; break; }
+  }
+
+  let left = w;
+  let right = -1;
+  for (let y = top; y <= bottom; y++) {
+    for (let x = 0; x < left; x++) if (inked((y * w + x) * 4)) { left = x; break; }
+    for (let x = w - 1; x > right; x--) if (inked((y * w + x) * 4)) { right = x; break; }
+  }
+  return { left, top, right, bottom };
+}
+
+// Anything lighter than this counts as paper. 250 rather than 255 so that a
+// scan's faintly grey background doesn't defeat the whole thing.
+const PAPER = 250;
+
+function cropToInk(sheet) {
+  const ctx = sheet.getContext("2d");
+  const { width: w, height: h } = sheet;
+  const box = inkBox(ctx.getImageData(0, 0, w, h).data, w, h, PAPER);
+
+  // A blank page has no ink to crop to, and a page that is ink corner to
+  // corner has nothing to take off; either way it goes through as it is.
+  if (!box) return sheet;
+  const cw = box.right - box.left + 1;
+  const ch = box.bottom - box.top + 1;
+  if (cw === w && ch === h) return sheet;
+
+  const out = document.createElement("canvas");
+  out.width = cw;
+  out.height = ch;
+  out.getContext("2d").drawImage(sheet, box.left, box.top, cw, ch, 0, 0, cw, ch);
+  return out;
+}
+
+async function redoPdf() {
+  // Hidden means whatever is on screen now did not come from a PDF.
+  if (!pdfBytes || pdfField.hidden) return;
+  try {
+    await renderPdf();
+  } catch (err) {
+    console.error(err);
+    setStatus(`Couldn't re-render that PDF: ${err.message}`, true);
+  }
+}
+
+pdfScale.addEventListener("change", redoPdf);
+pdfTrim.addEventListener("change", redoPdf);
 
 /* ------------------------------------------------------------------- zip -- */
 
@@ -782,6 +948,7 @@ async function fromWorkbook(file, name) {
 
   showPages(pages, "#ffffff",
     `${pages.length} page${pages.length === 1 ? "" : "s"} from ${name}${aside ? ` — ${aside}` : ""}.`);
+  bundleStem = name.replace(/\.[^.]+$/, "").replace(/[^\w.-]+/g, "-").slice(0, 50);
 }
 
 /* ------------------------------------------------------------- renderers -- */
@@ -1026,10 +1193,16 @@ function showPages(list, suggestedBg, note = "") {
     pageSel.appendChild(option);
   });
 
+  // Whatever brought us here, the PDF control and the name for a bundle
+  // belong to whatever produced the pages; the calls that want them set them
+  // again straight after.
+  pdfField.hidden = true;
+  bundleStem = "";
+
   const many = list.length > 1;
   pageField.hidden = !many;
   allBtn.hidden = !many;
-  allBtn.textContent = `Save all ${list.length}`;
+  allBtn.textContent = `Save all ${list.length} as .zip`;
   allBtn.disabled = false;
 
   outEl.classList.add("ready");
@@ -1131,24 +1304,128 @@ saveBtn.addEventListener("click", async () => {
   }
 });
 
-// Browsers cancel a burst of downloads fired off from one click, so the pages
-// go out one a second.
+/* ------------------------------------------------------------ the bundle -- */
+
+// Written out here rather than pulled in: a ZIP that stores its entries whole,
+// with no compression, is a header, the bytes, and a table at the end saying
+// where each one started. PNG and JPEG are already compressed, so deflating
+// them again would cost time to save nothing.
+
+const CRC_TABLE = (() => {
+  const table = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    table[n] = c >>> 0;
+  }
+  return table;
+})();
+
+function crc32(bytes) {
+  let c = 0xffffffff;
+  for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xff] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+}
+
+// ZIP keeps the time in the shape MS-DOS used in 1980: five bits of hour,
+// six of minute, five of two-second steps, and a year counted from 1980.
+function dosStamp(when) {
+  const year = Math.max(1980, when.getFullYear());
+  return {
+    time: (when.getHours() << 11) | (when.getMinutes() << 5) | (when.getSeconds() >> 1),
+    date: ((year - 1980) << 9) | ((when.getMonth() + 1) << 5) | when.getDate(),
+  };
+}
+
+async function zipUp(entries) {
+  const when = dosStamp(new Date());
+  const encoder = new TextEncoder();
+  const parts = [];
+  const directory = [];
+  let offset = 0;
+
+  for (const entry of entries) {
+    const name = encoder.encode(entry.name);
+    const body = new Uint8Array(await entry.blob.arrayBuffer());
+    const crc = crc32(body);
+
+    const local = new DataView(new ArrayBuffer(30));
+    local.setUint32(0, 0x04034b50, true);
+    local.setUint16(4, 20, true);
+    local.setUint16(6, 0x0800, true);   // the name is UTF-8
+    local.setUint16(8, 0, true);        // stored, not deflated
+    local.setUint16(10, when.time, true);
+    local.setUint16(12, when.date, true);
+    local.setUint32(14, crc, true);
+    local.setUint32(18, body.length, true);
+    local.setUint32(22, body.length, true);
+    local.setUint16(26, name.length, true);
+    local.setUint16(28, 0, true);
+
+    parts.push(new Uint8Array(local.buffer), name, body);
+    directory.push({ name, crc, size: body.length, offset });
+    offset += 30 + name.length + body.length;
+  }
+
+  const central = [];
+  let centralSize = 0;
+  for (const item of directory) {
+    const head = new DataView(new ArrayBuffer(46));
+    head.setUint32(0, 0x02014b50, true);
+    head.setUint16(4, 20, true);
+    head.setUint16(6, 20, true);
+    head.setUint16(8, 0x0800, true);
+    head.setUint16(10, 0, true);
+    head.setUint16(12, when.time, true);
+    head.setUint16(14, when.date, true);
+    head.setUint32(16, item.crc, true);
+    head.setUint32(20, item.size, true);
+    head.setUint32(24, item.size, true);
+    head.setUint16(28, item.name.length, true);
+    head.setUint32(42, item.offset, true);
+    central.push(new Uint8Array(head.buffer), item.name);
+    centralSize += 46 + item.name.length;
+  }
+
+  const end = new DataView(new ArrayBuffer(22));
+  end.setUint32(0, 0x06054b50, true);
+  end.setUint16(8, directory.length, true);
+  end.setUint16(10, directory.length, true);
+  end.setUint32(12, centralSize, true);
+  end.setUint32(16, offset, true);
+
+  return new Blob([...parts, ...central, new Uint8Array(end.buffer)], { type: "application/zip" });
+}
+
+// Every page in one file. Firing a download per page is what this used to do,
+// and browsers cancel a burst of them, so they had to go out a second apart —
+// which for a forty-page PDF is forty seconds and forty files in Downloads.
 allBtn.addEventListener("click", async () => {
   if (!pages.length || allBtn.disabled) return;
   allBtn.disabled = true;
   const held = pageIndex;
 
   try {
+    const entries = [];
+    const taken = new Set();
     for (let i = 0; i < pages.length; i++) {
-      setStatus(`Saving page ${i + 1} of ${pages.length}…`);
+      setStatus(`Rendering page ${i + 1} of ${pages.length}…`);
       const blob = await encodePage(i);
       const page = pages[i];
-      const stem = (page.name || page.label || `page-${i + 1}`)
-        .replace(/\.[^.]+$/, "").replace(/[^\w.-]+/g, "-").slice(0, 60);
-      saveBlob(blob, `${stem}.${EXT[format]}`);
-      if (i < pages.length - 1) await new Promise((done) => setTimeout(done, 1000));
+      let stem = (page.name || page.label || `page-${i + 1}`)
+        .replace(/\.[^.]+$/, "").replace(/[^\w.-]+/g, "-").slice(0, 60) || `page-${i + 1}`;
+      // Two tabs called the same thing would otherwise be two entries with one
+      // name, which some unzippers take and some refuse.
+      if (taken.has(stem)) stem = `${stem}-${i + 1}`;
+      taken.add(stem);
+      entries.push({ name: `${stem}.${EXT[format]}`, blob });
     }
-    setStatus(`Saved all ${pages.length} pages.`);
+
+    setStatus("Packing them up…");
+    const zip = await zipUp(entries);
+    const name = `${bundleStem || baseName().replace(/-page-\d+$/, "") || "images"}.zip`;
+    saveBlob(zip, name);
+    setStatus(`Saved ${name} — ${entries.length} images, ${(zip.size / 1024).toFixed(1)} KB.`);
   } catch (err) {
     console.error(err);
     setStatus(`Couldn't save them all: ${err.message}`, true);

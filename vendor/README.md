@@ -51,3 +51,12 @@ done
 
 then pack the `.gpl` files (`R G B<tab>Name  Number` per line), the DMC CSV and
 the Pantone entries whose keys end `-c` or `-u` into the two arrays above.
+
+---
+
+`pdfjs/` is Mozilla's PDF.js 3.11.174, which renders the PDF pages in
+[`../anything-to-image.html`](../anything-to-image.html). Version 3 rather than the
+current one because it still ships a UMD build, and both it and its worker are loaded as
+plain scripts, so the page reads a PDF the same opened off the filesystem as it does
+served. [`pdfjs/README.md`](pdfjs/README.md) has the reasoning and the command to fetch
+them again.
