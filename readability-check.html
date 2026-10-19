@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Readability Check</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  /* Layout and sizing only. Colour, type and component styling live in theme.css. */
+
+  body { margin: 0; padding: 3rem 1.5rem 5rem; }
+  main { max-width: 880px; margin: 0 auto; }
+  p.lede { margin: 0 0 2.2rem; max-width: 60ch; }
+  .card { margin-bottom: 1.5rem; }
+
+  textarea { width: 100%; min-height: 11rem; resize: vertical; }
+
+  .dropzone { padding: 1.1rem 1.5rem; text-align: center; cursor: pointer; margin-top: 0.9rem; }
+  .dropzone input { display: none; }
+  .dropzone .hint { font-size: 0.85rem; margin-top: 0.3rem; }
+
+  .rank { display: flex; flex-wrap: wrap; gap: 1.2rem; align-items: flex-end; }
+  .rank + .rank { margin-top: 1.3rem; }
+  .field { display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; }
+  .field label { font-size: 0.8rem; }
+  .field .unit { font-size: 0.72rem; margin-top: 0.1rem; }
+  .acts { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-left: auto; }
+  .acts button:disabled { color: var(--text-faint); border-color: var(--line-soft); }
+
+  .status { font-size: 0.85rem; margin-top: 0.9rem; min-height: 1.2em; }
+
+  .out { display: none; }
+  .out.ready { display: block; }
+
+  /* ---------------------------------------------------------- the verdict -- */
+
+  .verdict { display: flex; flex-wrap: wrap; gap: 1.6rem 2.4rem; align-items: baseline; }
+
+  .grade { flex: none; }
+  .grade .n {
+    font-size: 3.4rem;
+    font-weight: 200;
+    line-height: 1;
+    color: var(--neon);
+    text-shadow: var(--text-glow);
+    font-variant-numeric: tabular-nums;
+  }
+  .grade .cap { font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-faint); margin-top: 0.4rem; }
+
+  .call { flex: 1 1 22rem; min-width: 0; font-size: 0.92rem; color: var(--text-dim); }
+  .call b { color: var(--text); font-weight: 400; }
+
+  /* ---------------------------------------------------------- the numbers -- */
+
+  .scores { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 1.6rem; }
+  .scores th, .scores td { text-align: left; padding: 0.5rem 0.9rem 0.5rem 0; border-bottom: 1px solid var(--line-soft); }
+  .scores th { font-weight: 400; color: var(--text-faint); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; }
+  .scores td.v {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--neon);
+    white-space: nowrap;
+    width: 8ch;
+  }
+  .scores td.says { color: var(--text-faint); font-size: 0.8rem; }
+  .scores tr.weak td.v { color: var(--text-dim); }
+  .table-scroll { overflow-x: auto; }
+
+  .counts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 1.4rem;
+    margin-top: 1.1rem;
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.76rem;
+    color: var(--text-faint);
+  }
+
+  /* ------------------------------------------------------- the marked text -- */
+
+  .sheet {
+    max-height: 55vh;
+    overflow: auto;
+    padding: 0.4rem 0.2rem;
+    font-size: 0.95rem;
+    line-height: 1.75;
+  }
+
+  /* Monochrome throughout, so a sentence is flagged by weight and a bar
+     rather than by turning a colour the rest of the page never uses. */
+  .sen { display: block; padding: 0.18rem 0.6rem; border-left: 2px solid transparent; }
+  .sen.long  { background: hsl(var(--tint) / 0.055); border-left-color: var(--neon-deep); }
+  .sen.vlong { background: hsl(var(--tint) / 0.10);  border-left-color: var(--neon); }
+  .sen .num {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    color: var(--text-faint);
+    margin-right: 0.5rem;
+    user-select: none;
+  }
+  .hard { color: var(--text); border-bottom: 1px dotted var(--neon-deep); }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 0.5rem 1.4rem; margin-top: 1rem; font-size: 0.75rem; color: var(--text-faint); }
+  .legend span { display: inline-flex; align-items: center; gap: 0.45rem; }
+  .legend i { display: inline-block; width: 1.6rem; height: 0.7rem; border-left: 2px solid var(--neon-deep); background: hsl(var(--tint) / 0.055); }
+  .legend i.v { border-left-color: var(--neon); background: hsl(var(--tint) / 0.10); }
+  .legend i.w { border: none; border-bottom: 1px dotted var(--neon-deep); height: 0.6rem; width: 1.6rem; }
+
+  /* ------------------------------------------------------- worst sentences -- */
+
+  .worst { display: flex; flex-direction: column; }
+  .worst .row {
+    display: flex;
+    gap: 0.9rem;
+    padding: 0.55rem 0.2rem;
+    border-bottom: 1px solid var(--line-soft);
+    cursor: pointer;
+    align-items: baseline;
+  }
+  .worst .row:last-child { border-bottom: none; }
+  .worst .row:hover { background: hsl(var(--tint) / 0.06); }
+  .worst .g {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.78rem;
+    color: var(--neon);
+    flex: none;
+    width: 12ch;
+    white-space: nowrap;
+  }
+  .worst .t { flex: 1; font-size: 0.85rem; color: var(--text-dim); min-width: 0; }
+
+  .note { font-size: 0.78rem; margin-top: 1.2rem; max-width: 66ch; }
+  .note strong { color: var(--text-dim); font-weight: 400; }
+
+  @media (max-width: 620px) {
+    body { padding: 2rem 1rem 4rem; }
+    .acts { margin-left: 0; width: 100%; }
+    .acts button { flex: 1 1 5rem; padding-left: 0.5rem; padding-right: 0.5rem; }
+    .grade .n { font-size: 2.6rem; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <a class="home" href="index.html">&larr; index</a>
+  <h1>Readability Check</h1>
+  <p class="lede">Paste something in and find out what reading level it is pitched at &mdash; by
+  five formulas at once, not one &mdash; with the long sentences and the hard words marked where
+  they are, so you can see what is pulling the number up rather than just being told that it is.</p>
+
+  <div class="card">
+    <label for="textIn">The text</label>
+    <textarea id="textIn" placeholder="Paste a handout, a worksheet, a letter home&hellip;"></textarea>
+
+    <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Choose a text file">
+      <div>Or drop a text file here, or click to choose one</div>
+      <div class="hint"><code>.txt</code> <code>.md</code> &mdash; for a <code>.docx</code> or a PDF, the
+      <a href="document-viewer.html">document viewer</a> will pull the text out first</div>
+      <input type="file" id="fileInput" accept=".txt,.md,.markdown,.csv,.log,text/*">
+    </div>
+
+    <div class="rank" style="margin-top:1.2rem">
+      <div class="field">
+        <label for="targetSel">Aiming at</label>
+        <select id="targetSel">
+          <option value="3">3rd grade</option>
+          <option value="4">4th grade</option>
+          <option value="5">5th grade</option>
+          <option value="6">6th grade</option>
+          <option value="7" selected>7th grade</option>
+          <option value="8">8th grade</option>
+          <option value="9">9th grade</option>
+          <option value="10">10th grade</option>
+          <option value="11">11th grade</option>
+          <option value="12">12th grade</option>
+          <option value="14">College</option>
+        </select>
+        <span class="unit">what the page measures you against</span>
+      </div>
+
+      <div class="acts">
+        <button type="button" id="loadBtn" class="ghost">Load an example</button>
+        <button type="button" id="clearBtn" class="ghost">Clear</button>
+      </div>
+    </div>
+
+    <div class="status" id="status">Nothing to read yet.</div>
+  </div>
+
+  <div class="out" id="out">
+    <div class="card">
+      <div class="verdict">
+        <div class="grade">
+          <div class="n" id="gradeN">&mdash;</div>
+          <div class="cap">Grade level</div>
+        </div>
+        <div class="call" id="call"></div>
+      </div>
+
+      <div class="table-scroll">
+        <table class="scores">
+          <thead><tr><th>Formula</th><th>Score</th><th>Reads as</th></tr></thead>
+          <tbody id="scores"></tbody>
+        </table>
+      </div>
+
+      <div class="counts" id="counts"></div>
+    </div>
+
+    <div class="card">
+      <div class="rank" style="margin-bottom:1rem">
+        <div class="field">
+          <label>Mark</label>
+          <div class="seg" id="markSeg">
+            <button type="button" data-mark="both" aria-pressed="true">Both</button>
+            <button type="button" data-mark="sentences" aria-pressed="false">Long sentences</button>
+            <button type="button" data-mark="words" aria-pressed="false">Hard words</button>
+            <button type="button" data-mark="none" aria-pressed="false">Nothing</button>
+          </div>
+        </div>
+
+        <div class="acts">
+          <button type="button" id="copyBtn" class="ghost">Copy report</button>
+          <button type="button" id="txtBtn" class="ghost">.txt</button>
+          <button type="button" id="csvBtn" class="ghost">.csv</button>
+        </div>
+      </div>
+
+      <div class="sheet" id="sheet"></div>
+
+      <div class="legend">
+        <span><i></i> over 20 words</span>
+        <span><i class="v"></i> over 30 words</span>
+        <span><i class="w"></i> three syllables or more</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 style="margin:0 0 0.9rem">Pulling hardest</h2>
+      <div class="worst" id="worst"></div>
+    </div>
+  </div>
+
+  <p class="note"><strong>What these formulas actually measure.</strong> Every one of them is
+  arithmetic on two things: how long your sentences are and how long your words are. None of them
+  reads. A page of short sentences made of short words scores beautifully whether it is clear or
+  gibberish, and a well-built long sentence scores badly for being long. Use the number to find
+  the places worth looking at &mdash; which is what the marks above are for &mdash; and then
+  judge those by reading them.</p>
+
+  <p class="note"><strong>Five, because any one of them is noisy.</strong> The grade at the top
+  is the middle of the five, which is steadier than any single formula on a short text.
+  Flesch-Kincaid and the Automated Readability Index weigh sentence length heavily; Gunning Fog
+  and SMOG care about words of three syllables or more; Coleman-Liau counts letters instead of
+  syllables, so it is the one that does not depend on the guesswork below. Flesch Reading Ease is
+  the odd one out &mdash; it runs 0 to 100 upwards, so it is reported but not averaged in.</p>
+
+  <p class="note"><strong>SMOG wants thirty sentences.</strong> It was built on samples of thirty
+  and it is unreliable under about that; the page says so when your text is shorter, and leaves
+  it out of the middle.</p>
+
+  <p class="note"><strong>Syllables are counted by rule, and rules are wrong sometimes.</strong>
+  English spelling does not say how many syllables a word has &mdash; <code>create</code> is two
+  and <code>greatest</code> is two, spelled almost the same way. The counter here handles the
+  common patterns and carries a list of the words it would otherwise get wrong, and it agrees
+  with a hand count on the ordinary vocabulary of a handout. It will still miss on names, on
+  loanwords and on anything invented. A word or two either way moves the grade by about a tenth.</p>
+
+  <p class="note"><strong>Sentences are found by rule too.</strong> A full stop ends a sentence
+  unless it is on <code>Mr.</code>, <code>e.g.</code>, an initial or a decimal point; a line
+  break ends one as well, so a heading or a bullet counts as its own sentence rather than running
+  into the next. Lists therefore score easier than prose, which is true of how they read but
+  worth knowing before you compare a worksheet against an essay.</p>
+</main>
+
+<script>
+"use strict";
+
+const el = (id) => document.getElementById(id);
+
+const textIn    = el("textIn");
+const dropzone  = el("dropzone");
+const fileInput = el("fileInput");
+const targetSel = el("targetSel");
+const statusEl  = el("status");
+const outEl     = el("out");
+const gradeN    = el("gradeN");
+const callEl    = el("call");
+const scoresEl  = el("scores");
+const countsEl  = el("counts");
+const markSeg   = el("markSeg");
+const sheetEl   = el("sheet");
+const worstEl   = el("worst");
+const actsBtns  = () => document.querySelectorAll(".out .acts button");
+
+const LONG = 20;        // words, where a sentence starts being marked
+const VERY_LONG = 30;
+
+let report = null;
+let mark = "both";
+let sourceName = "";
+
+const EXAMPLE =
+`Photosynthesis is the process by which plants make their own food.
+
+Plants need three things to do it: light, water, and a gas called carbon dioxide. \
+The light comes from the sun. The water comes up through the roots. The carbon dioxide comes in \
+through tiny holes in the leaves called stomata.
+
+Inside the leaf there are small green parts called chloroplasts, and it is within these \
+chloroplasts, which contain a remarkable pigment known as chlorophyll that is responsible for \
+absorbing light energy from the sun and converting it into a form of chemical energy that the \
+plant is subsequently able to utilise, that the fundamental reaction takes place.
+
+The plant uses the energy to turn the water and the carbon dioxide into sugar. The sugar is its \
+food. It stores what it does not need straight away.
+
+Oxygen is left over at the end, and the plant lets it go. That is the oxygen we breathe.`;
+
+/* ------------------------------------------------------------ syllables -- */
+
+// The words the rules below get wrong often enough to be worth naming. Most
+// of them are the usual suspects in any syllable counter: silent letters,
+// vowel pairs that are two sounds in one word and one in the next, and the
+// handful of words English simply does not spell the way it says.
+const ODD = {
+  business: 2, wednesday: 2, every: 3, evening: 2, interesting: 4, comfortable: 4,
+  chocolate: 3, vegetable: 4, probably: 3, people: 2, little: 2, simple: 2,
+  science: 2, poem: 2, hour: 1, our: 1, queue: 1, choir: 2, colonel: 2, aisle: 1,
+  one: 1, once: 1, ocean: 2, special: 2, because: 2, beautiful: 3, family: 3,
+  library: 3, february: 4, camera: 3, favourite: 3, favorite: 3, restaurant: 3,
+  temperature: 4, literature: 4, rhythm: 2, algorithm: 4, prism: 2, schism: 2,
+  real: 1, really: 2, idea: 3, area: 3, lion: 2, quiet: 2, create: 2, creates: 2,
+  created: 3, creating: 3, recreate: 3, nuclear: 3, theatre: 3, theater: 3,
+};
+
+function syllables(raw) {
+  const w = String(raw).toLowerCase().replace(/[^a-z]/g, "");
+  if (!w) return 0;
+  if (ODD[w] !== undefined) return ODD[w];
+  if (w.length <= 3) return 1;
+
+  let s = w;
+  s = s.replace(/(?:[^aeiouy]|qu)e$/, (m) => m.slice(0, -1));   // a silent final e
+  s = s.replace(/(?<![td])ed$/, "");                            // walked, but not wanted
+  s = s.replace(/(?<![scxzhg])es$/, "");                        // makes, but not judges
+  s = s.replace(/^y/, "");                                      // a leading y is a consonant
+
+  const groups = s.match(/[aeiouy]+/g) || [];
+  let n = groups.length;
+
+  // Two vowels together are usually one sound — rain, boat — but some pairs
+  // are two: ra-di-o, sta-di-um. Not after t, s or c, where -tion and -cious
+  // close back into one.
+  const HIATUS = /(ia|io|iu|ua|uo|eo)/g;
+  for (const g of groups) {
+    if (g.length < 2) continue;
+    const at = s.indexOf(g);
+    if (at > 0 && "tsc".includes(s[at - 1])) continue;
+    n += (g.match(HIATUS) || []).length;
+  }
+
+  if (/[^aeiouyl]le$/.test(w)) n += 1;        // lit-tle, ta-ble, cy-cle
+  if (/[aeiouy]ing$/.test(w)) n += 1;         // be-ing, go-ing — not read-ing
+
+  return Math.max(1, n);
+}
+
+/* ------------------------------------------------------------- splitting -- */
+
+const ABBREV = new Set([
+  "mr", "mrs", "ms", "dr", "prof", "sr", "jr", "st", "vs", "etc", "approx",
+  "fig", "no", "vol", "ch", "pp", "dept", "est", "inc", "ltd", "co", "al",
+  "e.g", "i.e", "a.m", "p.m", "u.s", "u.k", "jan", "feb", "mar", "apr", "jun",
+  "jul", "aug", "sep", "sept", "oct", "nov", "dec",
+]);
+
+// A line break ends a sentence as surely as a full stop does: a heading or a
+// bullet is its own unit, and running it into the paragraph below would make
+// both of them look longer than they read.
+function sentences(text) {
+  const out = [];
+  for (const line of String(text).split(/\n+/)) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+
+    const pieces = trimmed.match(/[^.!?]+(?:[.!?]+["'”’)\]]*|$)/g) || [];
+    let held = "";
+    for (const piece of pieces) {
+      held = held ? `${held}${piece}` : piece;
+      const tail = held.trimEnd();
+      if (!/[.!?]["'”’)\]]*$/.test(tail)) continue;
+
+      // Mr. / e.g. / a single initial / a decimal point: not an ending.
+      const lastWord = (tail.match(/([^\s]+?)[.!?]+["'”’)\]]*$/) || [, ""])[1];
+      const bare = lastWord.toLowerCase().replace(/^[^a-z0-9.]+/, "");
+      if (ABBREV.has(bare)) continue;
+      if (/^[A-Za-z]$/.test(lastWord)) continue;
+      if (/\d$/.test(lastWord) && /\.["'”’)\]]*$/.test(tail) && !/[.!?]{2}/.test(tail)) {
+        // A number before a full stop might be a decimal, but only if a digit
+        // follows it somewhere — "in 2019." really is the end of a sentence.
+        if (/\d\.\d/.test(tail.slice(-6))) continue;
+      }
+
+      out.push(tail);
+      held = "";
+    }
+    if (held.trim()) out.push(held.trim());
+  }
+  return out;
+}
+
+const WORD = /[A-Za-zÀ-ɏ]+(?:['’-][A-Za-zÀ-ɏ]+)*/g;
+const wordsIn = (text) => text.match(WORD) || [];
+
+/* -------------------------------------------------------------- measuring -- */
+
+function measure(text) {
+  const sens = sentences(text);
+  const all = wordsIn(text);
+  if (!sens.length || !all.length) return null;
+
+  const perSentence = sens.map((raw, i) => {
+    const ws = wordsIn(raw);
+    const syl = ws.map(syllables);
+    const hard = ws.filter((w, j) => syl[j] >= 3).length;
+    const totalSyl = syl.reduce((a, b) => a + b, 0);
+    return {
+      i,
+      raw,
+      words: ws,
+      syllables: syl,
+      nWords: ws.length,
+      nSyllables: totalSyl,
+      nHard: hard,
+      // Flesch-Kincaid on one sentence is noisy, but it ranks them usefully,
+      // which is all it is asked to do here.
+      grade: ws.length
+        ? 0.39 * ws.length + 11.8 * (totalSyl / ws.length) - 15.59
+        : 0,
+    };
+  }).filter((s) => s.nWords > 0);
+
+  const nSentences = perSentence.length;
+  const nWords = perSentence.reduce((a, s) => a + s.nWords, 0);
+  const nSyllables = perSentence.reduce((a, s) => a + s.nSyllables, 0);
+  const nHard = perSentence.reduce((a, s) => a + s.nHard, 0);
+  const nLetters = all.join("").length;
+
+  const wps = nWords / nSentences;          // words per sentence
+  const spw = nSyllables / nWords;          // syllables per word
+  const hardPct = (nHard / nWords) * 100;
+
+  const L = (nLetters / nWords) * 100;      // letters per 100 words
+  const S = (nSentences / nWords) * 100;    // sentences per 100 words
+
+  const scores = [
+    {
+      key: "fk", name: "Flesch-Kincaid Grade", grade: true,
+      value: 0.39 * wps + 11.8 * spw - 15.59,
+      says: "Sentence length and syllables, the US schools standard",
+    },
+    {
+      key: "fog", name: "Gunning Fog", grade: true,
+      value: 0.4 * (wps + hardPct),
+      says: "Sentence length and the share of three-syllable words",
+    },
+    {
+      key: "smog", name: "SMOG", grade: true, weak: nSentences < 30,
+      value: 1.0430 * Math.sqrt(nHard * (30 / nSentences)) + 3.1291,
+      says: nSentences < 30
+        ? `Built for 30 sentences; this has ${nSentences}, so it is left out of the middle`
+        : "Three-syllable words, scaled to a 30-sentence sample",
+    },
+    {
+      key: "cl", name: "Coleman-Liau", grade: true,
+      value: 0.0588 * L - 0.296 * S - 15.8,
+      says: "Letters rather than syllables, so no guesswork in it",
+    },
+    {
+      key: "ari", name: "Automated Readability Index", grade: true,
+      value: 4.71 * (nLetters / nWords) + 0.5 * wps - 21.43,
+      says: "Characters per word and words per sentence",
+    },
+    {
+      key: "ease", name: "Flesch Reading Ease", grade: false,
+      value: 206.835 - 1.015 * wps - 84.6 * spw,
+      says: "0 to 100, upwards: 60-70 is plain English",
+    },
+  ];
+
+  // The middle of the grade formulas, skipping any the text is too short to
+  // support. A median rather than a mean, so one outlier cannot drag it.
+  const usable = scores.filter((s) => s.grade && !s.weak && Number.isFinite(s.value))
+    .map((s) => s.value).sort((a, b) => a - b);
+  const mid = usable.length
+    ? (usable.length % 2
+        ? usable[(usable.length - 1) / 2]
+        : (usable[usable.length / 2 - 1] + usable[usable.length / 2]) / 2)
+    : 0;
+
+  return {
+    sentences: perSentence, scores, consensus: mid,
+    nSentences, nWords, nSyllables, nHard, nLetters, wps, spw, hardPct,
+  };
+}
+
+/* --------------------------------------------------------------- showing -- */
+
+const round1 = (n) => (Math.round(n * 10) / 10).toFixed(1);
+
+function gradeName(g) {
+  if (g < 1) return "below first grade";
+  if (g >= 16) return "postgraduate";
+  if (g >= 13) return "college";
+  const n = Math.round(g);
+  const suffix = n === 1 ? "st" : n === 2 ? "nd" : n === 3 ? "rd" : "th";
+  return `${n}${suffix} grade`;
+}
+
+function render() {
+  if (!report) { outEl.classList.remove("ready"); return; }
+  outEl.classList.add("ready");
+
+  const target = Number(targetSel.value);
+  const g = report.consensus;
+
+  gradeN.textContent = round1(g);
+
+  const over = g - target;
+  const where = Math.abs(over) < 0.6
+    ? `<b>That lands on target.</b> It reads at about ${gradeName(g)}, which is where you aimed it.`
+    : over > 0
+      ? `<b>That is ${round1(over)} grades above target.</b> It reads at about ${gradeName(g)};`
+        + ` you aimed at ${gradeName(target)}. The list below is where the distance is.`
+      : `<b>That is ${round1(-over)} grades below target.</b> It reads at about ${gradeName(g)},`
+        + ` easier than the ${gradeName(target)} you aimed at, which is usually fine.`;
+  callEl.innerHTML = where;
+
+  scoresEl.textContent = "";
+  for (const s of report.scores) {
+    const tr = document.createElement("tr");
+    if (s.weak) tr.className = "weak";
+
+    const name = document.createElement("td");
+    name.textContent = s.name;
+
+    const value = document.createElement("td");
+    value.className = "v";
+    value.textContent = s.grade
+      ? `${round1(s.value)}`
+      : `${Math.round(s.value)}`;
+
+    const says = document.createElement("td");
+    says.className = "says";
+    says.textContent = s.says;
+
+    tr.append(name, value, says);
+    scoresEl.appendChild(tr);
+  }
+
+  countsEl.textContent = [
+    `${report.nWords.toLocaleString()} words`,
+    `${report.nSentences.toLocaleString()} sentences`,
+    `${round1(report.wps)} words a sentence`,
+    `${round1(report.spw)} syllables a word`,
+    `${report.nHard.toLocaleString()} hard words (${round1(report.hardPct)}%)`,
+  ].join(" · ");
+
+  paint();
+  rank();
+}
+
+// The text itself, with the marks laid over it in place.
+function paint() {
+  sheetEl.textContent = "";
+  const showSen = mark === "both" || mark === "sentences";
+  const showWord = mark === "both" || mark === "words";
+
+  for (const s of report.sentences) {
+    const line = document.createElement("span");
+    line.className = "sen";
+    if (showSen && s.nWords > VERY_LONG) line.classList.add("vlong");
+    else if (showSen && s.nWords > LONG) line.classList.add("long");
+    line.id = `sen-${s.i}`;
+
+    const num = document.createElement("span");
+    num.className = "num";
+    num.textContent = `${s.i + 1}`;
+    line.appendChild(num);
+
+    if (!showWord) {
+      line.appendChild(document.createTextNode(s.raw));
+    } else {
+      // Walk the sentence putting every word back where it was, so the
+      // punctuation and spacing survive the marking.
+      let at = 0;
+      let wi = 0;
+      WORD.lastIndex = 0;
+      let m;
+      while ((m = WORD.exec(s.raw)) !== null) {
+        if (m.index > at) line.appendChild(document.createTextNode(s.raw.slice(at, m.index)));
+        const piece = s.syllables[wi] >= 3 ? document.createElement("span") : null;
+        if (piece) {
+          piece.className = "hard";
+          piece.textContent = m[0];
+          piece.title = `${s.syllables[wi]} syllables`;
+          line.appendChild(piece);
+        } else {
+          line.appendChild(document.createTextNode(m[0]));
+        }
+        at = m.index + m[0].length;
+        wi++;
+      }
+      if (at < s.raw.length) line.appendChild(document.createTextNode(s.raw.slice(at)));
+    }
+
+    sheetEl.appendChild(line);
+  }
+}
+
+// The sentences doing the most damage, hardest first — which is the part of
+// this that tells you what to actually change.
+function rank() {
+  worstEl.textContent = "";
+  const top = report.sentences
+    .filter((s) => s.nWords >= 5)
+    .slice()
+    .sort((a, b) => b.grade - a.grade)
+    .slice(0, 8);
+
+  if (!top.length) {
+    worstEl.textContent = "Nothing long enough to rank.";
+    return;
+  }
+
+  for (const s of top) {
+    const row = document.createElement("div");
+    row.className = "row";
+
+    const g = document.createElement("span");
+    g.className = "g";
+    g.textContent = `${round1(Math.max(0, s.grade))} · ${s.nWords}w`;
+
+    const t = document.createElement("span");
+    t.className = "t";
+    t.textContent = s.raw.length > 160 ? `${s.raw.slice(0, 157)}…` : s.raw;
+
+    row.append(g, t);
+    row.addEventListener("click", () => {
+      const target = el(`sen-${s.i}`);
+      if (!target) return;
+      target.scrollIntoView({ block: "center", behavior: "smooth" });
+      target.classList.add("vlong");
+    });
+    worstEl.appendChild(row);
+  }
+}
+
+/* ---------------------------------------------------------------- input -- */
+
+function run() {
+  const text = textIn.value;
+  report = measure(text);
+  if (!report) {
+    outEl.classList.remove("ready");
+    statusEl.textContent = text.trim() ? "Not enough there to measure yet." : "Nothing to read yet.";
+    statusEl.classList.remove("error");
+    return;
+  }
+  statusEl.classList.remove("error");
+  statusEl.textContent = `${report.nWords.toLocaleString()} words in ${report.nSentences.toLocaleString()} sentences.`;
+  render();
+}
+
+textIn.addEventListener("input", run);
+targetSel.addEventListener("change", () => report && render());
+
+markSeg.addEventListener("click", (e) => {
+  const button = e.target.closest("button");
+  if (!button) return;
+  mark = button.dataset.mark;
+  for (const b of markSeg.querySelectorAll("button")) {
+    b.setAttribute("aria-pressed", String(b.dataset.mark === mark));
+  }
+  if (report) paint();
+});
+
+dropzone.addEventListener("click", () => fileInput.click());
+dropzone.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInput.click(); }
+});
+fileInput.addEventListener("change", () => {
+  if (fileInput.files.length) open(fileInput.files[0]);
+});
+for (const type of ["dragover", "dragenter"]) {
+  document.addEventListener(type, (e) => { e.preventDefault(); dropzone.classList.add("drag"); });
+}
+document.addEventListener("dragleave", (e) => {
+  if (e.relatedTarget === null) dropzone.classList.remove("drag");
+});
+document.addEventListener("drop", (e) => {
+  e.preventDefault();
+  dropzone.classList.remove("drag");
+  const file = e.dataTransfer.files && e.dataTransfer.files[0];
+  if (file) open(file);
+});
+
+async function open(file) {
+  try {
+    sourceName = file.name || "";
+    textIn.value = await file.text();
+    run();
+  } catch (err) {
+    console.error(err);
+    statusEl.textContent = `Couldn't read that: ${err.message}`;
+    statusEl.classList.add("error");
+  }
+}
+
+el("loadBtn").addEventListener("click", () => { sourceName = "example"; textIn.value = EXAMPLE; run(); });
+el("clearBtn").addEventListener("click", () => { sourceName = ""; textIn.value = ""; run(); });
+
+/* --------------------------------------------------------------- exports -- */
+
+function asReport() {
+  const target = Number(targetSel.value);
+  const lines = [
+    `Readability — ${sourceName || "pasted text"}`,
+    "",
+    `Grade level        ${round1(report.consensus)}  (${gradeName(report.consensus)})`,
+    `Aimed at           ${target}  (${gradeName(target)})`,
+    "",
+  ];
+  for (const s of report.scores) {
+    lines.push(`${s.name.padEnd(28)} ${s.grade ? round1(s.value) : Math.round(s.value)}`
+      + (s.weak ? "   (too few sentences to trust)" : ""));
+  }
+  lines.push("",
+    `Words              ${report.nWords}`,
+    `Sentences          ${report.nSentences}`,
+    `Words a sentence   ${round1(report.wps)}`,
+    `Syllables a word   ${round1(report.spw)}`,
+    `Hard words         ${report.nHard} (${round1(report.hardPct)}%)`,
+    "",
+    "Pulling hardest:");
+  for (const s of report.sentences.slice().sort((a, b) => b.grade - a.grade).slice(0, 8)) {
+    lines.push(`  ${round1(Math.max(0, s.grade)).padStart(5)}  ${s.nWords}w  ${s.raw}`);
+  }
+  return `${lines.join("\n")}\n`;
+}
+
+function asCsv() {
+  const cell = (v) => `"${String(v).replace(/"/g, '""')}"`;
+  const rows = [["n", "words", "syllables", "hard_words", "grade", "text"].join(",")];
+  for (const s of report.sentences) {
+    rows.push([s.i + 1, s.nWords, s.nSyllables, s.nHard,
+      round1(Math.max(0, s.grade)), cell(s.raw)].join(","));
+  }
+  return `${rows.join("\r\n")}\r\n`;
+}
+
+function stem() {
+  const base = (sourceName || "readability").replace(/\.[^.]+$/, "").replace(/[^\w.-]+/g, "-");
+  return (base || "readability").slice(0, 60);
+}
+
+function save(body, extension, mime, bom = false) {
+  const blob = new Blob([bom ? `﻿${body}` : body], { type: `${mime};charset=utf-8` });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${stem()}.${extension}`;
+  document.body.appendChild(link);
+  try { link.click(); } finally {
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  }
+  return link.download;
+}
+
+el("txtBtn").addEventListener("click", () => {
+  if (report) statusEl.textContent = `Saved ${save(asReport(), "txt", "text/plain")}.`;
+});
+el("csvBtn").addEventListener("click", () => {
+  if (report) statusEl.textContent = `Saved ${save(asCsv(), "csv", "text/csv", true)}.`;
+});
+el("copyBtn").addEventListener("click", async () => {
+  if (!report) return;
+  try {
+    if (!navigator.clipboard || !window.isSecureContext) throw new Error("no clipboard here");
+    await navigator.clipboard.writeText(asReport());
+    statusEl.textContent = "Report copied.";
+    statusEl.classList.remove("error");
+  } catch (err) {
+    console.error(err);
+    statusEl.textContent = `Couldn't copy: ${err.message}`;
+    statusEl.classList.add("error");
+  }
+});
+
+run();
+</script>
+</body>
+</html>
