@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Image Grid</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  /* Layout and sizing only. Colour, type and component styling live in theme.css. */
+
+  body { margin: 0; padding: 3rem 1.5rem 5rem; }
+  main { max-width: 1120px; margin: 0 auto; }
+  p.lede { margin: 0 0 2.2rem; max-width: 60ch; }
+  .card { margin-bottom: 1.5rem; }
+
+  /* Controls on the left, the sheet on the right and staying put while you
+     scroll the controls, because every control here is judged by looking. */
+  .bench { display: flex; gap: 1.5rem; align-items: flex-start; }
+  .bench .controls { flex: 1 1 24rem; min-width: 0; }
+  .bench .viewer { flex: 0 1 30rem; min-width: 0; position: sticky; top: 1.5rem; }
+
+  .dropzone { padding: 1.6rem 1.5rem; text-align: center; cursor: pointer; }
+  .dropzone input { display: none; }
+  .dropzone .hint { font-size: 0.85rem; margin-top: 0.35rem; }
+
+  h2 { margin: 1.8rem 0 0.9rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--line-soft); }
+  h2:first-of-type { margin-top: 0; }
+
+  .field { display: flex; flex-direction: column; gap: 0.35rem; margin-bottom: 1rem; min-width: 0; }
+  /* An author's display beats the browser's own rule for [hidden], so the
+     field would otherwise stay on screen with the attribute set. */
+  .field[hidden] { display: none; }
+  .field label { font-size: 0.8rem; }
+  .field .unit { font-size: 0.72rem; margin-top: 0.1rem; }
+  .field select, .field input[type="number"] { width: 100%; }
+
+  .slider { display: grid; grid-template-columns: 1fr 6.5ch auto; gap: 0.7rem; align-items: center; }
+  .slider input[type="range"] { width: 100%; min-width: 0; }
+  .slider .val {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.76rem;
+    color: var(--text-dim);
+    text-align: right;
+  }
+  .slider .put-back { padding: 0.15rem 0.45rem; font-size: 0.68rem; line-height: 1.4; }
+
+  .swatch-row { display: flex; gap: 0.6rem; align-items: center; }
+  .swatch-row input[type="color"] { width: 3.4rem; height: 2.1rem; padding: 2px; flex: none; }
+  .swatch-row .hex {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.76rem;
+    color: var(--text-faint);
+    flex: 1;
+    min-width: 0;
+  }
+  .swatch-row.off input[type="color"], .swatch-row.off .hex { opacity: 0.35; }
+
+  .check { display: flex; align-items: center; gap: 0.55rem; font-size: 0.8rem; }
+  .check input { flex: none; }
+
+  /* ------------------------------------------------------------ the strip -- */
+
+  .strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 0.3rem;
+    max-height: 17rem;
+    overflow: auto;
+  }
+  .thumb {
+    position: relative;
+    width: 4.4rem;
+    height: 4.4rem;
+    border: 1px solid var(--line);
+    cursor: grab;
+    flex: none;
+    background-size: contain;
+    background-position: center;
+    background-repeat: no-repeat;
+  }
+  .thumb.dragging { opacity: 0.35; }
+  .thumb.over { border-color: var(--neon); box-shadow: var(--glow-soft); }
+  .thumb .no {
+    position: absolute;
+    left: 0;
+    top: 0;
+    font-family: var(--mono);
+    font-size: 0.62rem;
+    line-height: 1;
+    padding: 0.2rem 0.3rem;
+    background: var(--bg);
+    color: var(--text-faint);
+  }
+  .thumb .drop {
+    position: absolute;
+    right: 0;
+    top: 0;
+    border: none;
+    background: var(--bg);
+    color: var(--text-dim);
+    font-size: 0.72rem;
+    line-height: 1;
+    padding: 0.2rem 0.35rem;
+    cursor: pointer;
+  }
+  .thumb .drop:hover { color: var(--neon); }
+
+  .stage { padding: 0.9rem; }
+  /* The checks show through wherever the sheet is transparent, so an empty
+     cell reads as empty rather than as black. */
+  .stage .sheet {
+    background-image:
+      linear-gradient(45deg, var(--raised) 25%, transparent 25%, transparent 75%, var(--raised) 75%),
+      linear-gradient(45deg, var(--raised) 25%, transparent 25%, transparent 75%, var(--raised) 75%);
+    background-size: 16px 16px;
+    background-position: 0 0, 8px 8px;
+  }
+  canvas { width: 100%; height: auto; display: block; max-width: 100%; }
+
+  .acts { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-top: 1rem; }
+  .acts button { flex: 1 1 9rem; }
+
+  .status { font-size: 0.85rem; margin-top: 0.9rem; min-height: 1.2em; }
+  .shape {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    margin-top: 0.7rem;
+  }
+  .shape b { color: var(--text); font-weight: 400; }
+
+  .note { font-size: 0.78rem; margin-top: 1.2rem; max-width: 66ch; }
+  .note strong { color: var(--text-dim); font-weight: 400; }
+
+  @media (max-width: 860px) {
+    .bench { flex-direction: column; }
+    .bench .viewer { position: static; flex: 1 1 100%; width: 100%; }
+    .bench .controls { flex: 1 1 100%; width: 100%; }
+  }
+  @media (max-width: 620px) {
+    body { padding: 2rem 1rem 4rem; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <a class="home" href="index.html">&larr; index</a>
+  <h1>Image Grid</h1>
+  <p class="lede">Drop a pile of pictures, say how many across or how many down, and get them laid
+  out as one sheet. Every cell is the same square, every picture keeps the shape it arrived with,
+  and the space left over stays transparent rather than being filled in or cropped away.</p>
+
+  <div class="bench">
+    <div class="controls">
+      <div class="card">
+        <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Choose pictures">
+          <div id="dropLabel">Drop pictures here, or click to choose some</div>
+          <div class="hint">A whole folder works too &mdash; drag it in, or use the button below</div>
+          <input type="file" id="fileInput" accept="image/*" multiple>
+          <input type="file" id="dirInput" accept="image/*" multiple webkitdirectory>
+        </div>
+        <div class="acts">
+          <button type="button" id="dirBtn" class="ghost">Choose a folder</button>
+          <button type="button" id="clearBtn" class="ghost">Remove them all</button>
+        </div>
+        <div class="status" id="status">No pictures yet.</div>
+      </div>
+
+      <div class="card">
+        <h2>The order</h2>
+        <div class="field">
+          <label for="sortSel">Sort by</label>
+          <select id="sortSel">
+            <option value="name">File name</option>
+            <option value="added">The order they arrived</option>
+            <option value="pixels">Size, largest first</option>
+            <option value="bytes">File size, largest first</option>
+          </select>
+          <span class="unit">or drag a picture below to put it where you want it</span>
+        </div>
+        <div class="strip" id="strip"></div>
+      </div>
+
+      <div class="card">
+        <h2>The grid</h2>
+
+        <div class="field">
+          <label for="axisSel">Count</label>
+          <select id="axisSel">
+            <option value="c">Columns across</option>
+            <option value="r">Rows down</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="count">How many</label>
+          <div class="slider">
+            <input type="range" id="count" min="1" max="20" step="1" value="3" data-home="3" data-unit="">
+            <span class="val" id="countVal"></span>
+            <button type="button" class="ghost put-back" data-put-back="count">Reset</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="fitSel">How a picture sits in its cell</label>
+          <select id="fitSel">
+            <option value="contain">Whole picture, padded to the square</option>
+            <option value="cover">Filling the square, cropped to fit</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="gap">Gap between cells</label>
+          <div class="slider">
+            <input type="range" id="gap" min="0" max="120" step="1" value="0" data-home="0" data-unit="px">
+            <span class="val" id="gapVal"></span>
+            <button type="button" class="ghost put-back" data-put-back="gap">Reset</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>The sheet</h2>
+
+        <div class="field">
+          <label for="cellMode">Cell size</label>
+          <select id="cellMode">
+            <option value="auto">From the largest picture</option>
+            <option value="set">A size I set</option>
+          </select>
+        </div>
+
+        <div class="field" id="cellField" hidden>
+          <label for="cell">Each cell</label>
+          <div class="slider">
+            <input type="range" id="cell" min="32" max="2000" step="8" value="512" data-home="512" data-unit="px">
+            <span class="val" id="cellVal"></span>
+            <button type="button" class="ghost put-back" data-put-back="cell">Reset</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="check"><input type="checkbox" id="bgOn"> Fill the background</label>
+          <div class="swatch-row off" id="bgRow">
+            <input type="color" id="bgColor" value="#000000" data-home="#000000">
+            <span class="hex" id="bgColorHex"></span>
+            <button type="button" class="ghost put-back" data-put-back="bgColor">Reset</button>
+          </div>
+          <span class="unit">off leaves the padding transparent, as the original did</span>
+        </div>
+
+        <div class="shape" id="shape"></div>
+      </div>
+    </div>
+
+    <div class="viewer">
+      <div class="card stage">
+        <div class="sheet"><canvas id="canvas" width="16" height="16" aria-label="The sheet as it stands"></canvas></div>
+      </div>
+      <div class="acts">
+        <button type="button" id="pngBtn">Save a .png</button>
+        <button type="button" id="jpgBtn" class="ghost">.jpg on white</button>
+      </div>
+    </div>
+  </div>
+
+  <p class="note"><strong>The script this came from could not run.</strong> Its padding step ended
+  with <code>return Image.new(...).paste(image, ...)</code>, and <code>paste</code> works in place
+  and returns nothing &mdash; so every padded image came back as <code>None</code> and the next
+  line fell over. The row branch also still asked for <code>Image.ANTIALIAS</code>, which Pillow
+  removed in version 10. Neither is the interesting one, though.</p>
+
+  <p class="note"><strong>The sizing was wrong as well.</strong> It worked out the cell by taking
+  each picture's width and multiplying it <em>by the number of columns</em>, then kept the largest
+  &mdash; so one cell came out as wide as the whole sheet was meant to be, and the sheet itself
+  came out as that again times the column count. Three pictures across at 1000 pixels each would
+  have asked for a canvas 9000 pixels wide with each picture filling a third of it. Here a cell is
+  a square big enough for the largest picture you gave it, and the sheet is that cell times the
+  grid, which is what the README described all along.</p>
+
+  <p class="note"><strong>Nothing is upscaled.</strong> Left on its own the cell is sized from the
+  longest edge in the set, so the biggest picture is the one that fits exactly and everything else
+  is scaled down to meet it. Set the cell yourself and a small picture will still not be blown up
+  past its own size &mdash; it is centred in the cell instead, which is the honest thing to do with
+  a picture that has no more detail to give.</p>
+
+  <p class="note"><strong>A browser will not paint a canvas of any size.</strong> Past roughly
+  16,000 pixels on a side, or about 270 million pixels in total, it hands back a blank one with no
+  error at all. The cell is capped so the sheet stays inside that, and the line above the preview
+  says what you are actually getting and whether it had to come down.</p>
+
+  <p class="note"><strong>It runs here.</strong> Nothing is uploaded. A <code>.png</code> keeps the
+  padding transparent, which is the point of padding it rather than filling it. The
+  <code>.jpg</code> flattens onto white first, because a JPEG has no transparency and would
+  otherwise come back with the gaps in black.</p>
+</main>
+
+<script>
+"use strict";
+
+const el = (id) => document.getElementById(id);
+
+const canvas   = el("canvas");
+const ctx      = canvas.getContext("2d");
+const dropzone = el("dropzone");
+const fileInput= el("fileInput");
+const dirInput = el("dirInput");
+const statusEl = el("status");
+const stripEl  = el("strip");
+const shapeEl  = el("shape");
+
+// What a browser will actually paint. Past these it returns a blank canvas and
+// says nothing about it, so the cell is capped rather than the save being a
+// surprise.
+const MAX_SIDE = 16384;
+const MAX_AREA = 268435456;
+
+let shots = [];          // { img, name, bytes, w, h, url }
+let added = 0;
+let folderName = "";
+
+/* ----------------------------------------------------------------- taking -- */
+
+function readImage(file) {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => resolve({
+      img, url, name: file.name, bytes: file.size,
+      w: img.naturalWidth, h: img.naturalHeight, at: added++,
+    });
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+    img.src = url;
+  });
+}
+
+async function take(files) {
+  const pictures = [...files].filter((f) => f.type.startsWith("image/"));
+  if (!pictures.length) {
+    statusEl.textContent = "Nothing in there was an image.";
+    return;
+  }
+
+  // A folder picked or dropped names the sheet, as the original named its
+  // output after the folder it read.
+  for (const f of pictures) {
+    const path = f.webkitRelativePath || "";
+    if (path.includes("/")) { folderName = path.split("/")[0]; break; }
+  }
+
+  statusEl.textContent = `Reading ${pictures.length}…`;
+  const read = (await Promise.all(pictures.map(readImage))).filter(Boolean);
+  shots = shots.concat(read);
+  sortShots();
+  paintStrip();
+  render();
+
+  const skipped = pictures.length - read.length;
+  statusEl.textContent = `${shots.length} picture${shots.length === 1 ? "" : "s"}`
+    + (skipped ? ` — ${skipped} would not open` : "");
+}
+
+// Dropping a folder gives entries rather than files, so they have to be walked.
+async function walk(entry, out) {
+  if (entry.isFile) {
+    await new Promise((res) => entry.file((f) => { out.push(f); res(); }, res));
+    return;
+  }
+  if (!entry.isDirectory) return;
+  const reader = entry.createReader();
+  for (;;) {
+    const batch = await new Promise((res) => reader.readEntries(res, () => res([])));
+    if (!batch.length) break;
+    for (const child of batch) await walk(child, out);
+  }
+}
+
+/* ----------------------------------------------------------------- strip -- */
+
+function sortShots() {
+  const how = el("sortSel").value;
+  if (how === "name") shots.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+  else if (how === "added") shots.sort((a, b) => a.at - b.at);
+  else if (how === "pixels") shots.sort((a, b) => b.w * b.h - a.w * a.h);
+  else if (how === "bytes") shots.sort((a, b) => b.bytes - a.bytes);
+}
+
+let dragFrom = null;
+
+function paintStrip() {
+  stripEl.textContent = "";
+  shots.forEach((shot, i) => {
+    const cell = document.createElement("div");
+    cell.className = "thumb";
+    cell.draggable = true;
+    cell.dataset.at = String(i);
+    cell.style.backgroundImage = `url("${shot.url}")`;
+    cell.title = `${shot.name} — ${shot.w} × ${shot.h}`;
+
+    const no = document.createElement("span");
+    no.className = "no";
+    no.textContent = String(i + 1);
+
+    const drop = document.createElement("button");
+    drop.className = "drop";
+    drop.type = "button";
+    drop.textContent = "×";
+    drop.setAttribute("aria-label", `Remove ${shot.name}`);
+    drop.addEventListener("click", (e) => {
+      e.stopPropagation();
+      URL.revokeObjectURL(shot.url);
+      shots.splice(i, 1);
+      paintStrip();
+      render();
+      statusEl.textContent = shots.length
+        ? `${shots.length} picture${shots.length === 1 ? "" : "s"}`
+        : "No pictures yet.";
+    });
+
+    cell.addEventListener("dragstart", () => { dragFrom = i; cell.classList.add("dragging"); });
+    cell.addEventListener("dragend", () => { dragFrom = null; cell.classList.remove("dragging"); });
+    cell.addEventListener("dragover", (e) => { e.preventDefault(); cell.classList.add("over"); });
+    cell.addEventListener("dragleave", () => cell.classList.remove("over"));
+    cell.addEventListener("drop", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      cell.classList.remove("over");
+      if (dragFrom === null || dragFrom === i) return;
+      const [moved] = shots.splice(dragFrom, 1);
+      shots.splice(i, 0, moved);
+      // A hand-made order is an order; the sort would only undo it.
+      el("sortSel").value = "added";
+      shots.forEach((s, n) => { s.at = n; });
+      added = shots.length;
+      paintStrip();
+      render();
+    });
+
+    cell.append(no, drop);
+    stripEl.appendChild(cell);
+  });
+}
+
+/* ------------------------------------------------------------------ grid -- */
+
+function shape() {
+  const n = shots.length;
+  if (!n) return null;
+
+  const want = Math.max(1, Math.min(40, Number(el("count").value)));
+  const cols = el("axisSel").value === "c" ? Math.min(want, n) : Math.ceil(n / Math.min(want, n));
+  const rows = Math.ceil(n / cols);
+  const gap = Math.max(0, Number(el("gap").value));
+
+  let cell = el("cellMode").value === "set"
+    ? Number(el("cell").value)
+    : Math.max(...shots.map((s) => Math.max(s.w, s.h)));
+
+  // Bring the cell down until the sheet is something a canvas will paint.
+  const sides = (c) => [cols * c + gap * (cols - 1), rows * c + gap * (rows - 1)];
+  let capped = false;
+  for (let guard = 0; guard < 64; guard++) {
+    const [w, h] = sides(cell);
+    if (w <= MAX_SIDE && h <= MAX_SIDE && w * h <= MAX_AREA) break;
+    cell = Math.floor(cell * 0.9);
+    capped = true;
+    if (cell < 8) { cell = 8; break; }
+  }
+
+  const [w, h] = sides(Math.max(1, Math.round(cell)));
+  return { n, cols, rows, gap, cell: Math.max(1, Math.round(cell)), w, h, capped };
+}
+
+function render() {
+  const plan = shape();
+
+  if (!plan) {
+    canvas.width = 16;
+    canvas.height = 16;
+    ctx.clearRect(0, 0, 16, 16);
+    shapeEl.textContent = "";
+    return;
+  }
+
+  canvas.width = plan.w;
+  canvas.height = plan.h;
+  ctx.clearRect(0, 0, plan.w, plan.h);
+
+  if (el("bgOn").checked) {
+    ctx.fillStyle = el("bgColor").value;
+    ctx.fillRect(0, 0, plan.w, plan.h);
+  }
+
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+
+  const cover = el("fitSel").value === "cover";
+
+  shots.forEach((shot, i) => {
+    const col = i % plan.cols;
+    const row = Math.floor(i / plan.cols);
+    const x0 = col * (plan.cell + plan.gap);
+    const y0 = row * (plan.cell + plan.gap);
+
+    const fit = cover
+      ? Math.max(plan.cell / shot.w, plan.cell / shot.h)
+      : Math.min(plan.cell / shot.w, plan.cell / shot.h);
+    // Padding never goes above 1: a cell bigger than the picture is padding,
+    // not an excuse to invent detail. Filling the cell has to scale up, since
+    // that is what filling it means.
+    const use = cover ? fit : Math.min(fit, 1);
+
+    const dw = shot.w * use;
+    const dh = shot.h * use;
+    const dx = x0 + (plan.cell - dw) / 2;
+    const dy = y0 + (plan.cell - dh) / 2;
+
+    if (cover) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x0, y0, plan.cell, plan.cell);
+      ctx.clip();
+      ctx.drawImage(shot.img, dx, dy, dw, dh);
+      ctx.restore();
+    } else {
+      ctx.drawImage(shot.img, dx, dy, dw, dh);
+    }
+  });
+
+  const empty = plan.cols * plan.rows - plan.n;
+  shapeEl.innerHTML = "";
+  const line = document.createElement("div");
+  line.innerHTML = `<b>${plan.cols} × ${plan.rows}</b> of <b>${plan.cell}px</b> cells `
+    + `&rarr; <b>${plan.w} × ${plan.h}</b>`;
+  shapeEl.appendChild(line);
+  const bits = [];
+  if (empty > 0) bits.push(`${empty} cell${empty === 1 ? "" : "s"} left empty`);
+  if (plan.capped) bits.push("cell brought down to keep the canvas paintable");
+  if (bits.length) {
+    const second = document.createElement("div");
+    second.textContent = bits.join(" · ");
+    shapeEl.appendChild(second);
+  }
+}
+
+/* ------------------------------------------------------------------ save -- */
+
+function save(type, extension) {
+  if (!shots.length) { statusEl.textContent = "Nothing to save yet."; return; }
+
+  let source = canvas;
+  if (type === "image/jpeg") {
+    const flat = document.createElement("canvas");
+    flat.width = canvas.width;
+    flat.height = canvas.height;
+    const fctx = flat.getContext("2d");
+    fctx.fillStyle = "#ffffff";
+    fctx.fillRect(0, 0, flat.width, flat.height);
+    fctx.drawImage(canvas, 0, 0);
+    source = flat;
+  }
+
+  const stem = (folderName || "images").replace(/[^\w -]+/g, "").slice(0, 60) || "images";
+  source.toBlob((blob) => {
+    if (!blob) { statusEl.textContent = "The canvas would not save — try a smaller cell."; return; }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${stem}-COMBINED.${extension}`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    statusEl.textContent = `Saved ${a.download} at ${canvas.width} × ${canvas.height}.`;
+  }, type, type === "image/jpeg" ? 0.92 : undefined);
+}
+
+/* ----------------------------------------------------------------- input -- */
+
+dropzone.addEventListener("click", () => fileInput.click());
+dropzone.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInput.click(); }
+});
+el("dirBtn").addEventListener("click", () => dirInput.click());
+fileInput.addEventListener("change", () => { take(fileInput.files); fileInput.value = ""; });
+dirInput.addEventListener("change", () => { take(dirInput.files); dirInput.value = ""; });
+
+for (const kind of ["dragenter", "dragover"]) {
+  dropzone.addEventListener(kind, (e) => { e.preventDefault(); dropzone.classList.add("over"); });
+}
+for (const kind of ["dragleave", "drop"]) {
+  dropzone.addEventListener(kind, () => dropzone.classList.remove("over"));
+}
+dropzone.addEventListener("drop", async (e) => {
+  e.preventDefault();
+  const items = e.dataTransfer.items;
+  const entries = items ? [...items].map((i) => i.webkitGetAsEntry && i.webkitGetAsEntry()).filter(Boolean) : [];
+  if (entries.some((en) => en.isDirectory)) {
+    const out = [];
+    for (const en of entries) {
+      if (en.isDirectory) folderName = en.name;
+      await walk(en, out);
+    }
+    take(out);
+    return;
+  }
+  take(e.dataTransfer.files);
+});
+
+window.addEventListener("paste", (e) => {
+  const pictures = [...e.clipboardData.files].filter((f) => f.type.startsWith("image/"));
+  if (pictures.length) take(pictures);
+});
+
+el("clearBtn").addEventListener("click", () => {
+  for (const shot of shots) URL.revokeObjectURL(shot.url);
+  shots = [];
+  added = 0;
+  folderName = "";
+  paintStrip();
+  render();
+  statusEl.textContent = "No pictures yet.";
+});
+
+el("pngBtn").addEventListener("click", () => {
+  try { save("image/png", "png"); }
+  catch (err) { console.error(err); statusEl.textContent = "The canvas would not save."; }
+});
+el("jpgBtn").addEventListener("click", () => {
+  try { save("image/jpeg", "jpg"); }
+  catch (err) { console.error(err); statusEl.textContent = "The canvas would not save."; }
+});
+
+el("sortSel").addEventListener("change", () => { sortShots(); paintStrip(); render(); });
+
+el("cellMode").addEventListener("change", () => {
+  el("cellField").hidden = el("cellMode").value !== "set";
+  render();
+});
+
+el("bgOn").addEventListener("change", () => {
+  el("bgRow").classList.toggle("off", !el("bgOn").checked);
+  render();
+});
+
+/* ----------------------------------------------------------------- knobs -- */
+
+function syncReadouts() {
+  for (const input of document.querySelectorAll('input[type="range"][data-unit]')) {
+    const out = el(`${input.id}Val`);
+    if (out) out.textContent = `${input.value}${input.dataset.unit}`;
+  }
+  for (const input of document.querySelectorAll('input[type="color"]')) {
+    const out = el(`${input.id}Hex`);
+    if (out) out.textContent = input.value;
+  }
+}
+
+for (const input of document.querySelectorAll("input[type=range], input[type=color]")) {
+  input.addEventListener("input", () => { syncReadouts(); render(); });
+}
+for (const button of document.querySelectorAll("[data-put-back]")) {
+  button.addEventListener("click", () => {
+    const input = el(button.dataset.putBack);
+    input.value = input.dataset.home;
+    syncReadouts();
+    render();
+  });
+}
+for (const id of ["axisSel", "fitSel"]) {
+  el(id).addEventListener("change", render);
+}
+
+syncReadouts();
+render();
+</script>
+</body>
+</html>
