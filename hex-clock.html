@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hex Clock</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  /* Layout and sizing only — with one deliberate exception. Every other page
+     in the repo declares no colour at all and takes the palette from
+     theme.css; this one has to paint the background itself, because the
+     background is the point. Everything else still comes from the theme. */
+
+  html, body {
+    background: var(--now, #000000);
+    transition: background-color 0.5s ease-out;
+  }
+
+  /* The theme's ink ramp is mixed for a page that is always pure black, and
+     this one is only black at midnight: against the 23:59:59 teal,
+     --text-faint comes out at about 1.3:1 and all but disappears. The chrome
+     here is white at a fixed alpha instead, so it keeps its footing wherever
+     the day has got to. */
+  :root {
+    --ink:      rgba(255, 255, 255, 0.93);
+    --ink-lead: rgba(255, 255, 255, 0.80);
+    --ink-dim:  rgba(255, 255, 255, 0.68);
+    --ink-edge: rgba(255, 255, 255, 0.45);
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    padding: 1.5rem;
+  }
+
+  /* The back link every page but the index carries, kept out of the way of a
+     clock that wants the middle of the screen to itself. */
+  .home { margin-bottom: 0; align-self: flex-start; color: var(--ink-dim); }
+  .home:hover, .home:focus-visible { color: var(--ink); }
+
+  .visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  /* ----------------------------------------------------------- the clock -- */
+
+  main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1.6rem;
+    min-width: 0;
+  }
+
+  .clock {
+    font-weight: 200;
+    font-size: clamp(2.6rem, 18vw, 13rem);
+    line-height: 1;
+    color: var(--ink);
+    text-shadow: var(--text-glow);
+    white-space: nowrap;
+  }
+  /* Lexend Deca has no tabular figures and no tnum feature to ask for: its 1
+     is two thirds the width of its 0, so a clock set in it re-centres itself
+     every time a digit ticks over. Each digit gets its own box instead, a
+     shade wider than the widest glyph, and the row stops moving. */
+  .clock i {
+    font-style: normal;
+    display: inline-block;
+    width: 1.05ch;
+    text-align: center;
+  }
+  /* The digits are the hex; the colons are punctuation, so they stand back. */
+  .clock .sep { opacity: 0.3; }
+
+  .hex {
+    font-family: var(--mono);
+    font-size: clamp(0.85rem, 3.4vw, 1.5rem);
+    font-weight: 400;
+    letter-spacing: 0.34em;
+    text-indent: 0.34em;          /* puts the tracking back on the last glyph */
+    color: var(--ink-dim);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 0;
+    padding: 0.35rem 0.7rem;
+    cursor: pointer;
+    text-transform: uppercase;
+  }
+  .hex:hover, .hex:focus-visible {
+    color: var(--ink);
+    border-color: var(--ink-edge);
+    box-shadow: none;
+    background: transparent;
+  }
+
+  /* ------------------------------------------------------------- the foot -- */
+
+  footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 1.2rem 2rem;
+  }
+
+  .notes { flex: 1 1 22rem; min-width: 0; }
+  .note { font-size: 0.78rem; margin: 0 0 0.6rem; max-width: 62ch; color: var(--ink-dim); }
+  .note:last-child { margin-bottom: 0; }
+  .note strong { color: var(--ink-lead); font-weight: 400; }
+
+  footer button.ghost {
+    padding: 0.45rem 0.9rem;
+    font-size: 0.8rem;
+    color: var(--ink-dim);
+    border-color: var(--ink-edge);
+  }
+  footer button.ghost:hover, footer button.ghost:focus-visible {
+    color: var(--ink);
+    border-color: var(--ink);
+    background: rgba(255, 255, 255, 0.07);
+    box-shadow: none;
+  }
+
+  /* A clock is something you leave on a second monitor, so the chrome steps
+     back once the pointer has been still for a while and comes straight back
+     on the next move, key or focus. */
+  .home, footer { transition: opacity 0.6s ease; }
+  body.idle .home, body.idle footer { opacity: 0; }
+
+  @media (max-width: 620px) {
+    body { padding: 1rem; }
+    footer { gap: 0.9rem; }
+    footer button { flex: 1; }
+  }
+</style>
+</head>
+<body>
+  <a class="home" href="index.html">&larr; index</a>
+
+  <main>
+    <h1 class="visually-hidden">Hex Clock</h1>
+    <div class="clock" id="clock" role="timer">
+      <span id="hh"><i>0</i><i>0</i></span><span class="sep">:</span><span id="mm"><i>0</i><i>0</i></span><span class="sep">:</span><span id="ss"><i>0</i><i>0</i></span>
+    </div>
+    <button class="hex" id="hexBtn" title="Copy this colour">#000000</button>
+  </main>
+
+  <footer>
+    <div class="notes">
+      <p class="note"><strong>The time is the colour.</strong> The six digits on the clock are the
+      six digits of the hex, in that order and nothing else: at 14:23:45 the page behind them is
+      <code>#142345</code>. Twenty-four hour, zero-padded, local time.</p>
+      <p class="note"><strong>It can never be bright.</strong> No hour passes 23 and no minute or
+      second passes 59, so red stops at <code>0x23</code> and green and blue at <code>0x59</code>.
+      Midnight is pure black, 23:59:59 is the lightest the day gets, and the page only ever reaches
+      86,400 of the 16,777,216 colours &mdash; one for each second of the day.</p>
+    </div>
+    <button id="fullBtn" class="ghost">Fullscreen</button>
+  </footer>
+
+<script>
+"use strict";
+
+const el = (id) => document.getElementById(id);
+
+const hhEl    = el("hh");
+const mmEl    = el("mm");
+const ssEl    = el("ss");
+const hexBtn  = el("hexBtn");
+const fullBtn = el("fullBtn");
+
+const pad = (n) => String(n).padStart(2, "0");
+
+// Each digit lives in its own box, so a pair is written a character at a time.
+function write(group, pair) {
+  group.children[0].textContent = pair[0];
+  group.children[1].textContent = pair[1];
+}
+
+let shown = "";
+
+function tick() {
+  const now = new Date();
+  const hh = pad(now.getHours());
+  const mm = pad(now.getMinutes());
+  const ss = pad(now.getSeconds());
+  const hex = `#${hh}${mm}${ss}`;
+
+  if (hex !== shown) {
+    shown = hex;
+    write(hhEl, hh);
+    write(mmEl, mm);
+    write(ssEl, ss);
+    hexBtn.textContent = hex;
+    // The background is read off a custom property so html and body paint the
+    // same colour: the page is shorter than the viewport on a tall screen, and
+    // overscroll on a phone would otherwise show black past the end of it.
+    document.documentElement.style.setProperty("--now", hex);
+  }
+
+  // Lined up with the next whole second rather than every 1000 ms, so the
+  // clock doesn't gradually slide off the second it is meant to be showing.
+  setTimeout(tick, 1000 - (Date.now() % 1000) + 10);
+}
+
+tick();
+
+/* ---------------------------------------------------------------- copy -- */
+
+let copyTimer = null;
+
+hexBtn.addEventListener("click", async () => {
+  // The hex at the moment of the click, not whatever the next tick brings.
+  const hex = hexBtn.textContent;
+  clearTimeout(copyTimer);
+  try {
+    if (!navigator.clipboard || !window.isSecureContext) throw new Error("no clipboard here");
+    await navigator.clipboard.writeText(hex);
+    hexBtn.textContent = "Copied";
+  } catch (err) {
+    console.error(err);
+    hexBtn.textContent = "Couldn't copy";
+  }
+  // Letting the clock take the label back is the whole of the reset: the next
+  // tick writes the current time over it either way.
+  copyTimer = setTimeout(() => { shown = ""; }, 1200);
+});
+
+/* ---------------------------------------------------------- fullscreen -- */
+
+fullBtn.addEventListener("click", async () => {
+  try {
+    if (document.fullscreenElement) await document.exitFullscreen();
+    else await document.documentElement.requestFullscreen();
+  } catch (err) {
+    console.error(err);
+    fullBtn.textContent = "Fullscreen is blocked here";
+  }
+});
+
+document.addEventListener("fullscreenchange", () => {
+  fullBtn.textContent = document.fullscreenElement ? "Exit fullscreen" : "Fullscreen";
+});
+
+/* --------------------------------------------------------------- idle -- */
+
+let idleTimer = null;
+
+function stir() {
+  document.body.classList.remove("idle");
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(() => document.body.classList.add("idle"), 4000);
+}
+
+for (const type of ["pointermove", "pointerdown", "keydown", "focusin", "wheel"]) {
+  document.addEventListener(type, stir, { passive: true });
+}
+stir();
+</script>
+</body>
+</html>
