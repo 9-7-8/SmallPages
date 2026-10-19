@@ -27,6 +27,9 @@
   nav ul {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(216px, 1fr));
+    /* Every row the height of the tallest, so a last row of short
+       descriptions doesn't sit shallower than the ones above it. */
+    grid-auto-rows: 1fr;
     border-top: 1px solid var(--line-soft);
     border-left: 1px solid var(--line-soft);
   }
@@ -170,6 +173,12 @@
     <rect x="3" y="3" width="4.5" height="4.5" fill="currentColor" stroke="none" opacity=".4"/>
     <rect x="12" y="7.5" width="4.5" height="4.5" fill="currentColor" stroke="none" opacity=".4"/>
     <rect x="16.5" y="16.5" width="4.5" height="4.5" fill="currentColor" stroke="none" opacity=".4"/>
+  </symbol>
+  <symbol id="i-swap-cards" viewBox="0 0 24 24">
+    <rect x="1.5" y="7" width="7" height="10" fill="currentColor" stroke="none" opacity=".4"/>
+    <rect x="1.5" y="7" width="7" height="10"/>
+    <rect x="15.5" y="7" width="7" height="10"/>
+    <path d="M10 12h4M12 10l2 2-2 2"/>
   </symbol>
   <symbol id="i-heart" viewBox="0 0 24 24">
     <path d="M12 21.2 4.3 13.5a4.9 4.9 0 0 1 7.7-6 4.9 4.9 0 0 1 7.7 6z"/>
@@ -343,6 +352,13 @@
           <svg class="ico" aria-hidden="true"><use href="#i-crossword"/></svg>
           <span class="name">Word Puzzles</span>
           <span class="what">A crossword, a word search and six more from your own list</span>
+        </a>
+      </li>
+      <li>
+        <a href="quiz-converter.html">
+          <svg class="ico" aria-hidden="true"><use href="#i-swap-cards"/></svg>
+          <span class="name">Quiz Converter</span>
+          <span class="what">An Anki deck or a quiz site&rsquo;s CSV, turned into any of the others</span>
         </a>
       </li>
       <li>

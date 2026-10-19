@@ -1,0 +1,1304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quiz Converter</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  /* Layout and sizing only. Colour, type and component styling live in theme.css. */
+
+  body { margin: 0; padding: 3rem 1.5rem 5rem; }
+  main { max-width: 960px; margin: 0 auto; }
+  p.lede { margin: 0 0 2.2rem; max-width: 62ch; }
+  .card { margin-bottom: 1.5rem; }
+  .card.off { opacity: 0.45; pointer-events: none; }
+
+  .dropzone { padding: 2.2rem 1.5rem; text-align: center; cursor: pointer; }
+  .dropzone input { display: none; }
+  .dropzone .hint { font-size: 0.85rem; margin-top: 0.4rem; }
+
+  .paste { margin-top: 1rem; }
+  .paste textarea {
+    width: 100%;
+    min-height: 5.5rem;
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    resize: vertical;
+  }
+
+  h2 { margin: 0 0 0.9rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--line-soft); }
+
+  /* Top aligned, not bottom: some of these fields carry a line of hint under
+     them and some do not, and bottom alignment staggers the controls. */
+  .rank { display: flex; flex-wrap: wrap; gap: 1.1rem; align-items: flex-start; }
+  .rank + .rank { margin-top: 1.1rem; }
+  .field { display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; }
+  .field label { font-size: 0.8rem; }
+  .field .unit { font-size: 0.72rem; margin-top: 0.1rem; }
+  .field select, .field input[type="text"], .field input[type="number"] { min-width: 11rem; }
+  .field.grow { flex: 1; }
+  .field[hidden] { display: none; }
+
+  .checks { display: flex; flex-wrap: wrap; gap: 0.5rem 1.2rem; margin-top: 1rem; }
+  .checks label { display: flex; align-items: center; gap: 0.45rem; font-size: 0.8rem; }
+  .checks input { flex: none; }
+
+  /* ---------------------------------------------------------- the preview -- */
+
+  .peek { overflow: auto; max-height: 22rem; margin-top: 1.1rem; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.8rem; }
+  th, td {
+    border-bottom: 1px solid var(--line-soft);
+    padding: 0.4rem 0.6rem;
+    text-align: left;
+    vertical-align: top;
+  }
+  th { color: var(--text-dim); font-weight: 400; position: sticky; top: 0; background: var(--raised); }
+  td { color: var(--text-dim); }
+  td.q { color: var(--text); }
+  td.a { color: var(--neon); }
+  td .wrong { display: block; color: var(--text-faint); }
+  tbody tr:last-child td { border-bottom: none; }
+
+  .tally {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    margin-top: 0.9rem;
+  }
+  .tally b { color: var(--text); font-weight: 400; }
+
+  /* ----------------------------------------------------------- the outputs -- */
+
+  .outs { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 0.9rem; }
+  .out {
+    border: 1px solid var(--line);
+    padding: 0.9rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .out .who { font-size: 0.9rem; color: var(--text); }
+  .out .what { font-size: 0.74rem; color: var(--text-faint); flex: 1; }
+  .out button { width: 100%; }
+
+  .status { font-size: 0.85rem; margin-top: 0.9rem; min-height: 1.2em; }
+
+  .note { font-size: 0.78rem; margin-top: 1.2rem; max-width: 70ch; }
+  .note strong { color: var(--text-dim); font-weight: 400; }
+  .note code { font-size: 0.95em; }
+
+  @media (max-width: 620px) {
+    body { padding: 2rem 1rem 4rem; }
+    .field select, .field input[type="text"], .field input[type="number"] { min-width: 0; width: 100%; }
+    .field { width: 100%; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <a class="home" href="index.html">&larr; index</a>
+  <h1>Quiz Converter</h1>
+  <p class="lede">Take a deck or a question set you already have and hand it to whichever quiz site
+  you are using this week. An Anki <code>.apkg</code> is read whole &mdash; its note types, its
+  field names, all of it &mdash; and so is any CSV a quiz site gave you, which is what makes this
+  go both ways. Plain pairs become multiple choice with wrong answers picked to be plausible
+  rather than obvious.</p>
+
+  <div class="card">
+    <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Choose a file">
+      <div id="dropLabel">Drop an .apkg or a .csv here, or click to choose one</div>
+      <div class="hint">Anki packages, and the spreadsheets Blooket, Wayground and Gimkit import &mdash;
+      nothing leaves your browser</div>
+      <input type="file" id="fileInput" accept=".apkg,.csv,.tsv,.txt,text/csv,text/plain">
+    </div>
+    <div class="paste">
+      <textarea id="pasteBox" placeholder="…or paste rows here — term and definition separated by a tab or a comma, one per line"></textarea>
+      <div class="rank" style="margin-top:0.6rem">
+        <button type="button" id="pasteBtn" class="ghost">Use what I pasted</button>
+      </div>
+    </div>
+    <div class="status" id="status">Nothing loaded yet.</div>
+  </div>
+
+  <div class="card off" id="mapCard">
+    <h2>What came in</h2>
+
+    <div class="rank">
+      <div class="field" id="typeField" hidden>
+        <label for="typeSel">Note type</label>
+        <select id="typeSel"></select>
+        <span class="unit" id="typeNote"></span>
+      </div>
+
+      <div class="field">
+        <label for="qSel">Question / front</label>
+        <select id="qSel"></select>
+      </div>
+
+      <div class="field">
+        <label for="aSel">Answer / back</label>
+        <select id="aSel"></select>
+      </div>
+
+      <div class="field">
+        <label for="swapBtn">&nbsp;</label>
+        <button type="button" id="swapBtn" class="ghost">Swap the two</button>
+      </div>
+    </div>
+
+    <div class="checks">
+      <label id="headerCheck" hidden><input type="checkbox" id="hasHeader"> First row is column names</label>
+      <label><input type="checkbox" id="stripHtml" checked> Strip HTML tags</label>
+      <label><input type="checkbox" id="stripMedia" checked> Strip <code>[sound:…]</code> and image tags</label>
+      <label><input type="checkbox" id="dropEmpty" checked> Drop rows missing either side</label>
+      <label><input type="checkbox" id="dropDupes" checked> Drop repeated questions</label>
+    </div>
+
+    <div class="peek" id="peek"></div>
+    <div class="tally" id="tally"></div>
+  </div>
+
+  <div class="card off" id="buildCard">
+    <h2>Make the questions</h2>
+
+    <div class="rank">
+      <div class="field">
+        <label for="wrongCount">Wrong answers each</label>
+        <select id="wrongCount">
+          <option value="0">None &mdash; keep them as flashcards</option>
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3" selected>3</option>
+          <option value="4">4</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="wrongHow">Picked how</label>
+        <select id="wrongHow">
+          <option value="near" selected>Nearest by spelling</option>
+          <option value="length">Same length, then nearest</option>
+          <option value="random">At random</option>
+        </select>
+        <span class="unit">from the other answers in this set</span>
+      </div>
+
+      <div class="field">
+        <label for="limit">Use at most</label>
+        <input type="number" id="limit" min="1" step="1" placeholder="all of them">
+        <span class="unit" id="limitNote">rows, from the top</span>
+      </div>
+
+      <div class="field">
+        <label for="timeLimit">Seconds a question</label>
+        <input type="number" id="timeLimit" min="5" max="300" step="5" value="20">
+        <span class="unit">where the site asks for one</span>
+      </div>
+
+      <div class="field">
+        <label for="seed">Shuffle seed</label>
+        <input type="text" id="seed" value="smallpages">
+        <span class="unit">same seed, same set again</span>
+      </div>
+
+      <div class="field">
+        <label for="buildBtn">&nbsp;</label>
+        <button type="button" id="buildBtn">Build them</button>
+      </div>
+    </div>
+
+    <div class="tally" id="buildTally"></div>
+  </div>
+
+  <div class="card off" id="outCard">
+    <h2>Take it away</h2>
+    <div class="outs" id="outs"></div>
+    <div class="status" id="outStatus"></div>
+  </div>
+
+  <p class="note"><strong>There is no universal format, and this is the nearest thing to one.</strong>
+  Anki is the only one of these that genuinely exports: a <code>.apkg</code> is a zip with a SQLite
+  collection inside it, and it is all there, note types and field names included. Quizlet exports
+  too, as text with separators you choose. Blooket, Wayground and Gimkit are import-only as far as
+  their own documentation goes &mdash; they take a spreadsheet and give nothing back. So the way
+  round is CSV: this page writes the layout each one asks for, and reads any of them back in again,
+  which means the CSV you made for Blooket last term is a perfectly good source for Gimkit today.</p>
+
+  <p class="note"><strong>The column layouts are a best reading, not a specification.</strong> None
+  of the three publishes its template as documentation; what is here was assembled from their help
+  pages and from third-party guides in October 2026, and a site can change its template without
+  telling anyone. If an upload is refused, download that site's own template, compare it with the
+  <em>Plain table</em> output, and move the columns about &mdash; the plain one exists for exactly
+  that. Where they are known to differ this page follows the site's own help page over a guide.</p>
+
+  <p class="note"><strong>Wrong answers are picked to be plausible.</strong> The script this came
+  from compared the right answer against every other answer in the deck by Levenshtein distance,
+  preferring ones of the same length, so that the decoys look like something you might confuse the
+  answer with rather than something obviously from another part of the deck. That is kept here, and
+  made faster: candidates are bucketed by length first and the distance is abandoned as soon as it
+  exceeds the best already found, which is what makes five thousand questions a second rather than
+  a minute.</p>
+
+  <p class="note"><strong>Only the older Anki package format can be read.</strong> Since 2.1.50 Anki
+  compresses its collection with Zstandard and calls it <code>collection.anki21b</code>; before that
+  it was a plain SQLite file in the zip. Reading the new one would mean carrying a Zstandard decoder
+  for one file format, so instead this says so plainly when it meets one. In Anki, <em>File →
+  Export</em> with <em>Support older Anki versions</em> ticked writes the readable kind.</p>
+
+  <p class="note"><strong>The SQLite reader is this page's own.</strong> It reads the file format
+  directly rather than carrying a database engine for one table: the page header, the b-tree, the
+  record encoding and the overflow pages a long note spills onto. It was checked against
+  <code>sqlite3</code>'s own output over a five thousand note deck, field by field, and the two
+  agree exactly.</p>
+
+  <p class="note"><strong>It runs here.</strong> Nothing is uploaded, and a 90 MB package with ten
+  thousand audio files in it is never read whole &mdash; the zip's directory is read from the end of
+  the file and only the collection is pulled out, so the media never touches memory.</p>
+</main>
+
+<script>
+"use strict";
+
+const el = (id) => document.getElementById(id);
+
+const dropzone  = el("dropzone");
+const fileInput = el("fileInput");
+const statusEl  = el("status");
+const typeField = el("typeField");
+const typeSel   = el("typeSel");
+const typeNote  = el("typeNote");
+const qSel      = el("qSel");
+const aSel      = el("aSel");
+const peekEl    = el("peek");
+const tallyEl   = el("tally");
+
+// What was read in, before any mapping: a list of records, each a list of
+// field strings, plus the names of those fields.
+let incoming = null;     // { kind, groups: [{ id, name, fields, rows }], note }
+let pairs = [];          // [{ q, a }] after mapping and cleaning
+let built = [];          // [{ q, a, wrong: [] }] after the wrong answers
+let fromTemplate = null; // the quiz site whose CSV we read, if we recognised one
+
+function setStatus(message, bad = false) {
+  statusEl.textContent = message;
+  statusEl.style.color = bad ? "var(--neon-hot)" : "";
+}
+
+/* ------------------------------------------------------------------- zip -- */
+
+// Only ever the one entry. A package can be ninety megabytes of audio with a
+// five megabyte collection in it, so the directory is read off the end and
+// just that entry's bytes are sliced out.
+async function zipIndex(file) {
+  const tailSize = Math.min(file.size, 65557);
+  const tail = new Uint8Array(await file.slice(file.size - tailSize).arrayBuffer());
+  const view = new DataView(tail.buffer);
+
+  let eocd = -1;
+  for (let i = tail.length - 22; i >= 0; i--) {
+    if (view.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+  }
+  if (eocd < 0) throw new Error("that zip has no directory in it");
+
+  const count = view.getUint16(eocd + 10, true);
+  const dirSize = view.getUint32(eocd + 12, true);
+  const dirAt = view.getUint32(eocd + 16, true);
+  if (dirAt === 0xffffffff || count === 0xffff) {
+    throw new Error("that zip is in the ZIP64 format, which this page does not read");
+  }
+
+  const dir = new Uint8Array(await file.slice(dirAt, dirAt + dirSize).arrayBuffer());
+  const dirView = new DataView(dir.buffer);
+  const entries = new Map();
+  let at = 0;
+  for (let i = 0; i < count && at + 46 <= dir.length; i++) {
+    if (dirView.getUint32(at, true) !== 0x02014b50) break;
+    const nameLen = dirView.getUint16(at + 28, true);
+    const extraLen = dirView.getUint16(at + 30, true);
+    const commentLen = dirView.getUint16(at + 32, true);
+    const name = new TextDecoder().decode(dir.subarray(at + 46, at + 46 + nameLen));
+    entries.set(name, {
+      method: dirView.getUint16(at + 10, true),
+      size: dirView.getUint32(at + 24, true),
+      packed: dirView.getUint32(at + 20, true),
+      offset: dirView.getUint32(at + 42, true),
+    });
+    at += 46 + nameLen + extraLen + commentLen;
+  }
+  return entries;
+}
+
+async function zipBytes(file, entry) {
+  // The local header repeats the name and extra fields, and its extra field
+  // can differ in length from the directory's, so it is read rather than
+  // assumed.
+  const head = new Uint8Array(await file.slice(entry.offset, entry.offset + 30).arrayBuffer());
+  const headView = new DataView(head.buffer);
+  if (headView.getUint32(0, true) !== 0x04034b50) throw new Error("that zip entry is damaged");
+  const start = entry.offset + 30 + headView.getUint16(26, true) + headView.getUint16(28, true);
+  const blob = file.slice(start, start + entry.packed);
+
+  if (entry.method === 0) return new Uint8Array(await blob.arrayBuffer());
+  if (entry.method !== 8) throw new Error(`that zip entry uses compression method ${entry.method}`);
+  const stream = blob.stream().pipeThrough(new DecompressionStream("deflate-raw"));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+/* ---------------------------------------------------------------- sqlite -- */
+
+// Enough of the SQLite file format to walk one table. No queries, no indexes,
+// no writing — just every row of notes and of col.
+
+function openSqlite(bytes) {
+  if (bytes.length < 100) throw new Error("that is too small to be a database");
+  if (new TextDecoder("latin1").decode(bytes.subarray(0, 15)) !== "SQLite format 3") {
+    throw new Error("that is not a SQLite database");
+  }
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  let pageSize = view.getUint16(16);
+  if (pageSize === 1) pageSize = 65536;      // the format's way of saying 64K
+  return { bytes, view, pageSize, usable: pageSize - bytes[20] };
+}
+
+function pageAt(db, number) {
+  const start = (number - 1) * db.pageSize;
+  if (start < 0 || start + db.pageSize > db.bytes.length) {
+    throw new Error(`page ${number} is past the end of the database`);
+  }
+  return start;
+}
+
+// Up to nine bytes, big end first, seven bits a byte until the ninth.
+function varint(bytes, at) {
+  let value = 0n;
+  for (let i = 0; i < 8; i++) {
+    const byte = bytes[at + i];
+    if (byte < 0x80) return [Number(value * 128n + BigInt(byte)), i + 1];
+    value = value * 128n + BigInt(byte & 0x7f);
+  }
+  return [Number(value * 256n + BigInt(bytes[at + 8])), 9];
+}
+
+// A long note runs past its page: the first chunk stays in the cell and the
+// rest is a chain of pages, each beginning with the number of the next.
+function readPayload(db, start, inPage, total) {
+  if (total <= inPage) return db.bytes.subarray(start, start + total);
+
+  const out = new Uint8Array(total);
+  out.set(db.bytes.subarray(start, start + inPage), 0);
+  let filled = inPage;
+  let next = db.view.getUint32(start + inPage);
+  const seen = new Set();
+
+  while (next !== 0 && filled < total) {
+    if (seen.has(next)) throw new Error("the overflow pages loop back on themselves");
+    seen.add(next);
+    const at = pageAt(db, next);
+    const take = Math.min(db.usable - 4, total - filled);
+    out.set(db.bytes.subarray(at + 4, at + 4 + take), filled);
+    filled += take;
+    next = db.view.getUint32(at);
+  }
+  if (filled < total) throw new Error("the overflow chain ended early");
+  return out;
+}
+
+const INT_WIDTH = { 1: 1, 2: 2, 3: 3, 4: 4, 5: 6, 6: 8 };
+
+function decodeRecord(payload) {
+  const [headerSize, headerLen] = varint(payload, 0);
+  const types = [];
+  let at = headerLen;
+  while (at < headerSize) {
+    const [type, used] = varint(payload, at);
+    types.push(type);
+    at += used;
+  }
+
+  const values = [];
+  let body = headerSize;
+  for (const type of types) {
+    if (type === 0) { values.push(null); continue; }
+    if (type === 8) { values.push(0); continue; }
+    if (type === 9) { values.push(1); continue; }
+    if (INT_WIDTH[type]) {
+      const width = INT_WIDTH[type];
+      let n = 0n;
+      for (let i = 0; i < width; i++) n = (n << 8n) | BigInt(payload[body + i]);
+      const bits = BigInt(width * 8);
+      if (n >> (bits - 1n)) n -= 1n << bits;      // signed, so the top bit is the sign
+      values.push(Number(n));
+      body += width;
+      continue;
+    }
+    if (type === 7) {
+      values.push(new DataView(payload.buffer, payload.byteOffset + body, 8).getFloat64(0));
+      body += 8;
+      continue;
+    }
+    if (type >= 12 && type % 2 === 0) {
+      const size = (type - 12) / 2;
+      values.push(payload.subarray(body, body + size));
+      body += size;
+      continue;
+    }
+    if (type >= 13) {
+      const size = (type - 13) / 2;
+      values.push(new TextDecoder().decode(payload.subarray(body, body + size)));
+      body += size;
+      continue;
+    }
+    values.push(null);      // 10 and 11 are reserved and never turn up in a file
+  }
+  return values;
+}
+
+function* tableRows(db, root) {
+  const stack = [root];
+  const seen = new Set();
+
+  while (stack.length) {
+    const number = stack.pop();
+    if (seen.has(number)) continue;         // a damaged file could point in circles
+    seen.add(number);
+
+    const at = pageAt(db, number);
+    const head = number === 1 ? at + 100 : at;
+    const type = db.bytes[head];
+    const cells = db.view.getUint16(head + 3);
+    const pointers = head + (type === 5 || type === 2 ? 12 : 8);
+
+    if (type === 5) {
+      for (let i = 0; i < cells; i++) {
+        stack.push(db.view.getUint32(at + db.view.getUint16(pointers + i * 2)));
+      }
+      stack.push(db.view.getUint32(head + 8));       // the rightmost child
+      continue;
+    }
+    if (type !== 13) continue;                       // index pages hold no rows
+
+    for (let i = 0; i < cells; i++) {
+      const cell = at + db.view.getUint16(pointers + i * 2);
+      const [size, sizeLen] = varint(db.bytes, cell);
+      const [rowid, rowidLen] = varint(db.bytes, cell + sizeLen);
+      const start = cell + sizeLen + rowidLen;
+
+      const max = db.usable - 35;
+      let inPage = size;
+      if (size > max) {
+        const min = Math.floor(((db.usable - 12) * 32) / 255) - 23;
+        const k = min + ((size - min) % (db.usable - 4));
+        inPage = k <= max ? k : min;
+      }
+      yield { rowid, values: decodeRecord(readPayload(db, start, inPage, size)) };
+    }
+  }
+}
+
+// Anki's own schema carries a line comment in the middle of CREATE TABLE,
+// which would otherwise read as two more columns and shift the rest along.
+function columnsOf(rawSql) {
+  const sql = String(rawSql).replace(/--[^\n]*/g, " ").replace(/\/\*[\s\S]*?\*\//g, " ");
+  const open = sql.indexOf("(");
+  if (open < 0) return [];
+
+  let depth = 0;
+  const parts = [];
+  let current = "";
+  for (let i = open; i < sql.length; i++) {
+    const c = sql[i];
+    if (c === "(") { depth++; if (depth === 1) continue; }
+    if (c === ")") { depth--; if (depth === 0) break; }
+    if (c === "," && depth === 1) { parts.push(current); current = ""; continue; }
+    current += c;
+  }
+  parts.push(current);
+
+  return parts
+    .map((part) => ({
+      name: part.trim().split(/\s+/)[0].replace(/^[`"[]|[`"\]]$/g, ""),
+      // A column declared INTEGER PRIMARY KEY is the rowid under another name:
+      // SQLite stores NULL for it and keeps the value in the cell header.
+      rowid: /\binteger\s+primary\s+key\b/i.test(part),
+    }))
+    .filter((c) => c.name && !/^(primary|unique|check|foreign|constraint|key)$/i.test(c.name));
+}
+
+function readTable(db, wanted) {
+  let found = null;
+  for (const { values } of tableRows(db, 1)) {
+    const [type, name, , root, sql] = values;
+    if (type === "table" && name === wanted) { found = { root, sql: sql || "" }; break; }
+  }
+  if (!found) return null;
+
+  const columns = columnsOf(found.sql);
+  const rows = [];
+  for (const { rowid, values } of tableRows(db, found.root)) {
+    const row = {};
+    columns.forEach((column, i) => {
+      row[column.name] = column.rowid && values[i] == null ? rowid : values[i];
+    });
+    rows.push(row);
+  }
+  return { columns: columns.map((c) => c.name), rows };
+}
+
+/* ------------------------------------------------------------------ anki -- */
+
+async function readApkg(file) {
+  const entries = await zipIndex(file);
+
+  if (!entries.has("collection.anki2") && !entries.has("collection.anki21")
+      && entries.has("collection.anki21b")) {
+    throw new Error("that package is the newer Zstandard-compressed kind. In Anki, "
+      + "File → Export with “Support older Anki versions” ticked writes one this can read");
+  }
+  const name = ["collection.anki21", "collection.anki2"].find((n) => entries.has(n));
+  if (!name) throw new Error("there is no Anki collection inside that package");
+
+  setStatus(`Unpacking ${name}…`);
+  const db = openSqlite(await zipBytes(file, entries.get(name)));
+
+  const notes = readTable(db, "notes");
+  if (!notes || !notes.rows.length) throw new Error("that collection has no notes in it");
+
+  // Field names live in col.models as JSON on the old schema, and in a plain
+  // fields table on the new one. Either way they beat "Field 1, Field 2".
+  const names = new Map();
+  const col = readTable(db, "col");
+  if (col && col.rows.length && col.rows[0].models) {
+    try {
+      for (const [id, model] of Object.entries(JSON.parse(col.rows[0].models))) {
+        names.set(String(id), { name: model.name || `Note type ${id}`,
+          fields: (model.flds || []).map((f) => f.name) });
+      }
+    } catch { /* a models blob we can't read just means generic names */ }
+  }
+  if (!names.size) {
+    const types = readTable(db, "notetypes");
+    const fields = readTable(db, "fields");
+    if (types && fields) {
+      for (const row of types.rows) names.set(String(row.id), { name: row.name, fields: [] });
+      const byType = new Map();
+      for (const row of fields.rows) {
+        if (!byType.has(String(row.ntid))) byType.set(String(row.ntid), []);
+        byType.get(String(row.ntid))[row.ord] = row.name;
+      }
+      for (const [id, list] of byType) {
+        if (names.has(id)) names.get(id).fields = [...list];
+      }
+    }
+  }
+
+  // One group per note type, because a deck with two of them has two different
+  // ideas about which field is the word and which is the meaning.
+  const groups = new Map();
+  for (const row of notes.rows) {
+    const id = String(row.mid);
+    if (!groups.has(id)) {
+      const known = names.get(id);
+      groups.set(id, { id, name: known ? known.name : `Note type ${id}`,
+        fields: known ? known.fields.slice() : [], rows: [] });
+    }
+    groups.get(id).rows.push(String(row.flds || "").split("\u001f"));
+  }
+
+  for (const group of groups.values()) {
+    const widest = group.rows.reduce((n, r) => Math.max(n, r.length), 0);
+    for (let i = 0; i < widest; i++) {
+      if (!group.fields[i]) group.fields[i] = `Field ${i + 1}`;
+    }
+    group.fields.length = widest;
+  }
+
+  const list = [...groups.values()].sort((a, b) => b.rows.length - a.rows.length);
+  return { kind: "apkg", groups: list, note: `${notes.rows.length} notes from ${file.name}` };
+}
+
+/* ------------------------------------------------------------------- csv -- */
+
+function sniffDelimiter(text) {
+  const line = text.split(/\r?\n/).find((l) => l.trim()) || "";
+  const counts = { "\t": 0, ",": 0, ";": 0 };
+  let quoted = false;
+  for (let i = 0; i < line.length; i++) {
+    if (line[i] === '"') quoted = !quoted;
+    else if (!quoted && counts[line[i]] !== undefined) counts[line[i]]++;
+  }
+  const [best, howMany] = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+  return howMany ? best : ",";
+}
+
+function parseDelimited(text, delimiter) {
+  const rows = [];
+  let row = [];
+  let cell = "";
+  let quoted = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (quoted) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { cell += '"'; i++; }
+        else quoted = false;
+      } else cell += c;
+      continue;
+    }
+    if (c === '"') { quoted = true; continue; }
+    if (c === delimiter) { row.push(cell); cell = ""; continue; }
+    if (c === "\r") continue;
+    if (c === "\n") { row.push(cell); rows.push(row); row = []; cell = ""; continue; }
+    cell += c;
+  }
+  row.push(cell);
+  rows.push(row);
+
+  while (rows.length && rows[rows.length - 1].every((v) => !v.trim())) rows.pop();
+  return rows;
+}
+
+function toCsv(rows) {
+  const quote = (value) => {
+    const text = value == null ? "" : String(value);
+    return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+  };
+  // Excel and Sheets both read CRLF, and Sheets is where these templates live.
+  return rows.map((r) => r.map(quote).join(",")).join("\r\n") + "\r\n";
+}
+
+/* ------------------------------------------------------------- the sites -- */
+
+// Assembled from each site's help pages and from third-party guides, October
+// 2026. None of the three publishes its template as a specification, so these
+// are a best reading rather than a contract — see the note on the page.
+const SITES = [
+  {
+    key: "blooket",
+    name: "Blooket",
+    what: "Question, up to four answers, and the correct one by position",
+    file: "blooket",
+    max: 4,
+    header: ["Question #", "Question Text", "Answer 1", "Answer 2", "Answer 3 (Optional)",
+      "Answer 4 (Optional)", "Time Limit (sec)", "Correct Answer(s)"],
+    row(item, i, options, correct, seconds) {
+      const four = [0, 1, 2, 3].map((n) => options[n] || "");
+      return [i + 1, item.q, ...four, seconds, String(correct + 1)];
+    },
+  },
+  {
+    key: "wayground",
+    name: "Wayground",
+    what: "Quizizz as was — question type, five options, and an explanation column",
+    file: "wayground",
+    max: 5,
+    header: ["Question Text", "Question Type", "Option 1", "Option 2", "Option 3", "Option 4",
+      "Option 5", "Correct Answer", "Time in seconds", "Image Link", "Answer explanation"],
+    row(item, i, options, correct, seconds) {
+      const five = [0, 1, 2, 3, 4].map((n) => options[n] || "");
+      return [item.q, "Multiple Choice", ...five, String(correct + 1), seconds, "", ""];
+    },
+  },
+  {
+    key: "gimkit",
+    name: "Gimkit",
+    what: "Question, the right answer, then the wrong ones in their own columns",
+    file: "gimkit",
+    max: 4,
+    header: ["Question", "Correct Answer", "Incorrect Answer 1", "Incorrect Answer 2",
+      "Incorrect Answer 3"],
+    row(item) {
+      const wrong = [0, 1, 2].map((n) => item.wrong[n] || "");
+      return [item.q, item.a, ...wrong];
+    },
+  },
+];
+
+function buildCsv(site, items, seconds) {
+  const rows = [site.header];
+  items.forEach((item, i) => {
+    const options = [item.a, ...item.wrong].slice(0, site.max);
+    const order = shuffled(options, `${item.q}|${site.key}`);
+    const correct = order.indexOf(item.a);
+    rows.push(site.row(item, i, order, correct < 0 ? 0 : correct, seconds));
+  });
+  return toCsv(rows);
+}
+
+// Quizlet's import takes pairs with separators you choose; tab between the two
+// and a newline between cards is what its own export uses.
+function buildQuizlet(items) {
+  return items.map((i) => `${oneLine(i.q)}\t${oneLine(i.a)}`).join("\n") + "\n";
+}
+
+// Anki reads a tab-separated file, and since 2.1.55 it reads these directives
+// at the top and sets the import options itself.
+function buildAnki(items) {
+  const head = "#separator:tab\n#html:false\n";
+  return head + items.map((i) => `${oneLine(i.q)}\t${oneLine(i.a)}`).join("\n") + "\n";
+}
+
+function buildPlain(items) {
+  const widest = items.reduce((n, i) => Math.max(n, i.wrong.length), 0);
+  const header = ["Question", "Correct Answer"];
+  for (let i = 0; i < widest; i++) header.push(`Wrong ${i + 1}`);
+  const rows = [header];
+  for (const item of items) {
+    const row = [item.q, item.a];
+    for (let i = 0; i < widest; i++) row.push(item.wrong[i] || "");
+    rows.push(row);
+  }
+  return toCsv(rows);
+}
+
+// A tab in a cell would end the field; a newline would end the row.
+function oneLine(text) {
+  return String(text).replace(/[\t\r\n]+/g, " ").trim();
+}
+
+/* ------------------------------------------- reading a site's csv back in -- */
+
+// Which site wrote this, if any. Matching on the headers it is known to use
+// rather than on the file's name, because the name tells you nothing.
+function recogniseCsv(header) {
+  const tidy = header.map((h) => h.toLowerCase().replace(/[^a-z0-9]+/g, ""));
+  const has = (needle) => tidy.some((h) => h.includes(needle));
+
+  if (has("questiontext") && has("correctanswers") && has("answer1")) {
+    return { site: "Blooket", q: tidy.findIndex((h) => h.includes("questiontext")),
+      options: tidy.map((h, i) => (/^answer\d/.test(h) ? i : -1)).filter((i) => i >= 0),
+      correct: tidy.findIndex((h) => h.includes("correctanswer")) };
+  }
+  if (has("questiontext") && has("option1")) {
+    return { site: "Wayground", q: tidy.findIndex((h) => h.includes("questiontext")),
+      options: tidy.map((h, i) => (/^option\d/.test(h) ? i : -1)).filter((i) => i >= 0),
+      correct: tidy.findIndex((h) => h === "correctanswer") };
+  }
+  if (has("question") && has("correctanswer") && has("incorrectanswer1")) {
+    return { site: "Gimkit", q: tidy.findIndex((h) => h === "question"),
+      answer: tidy.findIndex((h) => h === "correctanswer"),
+      wrong: tidy.map((h, i) => (/^incorrectanswer\d/.test(h) ? i : -1)).filter((i) => i >= 0) };
+  }
+  if (has("question") && has("correctanswer")) {
+    return { site: "a plain table", q: tidy.findIndex((h) => h === "question"),
+      answer: tidy.findIndex((h) => h === "correctanswer"),
+      wrong: tidy.map((h, i) => (/^wrong\d/.test(h) ? i : -1)).filter((i) => i >= 0) };
+  }
+  return null;
+}
+
+function fromDelimited(text, sourceName) {
+  const delimiter = sniffDelimiter(text);
+  const rows = parseDelimited(text, delimiter);
+  if (!rows.length) throw new Error("there are no rows in that");
+
+  const header = rows[0].map((h) => h.trim());
+  const known = recogniseCsv(header);
+  const named = delimiter === "\t" ? "tab separated" : delimiter === ";" ? "semicolons" : "commas";
+
+  if (known) {
+    fromTemplate = known;
+    const body = rows.slice(1).filter((r) => r.some((c) => c.trim()));
+    return {
+      kind: "template",
+      groups: [{ id: "csv", name: known.site, fields: header, rows: body }],
+      note: `${body.length} rows of ${named}, read as ${known.site}`,
+    };
+  }
+
+  fromTemplate = null;
+  // No header we recognise. A pasted set has no header at all, and guessing
+  // wrong costs a card — so the first row is only taken as names when it
+  // actually reads like names, and the checkbox is there to overrule it.
+  const body = rows.filter((r) => r.some((c) => c.trim()));
+  return {
+    kind: "csv",
+    groups: [{ id: "csv", name: sourceName, raw: body, hasHeader: looksLabelled(header) }],
+    note: `${body.length} rows of ${named} from ${sourceName}`,
+  };
+}
+
+const LABEL_WORDS = /^(question|term|front|word|prompt|key|answer|definition|back|meaning|translation|correct|incorrect|wrong|option|choice|hint|note|notes|category|topic|time|image|explanation|type|id|no)\b/i;
+
+function looksLabelled(header) {
+  return header.length > 1 && header.some((h) => LABEL_WORDS.test(h.trim()));
+}
+
+// Splits a group's raw rows into field names and body, whichever way the
+// header switch is set.
+function applyHeader(group) {
+  if (!group.raw) return;
+  if (group.hasHeader && group.raw.length > 1) {
+    group.fields = group.raw[0].map((h, i) => h.trim() || `Column ${i + 1}`);
+    group.rows = group.raw.slice(1);
+  } else {
+    const widest = group.raw.reduce((n, r) => Math.max(n, r.length), 0);
+    group.fields = Array.from({ length: widest }, (_, i) => `Column ${i + 1}`);
+    group.rows = group.raw;
+  }
+}
+
+/* ------------------------------------------------------------- the input -- */
+
+async function take(file) {
+  try {
+    setStatus(`Reading ${file.name}…`);
+    const head = new Uint8Array(await file.slice(0, 4).arrayBuffer());
+    const zipped = head[0] === 0x50 && head[1] === 0x4b;
+
+    incoming = zipped || /\.apkg$/i.test(file.name)
+      ? await readApkg(file)
+      : fromDelimited(await file.text(), file.name);
+
+    showIncoming();
+  } catch (err) {
+    console.error(err);
+    setStatus(`Couldn't use that: ${err.message}`, true);
+  }
+}
+
+dropzone.addEventListener("click", () => fileInput.click());
+dropzone.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInput.click(); }
+});
+fileInput.addEventListener("change", () => { if (fileInput.files[0]) take(fileInput.files[0]); });
+
+for (const kind of ["dragenter", "dragover"]) {
+  dropzone.addEventListener(kind, (e) => { e.preventDefault(); dropzone.classList.add("over"); });
+}
+for (const kind of ["dragleave", "drop"]) {
+  dropzone.addEventListener(kind, () => dropzone.classList.remove("over"));
+}
+dropzone.addEventListener("drop", (e) => {
+  e.preventDefault();
+  if (e.dataTransfer.files[0]) take(e.dataTransfer.files[0]);
+});
+
+el("pasteBtn").addEventListener("click", () => {
+  const text = el("pasteBox").value;
+  if (!text.trim()) { setStatus("There is nothing in the box.", true); return; }
+  try {
+    incoming = fromDelimited(text, "what you pasted");
+    showIncoming();
+  } catch (err) {
+    console.error(err);
+    setStatus(`Couldn't read that: ${err.message}`, true);
+  }
+});
+
+/* ----------------------------------------------------------- the mapping -- */
+
+function showIncoming() {
+  el("mapCard").classList.remove("off");
+  el("buildCard").classList.remove("off");
+
+  // A delimited group arrives as raw rows and has to be split into names and
+  // body before anything can count it.
+  for (const group of incoming.groups) applyHeader(group);
+
+  const many = incoming.groups.length > 1;
+  typeField.hidden = !many;
+  typeSel.textContent = "";
+  incoming.groups.forEach((group, i) => {
+    const option = document.createElement("option");
+    option.value = String(i);
+    option.textContent = `${group.name} — ${group.rows.length} note${group.rows.length === 1 ? "" : "s"}`;
+    typeSel.appendChild(option);
+  });
+  typeSel.value = "0";
+  typeNote.textContent = many ? "this deck has more than one" : "";
+
+  // Only a delimited file has a first row that might or might not be names.
+  const group = incoming.groups[0];
+  el("headerCheck").hidden = !group.raw;
+  if (group.raw) el("hasHeader").checked = group.hasHeader;
+
+  fillFields();
+  setStatus(incoming.note);
+}
+
+function currentGroup() {
+  return incoming.groups[Number(typeSel.value) || 0];
+}
+
+// A sensible first guess, so the common case needs no clicking: the fields a
+// template put the question and answer in, or the first two that have
+// something in them.
+function fillFields() {
+  const group = currentGroup();
+  for (const select of [qSel, aSel]) {
+    select.textContent = "";
+    group.fields.forEach((name, i) => {
+      const option = document.createElement("option");
+      option.value = String(i);
+      option.textContent = `${i + 1}. ${name}`;
+      select.appendChild(option);
+    });
+  }
+
+  let q = 0;
+  let a = 1;
+  if (fromTemplate && incoming.kind === "template") {
+    q = fromTemplate.q >= 0 ? fromTemplate.q : 0;
+    a = fromTemplate.answer >= 0 ? fromTemplate.answer
+      : (fromTemplate.options && fromTemplate.options[0] >= 0 ? fromTemplate.options[0] : 1);
+  } else {
+    // Mostly filled, and not a column of numbers: a deck that leads with a
+    // frequency rank or a row id would otherwise offer that as the question.
+    const useful = group.fields.map((_, i) => {
+      let filled = 0;
+      let numeric = 0;
+      for (const row of group.rows) {
+        const value = (row[i] || "").trim();
+        if (!value) continue;
+        filled++;
+        if (/^[\d.,\s-]+$/.test(value)) numeric++;
+      }
+      return { i, filled, numeric };
+    }).filter((f) => f.filled > group.rows.length * 0.5 && f.numeric < f.filled * 0.8);
+
+    if (useful.length >= 2) { q = useful[0].i; a = useful[1].i; }
+    else if (useful.length === 1) { q = useful[0].i; a = Math.min(q + 1, group.fields.length - 1); }
+  }
+
+  qSel.value = String(Math.min(q, group.fields.length - 1));
+  aSel.value = String(Math.min(a, group.fields.length - 1));
+  remap();
+}
+
+const TAGS = /<[^>]*>/g;
+const SOUND = /\[sound:[^\]]*\]/gi;
+const ANKI_IMG = /\[anki:[^\]]*\]/gi;
+
+function clean(text) {
+  let out = String(text == null ? "" : text);
+  if (el("stripMedia").checked) out = out.replace(SOUND, " ").replace(ANKI_IMG, " ");
+  if (el("stripHtml").checked) {
+    out = out.replace(/<br\s*\/?>/gi, " ").replace(/<\/(div|p|li|tr)>/gi, " ").replace(TAGS, "");
+    // Entities only after the tags, so &lt;b&gt; in the text survives as text.
+    const holder = document.createElement("textarea");
+    holder.innerHTML = out;
+    out = holder.value;
+  }
+  return out.replace(/ /g, " ").replace(/\s+/g, " ").trim();
+}
+
+function remap() {
+  const group = currentGroup();
+  const qi = Number(qSel.value);
+  const ai = Number(aSel.value);
+
+  const seen = new Set();
+  pairs = [];
+  let blank = 0;
+  let dupe = 0;
+
+  for (const row of group.rows) {
+    const q = clean(row[qi]);
+    const a = clean(row[ai]);
+    if (el("dropEmpty").checked && (!q || !a)) { blank++; continue; }
+    if (el("dropDupes").checked) {
+      const key = q.toLowerCase();
+      if (seen.has(key)) { dupe++; continue; }
+      seen.add(key);
+    }
+    pairs.push({ q, a });
+  }
+
+  built = [];
+  el("outCard").classList.add("off");
+  el("buildTally").textContent = "";
+
+  paintPeek(pairs.slice(0, 8).map((p) => ({ ...p, wrong: [] })));
+  const bits = [`<b>${pairs.length}</b> usable row${pairs.length === 1 ? "" : "s"}`];
+  if (blank) bits.push(`${blank} missing a side`);
+  if (dupe) bits.push(`${dupe} repeated`);
+  tallyEl.innerHTML = bits.join(" · ");
+  el("limitNote").textContent = `rows, from the top — ${pairs.length} available`;
+}
+
+function paintPeek(items) {
+  peekEl.textContent = "";
+  if (!items.length) return;
+
+  const table = document.createElement("table");
+  const head = document.createElement("thead");
+  const headRow = document.createElement("tr");
+  for (const name of ["Question", "Answer", "Wrong answers"]) {
+    const th = document.createElement("th");
+    th.textContent = name;
+    headRow.appendChild(th);
+  }
+  head.appendChild(headRow);
+  table.appendChild(head);
+
+  const body = document.createElement("tbody");
+  for (const item of items) {
+    const tr = document.createElement("tr");
+    const q = document.createElement("td");
+    q.className = "q";
+    q.textContent = item.q;
+    const a = document.createElement("td");
+    a.className = "a";
+    a.textContent = item.a;
+    const w = document.createElement("td");
+    for (const one of item.wrong) {
+      const span = document.createElement("span");
+      span.className = "wrong";
+      span.textContent = one;
+      w.appendChild(span);
+    }
+    tr.append(q, a, w);
+    body.appendChild(tr);
+  }
+  table.appendChild(body);
+  peekEl.appendChild(table);
+}
+
+el("hasHeader").addEventListener("change", () => {
+  const group = currentGroup();
+  group.hasHeader = el("hasHeader").checked;
+  applyHeader(group);
+  fillFields();
+});
+
+typeSel.addEventListener("change", fillFields);
+for (const id of ["qSel", "aSel"]) el(id).addEventListener("change", remap);
+for (const id of ["stripHtml", "stripMedia", "dropEmpty", "dropDupes"]) {
+  el(id).addEventListener("change", remap);
+}
+el("swapBtn").addEventListener("click", () => {
+  const q = qSel.value;
+  qSel.value = aSel.value;
+  aSel.value = q;
+  remap();
+});
+
+/* ------------------------------------------------------- the wrong answers -- */
+
+function seedFrom(text) {
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  return h >>> 0;
+}
+
+function rng(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function shuffled(list, salt) {
+  const out = list.slice();
+  const next = rng(seedFrom(`${el("seed").value}|${salt}`));
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(next() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+// Levenshtein, abandoned as soon as every cell in a row is already worse than
+// the best distance found so far. Over five thousand answers the early exit is
+// the difference between a second and a minute.
+function distanceWithin(a, b, cap) {
+  if (Math.abs(a.length - b.length) > cap) return cap + 1;
+  let previous = new Array(b.length + 1);
+  let current = new Array(b.length + 1);
+  for (let j = 0; j <= b.length; j++) previous[j] = j;
+
+  for (let i = 1; i <= a.length; i++) {
+    current[0] = i;
+    let best = current[0];
+    const ca = a.charCodeAt(i - 1);
+    for (let j = 1; j <= b.length; j++) {
+      const cost = ca === b.charCodeAt(j - 1) ? 0 : 1;
+      current[j] = Math.min(previous[j] + 1, current[j - 1] + 1, previous[j - 1] + cost);
+      if (current[j] < best) best = current[j];
+    }
+    if (best > cap) return cap + 1;
+    [previous, current] = [current, previous];
+  }
+  return previous[b.length];
+}
+
+const POOL = 160;      // candidates weighed per question, before distance
+
+function addWrong(items, count, how) {
+  if (count <= 0) return items.map((i) => ({ ...i, wrong: [] }));
+
+  const answers = [...new Set(items.map((i) => i.a))];
+  const byLength = new Map();
+  for (const answer of answers) {
+    const key = answer.length;
+    if (!byLength.has(key)) byLength.set(key, []);
+    byLength.get(key).push(answer);
+  }
+
+  return items.map((item, index) => {
+    const next = rng(seedFrom(`${el("seed").value}|wrong|${item.q}`));
+
+    if (how === "random") {
+      const picked = [];
+      const guard = new Set([item.a]);
+      for (let tries = 0; tries < count * 40 && picked.length < count; tries++) {
+        const candidate = answers[Math.floor(next() * answers.length)];
+        if (!guard.has(candidate)) { guard.add(candidate); picked.push(candidate); }
+      }
+      return { ...item, wrong: picked };
+    }
+
+    // Same length first, then one either side, then a sample of the rest —
+    // which is the original's idea, kept bounded so a big deck stays quick.
+    const pool = [];
+    const want = item.a.length;
+    const widths = how === "length"
+      ? [want]
+      : [want, want - 1, want + 1, want - 2, want + 2];
+    for (const width of widths) {
+      for (const candidate of byLength.get(width) || []) {
+        if (candidate !== item.a) pool.push(candidate);
+        if (pool.length >= POOL) break;
+      }
+      if (pool.length >= POOL) break;
+    }
+    // Still short — a deck of mostly unique lengths will be. Top the pool up
+    // by striding through the rest, which keeps it spread rather than taking
+    // whichever answers happen to sit next to each other.
+    const room = Math.min(POOL, answers.length - 1);
+    const seen = new Set(pool);
+    for (let step = 0; pool.length < room && step < answers.length; step++) {
+      const candidate = answers[(index * 7919 + step * 104729) % answers.length];
+      if (candidate === item.a || seen.has(candidate)) continue;
+      seen.add(candidate);
+      pool.push(candidate);
+    }
+
+    let cap = Math.max(2, Math.ceil(Math.max(item.a.length, 4) * 0.9));
+    const scored = [];
+    for (const candidate of pool) {
+      const d = distanceWithin(item.a, candidate, cap);
+      if (d <= cap && d > 0) scored.push({ candidate, d });
+    }
+    scored.sort((x, y) => x.d - y.d || x.candidate.localeCompare(y.candidate));
+
+    const wrong = scored.slice(0, count).map((s) => s.candidate);
+    // A tiny set may not have enough near neighbours to fill the slots.
+    for (let i = 0; wrong.length < count && i < pool.length; i++) {
+      if (!wrong.includes(pool[i])) wrong.push(pool[i]);
+    }
+    return { ...item, wrong };
+  });
+}
+
+el("buildBtn").addEventListener("click", () => {
+  if (!pairs.length) { setStatus("There is nothing to build from.", true); return; }
+  const count = Number(el("wrongCount").value);
+  const asked = Number(el("limit").value);
+  const slice = Number.isFinite(asked) && asked > 0 ? pairs.slice(0, asked) : pairs;
+
+  const started = performance.now();
+  built = addWrong(slice, count, el("wrongHow").value);
+  const took = Math.round(performance.now() - started);
+
+  paintPeek(built.slice(0, 8));
+  const short = built.filter((i) => i.wrong.length < count).length;
+  el("buildTally").innerHTML =
+    `<b>${built.length}</b> question${built.length === 1 ? "" : "s"}`
+    + (count ? ` with ${count} wrong answer${count === 1 ? "" : "s"} each` : " as flashcards")
+    + ` · ${took} ms`
+    + (short ? ` · ${short} could not be filled — the set is too small or too alike` : "");
+
+  el("outCard").classList.remove("off");
+  el("outStatus").textContent = "";
+});
+
+/* ----------------------------------------------------------- the outputs -- */
+
+const SAVES = [
+  ...SITES.map((site) => ({
+    key: site.key,
+    name: site.name,
+    what: site.what,
+    extension: "csv",
+    make: () => buildCsv(site, built, Number(el("timeLimit").value) || 20),
+  })),
+  {
+    key: "quizlet",
+    name: "Quizlet",
+    what: "Term and definition, tab apart — paste it into Quizlet's import box",
+    extension: "txt",
+    make: () => buildQuizlet(built),
+  },
+  {
+    key: "anki",
+    name: "Anki",
+    what: "Tab separated, with the directives that set the import options for you",
+    extension: "txt",
+    make: () => buildAnki(built),
+  },
+  {
+    key: "plain",
+    name: "Plain table",
+    what: "Question, answer, wrong answers — for pasting into anyone else's template",
+    extension: "csv",
+    make: () => buildPlain(built),
+  },
+];
+
+const outs = el("outs");
+for (const save of SAVES) {
+  const card = document.createElement("div");
+  card.className = "out";
+
+  const who = document.createElement("div");
+  who.className = "who";
+  who.textContent = save.name;
+
+  const what = document.createElement("div");
+  what.className = "what";
+  what.textContent = save.what;
+
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "ghost";
+  button.textContent = `.${save.extension}`;
+  button.addEventListener("click", () => {
+    if (!built.length) return;
+    try {
+      const text = save.make();
+      const blob = new Blob([text], { type: save.extension === "csv" ? "text/csv" : "text/plain" });
+      const stem = (incoming && incoming.groups.length
+        ? currentGroup().name : "quiz").replace(/[^\w.-]+/g, "-").slice(0, 40) || "quiz";
+      const name = `${stem}-${save.key}.${save.extension}`;
+
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = name;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      el("outStatus").textContent =
+        `Saved ${name} — ${built.length} questions, ${(blob.size / 1024).toFixed(1)} KB.`;
+    } catch (err) {
+      console.error(err);
+      el("outStatus").textContent = `Couldn't write that: ${err.message}`;
+    }
+  });
+
+  card.append(who, what, button);
+  outs.appendChild(card);
+}
+</script>
+</body>
+</html>
