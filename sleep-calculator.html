@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sleep Calculator</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  /* Layout and sizing only. Colour, type and component styling live in theme.css. */
+
+  body { margin: 0; padding: 3rem 1.5rem 5rem; }
+  main { max-width: 760px; margin: 0 auto; }
+  p.lede { margin: 0 0 2.2rem; max-width: 56ch; }
+  .card { margin-bottom: 1.5rem; }
+
+  .rank { display: flex; flex-wrap: wrap; gap: 1.2rem; align-items: flex-end; }
+  .rank + .rank { margin-top: 1.3rem; }
+  .field { display: flex; flex-direction: column; gap: 0.35rem; }
+  .field label { font-size: 0.8rem; }
+  .field .unit { font-size: 0.72rem; margin-top: 0.1rem; }
+  .field input[type="time"] { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .field input[type="number"] { width: 6rem; }
+  .acts { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-left: auto; }
+
+  /* --------------------------------------------------------- the answers -- */
+
+  .asked { font-size: 0.85rem; margin-bottom: 1.1rem; }
+
+  .times { display: flex; flex-direction: column; }
+
+  .slot {
+    display: flex;
+    align-items: baseline;
+    gap: 1.1rem;
+    padding: 0.75rem 0.9rem;
+    border-bottom: 1px solid var(--line-soft);
+    flex-wrap: wrap;
+  }
+  .slot:last-child { border-bottom: none; }
+  /* Five and six cycles is where most adults are aiming, so those are the
+     ones lit; the rest are there because some nights are not most nights. */
+  .slot.pick { background: hsl(var(--tint) / 0.07); }
+
+  .slot .at {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 1.5rem;
+    font-weight: 300;
+    color: var(--text);
+    flex: none;
+    min-width: 7ch;
+  }
+  .slot.pick .at { color: var(--neon); text-shadow: var(--text-glow); }
+  .slot .cycles { font-size: 0.85rem; color: var(--text-dim); flex: 1; min-width: 0; }
+  .slot .len {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.78rem;
+    color: var(--text-faint);
+    flex: none;
+  }
+
+  .note { font-size: 0.78rem; margin-top: 1.2rem; max-width: 64ch; }
+  .note strong { color: var(--text-dim); font-weight: 400; }
+
+  @media (max-width: 620px) {
+    body { padding: 2rem 1rem 4rem; }
+    .acts { margin-left: 0; width: 100%; }
+    .acts button { flex: 1; }
+    .slot .at { font-size: 1.3rem; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <a class="home" href="index.html">&larr; index</a>
+  <h1>Sleep Calculator</h1>
+  <p class="lede">Pick a time to wake up, or a time to go to bed, and get the times at the other
+  end that land between sleep cycles rather than in the middle of one &mdash; which is the
+  difference between waking up and being woken up.</p>
+
+  <div class="card">
+    <div class="rank">
+      <div class="field">
+        <label>I want to</label>
+        <div class="seg" id="modeSeg">
+          <button type="button" data-mode="wake" aria-pressed="true">Wake up at</button>
+          <button type="button" data-mode="bed" aria-pressed="false">Go to sleep at</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="atInput" id="atLabel">Wake-up time</label>
+        <input type="time" id="atInput" value="07:00">
+      </div>
+
+      <div class="acts">
+        <button type="button" id="nowBtn" class="ghost">Now</button>
+      </div>
+    </div>
+
+    <div class="rank">
+      <div class="field">
+        <label for="fallInput">Time to fall asleep</label>
+        <input type="number" id="fallInput" min="0" max="90" step="1" value="15">
+        <span class="unit">minutes, counted into every answer</span>
+      </div>
+
+      <div class="field">
+        <label for="cycleInput">Cycle length</label>
+        <input type="number" id="cycleInput" min="60" max="120" step="5" value="90">
+        <span class="unit">minutes &mdash; 90 is the usual average</span>
+      </div>
+
+      <div class="field">
+        <label>Clock</label>
+        <div class="seg" id="clockSeg">
+          <button type="button" data-clock="24" aria-pressed="true">24 hour</button>
+          <button type="button" data-clock="12" aria-pressed="false">12 hour</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="asked" id="asked"></div>
+    <div class="times" id="times"></div>
+  </div>
+
+  <p class="note"><strong>It is a rule of thumb, not a measurement.</strong> Ninety minutes is an
+  average of a thing that varies: a real cycle runs anywhere from about 70 to 120 minutes, it
+  changes through the night &mdash; the early ones are shorter &mdash; and it changes with age and
+  with how short you were the night before. Nothing here knows which one you are having. Treat the
+  times as somewhere to aim rather than an alarm to trust, and move the cycle length above if you
+  have ever measured your own.</p>
+
+  <p class="note"><strong>Fifteen minutes to fall asleep</strong> is the figure most sleep advice
+  uses, and it is built into every time below rather than left for you to subtract. If you know
+  you take longer, say so and everything shifts with it.</p>
+
+  <p class="note"><strong>Five or six cycles</strong> &mdash; seven and a half to nine hours
+  &mdash; is the band most adults are aiming at, so those two are the ones lit. Four is a short
+  night and three is a nap you will feel; they are listed because some nights are not most
+  nights.</p>
+</main>
+
+<script>
+"use strict";
+
+const el = (id) => document.getElementById(id);
+
+const modeSeg   = el("modeSeg");
+const clockSeg  = el("clockSeg");
+const atInput   = el("atInput");
+const atLabel   = el("atLabel");
+const fallInput = el("fallInput");
+const cycleInput= el("cycleInput");
+const askedEl   = el("asked");
+const timesEl   = el("times");
+
+let mode = "wake";       // "wake": given a wake-up time · "bed": given a bedtime
+let hours = 24;
+
+const pad = (n) => String(n).padStart(2, "0");
+
+// Minutes past midnight, wrapped, so a bedtime of 23:30 plus seven hours comes
+// back as 06:30 rather than as tomorrow's 30:30.
+const wrap = (minutes) => ((minutes % 1440) + 1440) % 1440;
+
+function clock(minutes) {
+  const m = wrap(minutes);
+  const h24 = Math.floor(m / 60);
+  const mm = pad(m % 60);
+  if (hours === 24) return `${pad(h24)}:${mm}`;
+  const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+  return `${h12}:${mm} ${h24 < 12 ? "am" : "pm"}`;
+}
+
+function span(minutes) {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m ? `${h}h ${pad(m)}m` : `${h}h`;
+}
+
+function readTime(value) {
+  const m = /^(\d{1,2}):(\d{2})/.exec(value || "");
+  if (!m) return null;
+  const h = Number(m[1]);
+  const mi = Number(m[2]);
+  if (h > 23 || mi > 59) return null;
+  return h * 60 + mi;
+}
+
+const clamp = (n, lo, hi, fallback) =>
+  Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : fallback;
+
+function render() {
+  const at = readTime(atInput.value);
+  const fall = clamp(Number(fallInput.value), 0, 90, 15);
+  const cycle = clamp(Number(cycleInput.value), 60, 120, 90);
+
+  timesEl.textContent = "";
+
+  if (at === null) {
+    askedEl.textContent = "Set a time above and the other end fills in.";
+    return;
+  }
+
+  askedEl.textContent = mode === "wake"
+    ? `To wake up at ${clock(at)}, with ${fall} minute${fall === 1 ? "" : "s"} to fall asleep, be in bed by:`
+    : `Asleep ${fall} minute${fall === 1 ? "" : "s"} after going to bed at ${clock(at)}, wake at:`;
+
+  // Longest night first either way, so the answer you most likely want is the
+  // one at the top rather than the one you have to scan for.
+  for (const n of [6, 5, 4, 3]) {
+    const slept = n * cycle;
+    const when = mode === "wake" ? at - fall - slept : at + fall + slept;
+
+    const row = document.createElement("div");
+    row.className = "slot" + (n === 5 || n === 6 ? " pick" : "");
+
+    const when_ = document.createElement("span");
+    when_.className = "at";
+    when_.textContent = clock(when);
+
+    const cycles = document.createElement("span");
+    cycles.className = "cycles";
+    cycles.textContent = `${n} cycles`;
+
+    const len = document.createElement("span");
+    len.className = "len";
+    len.textContent = `${span(slept)} asleep`;
+
+    row.append(when_, cycles, len);
+    timesEl.appendChild(row);
+  }
+}
+
+/* ---------------------------------------------------------------- input -- */
+
+modeSeg.addEventListener("click", (e) => {
+  const button = e.target.closest("button");
+  if (!button) return;
+  mode = button.dataset.mode;
+  for (const b of modeSeg.querySelectorAll("button")) {
+    b.setAttribute("aria-pressed", String(b.dataset.mode === mode));
+  }
+  atLabel.textContent = mode === "wake" ? "Wake-up time" : "Bedtime";
+  render();
+});
+
+clockSeg.addEventListener("click", (e) => {
+  const button = e.target.closest("button");
+  if (!button) return;
+  hours = Number(button.dataset.clock);
+  for (const b of clockSeg.querySelectorAll("button")) {
+    b.setAttribute("aria-pressed", String(Number(b.dataset.clock) === hours));
+  }
+  render();
+});
+
+el("nowBtn").addEventListener("click", () => {
+  const now = new Date();
+  atInput.value = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  render();
+});
+
+for (const input of [atInput, fallInput, cycleInput]) {
+  input.addEventListener("input", render);
+}
+
+render();
+</script>
+</body>
+</html>
