@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>House Style</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  /* Layout and sizing only, like every other page — which matters more here
+     than anywhere else: this page describes the theme, so it had better take
+     its colours from the theme rather than from a copy of it. The two knobs
+     below set --sat and --h on :root, so they move the real thing, and the
+     component gallery is built from the real classes rather than from
+     look-alikes that could drift away from them. */
+
+  body { margin: 0; padding: 3rem 1.5rem 5rem; }
+  main { max-width: 820px; margin: 0 auto; }
+  p.lede { margin: 0 0 2.6rem; max-width: 62ch; }
+
+  h2 {
+    margin: 3.2rem 0 0.9rem;
+    padding-bottom: 0.55rem;
+    border-bottom: 1px solid var(--line-soft);
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    font-size: 0.78rem;
+  }
+  h3 { margin: 1.8rem 0 0.5rem; font-size: 0.95rem; font-weight: 400; }
+
+  p { margin: 0 0 1rem; max-width: 66ch; }
+  p.tight { margin-bottom: 0.5rem; }
+  .dim { color: var(--text-dim); }
+
+  ul.rules { margin: 0 0 1rem; padding-left: 1.1rem; max-width: 66ch; }
+  ul.rules li { margin-bottom: 0.45rem; color: var(--text-dim); }
+  ul.rules b { color: var(--text); font-weight: 400; }
+
+  /* ------------------------------------------------------------- knobs -- */
+
+  .knobs { display: flex; flex-wrap: wrap; gap: 1.6rem; align-items: flex-end; }
+  .knob { display: flex; flex-direction: column; gap: 0.35rem; flex: 1 1 15rem; min-width: 0; }
+  .knob label { display: flex; justify-content: space-between; gap: 1rem; font-size: 0.8rem; }
+  .knob label b {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-weight: 400;
+    color: var(--neon);
+  }
+  .knob input[type="range"] { width: 100%; }
+  .knob .unit { font-size: 0.72rem; color: var(--text-faint); }
+
+  .hues { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 1.1rem; }
+  .hues button { font-size: 0.75rem; padding: 0.3rem 0.7rem; }
+
+  /* ------------------------------------------------------------ tokens -- */
+
+  .tokens {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(165px, 1fr));
+    gap: 1px;
+    background: var(--line-soft);
+    border: 1px solid var(--line-soft);
+  }
+  .tok { background: var(--bg); padding: 0.8rem 0.9rem; display: flex; flex-direction: column; gap: 0.5rem; min-width: 0; }
+  .tok .chip { height: 34px; border: 1px solid var(--line-soft); }
+  .tok .nm { font-family: var(--mono); font-size: 0.74rem; overflow-wrap: anywhere; }
+  .tok .val { font-family: var(--mono); font-size: 0.68rem; color: var(--text-faint); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+  .tok .use { font-size: 0.72rem; color: var(--text-dim); }
+
+  /* ------------------------------------------------------------- scale -- */
+
+  .scale .row {
+    display: flex;
+    align-items: baseline;
+    gap: 1.1rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--line-soft);
+    flex-wrap: wrap;
+  }
+  .scale .spec {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    color: var(--text-faint);
+    font-variant-numeric: tabular-nums;
+    flex: none;
+    width: 15ch;
+  }
+  .scale .demo { min-width: 0; }
+  /* The sizes the theme sets, restated here only because a sample of h1 in
+     the middle of a document cannot be an actual h1. */
+  .d-h1   { font-weight: 200; font-size: 1.9rem; letter-spacing: 0.02em; color: var(--neon); text-shadow: var(--text-glow); }
+  .d-h2   { font-weight: 500; font-size: 0.95rem; letter-spacing: 0.04em; }
+  .d-body { font-weight: 300; font-size: 15px; }
+  .d-lede { font-weight: 300; font-size: 15px; color: var(--text-dim); }
+  .d-lab  { font-weight: 400; font-size: 0.8rem; color: var(--text-dim); letter-spacing: 0.02em; }
+  .d-note { font-weight: 300; font-size: 0.78rem; color: var(--text-faint); }
+  .d-mono { font-family: var(--mono); font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+
+  /* -------------------------------------------------------- components -- */
+
+  .bits { display: flex; flex-direction: column; gap: 1.3rem; }
+  .bit { display: flex; flex-wrap: wrap; gap: 0.9rem 1.4rem; align-items: center; }
+  .bit .cap { font-family: var(--mono); font-size: 0.7rem; color: var(--text-faint); flex: none; width: 13ch; }
+  .bit .body { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; min-width: 0; flex: 1 1 18rem; }
+  .bit .body.stack { flex-direction: column; align-items: flex-start; }
+  .bit .dropzone { padding: 1rem 1.3rem; text-align: center; flex: 1 1 100%; }
+  .bit .card { padding: 1.2rem; font-size: 0.85rem; color: var(--text-dim); flex: 1 1 100%; margin: 0; }
+  .bit input[type="text"] { width: 11rem; }
+
+  /* -------------------------------------------------------------- words -- */
+
+  .words { border-collapse: collapse; width: 100%; font-size: 0.85rem; }
+  .words th, .words td { text-align: left; padding: 0.55rem 0.9rem 0.55rem 0; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+  .words th { font-weight: 400; color: var(--text-faint); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; }
+  .words td:first-child { white-space: nowrap; padding-right: 1.4rem; }
+  .words td:last-child { color: var(--text-dim); }
+  .table-scroll { overflow-x: auto; }
+  .yes { color: var(--neon); }
+  .no { color: var(--text-faint); }
+
+  pre {
+    background: var(--sunken);
+    border: 1px solid var(--line-soft);
+    padding: 0.9rem 1.1rem;
+    overflow-x: auto;
+    margin: 0 0 1rem;
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    line-height: 1.55;
+    color: var(--text-dim);
+  }
+  pre b { color: var(--neon); font-weight: 400; }
+
+  .note { font-size: 0.78rem; margin-top: 1.2rem; max-width: 66ch; }
+  .note strong { color: var(--text-dim); font-weight: 400; }
+
+  @media (max-width: 620px) {
+    body { padding: 2rem 1rem 4rem; }
+    .bit .cap { width: 100%; }
+    .scale .spec { width: 100%; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <a class="home" href="index.html">&larr; index</a>
+  <h1>House Style</h1>
+  <p class="lede">A monochromatic glow on true OLED black. One typeface, one accent, square
+  corners, and hairlines instead of shadows. This page links <code>theme.css</code> like every
+  other page here and declares no colour of its own, so the two knobs below move the real thing
+  and the swatches read back what the browser actually resolved.</p>
+
+  <h2>The two knobs</h2>
+  <p class="dim">Every colour in the repo comes out of <code>--sat</code> and <code>--h</code>.
+  Nothing else is a colour decision. <code>--sat</code> is the master: at <code>0</code> hue drops
+  out entirely and the accent is white, which is what ships. Raise it and <code>--h</code> starts
+  to show.</p>
+
+  <div class="card">
+    <div class="knobs">
+      <div class="knob">
+        <label for="sat">Saturation <b id="satVal">0</b></label>
+        <input type="range" id="sat" min="0" max="1" step="0.01" value="0">
+        <span class="unit"><code>--sat</code> &mdash; 0 is the white glow, 1 is full colour</span>
+      </div>
+      <div class="knob">
+        <label for="hue">Hue <b id="hueVal">288</b></label>
+        <input type="range" id="hue" min="0" max="360" step="1" value="288">
+        <span class="unit"><code>--h</code> &mdash; does nothing while <code>--sat</code> is 0</span>
+      </div>
+    </div>
+
+    <div class="hues">
+      <button type="button" class="ghost" data-h="288" data-s="1">288 Violet-magenta</button>
+      <button type="button" class="ghost" data-h="190" data-s="1">190 Cyan</button>
+      <button type="button" class="ghost" data-h="330" data-s="1">330 Hot pink</button>
+      <button type="button" class="ghost" data-h="155" data-s="1">155 Acid green</button>
+      <button type="button" class="ghost" data-h="40"  data-s="1">40 Amber</button>
+      <button type="button" class="ghost" data-h="288" data-s="0.35">A faint wash</button>
+      <button type="button" class="ghost" data-h="288" data-s="0">Back to white</button>
+    </div>
+  </div>
+
+  <p class="dim">Saturation is scaled by <code>--sat</code> throughout, and the accents climb
+  toward white as colour drains out, so they stay accents rather than collapsing into mid-grey.
+  That is why there are four lightness ramps in the theme and not four fixed lightnesses.</p>
+
+  <h2>Colour</h2>
+  <p class="tight dim">Read back out of the page with <code>getComputedStyle</code>, so these are
+  the values in force right now &mdash; the same trick
+  <a href="anything-to-image.html">anything &rarr; image</a> uses to make canvas output match the
+  page it was drawn on.</p>
+  <div class="tokens" id="tokens"></div>
+
+  <h3>Rules that hold whatever the knobs say</h3>
+  <ul class="rules">
+    <li><b>Black is black.</b> <code>--bg</code> is <code>#000000</code>, so OLED pixels switch
+    off. Depth comes from hairlines and glow, never from lighter greys.</li>
+    <li><b>Glow is reserved.</b> <code>--neon</code> and the three shadow tokens mark what is
+    live, focused or clickable. A static label never glows.</li>
+    <li><b>There is no second hue.</b> Failure is signalled by intensity and a bar on the left,
+    not by red; nothing here is green for success.</li>
+    <li><b>Three deliberate exceptions.</b> The transparency checker is a neutral grey outside
+    the palette, because it has to read as "there is nothing here" rather than as part of the
+    design. A page that draws its own pixels pulls resolved colours out rather than hard-coding
+    them. And <a href="hex-clock.html">hex clock</a> paints its own background, because the
+    background is the point &mdash; its chrome steps off the ink ramp too, since that ramp is
+    mixed for a page that is always pure black.</li>
+  </ul>
+
+  <h2>Type</h2>
+  <p class="dim">One family doing every job, differentiated by weight and tracking.
+  <code>--sans</code> is Lexend Deca, falling back to Helvetica. <code>--mono</code> is a system
+  stack &mdash; nothing downloaded &mdash; used only for text that is literally a command, a path,
+  a token name or a column of figures. Those get
+  <code>font-variant-numeric: tabular-nums</code> so they stop jittering as they update; where
+  the face has no tabular figures, as Lexend Deca does not, a column that must hold still gets
+  fixed boxes per character instead.</p>
+
+  <div class="scale">
+    <div class="row"><span class="spec">200 &middot; 1.9rem</span><span class="demo d-h1">Audio &rarr; Text</span></div>
+    <div class="row"><span class="spec">500 &middot; 0.95rem</span><span class="demo d-h2">Section heading</span></div>
+    <div class="row"><span class="spec">300 &middot; 15px</span><span class="demo d-body">Body text, the default everywhere</span></div>
+    <div class="row"><span class="spec">300 &middot; dim</span><span class="demo d-lede">A lede, under the title</span></div>
+    <div class="row"><span class="spec">400 &middot; 0.8rem</span><span class="demo d-lab">Field label</span></div>
+    <div class="row"><span class="spec">300 &middot; 0.78rem</span><span class="demo d-note">A note or hint, in faint ink</span></div>
+    <div class="row"><span class="spec">mono &middot; 0.8rem</span><span class="demo d-mono">00:01:24,600 &rarr; 1.9 MB</span></div>
+  </div>
+
+  <p class="dim" style="margin-top:1.4rem">Only the <code>h1</code> glows. Small caption labels
+  &mdash; the kind that sit above a group of controls &mdash; are set uppercase with
+  <code>0.1em</code> of tracking in <code>--text-faint</code>; that treatment stays local to the
+  page that wants it rather than living on <code>h2</code>.</p>
+
+  <h2>Shape</h2>
+  <ul class="rules">
+    <li><b>Square corners.</b> <code>border-radius: 0</code> on everything. The one radius in the
+    system is <code>2px</code> on the focus ring, so it does not read as a hard corner.</li>
+    <li><b>Hairlines, not shadows.</b> <code>--line</code> and <code>--line-soft</code> separate
+    things; box shadows exist only as glow.</li>
+    <li><b>Three surfaces.</b> <code>--bg</code> for the page, <code>--raised</code> for a card,
+    <code>--sunken</code> for anything you type into.</li>
+    <li><b>One reading column.</b> Pages cap at 760&ndash;900px and running text at 56&ndash;68ch.
+    Below 620px rows stack and action buttons go full width.</li>
+  </ul>
+
+  <h2>The shared vocabulary</h2>
+  <p class="dim">Colour, type and components are styled once in <code>theme.css</code>. A page's
+  own <code>&lt;style&gt;</code> block carries layout and sizing only, so a new page inherits the
+  look with almost no CSS of its own. Everything below is the real markup, not a drawing of it.</p>
+
+  <div class="bits">
+    <div class="bit"><span class="cap">button</span><span class="body">
+      <button type="button">Transcribe</button>
+      <button type="button" class="ghost">Copy</button>
+      <button type="button" disabled>Working&hellip;</button>
+    </span></div>
+
+    <div class="bit"><span class="cap">.seg</span><span class="body">
+      <div class="seg">
+        <button type="button" aria-pressed="true">Timestamped</button>
+        <button type="button" aria-pressed="false">Just the words</button>
+      </div>
+    </span></div>
+
+    <div class="bit"><span class="cap">form controls</span><span class="body">
+      <input type="text" value="hay_portal.png" aria-label="A text field">
+      <input type="number" value="16" min="1" max="99" aria-label="A number field" style="width:5.5rem">
+      <select aria-label="A select"><option>Base &mdash; 78 MB</option><option>Small &mdash; 250 MB</option></select>
+    </span></div>
+
+    <div class="bit"><span class="cap">.dropzone</span>
+      <div class="dropzone">Drop a recording here, or click to choose one</div>
+    </div>
+
+    <div class="bit"><span class="cap">.status</span><span class="body stack">
+      <span class="status">Ready &mdash; 1:15.0 of audio.</span>
+      <span class="status error">Couldn't read that: the browser won't decode it.</span>
+    </span></div>
+
+    <div class="bit"><span class="cap">.card</span>
+      <div class="card">A card is <code>--raised</code>, one hairline of <code>--line-soft</code>,
+      <code>1.5rem</code> of padding and no radius. It groups one step of a job.</div>
+    </div>
+  </div>
+
+  <h2>Motion</h2>
+  <p class="dim">Transitions run at <code>0.15s ease</code> on colour, border and shadow, and on
+  nothing else. A page gets at most one thing that moves on its own, and only while something is
+  genuinely happening: the microphone pulse while recording, the sweep on a progress bar that
+  cannot report a percentage, the caret on a line still being written. All of it is switched off
+  under <code>prefers-reduced-motion</code>, in the theme and again in any page that adds a
+  keyframe of its own.</p>
+
+  <h2>Words</h2>
+  <p class="dim">Copy is part of the design. British English, plainly, the way a knowledgeable
+  person would say it &mdash; short sentences, active voice, specific over clever. Notes open with
+  a bolded phrase and then explain themselves. Nothing apologises and nothing oversells: a page
+  says what it does, and then says what it is bad at.</p>
+
+  <h3>Casing</h3>
+  <p class="tight dim">Names of things are Title Case. Everything else is Sentence case,
+  capitalised on the first word only.</p>
+  <div class="table-scroll">
+    <table class="words">
+      <thead><tr><th>Where</th><th>How</th></tr></thead>
+      <tbody>
+        <tr><td><span class="yes">Title Case</span></td><td>Page titles, <code>h1</code>, and the index entry &mdash; <em>Audio &rarr; Text</em>, <em>Bingo Cards</em>, <em>PNG &rarr; Swirl GIF</em>.</td></tr>
+        <tr><td><span class="yes">Sentence case</span></td><td>Section headings, labels, buttons, options, tooltips, <code>aria-label</code>s, status lines, and the one-line description under each index entry.</td></tr>
+        <tr><td><span class="yes">As written</span></td><td>Acronyms are acronyms &mdash; <em>CMYK</em>, <em>JSON</em>, <em>SVG</em>, <em>OKLCH</em>. Brand names take their own casing &mdash; <em>GitHub</em>, <em>CurseForge</em>, <em>Pantone</em>.</td></tr>
+        <tr><td><span class="no">Left alone</span></td><td>File extensions (<code>.txt</code>, <code>.srt</code>), CSS and colour-space literals (<code>sRGB</code>, <code>hsl(&hellip;)</code>), shell names, domains, units (<code>dB</code>), usernames, and the example content in a placeholder.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="dim" style="margin-top:1rem">This covers the text people read, wherever it is written:
+  an option built in JavaScript is as client-facing as one in the markup. It stops at the text
+  &mdash; identifiers, keys, class names, data attributes and comments keep whatever casing the
+  code wants. Mid-sentence emphasis stays lowercase, because that is what English does; the
+  exception is a <code>&lt;b&gt;</code> naming a control rather than a word in the sentence.</p>
+
+  <h2>A page's skeleton</h2>
+  <p class="dim">Every page is one standalone HTML file that runs entirely in the tab. Nothing is
+  uploaded, and any page here can be handed to someone as a single file.</p>
+<pre>&lt;link rel="stylesheet" href="<b>theme.css</b>"&gt;
+&lt;style&gt; <b>/* Layout and sizing only. Colour, type and component
+           styling live in theme.css. */</b> &lt;/style&gt;
+
+&lt;main&gt;
+  &lt;a class="<b>home</b>" href="index.html"&gt;&larr; index&lt;/a&gt;
+  &lt;h1&gt;Page Name&lt;/h1&gt;
+  &lt;p class="<b>lede</b>"&gt;What it does, in two or three sentences.&lt;/p&gt;
+
+  &lt;div class="<b>card</b>"&gt; &hellip; the input &hellip;    &lt;/div&gt;
+  &lt;div class="<b>card</b>"&gt; &hellip; the controls &hellip; &lt;/div&gt;
+  &lt;div class="<b>card</b>"&gt; &hellip; the result &hellip;   &lt;/div&gt;
+
+  &lt;p class="<b>note</b>"&gt;&lt;strong&gt;It runs here.&lt;/strong&gt; How it works, and
+  what it will not do.&lt;/p&gt;
+&lt;/main&gt;</pre>
+  <p class="dim">The back link sits directly above the title on every page but the index. Cards
+  run down the page in the order the job happens &mdash; put something in, set it up, read it
+  back. The notes at the foot are where the page is honest about its limits: what gets fetched,
+  what it is bad at, and what it needs a real machine for. Then add a row to the
+  <code>&lt;nav&gt;</code> list in <a href="index.html">index.html</a> and to the table in the
+  README.</p>
+
+  <p class="note"><strong>Written from the theme, not about it.</strong> The knobs above set
+  <code>--sat</code> and <code>--h</code> on <code>:root</code>, the swatches read the resolved
+  values back, and the components in the gallery are the real classes. If any of it looks wrong,
+  the theme changed and this page is already telling you so.</p>
+
+  <p class="note"><strong>One look, on purpose.</strong> There is no light mode anywhere in this
+  repo, here included. A style guide for an OLED-black palette shown on white would be describing
+  something else.</p>
+</main>
+
+<script>
+"use strict";
+
+const el = (id) => document.getElementById(id);
+const root = document.documentElement;
+
+const satIn  = el("sat");
+const hueIn  = el("hue");
+const satVal = el("satVal");
+const hueVal = el("hueVal");
+
+// Every swatch names a real token, so the value under it is whatever the
+// browser has resolved at the current setting rather than a figure typed here
+// — which is the only way this page cannot drift away from theme.css.
+const TOKENS = [
+  ["--bg",         "fill", "The page. True black, so the pixels switch off."],
+  ["--raised",     "fill", "A card, a panel, a tooltip."],
+  ["--sunken",     "fill", "Anything you type into."],
+  ["--neon",       "fill", "Live, focused or clickable."],
+  ["--neon-hot",   "fill", "Hover, and the error state."],
+  ["--neon-deep",  "fill", "A resting button's border."],
+  ["--text",       "fill", "Body text."],
+  ["--text-dim",   "fill", "Labels, ledes, secondary text."],
+  ["--text-faint", "fill", "Notes, hints, units."],
+  ["--line",       "fill", "A visible edge: inputs, dashed zones."],
+  ["--line-soft",  "fill", "A quiet edge: card borders, dividers."],
+  ["--glow",       "glow", "The focus and hover halo."],
+];
+
+const host = el("tokens");
+const cells = TOKENS.map(([token, kind, use]) => {
+  const cell = document.createElement("div");
+  cell.className = "tok";
+
+  const chip = document.createElement("div");
+  chip.className = "chip";
+  if (kind === "glow") {
+    chip.style.boxShadow = `var(${token})`;
+    chip.style.background = "var(--raised)";
+  } else {
+    chip.style.background = `var(${token})`;
+  }
+
+  const name = document.createElement("div");
+  name.className = "nm";
+  name.textContent = token;
+
+  const value = document.createElement("div");
+  value.className = "val";
+
+  const what = document.createElement("div");
+  what.className = "use";
+  what.textContent = use;
+
+  cell.append(chip, name, value, what);
+  host.appendChild(cell);
+  return { token, kind, chip, out: value };
+});
+
+// A custom property does not compute to a colour: asking :root for --raised
+// hands back the text of the definition, calc() and all, which is unreadable
+// and not what is on screen. The resolved colour only exists where the token
+// has been used on a real property, so it is read off the swatch itself.
+const toHex = (rgb) => {
+  const parts = (rgb.match(/[\d.]+/g) || []).map(Number);
+  if (parts.length < 3) return rgb;
+  const hex = parts.slice(0, 3)
+    .map((n) => Math.round(n).toString(16).padStart(2, "0")).join("");
+  // An alpha below 1 has no hex short form worth printing, so it is kept.
+  return parts[3] !== undefined && parts[3] < 1 ? `#${hex} / ${parts[3]}` : `#${hex}`;
+};
+
+function readBack() {
+  for (const cell of cells) {
+    const style = getComputedStyle(cell.chip);
+    // The shadow is left whole: rgba() has spaces inside it, so any attempt
+    // to trim it to the first few tokens cuts the colour in half.
+    cell.out.textContent = cell.kind === "glow"
+      ? style.boxShadow
+      : toHex(style.backgroundColor);
+  }
+}
+
+function apply() {
+  root.style.setProperty("--sat", satIn.value);
+  root.style.setProperty("--h", hueIn.value);
+  satVal.textContent = Number(satIn.value).toFixed(2).replace(/\.00$/, "").replace(/0$/, "");
+  hueVal.textContent = hueIn.value;
+  readBack();
+}
+
+satIn.addEventListener("input", apply);
+hueIn.addEventListener("input", apply);
+
+for (const button of document.querySelectorAll(".hues button")) {
+  button.addEventListener("click", () => {
+    hueIn.value = button.dataset.h;
+    satIn.value = button.dataset.s;
+    apply();
+  });
+}
+
+apply();
+</script>
+</body>
+</html>
