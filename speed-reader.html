@@ -29,6 +29,30 @@
 
   .status { font-size: 0.85rem; margin-top: 0.9rem; min-height: 1.2em; }
 
+  /* ------------------------------------------------------------- a link -- */
+
+  .linkrow { display: flex; gap: 0.6rem; flex-wrap: wrap; margin-top: 0.4rem; }
+  .linkrow input[type="url"] { flex: 1 1 24rem; min-width: 0; }
+  .relay { display: flex; gap: 0.6rem; flex-wrap: wrap; margin-top: 0.7rem; align-items: center; }
+  .relay select { max-width: 100%; }
+  .relay input[type="text"] { flex: 1 1 20rem; min-width: 0; font-family: var(--mono); font-size: 0.78rem; }
+  .relay input[hidden] { display: none; }
+  .hint { font-size: 0.8rem; margin-top: 0.5rem; max-width: 72ch; }
+  .or { display: block; margin-top: 1.8rem; }
+
+  /* The masthead for a fetched article: what was pulled out, and from where. */
+  .source { display: none; }
+  .source.ready { display: block; }
+  .source h2 { margin: 0 0 0.5rem; }
+  .source .meta-line {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.74rem;
+  }
+  .source .sub { font-size: 0.85rem; max-width: 72ch; margin: 0.9rem 0 0; }
+  .source .seg { margin-bottom: 1.1rem; }
+  .source .where { font-size: 0.78rem; margin-top: 0.9rem; word-break: break-all; }
+
   /* ------------------------------------------------------------ the word -- */
 
   .reader { display: none; }
@@ -104,6 +128,7 @@
 
   @media (max-width: 620px) {
     body { padding: 2rem 1rem 4rem; }
+    .linkrow button { width: 100%; }
     .acts { margin-left: 0; width: 100%; }
     .acts button { flex: 1 1 5rem; padding-left: 0.5rem; padding-right: 0.5rem; }
     .pane { padding: 2.4rem 0.5rem; }
@@ -114,19 +139,41 @@
 <main>
   <a class="home" href="index.html">&larr; index</a>
   <h1>Speed Reader</h1>
-  <p class="lede">Paste something in and read it one word at a time, in place, at a pace you set.
-  Your eyes stop moving, which is where a good part of ordinary reading time goes. The focus
-  letter is marked and every word is hung on it, so the word lands under your eye already lined
-  up.</p>
+  <p class="lede">Give it a link, or paste something in, and read it one word at a time, in place,
+  at a pace you set. A link has the article pulled out of the page first &mdash; the menus, the
+  footer and the comments dropped &mdash; the way reader mode does it. The focus letter is marked
+  and every word is hung on it, so the word lands under your eye already lined up.</p>
 
   <div class="card">
-    <label for="textIn">The text</label>
+    <label for="urlIn">A link</label>
+    <div class="linkrow">
+      <input type="url" id="urlIn" placeholder="https://example.com/the-article" spellcheck="false" autocomplete="off">
+      <button type="button" id="fetchBtn">Fetch</button>
+    </div>
+
+    <div class="relay">
+      <label for="relaySel">Fetch it</label>
+      <select id="relaySel">
+        <option value="auto" selected>Directly, then a public relay</option>
+        <option value="direct">Directly only</option>
+        <option value="custom">Directly, then my own relay</option>
+      </select>
+      <input type="text" id="relayIn" hidden placeholder="https://my-relay.example/?url={url}"
+             aria-label="A relay of your own, with {url} where the link goes">
+    </div>
+    <div class="hint">A browser may only fetch another site's page if that site says it can, and
+    most don't, so the fallback is a public relay that hands the HTML back with the header the
+    browser is after. The link goes to the relay; the article is still pulled out of the page
+    here.</div>
+
+    <label for="textIn" class="or">Or the text itself</label>
     <textarea id="textIn" placeholder="Paste a script, an email, a chapter&hellip;"></textarea>
 
-    <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Choose a text file">
-      <div>Or drop a text file here, or click to choose one</div>
-      <div class="hint"><code>.txt</code> <code>.md</code> <code>.csv</code> &mdash; anything that is really text</div>
-      <input type="file" id="fileInput" accept=".txt,.md,.markdown,.csv,.log,.json,text/*">
+    <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Choose a file">
+      <div>Or drop a file here, or click to choose one</div>
+      <div class="hint"><code>.txt</code> <code>.md</code> <code>.csv</code> &mdash; anything that is
+      really text, or a saved <code>.html</code> page to read as an article</div>
+      <input type="file" id="fileInput" accept=".txt,.md,.markdown,.csv,.log,.json,.html,.htm,text/*,text/html">
     </div>
 
     <div class="rank" style="margin-top:1.2rem">
@@ -137,6 +184,17 @@
     </div>
 
     <div class="status" id="status">Nothing to read yet.</div>
+  </div>
+
+  <div class="card source" id="source">
+    <div class="seg" id="viewSeg">
+      <button type="button" data-view="article" class="on" aria-pressed="true">The article</button>
+      <button type="button" data-view="whole" aria-pressed="false">The whole page</button>
+    </div>
+    <h2 id="srcTitle"></h2>
+    <div class="meta-line" id="srcMeta"></div>
+    <p class="sub" id="srcExcerpt"></p>
+    <div class="where hint" id="srcWhere"></div>
   </div>
 
   <div class="reader" id="reader">
@@ -159,7 +217,7 @@
         <div class="field">
           <label for="wpm">Pace <span id="wpmOut"></span></label>
           <input type="range" id="wpm" min="100" max="900" step="10" value="300">
-          <span class="unit">words a minute</span>
+          <span class="unit">words a minute &mdash; kept for next time</span>
         </div>
 
         <div class="field">
@@ -184,12 +242,31 @@
   <p class="note"><strong><kbd>Space</kbd> plays and pauses</strong>, the arrow keys step a word
   either way, <kbd>&uarr;</kbd> and <kbd>&darr;</kbd> move the pace, and <kbd>Home</kbd> goes back
   to the start. The sentence under the word is there so that when you stop &mdash; and you will
-  stop &mdash; you can see where you are without starting again.</p>
+  stop &mdash; you can see where you are without starting again. The pace is kept in this browser
+  as soon as you move it, so the next page you read opens at the speed you left it.</p>
+
+  <p class="note"><strong>How a link becomes an article.</strong> The page is fetched, parsed and
+  scored in the tab: every block of text is weighed by how much prose it holds against how many
+  links, menus and class names like <code>sidebar</code> or <code>comment</code> are thrown out,
+  and the highest-scoring block, plus whatever sits alongside it, is the article. That is the
+  algorithm behind Firefox's reader mode &mdash; Mozilla's Readability &mdash; written out in this
+  page rather than loaded from anywhere, so the whole thing still runs in one file. The title,
+  byline, site and date come from the page's own metadata where it has any. If the scoring picks
+  the wrong block, <strong>the whole page</strong> switches to every word on it instead.</p>
+
+  <p class="note"><strong>What the fetch costs.</strong> Pasting text keeps this page offline;
+  a link cannot. The direct attempt goes straight from your browser to the site, which is the
+  private one but works only on sites that allow it. A relay is a third-party service that fetches
+  the page for you, so it sees the link &mdash; and it can be rate-limited or simply gone, which
+  is why there are several and why you can put your own in. A site that renders its text with
+  JavaScript, or sits behind a paywall or a login, hands back nothing worth reading whichever
+  route is used: open it yourself and paste.</p>
 
   <p class="note"><strong>It does not hold the pace exactly.</strong> A long word is given a
-  little longer than a short one, and a word that ends a clause or a sentence is held longer still,
-  because reading punctuation at a flat rate is what makes this kind of thing feel like being
-  shouted at. The pace you set is the average it works out to, not the gap between every pair.</p>
+  little longer than a short one, and a word that ends a clause, a sentence or a paragraph is held
+  longer still, because reading punctuation at a flat rate is what makes this kind of thing feel
+  like being shouted at. The pace you set is the average it works out to, not the gap between
+  every pair.</p>
 
   <p class="note"><strong>What it costs.</strong> Reading this way removes the thing that makes
   reading reliable: going back. On straightforward prose at 400 or 500 words a minute most people
@@ -204,9 +281,14 @@
 const el = (id) => document.getElementById(id);
 
 const textIn   = el("textIn");
+const urlIn    = el("urlIn");
+const relaySel = el("relaySel");
+const relayIn  = el("relayIn");
+const fetchBtn = el("fetchBtn");
 const dropzone = el("dropzone");
 const fileInput= el("fileInput");
 const statusEl = el("status");
+const sourceEl = el("source");
 const readerEl = el("reader");
 const wordEl   = el("word");
 const leftEl   = wordEl.querySelector(".left");
@@ -219,6 +301,8 @@ const wpmIn    = el("wpm");
 const wpmOut   = el("wpmOut");
 const chunkSel = el("chunk");
 const playBtn  = el("playBtn");
+
+const PACE_KEY = "speed-reader:wpm";
 
 const EXAMPLE =
 `The first thing to understand about reading one word at a time is that it is not reading faster. \
@@ -241,20 +325,27 @@ let at = 0;
 let timer = null;
 let playing = false;
 
+// What the last fetch turned up, so the two views can be switched between
+// without going back to the network.
+let article = null;
+
 /* ----------------------------------------------------------------- text -- */
 
-// Sentence ends get a long hold, clause ends a shorter one. The word keeps
-// its punctuation on screen: stripping it would hide where you are.
+// Sentence ends get a long hold, clause ends a shorter one, and the end of a
+// paragraph the longest of the three. The word keeps its punctuation on
+// screen: stripping it would hide where you are.
 function split(raw) {
   const out = [];
-  for (const piece of String(raw).split(/\s+/)) {
-    const text = piece.trim();
-    if (!text) continue;
-    let pause = 1;
-    if (/[,;:)\]]$/.test(text)) pause = 1.6;
-    if (/[.!?]["'”’)]?$/.test(text)) pause = 2.2;
-    if (/[—–]$/.test(text)) pause = 1.6;
-    out.push({ text, pause });
+  for (const para of String(raw).split(/\n\s*\n+/)) {
+    const pieces = para.split(/\s+/).map((p) => p.trim()).filter(Boolean);
+    pieces.forEach((text, i) => {
+      let pause = 1;
+      if (/[,;:)\]]$/.test(text)) pause = 1.6;
+      if (/[.!?]["'”’)]?$/.test(text)) pause = 2.2;
+      if (/[—–]$/.test(text)) pause = 1.6;
+      if (i === pieces.length - 1) pause = Math.max(pause, 2.6);
+      out.push({ text, pause });
+    });
   }
   return out;
 }
@@ -291,6 +382,8 @@ function setStatus(message, isError = false) {
 /* -------------------------------------------------------------- showing -- */
 
 function show() {
+  if (!words.length) return;
+
   const size = Number(chunkSel.value);
   const group = words.slice(at, at + size).map((w) => w.text).join(" ");
 
@@ -375,16 +468,1187 @@ function nudge(by) {
   show();
 }
 
+/* ---------------------------------------------------------- reader mode -- */
+
+/* What follows pulls the article out of a page of HTML. It is the algorithm
+   Firefox's reader mode runs — Mozilla's Readability — written out here
+   rather than pulled in as a library, because this page is meant to be one
+   file. The shape of it: throw away what cannot be article (hidden nodes,
+   anything whose class or id reads like navigation or comments), score every
+   paragraph by how much prose it holds, pass that score up to its ancestors,
+   take the highest-scoring block plus the siblings that look like more of the
+   same, then clean the result of the furniture that survived. If what comes
+   out is too short to be an article, the sieve runs again with one of the
+   checks switched off, which is how a page with "comment" in the class name
+   on its own article still comes through.
+
+   Only the output differs from reader mode's: this page wants the words, so
+   the article is flattened to text with a blank line between blocks rather
+   than rendered. */
+
+const RX = {
+  unlikely: /-ad-|ai2html|banner|breadcrumbs|combx|comment|community|cover-wrap|disqus|extra|footer|gdpr|header|legends|menu|related|remark|replies|rss|shoutbox|sidebar|skyscraper|social|sponsor|supplemental|ad-break|agegate|pagination|pager|popup|yom-remote/i,
+  maybe: /and|article|body|column|content|main|mathjax|shadow/i,
+  positive: /article|body|content|entry|hentry|h-entry|main|page|pagination|post|text|blog|story/i,
+  negative: /-ad-|hidden|^hid$| hid$| hid |^hid |banner|combx|comment|com-|contact|footer|gdpr|masthead|media|meta|outbrain|promo|related|scroll|share|shoutbox|sidebar|skyscraper|sponsor|shopping|tags|widget/i,
+  byline: /byline|author|dateline|writtenby|p-author/i,
+  shareish: /(\b|_)(share|sharedaddy)(\b|_)/i,
+  // Commas as Latin, Arabic, Chinese and other scripts write them: the count
+  // of these is a decent proxy for "this is prose".
+  commas: /[,،﹐︐︑⹁⸴⸲，]/g,
+  tokens: /\W+/g,
+  hashLink: /^#.+/,
+  adWords: /^(ad(vertising|vertisement)?|pub(licité)?|werb(ung)?|广告|Реклама|Anuncio)$/iu,
+  loadingWords: /^((loading|正在加载|Загрузка|chargement|cargando)(…|\.\.\.)?)$/iu,
+  // schema.org types that mean "this page is a piece of writing".
+  jsonLdArticle: /^(Article|AdvertiserContentArticle|NewsArticle|AnalysisNewsArticle|AskPublicNewsArticle|BackgroundNewsArticle|OpinionNewsArticle|ReportageNewsArticle|ReviewNewsArticle|Report|SatiricalArticle|ScholarlyArticle|MedicalScholarlyArticle|SocialMediaPosting|BlogPosting|LiveBlogPosting|DiscussionForumPosting|TechArticle|APIReference)$/,
+  schemaOrg: /^https?:\/\/schema\.org\/?$/,
+};
+
+const UNLIKELY_ROLES = ["menu", "menubar", "complementary", "navigation", "alert", "alertdialog", "dialog"];
+// Tags that make a div a container of blocks rather than a paragraph itself.
+const BLOCK_CHILD = new Set(["BLOCKQUOTE", "DL", "DIV", "IMG", "OL", "P", "PRE", "TABLE", "UL"]);
+const TO_SCORE   = new Set(["SECTION", "H2", "H3", "H4", "H5", "H6", "P", "TD", "PRE"]);
+const EMPTYABLE  = new Set(["DIV", "SECTION", "HEADER", "H1", "H2", "H3", "H4", "H5", "H6"]);
+const KEEP_TAG   = new Set(["DIV", "ARTICLE", "SECTION", "P", "OL", "UL"]);
+const PHRASING   = new Set(["ABBR", "AUDIO", "B", "BDO", "BR", "BUTTON", "CITE", "CODE", "DATA",
+  "DATALIST", "DFN", "EM", "EMBED", "I", "IMG", "INPUT", "KBD", "LABEL", "MARK", "MATH", "METER",
+  "NOSCRIPT", "OBJECT", "OUTPUT", "PROGRESS", "Q", "RUBY", "SAMP", "SCRIPT", "SELECT", "SMALL",
+  "SPAN", "STRONG", "SUB", "SUP", "TEXTAREA", "TIME", "VAR", "WBR"]);
+const TEXTISH = ["SPAN", "LI", "TD", "BLOCKQUOTE", "DL", "DIV", "IMG", "OL", "P", "PRE", "TABLE", "UL"];
+const HEADING_TAGS = ["h1", "h2", "h3", "h4", "h5", "h6"];
+const PRESENTATIONAL = ["align", "background", "bgcolor", "border", "cellpadding", "cellspacing",
+  "frame", "hspace", "rules", "style", "valign", "vspace"];
+
+// Below this many characters the result is not an article yet, so the sieve
+// runs again with one fewer check.
+const CHAR_FLOOR = 500;
+const TOP_N = 5;
+
+// Scores and data-table marks hang off the nodes of one attempt, so both are
+// reset each time the sieve runs rather than carried between attempts.
+let score = new Map();
+let dataTables = new WeakSet();
+
+const scoreOf = (node) => (score.has(node) ? score.get(node).value : 0);
+const scored  = (node) => score.has(node);
+const bump    = (node, by) => { score.get(node).value += by; };
+
+/* ---------------------------------------------------------- the helpers -- */
+
+function innerText(node, normalize = true) {
+  const text = (node.textContent || "").trim();
+  return normalize ? text.replace(/\s{2,}/g, " ") : text;
+}
+
+function tag(node) { return node.nodeType === 1 ? node.tagName : ""; }
+
+function names(node) {
+  return `${node.getAttribute("class") || ""} ${node.getAttribute("id") || ""}`;
+}
+
+// Links are the clearest tell between an article and a list of other
+// articles. An in-page link counts for less, since those are footnotes.
+function linkDensity(node) {
+  const length = innerText(node).length;
+  if (!length) return 0;
+  let linked = 0;
+  for (const link of node.getElementsByTagName("a")) {
+    const href = link.getAttribute("href");
+    const weight = href && RX.hashLink.test(href) ? 0.3 : 1;
+    linked += innerText(link).length * weight;
+  }
+  return linked / length;
+}
+
+// A class or id that says what the block is for is worth 25 points either
+// way — it is the single most reliable signal on a page.
+function classWeight(node, flags) {
+  if (!flags.weighClasses) return 0;
+  let weight = 0;
+  const cls = node.getAttribute("class") || "";
+  const id = node.getAttribute("id") || "";
+  if (cls) {
+    if (RX.negative.test(cls)) weight -= 25;
+    if (RX.positive.test(cls)) weight += 25;
+  }
+  if (id) {
+    if (RX.negative.test(id)) weight -= 25;
+    if (RX.positive.test(id)) weight += 25;
+  }
+  return weight;
+}
+
+function textDensity(node, tags) {
+  const length = innerText(node).length;
+  if (!length) return 0;
+  let inner = 0;
+  for (const child of node.querySelectorAll(tags.join(","))) inner += innerText(child).length;
+  return inner / length;
+}
+
+function charCount(node, ch) {
+  return innerText(node).split(ch).length - 1;
+}
+
+function hasAncestor(node, name, maxDepth = 3, test = null) {
+  const wanted = name.toUpperCase();
+  let depth = 0;
+  let cur = node;
+  while (cur.parentNode) {
+    if (maxDepth > 0 && depth > maxDepth) return false;
+    if (tag(cur.parentNode) === wanted && (!test || test(cur.parentNode))) return true;
+    cur = cur.parentNode;
+    depth++;
+  }
+  return false;
+}
+
+function ancestorsOf(node, maxDepth = 0) {
+  const out = [];
+  let cur = node;
+  let i = 0;
+  while (cur.parentNode) {
+    out.push(cur.parentNode);
+    if (maxDepth && ++i === maxDepth) break;
+    cur = cur.parentNode;
+  }
+  return out;
+}
+
+// Depth-first walk over elements. Pass true once a node is on its way out, so
+// its children are skipped along with it.
+function nextNode(node, skipKids = false) {
+  if (!skipKids && node.firstElementChild) return node.firstElementChild;
+  if (node.nextElementSibling) return node.nextElementSibling;
+  let cur = node;
+  do { cur = cur.parentNode; } while (cur && !cur.nextElementSibling);
+  return cur && cur.nextElementSibling;
+}
+
+function removeAndNext(node) {
+  const next = nextNode(node, true);
+  node.remove();
+  return next;
+}
+
+function isWhitespace(node) {
+  return (node.nodeType === 3 && !innerText(node, false)) || tag(node) === "BR";
+}
+
+function isPhrasing(node) {
+  if (node.nodeType === 3) return true;
+  if (!PHRASING.has(tag(node))) return false;
+  if (["A", "DEL", "INS"].includes(tag(node))) {
+    return Array.from(node.childNodes).every(isPhrasing);
+  }
+  return true;
+}
+
+function isEmptyish(node) {
+  if (node.nodeType !== 1) return false;
+  if (innerText(node, false)) return false;
+  const kids = node.children.length;
+  const breaks = node.getElementsByTagName("br").length + node.getElementsByTagName("hr").length;
+  return !kids || kids === breaks;
+}
+
+function hasBlockChild(node) {
+  return Array.from(node.childNodes).some(
+    (child) => BLOCK_CHILD.has(tag(child)) || (child.nodeType === 1 && hasBlockChild(child))
+  );
+}
+
+function onlyChildTag(node, name) {
+  if (node.children.length !== 1 || tag(node.children[0]) !== name) return false;
+  return !Array.from(node.childNodes).some(
+    (child) => child.nodeType === 3 && /\S$/.test(child.textContent)
+  );
+}
+
+// How much of b is words b does not share with a. Used for "is this heading
+// just the title again" and for picking between two metadata titles.
+function similarity(a, b) {
+  const one = a.toLowerCase().split(RX.tokens).filter(Boolean);
+  const two = b.toLowerCase().split(RX.tokens).filter(Boolean);
+  if (!one.length || !two.length) return 0;
+  const strange = two.filter((token) => !one.includes(token));
+  return 1 - strange.join(" ").length / two.join(" ").length;
+}
+
+// Only inline styles and the attributes can be read here: there is no
+// stylesheet to consult in a document that was never rendered.
+function visible(node) {
+  const style = node.getAttribute("style") || "";
+  if (/display\s*:\s*none/i.test(style) || /visibility\s*:\s*hidden/i.test(style)) return false;
+  if (node.hasAttribute("hidden")) return false;
+  const cls = node.getAttribute("class") || "";
+  // Wikimedia marks its rendered maths aria-hidden, and that maths is text.
+  if (node.getAttribute("aria-hidden") === "true" && !cls.includes("fallback-image")) return false;
+  return true;
+}
+
+function setTag(node, name) {
+  const swap = node.ownerDocument.createElement(name);
+  while (node.firstChild) swap.appendChild(node.firstChild);
+  for (const attr of Array.from(node.attributes)) {
+    try { swap.setAttribute(attr.name, attr.value); } catch { /* an attribute name the new tag won't take */ }
+  }
+  if (score.has(node)) score.set(swap, score.get(node));
+  if (dataTables.has(node)) dataTables.add(swap);
+  node.parentNode.replaceChild(swap, node);
+  return swap;
+}
+
+function removeAll(nodes, test = null) {
+  for (const node of Array.from(nodes).reverse()) {
+    if (!node.parentNode) continue;
+    if (!test || test(node)) node.remove();
+  }
+}
+
+/* ------------------------------------------------------------- the prep -- */
+
+// The next node that is an element or has anything in it, skipping the
+// whitespace text nodes markup is full of.
+function nextMeaningful(node) {
+  let next = node;
+  while (next && next.nodeType !== 1 && /^\s*$/.test(next.textContent)) next = next.nextSibling;
+  return next;
+}
+
+// Two or more <br> in a row are a paragraph break written the old way, so
+// they become one. Without this, a page that never uses <p> scores as a
+// single enormous block.
+function replaceBrs(root) {
+  for (const br of Array.from(root.getElementsByTagName("br"))) {
+    if (!br.parentNode) continue;
+    let next = br.nextSibling;
+    let chain = false;
+    while ((next = nextMeaningful(next)) && tag(next) === "BR") {
+      chain = true;
+      const after = next.nextSibling;
+      next.remove();
+      next = after;
+    }
+    if (!chain) continue;
+
+    const p = root.ownerDocument.createElement("p");
+    br.parentNode.replaceChild(p, br);
+    next = p.nextSibling;
+    while (next) {
+      if (tag(next) === "BR") {
+        const following = nextMeaningful(next.nextSibling);
+        if (following && tag(following) === "BR") break;
+      }
+      if (!isPhrasing(next)) break;
+      const after = next.nextSibling;
+      p.appendChild(next);
+      next = after;
+    }
+    while (p.lastChild && isWhitespace(p.lastChild)) p.lastChild.remove();
+    if (tag(p.parentNode) === "P") setTag(p.parentNode, "DIV");
+  }
+}
+
+// A table holding data is content; a table used for layout is furniture. The
+// checks are the ones a screen reader uses to tell them apart.
+function markDataTables(root) {
+  for (const table of root.getElementsByTagName("table")) {
+    if (table.getAttribute("role") === "presentation") continue;
+    if (table.getAttribute("datatable") === "0") continue;
+    if (table.getAttribute("summary")) { dataTables.add(table); continue; }
+
+    const caption = table.getElementsByTagName("caption")[0];
+    if (caption && caption.childNodes.length) { dataTables.add(table); continue; }
+
+    if (["col", "colgroup", "tfoot", "thead", "th"].some((t) => table.getElementsByTagName(t)[0])) {
+      dataTables.add(table);
+      continue;
+    }
+    // A table inside a table is a layout from 1999.
+    if (table.getElementsByTagName("table")[0]) continue;
+
+    let rows = 0;
+    let columns = 0;
+    for (const tr of table.getElementsByTagName("tr")) {
+      rows += parseInt(tr.getAttribute("rowspan"), 10) || 1;
+      let wide = 0;
+      for (const cell of tr.getElementsByTagName("td")) {
+        wide += parseInt(cell.getAttribute("colspan"), 10) || 1;
+      }
+      columns = Math.max(columns, wide);
+    }
+    if (columns === 1 || rows === 1) continue;
+    if (rows >= 10 || columns > 4) { dataTables.add(table); continue; }
+    if (rows * columns > 10) dataTables.add(table);
+  }
+}
+
+function clean(root, name) {
+  removeAll(root.getElementsByTagName(name));
+}
+
+function cleanStyles(node) {
+  if (!node || tag(node).toLowerCase() === "svg") return;
+  for (const attr of PRESENTATIONAL) node.removeAttribute(attr);
+  for (let cur = node.firstElementChild; cur; cur = cur.nextElementSibling) cleanStyles(cur);
+}
+
+// The judgement call: a block of this kind stays only if what it holds reads
+// more like writing than like a widget.
+function cleanConditionally(root, name, flags) {
+  if (!flags.cleanConditionally) return;
+
+  removeAll(root.getElementsByTagName(name), (node) => {
+    const isData = (t) => dataTables.has(t);
+    let isList = name === "ul" || name === "ol";
+    if (!isList) {
+      let listLength = 0;
+      for (const list of node.querySelectorAll("ul,ol")) listLength += innerText(list).length;
+      isList = listLength / (innerText(node).length || 1) > 0.9;
+    }
+
+    if (name === "table" && isData(node)) return false;
+    if (hasAncestor(node, "table", -1, isData)) return false;
+    if (hasAncestor(node, "code")) return false;
+    if (Array.from(node.getElementsByTagName("table")).some(isData)) return false;
+
+    const weight = classWeight(node, flags);
+    if (weight < 0) return true;
+
+    // Plenty of commas means plenty of sentences, and sentences are content.
+    if (charCount(node, ",") >= 10) return false;
+
+    const p = node.getElementsByTagName("p").length;
+    const img = node.getElementsByTagName("img").length;
+    const li = node.getElementsByTagName("li").length - 100;
+    const input = node.getElementsByTagName("input").length;
+    const headingDensity = textDensity(node, HEADING_TAGS);
+    const embeds = node.querySelectorAll("object,embed,iframe").length;
+
+    const text = innerText(node);
+    if (RX.adWords.test(text) || RX.loadingWords.test(text)) return true;
+
+    const length = text.length;
+    const linky = linkDensity(node);
+    const density = textDensity(node, TEXTISH);
+    const inFigure = hasAncestor(node, "figure");
+
+    const bad =
+      (!inFigure && img > 1 && p / img < 0.5)
+      || (!isList && li > p)
+      || (input > Math.floor(p / 3))
+      || (!isList && !inFigure && headingDensity < 0.9 && length < 25 && (img === 0 || img > 2) && linky > 0)
+      || (!isList && weight < 25 && linky > 0.2)
+      || (weight >= 25 && linky > 0.5)
+      || ((embeds === 1 && length < 75) || embeds > 1)
+      || (img === 0 && density === 0);
+
+    // A plain list of pictures is somebody's gallery, and it can stay.
+    if (isList && bad) {
+      for (const child of node.children) if (child.children.length > 1) return bad;
+      if (img === node.getElementsByTagName("li").length) return false;
+    }
+    return bad;
+  });
+}
+
+function cleanHeaders(root, flags) {
+  removeAll(root.querySelectorAll("h1,h2"), (node) => classWeight(node, flags) < 0);
+}
+
+// Everything above has decided what the article is. This takes the furniture
+// out of it: forms, embeds, share rows, empty paragraphs, layout tables.
+function prepArticle(root, flags) {
+  cleanStyles(root);
+  markDataTables(root);
+
+  cleanConditionally(root, "form", flags);
+  cleanConditionally(root, "fieldset", flags);
+  for (const name of ["object", "embed", "footer", "link", "aside"]) clean(root, name);
+
+  // Share rows sit inside the article rather than beside it, so they are
+  // matched by name — but only where they are too short to be the article.
+  for (const child of Array.from(root.children)) {
+    let node = nextNode(child);
+    const stop = nextNode(child, true);
+    while (node && node !== stop) {
+      if (RX.shareish.test(names(node)) && node.textContent.length < CHAR_FLOOR) {
+        node = removeAndNext(node);
+      } else {
+        node = nextNode(node);
+      }
+    }
+  }
+
+  for (const name of ["iframe", "input", "textarea", "select", "button"]) clean(root, name);
+  cleanHeaders(root, flags);
+
+  cleanConditionally(root, "table", flags);
+  cleanConditionally(root, "ul", flags);
+  cleanConditionally(root, "div", flags);
+
+  for (const h1 of Array.from(root.getElementsByTagName("h1"))) setTag(h1, "h2");
+
+  removeAll(root.getElementsByTagName("p"), (p) => !innerText(p, false));
+
+  // A single-cell table is a quote box or a pull-out, not a table.
+  for (const table of Array.from(root.getElementsByTagName("table"))) {
+    const body = onlyChildTag(table, "TBODY") ? table.firstElementChild : table;
+    if (!onlyChildTag(body, "TR")) continue;
+    const row = body.firstElementChild;
+    if (!onlyChildTag(row, "TD")) continue;
+    let cell = row.firstElementChild;
+    cell = setTag(cell, Array.from(cell.childNodes).every(isPhrasing) ? "P" : "DIV");
+    table.parentNode.replaceChild(cell, table);
+  }
+}
+
+/* --------------------------------------------------------- the scoring -- */
+
+function startNode(node, flags) {
+  let value = 0;
+  switch (tag(node)) {
+    case "DIV": value += 5; break;
+    case "PRE": case "TD": case "BLOCKQUOTE": value += 3; break;
+    case "ADDRESS": case "OL": case "UL": case "DL": case "DD": case "DT":
+    case "LI": case "FORM": value -= 3; break;
+    case "H1": case "H2": case "H3": case "H4": case "H5": case "H6":
+    case "TH": value -= 5; break;
+  }
+  score.set(node, { value: value + classWeight(node, flags) });
+}
+
+function isByline(node, match) {
+  const rel = node.getAttribute("rel");
+  const itemprop = node.getAttribute("itemprop") || "";
+  const length = (node.textContent || "").trim().length;
+  return (rel === "author" || itemprop.includes("author") || RX.byline.test(match))
+    && length > 0 && length < 100;
+}
+
+function grab(doc, title, flags) {
+  const page = doc.body;
+  if (!page) return null;
+
+  const toScore = [];
+  let byline = "";
+  let dir = "";
+  let dropTitleHeader = true;
+  let node = doc.documentElement;
+
+  while (node) {
+    const match = names(node);
+
+    if (!visible(node)) { node = removeAndNext(node); continue; }
+
+    // A modal dialog is on top of the page, not part of it.
+    if (node.getAttribute("aria-modal") === "true" && node.getAttribute("role") === "dialog") {
+      node = removeAndNext(node);
+      continue;
+    }
+
+    if (!byline && isByline(node, match)) {
+      const named = node.querySelector('[itemprop*="name"]');
+      byline = (named || node).textContent.trim().replace(/\s{2,}/g, " ");
+      node = removeAndNext(node);
+      continue;
+    }
+
+    // The headline is shown above the reader in its own right, so the copy of
+    // it at the top of the article would only be read twice.
+    if (dropTitleHeader && (tag(node) === "H1" || tag(node) === "H2")
+        && title && similarity(title, innerText(node, false)) > 0.75) {
+      dropTitleHeader = false;
+      node = removeAndNext(node);
+      continue;
+    }
+
+    if (flags.stripUnlikely) {
+      if (RX.unlikely.test(match) && !RX.maybe.test(match)
+          && !hasAncestor(node, "table") && !hasAncestor(node, "code")
+          && tag(node) !== "BODY" && tag(node) !== "A") {
+        node = removeAndNext(node);
+        continue;
+      }
+      if (UNLIKELY_ROLES.includes(node.getAttribute("role"))) {
+        node = removeAndNext(node);
+        continue;
+      }
+    }
+
+    if (EMPTYABLE.has(tag(node)) && isEmptyish(node)) { node = removeAndNext(node); continue; }
+
+    if (TO_SCORE.has(tag(node))) toScore.push(node);
+
+    // A div that holds only words is a paragraph whoever wrote the page
+    // thought of as a div, and the scoring needs it to be one.
+    if (tag(node) === "DIV") {
+      let child = node.firstChild;
+      while (child) {
+        let after = child.nextSibling;
+        if (isPhrasing(child)) {
+          const run = doc.createDocumentFragment();
+          do {
+            after = child.nextSibling;
+            run.appendChild(child);
+            child = after;
+          } while (child && isPhrasing(child));
+
+          while (run.firstChild && isWhitespace(run.firstChild)) run.firstChild.remove();
+          while (run.lastChild && isWhitespace(run.lastChild)) run.lastChild.remove();
+
+          if (run.firstChild) {
+            const p = doc.createElement("p");
+            p.appendChild(run);
+            node.insertBefore(p, after);
+          }
+        }
+        child = after;
+      }
+
+      if (onlyChildTag(node, "P") && linkDensity(node) < 0.25) {
+        const inner = node.children[0];
+        node.parentNode.replaceChild(inner, node);
+        node = inner;
+        toScore.push(node);
+      } else if (!hasBlockChild(node)) {
+        node = setTag(node, "P");
+        toScore.push(node);
+      }
+    }
+
+    node = nextNode(node);
+  }
+
+  // Each paragraph's score is a point for existing, a point a comma and a
+  // point per hundred characters, and it is paid to its ancestors: in full to
+  // the parent, half to the grandparent, and less the further up it goes.
+  const candidates = [];
+  for (const piece of toScore) {
+    if (!piece.parentNode || !tag(piece.parentNode)) continue;
+    const text = innerText(piece);
+    if (text.length < 25) continue;
+
+    const line = ancestorsOf(piece, 5);
+    if (!line.length) continue;
+
+    let value = 1;
+    value += text.split(RX.commas).length;
+    value += Math.min(Math.floor(text.length / 100), 3);
+
+    line.forEach((ancestor, level) => {
+      if (!tag(ancestor) || !ancestor.parentNode || !tag(ancestor.parentNode)) return;
+      if (!scored(ancestor)) {
+        startNode(ancestor, flags);
+        candidates.push(ancestor);
+      }
+      const divider = level === 0 ? 1 : level === 1 ? 2 : level * 3;
+      bump(ancestor, value / divider);
+    });
+  }
+
+  // Links are discounted here rather than in the scoring, so a block of prose
+  // keeps its score and a column of headlines loses most of its.
+  const best = [];
+  for (const candidate of candidates) {
+    const value = scoreOf(candidate) * (1 - linkDensity(candidate));
+    score.get(candidate).value = value;
+    for (let i = 0; i < TOP_N; i++) {
+      if (!best[i] || value > scoreOf(best[i])) {
+        best.splice(i, 0, candidate);
+        if (best.length > TOP_N) best.pop();
+        break;
+      }
+    }
+  }
+
+  let top = best[0] || null;
+  let invented = false;
+  let parent;
+
+  if (top === null || tag(top) === "BODY") {
+    // Nothing scored: take the page itself and let the cleaning decide.
+    top = doc.createElement("div");
+    invented = true;
+    while (page.firstChild) top.appendChild(page.firstChild);
+    page.appendChild(top);
+    startNode(top, flags);
+  } else {
+    // Three near-equal winners under one roof mean the roof is the article:
+    // a page that splits its text across sibling blocks lands here.
+    const rivals = [];
+    for (let i = 1; i < best.length; i++) {
+      if (scoreOf(best[i]) / scoreOf(top) >= 0.75) rivals.push(ancestorsOf(best[i]));
+    }
+    if (rivals.length >= 3) {
+      parent = top.parentNode;
+      while (parent && tag(parent) !== "BODY") {
+        let holding = 0;
+        for (const line of rivals) if (line.includes(parent)) holding++;
+        if (holding >= 3) { top = parent; break; }
+        parent = parent.parentNode;
+      }
+    }
+    if (!scored(top)) startNode(top, flags);
+
+    // Walk up while the score is still going up: the winner is often one
+    // paragraph's wrapper rather than the block holding all of them.
+    parent = top.parentNode;
+    let last = scoreOf(top);
+    const floor = last / 3;
+    while (parent && tag(parent) !== "BODY") {
+      if (!scored(parent)) { parent = parent.parentNode; continue; }
+      const value = scoreOf(parent);
+      if (value < floor) break;
+      if (value > last) { top = parent; break; }
+      last = value;
+      parent = parent.parentNode;
+    }
+
+    // An only child tells you nothing: its parent is the better handle for
+    // finding the content either side of it.
+    parent = top.parentNode;
+    while (parent && tag(parent) !== "BODY" && parent.children.length === 1) {
+      top = parent;
+      parent = top.parentNode;
+    }
+    if (!scored(top)) startNode(top, flags);
+  }
+
+  // Now take the siblings that look like more of the same article: text split
+  // by an advert that has already been removed, a standfirst, a coda.
+  const content = doc.createElement("div");
+  const floor = Math.max(10, scoreOf(top) * 0.2);
+  parent = top.parentNode;
+  let siblings = Array.from(parent ? parent.children : [top]);
+
+  for (const sibling of siblings) {
+    let keep = false;
+    if (sibling === top) {
+      keep = true;
+    } else {
+      let bonus = 0;
+      const cls = sibling.getAttribute("class") || "";
+      if (cls && cls === (top.getAttribute("class") || "")) bonus = scoreOf(top) * 0.2;
+
+      if (scored(sibling) && scoreOf(sibling) + bonus >= floor) {
+        keep = true;
+      } else if (tag(sibling) === "P") {
+        const text = innerText(sibling);
+        const linky = linkDensity(sibling);
+        if (text.length > 80 && linky < 0.25) keep = true;
+        else if (text.length && text.length < 80 && linky === 0 && /\.( |$)/.test(text)) keep = true;
+      }
+    }
+    if (!keep) continue;
+    // Anything unusual is made a div so the cleaning below treats it as a
+    // block rather than throwing it out for being a td or a form.
+    content.appendChild(KEEP_TAG.has(tag(sibling)) ? sibling : setTag(sibling, "DIV"));
+  }
+
+  prepArticle(content, flags);
+
+  for (const ancestor of [parent, top, ...ancestorsOf(parent || top)]) {
+    if (!ancestor || !tag(ancestor)) continue;
+    const written = ancestor.getAttribute("dir");
+    if (written) { dir = written; break; }
+  }
+
+  return { content, byline, dir, invented };
+}
+
+/* --------------------------------------------------------- the metadata -- */
+
+function unescapeEntities(str) {
+  if (!str) return str;
+  const map = { lt: "<", gt: ">", amp: "&", quot: '"', apos: "'" };
+  return str
+    .replace(/&(quot|amp|apos|lt|gt);/g, (_, name) => map[name])
+    .replace(/&#(?:x([0-9a-f]{1,4})|([0-9]{1,4}));/gi, (_, hex, dec) =>
+      String.fromCharCode(parseInt(hex || dec, hex ? 16 : 10)));
+}
+
+// The <title> is usually the headline with the site's name bolted on, so the
+// tail after a separator comes off — unless taking it off leaves nothing.
+function titleFromDoc(doc) {
+  let title = "";
+  try { title = (doc.title || "").trim(); } catch { title = ""; }
+  const original = title;
+  const count = (str) => str.split(/\s+/).length;
+  const marks = /\|\-–—\\\/>»/.source;
+  let hierarchical = false;
+
+  if (new RegExp(`\\s[${marks}]\\s`).test(title)) {
+    hierarchical = /\s[\\/>»]\s/.test(title);
+    const all = Array.from(original.matchAll(new RegExp(`\\s[${marks}]\\s`, "gi")));
+    title = original.substring(0, all[all.length - 1].index);
+    if (count(title) < 3) {
+      title = original.replace(new RegExp(`^[^${marks}]*[${marks}]`, "gi"), "");
+    }
+  } else if (title.includes(": ")) {
+    const headings = Array.from(doc.querySelectorAll("h1,h2"));
+    const trimmed = title.trim();
+    const matched = headings.some((heading) => heading.textContent.trim() === trimmed);
+    if (!matched) {
+      title = original.substring(original.lastIndexOf(":") + 1);
+      if (count(title) < 3) title = original.substring(original.indexOf(":") + 1);
+      else if (count(original.substring(0, original.indexOf(":"))) > 5) title = original;
+    }
+  } else if (title.length > 150 || title.length < 15) {
+    const h1s = doc.getElementsByTagName("h1");
+    if (h1s.length === 1) title = innerText(h1s[0]);
+  }
+
+  title = title.trim().replace(/\s{2,}/g, " ");
+  const left = count(title);
+  if (left <= 4 && (!hierarchical
+      || left !== count(original.replace(new RegExp(`\\s[${marks}]\\s`, "g"), "")) - 1)) {
+    title = original;
+  }
+  return title;
+}
+
+// Anything the page states about itself in schema.org JSON-LD, which is where
+// a newspaper is most likely to be honest about its own byline.
+function fromJsonLd(doc) {
+  for (const script of doc.querySelectorAll('script[type="application/ld+json"]')) {
+    try {
+      let parsed = JSON.parse(script.textContent.replace(/^\s*<!\[CDATA\[|\]\]>\s*$/g, ""));
+      if (Array.isArray(parsed)) {
+        parsed = parsed.find((it) => it && typeof it["@type"] === "string" && RX.jsonLdArticle.test(it["@type"]));
+        if (!parsed) continue;
+      }
+      if (!parsed) continue;
+
+      const context = parsed["@context"];
+      const onSchema = (typeof context === "string" && RX.schemaOrg.test(context))
+        || (context && typeof context === "object" && typeof context["@vocab"] === "string"
+            && RX.schemaOrg.test(context["@vocab"]));
+      if (!onSchema) continue;
+
+      if (!parsed["@type"] && Array.isArray(parsed["@graph"])) {
+        parsed = parsed["@graph"].find((it) => it && RX.jsonLdArticle.test(String(it["@type"] || "")));
+      }
+      if (!parsed || typeof parsed["@type"] !== "string" || !RX.jsonLdArticle.test(parsed["@type"])) continue;
+
+      const found = {};
+      // Some sites put their own name in "name" and the headline in
+      // "headline", so whichever is closer to the <title> wins.
+      if (typeof parsed.name === "string" && typeof parsed.headline === "string"
+          && parsed.name !== parsed.headline) {
+        const title = titleFromDoc(doc);
+        const asName = similarity(parsed.name, title) > 0.75;
+        const asHeadline = similarity(parsed.headline, title) > 0.75;
+        found.title = asHeadline && !asName ? parsed.headline : parsed.name;
+      } else if (typeof parsed.name === "string") {
+        found.title = parsed.name.trim();
+      } else if (typeof parsed.headline === "string") {
+        found.title = parsed.headline.trim();
+      }
+
+      const author = parsed.author;
+      if (author && typeof author.name === "string") found.byline = author.name.trim();
+      else if (Array.isArray(author)) {
+        found.byline = author.filter((a) => a && typeof a.name === "string")
+          .map((a) => a.name.trim()).join(", ");
+      }
+      if (typeof parsed.description === "string") found.excerpt = parsed.description.trim();
+      if (parsed.publisher && typeof parsed.publisher.name === "string") {
+        found.site = parsed.publisher.name.trim();
+      }
+      if (typeof parsed.datePublished === "string") found.published = parsed.datePublished.trim();
+      return found;
+    } catch { /* a page with broken JSON-LD still has a title */ }
+  }
+  return {};
+}
+
+function readMetadata(doc) {
+  const linked = fromJsonLd(doc);
+  const values = {};
+  const asProperty = /\s*(article|dc|dcterm|og|twitter)\s*:\s*(author|creator|description|published_time|title|site_name)\s*/gi;
+  const asName = /^\s*(?:(dc|dcterm|og|twitter|parsely|weibo:(article|webpage))\s*[-.:]\s*)?(author|creator|pub-date|description|title|site_name)\s*$/i;
+
+  for (const meta of doc.getElementsByTagName("meta")) {
+    const content = meta.getAttribute("content");
+    if (!content) continue;
+    const property = meta.getAttribute("property");
+    const name = meta.getAttribute("name");
+    let matched = null;
+    if (property) {
+      matched = property.match(asProperty);
+      if (matched) values[matched[0].toLowerCase().replace(/\s/g, "")] = content.trim();
+    }
+    if (!matched && name && asName.test(name)) {
+      values[name.toLowerCase().replace(/\s/g, "").replace(/\./g, ":")] = content.trim();
+    }
+  }
+
+  const isLink = (str) => { try { new URL(str); return true; } catch { return false; } };
+  const authorMeta = typeof values["article:author"] === "string" && !isLink(values["article:author"])
+    ? values["article:author"] : undefined;
+
+  const found = {
+    title: linked.title || values["dc:title"] || values["dcterm:title"] || values["og:title"]
+      || values["weibo:article:title"] || values["weibo:webpage:title"] || values.title
+      || values["twitter:title"] || values["parsely-title"] || titleFromDoc(doc),
+    byline: linked.byline || values["dc:creator"] || values["dcterm:creator"] || values.author
+      || values["parsely-author"] || authorMeta || "",
+    excerpt: linked.excerpt || values["dc:description"] || values["dcterm:description"]
+      || values["og:description"] || values["weibo:article:description"]
+      || values["weibo:webpage:description"] || values.description || values["twitter:description"] || "",
+    site: linked.site || values["og:site_name"] || "",
+    published: linked.published || values["article:published_time"] || values["parsely-pub-date"] || "",
+  };
+
+  // Metadata is routinely written with its entities escaped twice over.
+  for (const key of Object.keys(found)) found[key] = unescapeEntities(found[key]) || "";
+  return found;
+}
+
+/* ------------------------------------------------------------ the words -- */
+
+// Blocks that deserve a blank line after them in the text, which is what the
+// reader turns into a paragraph-length pause.
+const TEXT_BLOCK = new Set(["P", "DIV", "SECTION", "ARTICLE", "MAIN", "ASIDE", "HEADER", "FOOTER",
+  "H1", "H2", "H3", "H4", "H5", "H6", "LI", "UL", "OL", "DL", "DT", "DD", "BLOCKQUOTE", "PRE",
+  "FIGURE", "FIGCAPTION", "TABLE", "THEAD", "TBODY", "TFOOT", "TR", "TD", "TH", "HR", "ADDRESS"]);
+
+function blockText(root) {
+  const out = [];
+  (function walk(node) {
+    for (const child of node.childNodes) {
+      if (child.nodeType === 3) { out.push(child.nodeValue); continue; }
+      if (child.nodeType !== 1) continue;
+      if (tag(child) === "BR") { out.push("\n"); continue; }
+      const block = TEXT_BLOCK.has(tag(child));
+      if (block) out.push("\n\n");
+      walk(child);
+      if (block) out.push("\n\n");
+    }
+  })(root);
+
+  return out.join("")
+    .replace(/[   ]/g, " ")
+    .replace(/[ \t]+/g, " ")
+    .replace(/ ?\n ?/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function parseHtml(html) {
+  return new DOMParser().parseFromString(html, "text/html");
+}
+
+function stripNoise(doc) {
+  removeAll(doc.querySelectorAll("script,noscript,style"));
+  if (doc.body) replaceBrs(doc.body);
+  for (const font of Array.from(doc.getElementsByTagName("font"))) setTag(font, "SPAN");
+}
+
+// The sieve: the strictest pass first, then one check dropped at a time until
+// there is enough text to be an article. Each pass gets a fresh document,
+// since the passes take the page apart as they go.
+function extract(html) {
+  const sieve = [
+    { stripUnlikely: true,  weighClasses: true,  cleanConditionally: true },
+    { stripUnlikely: false, weighClasses: true,  cleanConditionally: true },
+    { stripUnlikely: false, weighClasses: false, cleanConditionally: true },
+    { stripUnlikely: false, weighClasses: false, cleanConditionally: false },
+  ];
+
+  let meta = null;
+  let best = null;
+
+  for (const flags of sieve) {
+    const doc = parseHtml(html);
+    if (!meta) {
+      meta = readMetadata(doc);
+      meta.lang = doc.documentElement.getAttribute("lang") || "";
+    }
+    stripNoise(doc);
+
+    score = new Map();
+    dataTables = new WeakSet();
+
+    let got = null;
+    try { got = grab(doc, meta.title, flags); } catch (err) { console.error(err); }
+    if (!got) continue;
+
+    const text = blockText(got.content);
+    if (!best || text.length > best.text.length) best = { ...got, text };
+    if (text.length >= CHAR_FLOOR) break;
+  }
+
+  const whole = blockText((() => {
+    const doc = parseHtml(html);
+    removeAll(doc.querySelectorAll("script,noscript,style"));
+    return doc.body || doc.documentElement;
+  })());
+
+  const text = best ? best.text : "";
+  return {
+    ...meta,
+    byline: meta.byline || (best && best.byline) || "",
+    dir: best ? best.dir : "",
+    text,
+    whole,
+    // An excerpt the page did not supply is its own first paragraph.
+    excerpt: meta.excerpt || text.split("\n\n")[0] || "",
+  };
+}
+
+/* --------------------------------------------------------- the fetching -- */
+
+/* Public relays, tried in order. Each one fetches the page server-side and
+   hands the HTML back with the header a browser insists on before it will
+   let a page read another site's bytes. They are third-party services: they
+   see the link, they rate-limit, and they go away, which is why there is
+   more than one and why a relay of your own can be put in instead. */
+const RELAYS = [
+  { via: "allorigins.win", template: "https://api.allorigins.win/raw?url={url}" },
+  { via: "codetabs.com", template: "https://api.codetabs.com/v1/proxy/?quest={url}" },
+  { via: "corsproxy.io", template: "https://corsproxy.io/?url={url}" },
+];
+
+const FETCH_TIMEOUT = 20000;
+
+function tidyLink(raw) {
+  const text = String(raw).trim();
+  if (!text) throw new Error("Put a link in first.");
+  const withScheme = /^[a-z][\w+.-]*:/i.test(text) ? text : `https://${text}`;
+  let link;
+  try { link = new URL(withScheme); } catch { throw new Error("That isn't a link."); }
+  if (link.protocol !== "http:" && link.protocol !== "https:") {
+    throw new Error("Only http and https links can be fetched.");
+  }
+  return link.href;
+}
+
+function routes(target) {
+  // The direct attempt always goes first: it is the private one, and on a site
+  // that allows it no relay is ever asked.
+  const list = [{ via: "direct", url: target }];
+  if (relaySel.value === "custom") {
+    const template = relayIn.value.trim();
+    if (template) {
+      list.push({
+        via: "your relay",
+        url: template.includes("{url}")
+          ? template.replace("{url}", encodeURIComponent(target))
+          : template + encodeURIComponent(target),
+      });
+    }
+  } else if (relaySel.value === "auto") {
+    for (const relay of RELAYS) {
+      list.push({ via: relay.via, url: relay.template.replace("{url}", encodeURIComponent(target)) });
+    }
+  }
+  return list;
+}
+
+// A page is not obliged to be UTF-8, and plenty of older ones are not. The
+// header is believed first, then the charset the markup declares about itself.
+async function bodyOf(response) {
+  const buffer = await response.arrayBuffer();
+  const header = response.headers.get("content-type") || "";
+  let charset = (header.match(/charset=["']?([\w-]+)/i) || [])[1];
+  if (!charset) {
+    const start = new TextDecoder("utf-8").decode(buffer.slice(0, 4096));
+    charset = (start.match(/<meta[^>]+charset=["']?([\w-]+)/i)
+      || start.match(/content=["'][^"']*charset=([\w-]+)/i) || [])[1];
+  }
+  try {
+    return { text: new TextDecoder(charset || "utf-8").decode(buffer), type: header };
+  } catch {
+    return { text: new TextDecoder("utf-8").decode(buffer), type: header };
+  }
+}
+
+async function getPage(url) {
+  const stopper = new AbortController();
+  const bell = setTimeout(() => stopper.abort(), FETCH_TIMEOUT);
+  try {
+    const response = await fetch(url, { signal: stopper.signal, redirect: "follow" });
+    if (!response.ok) throw new Error(`the server said ${response.status}`);
+    const body = await bodyOf(response);
+    if (!body.text.trim()) throw new Error("the page came back empty");
+    return body;
+  } finally {
+    clearTimeout(bell);
+  }
+}
+
+function wordsIn(text) {
+  return text ? text.split(/\s+/).filter(Boolean).length : 0;
+}
+
+async function fetchArticle(raw) {
+  const target = tidyLink(raw);
+  const tries = routes(target);
+  if (!tries.length) throw new Error("No way to fetch it: put a relay in, or allow one.");
+
+  let best = null;
+  let whyNot = null;
+
+  for (const route of tries) {
+    setStatus(route.via === "direct" ? "Fetching the page…" : `Trying ${route.via}…`);
+    let body;
+    try {
+      body = await getPage(route.url);
+    } catch (err) {
+      whyNot = `${route.via}: ${err.name === "AbortError" ? "it took too long" : err.message}`;
+      continue;
+    }
+
+    // Something that was never HTML is already the text.
+    const looksLikeHtml = /^\s*(<|﻿<)/.test(body.text) || /<html|<body|<div|<p[\s>]/i.test(body.text);
+    const got = looksLikeHtml
+      ? { ...extract(body.text), url: target, via: route.via }
+      : { title: "", byline: "", site: "", published: "", excerpt: "", lang: "", dir: "",
+          text: body.text, whole: body.text, url: target, via: route.via };
+
+    if (!best || wordsIn(got.text) > wordsIn(best.text)) best = got;
+    // Whatever a route hands back is the answer, however short the article in
+    // it turns out to be — the one exception is a page with next to nothing on
+    // it at all, which is what a relay's own rate-limit notice looks like, and
+    // that is worth asking the next route about.
+    if (wordsIn(got.text) >= 25 || got.whole.length >= 200) break;
+  }
+
+  if (!best) {
+    throw new Error(`Couldn't fetch it — ${whyNot || "every route failed"}.`);
+  }
+  if (!wordsIn(best.text) && !wordsIn(best.whole)) {
+    throw new Error("Fetched it, but there were no words in it — open it yourself and paste.");
+  }
+  return best;
+}
+
+/* ------------------------------------------------------------ the source -- */
+
+function prettyDate(value) {
+  if (!value) return "";
+  const when = new Date(value);
+  if (Number.isNaN(when.getTime())) return value;
+  return when.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
+}
+
+function showSource(got, view) {
+  article = got;
+  const text = view === "whole" ? got.whole : got.text;
+
+  el("srcTitle").textContent = got.title || (got.url ? new URL(got.url).hostname : "The text");
+  el("srcTitle").hidden = false;
+
+  const bits = [];
+  if (got.byline) bits.push(got.byline);
+  if (got.site) bits.push(got.site);
+  const when = prettyDate(got.published);
+  if (when) bits.push(when);
+  bits.push(`${wordsIn(text).toLocaleString()} words`);
+  if (got.url) bits.push(got.via === "direct" ? "fetched directly" : `fetched through ${got.via}`);
+
+  // One line with the parts spelled out, so it reads the same copied as it
+  // does on screen.
+  el("srcMeta").textContent = bits.join(" \u00b7 ");
+
+  const excerpt = el("srcExcerpt");
+  const blurb = view === "whole" ? "" : (got.excerpt || "").trim();
+  excerpt.textContent = blurb.length > 320 ? `${blurb.slice(0, 317)}…` : blurb;
+  excerpt.hidden = !blurb;
+
+  const where = el("srcWhere");
+  where.textContent = "";
+  if (got.url) {
+    const link = document.createElement("a");
+    link.href = got.url;
+    link.textContent = got.url;
+    link.target = "_blank";
+    link.rel = "noreferrer noopener";
+    where.appendChild(link);
+  }
+
+  for (const button of el("viewSeg").children) {
+    const on = button.dataset.view === view;
+    button.classList.toggle("on", on);
+    button.setAttribute("aria-pressed", String(on));
+  }
+
+  sourceEl.classList.add("ready");
+  textIn.value = text;
+  load(text);
+  return text;
+}
+
+function hideSource() {
+  article = null;
+  sourceEl.classList.remove("ready");
+}
+
+async function fromLink() {
+  stop();
+  fetchBtn.disabled = true;
+  try {
+    const got = await fetchArticle(urlIn.value);
+    const text = showSource(got, wordsIn(got.text) ? "article" : "whole");
+    const site = got.site || new URL(got.url).hostname;
+    setStatus(wordsIn(got.text)
+      ? `${wordsIn(text).toLocaleString()} words out of ${site}. Press play.`
+      : `No article found in that page — showing the whole of it instead.`);
+  } catch (err) {
+    console.error(err);
+    setStatus(err.message || String(err), true);
+  } finally {
+    fetchBtn.disabled = false;
+  }
+}
+
 /* ---------------------------------------------------------------- input -- */
 
-textIn.addEventListener("input", () => load(textIn.value));
+// A link pasted into the text box is almost certainly meant for the box above.
+const LONE_LINK = /^https?:\/\/\S+$/i;
+
+textIn.addEventListener("input", () => {
+  hideSource();
+  const typed = textIn.value.trim();
+  if (LONE_LINK.test(typed)) {
+    urlIn.value = typed;
+    textIn.value = "";
+    load("");
+    setStatus("That's a link — moved it up to the link box. Press fetch.");
+    urlIn.focus();
+    return;
+  }
+  load(textIn.value);
+});
+
+fetchBtn.addEventListener("click", fromLink);
+urlIn.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { e.preventDefault(); fromLink(); }
+});
+
+relaySel.addEventListener("change", () => {
+  relayIn.hidden = relaySel.value !== "custom";
+  if (!relayIn.hidden) relayIn.focus();
+});
+
+el("viewSeg").addEventListener("click", (e) => {
+  const button = e.target.closest("button[data-view]");
+  if (!button || !article) return;
+  const view = button.dataset.view;
+  const text = showSource(article, view);
+  setStatus(`${wordsIn(text).toLocaleString()} words — ${view === "whole" ? "the whole page" : "the article"}.`);
+});
 
 dropzone.addEventListener("click", () => fileInput.click());
 dropzone.addEventListener("keydown", (e) => {
   if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInput.click(); }
 });
 fileInput.addEventListener("change", () => {
-  if (fileInput.files.length) open(fileInput.files[0]);
+  if (fileInput.files.length) openFile(fileInput.files[0]);
 });
 
 for (const type of ["dragover", "dragenter"]) {
@@ -397,14 +1661,24 @@ document.addEventListener("drop", (e) => {
   e.preventDefault();
   dropzone.classList.remove("drag");
   const file = e.dataTransfer.files && e.dataTransfer.files[0];
-  if (file) open(file);
+  if (file) openFile(file);
 });
 
-async function open(file) {
+async function openFile(file) {
   try {
-    const text = await file.text();
-    textIn.value = text;
-    load(text);
+    const raw = await file.text();
+    // A saved page goes through the same reading as a fetched one.
+    if (/\.(html?|xhtml)$/i.test(file.name) || file.type === "text/html") {
+      const got = { ...extract(raw), url: "", via: "the file" };
+      const view = wordsIn(got.text) ? "article" : "whole";
+      if (!got.title) got.title = file.name;
+      const text = showSource(got, view);
+      setStatus(`${file.name} · ${wordsIn(text).toLocaleString()} words ready.`);
+      return;
+    }
+    hideSource();
+    textIn.value = raw;
+    load(raw);
     setStatus(`${file.name} · ${words.length.toLocaleString()} words ready.`);
   } catch (err) {
     console.error(err);
@@ -412,8 +1686,17 @@ async function open(file) {
   }
 }
 
-el("loadBtn").addEventListener("click", () => { textIn.value = EXAMPLE; load(EXAMPLE); });
-el("clearBtn").addEventListener("click", () => { textIn.value = ""; load(""); });
+el("loadBtn").addEventListener("click", () => {
+  hideSource();
+  textIn.value = EXAMPLE;
+  load(EXAMPLE);
+});
+el("clearBtn").addEventListener("click", () => {
+  hideSource();
+  textIn.value = "";
+  urlIn.value = "";
+  load("");
+});
 
 playBtn.addEventListener("click", () => (playing ? stop() : play()));
 el("backBtn").addEventListener("click", () => nudge(-10));
@@ -422,24 +1705,50 @@ el("topBtn").addEventListener("click", () => { stop(); at = 0; show(); });
 
 chunkSel.addEventListener("change", show);
 
-function syncWpm() { wpmOut.textContent = `${wpmIn.value} wpm`; show(); }
-wpmIn.addEventListener("input", syncWpm);
+/* ----------------------------------------------------------- the pace -- */
 
-// The keys only take over once there is something to read, and never while
-// the text box has the cursor in it.
+// The pace is the one setting worth keeping: it is personal, it takes a while
+// to find, and it should not reset every time the page is opened. A browser
+// that refuses storage is no reason to fail.
+function rememberPace() {
+  try { localStorage.setItem(PACE_KEY, wpmIn.value); } catch { /* private mode, fine */ }
+}
+
+function recallPace() {
+  let kept = null;
+  try { kept = localStorage.getItem(PACE_KEY); } catch { /* nothing kept, then */ }
+  const pace = Number(kept);
+  if (!kept || !Number.isFinite(pace)) return;
+  const clamped = Math.min(900, Math.max(100, Math.round(pace / 10) * 10));
+  wpmIn.value = String(clamped);
+}
+
+function syncWpm() { wpmOut.textContent = `${wpmIn.value} wpm`; show(); }
+
+wpmIn.addEventListener("input", () => { rememberPace(); syncWpm(); });
+
+// The keys only take over once there is something to read, and never while a
+// box that takes typing has the cursor in it.
 document.addEventListener("keydown", (e) => {
   if (!words.length) return;
-  if (e.target === textIn || e.target.tagName === "SELECT") return;
+  const field = e.target.tagName;
+  if (e.target === textIn || e.target === urlIn || e.target === relayIn) return;
+  if (field === "SELECT" || (field === "INPUT" && e.target.type !== "range")) return;
 
   if (e.key === " ") { e.preventDefault(); playing ? stop() : play(); }
   else if (e.key === "ArrowLeft")  { e.preventDefault(); nudge(-1); }
   else if (e.key === "ArrowRight") { e.preventDefault(); nudge(1); }
   else if (e.key === "Home")       { e.preventDefault(); stop(); at = 0; show(); }
-  else if (e.key === "ArrowUp")    { e.preventDefault(); wpmIn.value = Math.min(900, +wpmIn.value + 25); syncWpm(); }
-  else if (e.key === "ArrowDown")  { e.preventDefault(); wpmIn.value = Math.max(100, +wpmIn.value - 25); syncWpm(); }
+  else if (e.key === "ArrowUp")    { e.preventDefault(); wpmIn.value = Math.min(900, +wpmIn.value + 25); rememberPace(); syncWpm(); }
+  else if (e.key === "ArrowDown")  { e.preventDefault(); wpmIn.value = Math.max(100, +wpmIn.value - 25); rememberPace(); syncWpm(); }
 });
 
+recallPace();
 syncWpm();
+
+// ?url=… opens the page on an article, which is what makes a bookmarklet of it.
+const asked = new URLSearchParams(location.search).get("url");
+if (asked) { urlIn.value = asked; fromLink(); }
 </script>
 </body>
 </html>
