@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Images &rarr; Searchable PDF</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  /* Layout and sizing only. Colour, type and component styling live in theme.css. */
+
+  body { margin: 0; padding: 3rem 1.5rem 5rem; }
+  main { max-width: 1180px; margin: 0 auto; }
+  p.lede { margin: 0 0 2.2rem; max-width: 62ch; }
+  .card { margin-bottom: 1.5rem; }
+  .card.off { opacity: 0.45; pointer-events: none; }
+
+  .dropzone { padding: 2rem 1.5rem; text-align: center; cursor: pointer; }
+  .dropzone input { display: none; }
+  .dropzone .hint { font-size: 0.85rem; margin-top: 0.4rem; }
+
+  h2 { margin: 0 0 0.9rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--line-soft); }
+
+  .rank { display: flex; flex-wrap: wrap; gap: 1.1rem; align-items: flex-start; }
+  .field { display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; }
+  .field label { font-size: 0.8rem; }
+  .field .unit { font-size: 0.72rem; margin-top: 0.1rem; }
+  .field select, .field input[type="number"] { min-width: 9rem; }
+  .acts { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-left: auto; }
+
+  /* ------------------------------------------------------------ the pages -- */
+
+  .strip { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.2rem; }
+  .sheet {
+    position: relative;
+    width: 5rem;
+    border: 1px solid var(--line);
+    cursor: grab;
+    flex: none;
+    padding: 0.3rem 0.3rem 1.1rem;
+    background: var(--sunken);
+  }
+  .sheet.on { border-color: var(--neon); box-shadow: var(--glow-soft); }
+  .sheet.dragging { opacity: 0.35; }
+  .sheet.over { border-color: var(--neon); }
+  .sheet img { width: 100%; height: 3.6rem; object-fit: contain; display: block; }
+  .sheet .no {
+    position: absolute;
+    left: 0.3rem;
+    bottom: 0.25rem;
+    font-family: var(--mono);
+    font-size: 0.62rem;
+    color: var(--text-faint);
+  }
+  .sheet .state {
+    position: absolute;
+    right: 0.3rem;
+    bottom: 0.25rem;
+    font-size: 0.62rem;
+    color: var(--text-faint);
+  }
+  .sheet.done .state { color: var(--neon); }
+  .sheet .drop {
+    position: absolute;
+    right: 0;
+    top: 0;
+    border: none;
+    background: var(--bg);
+    color: var(--text-dim);
+    font-size: 0.72rem;
+    line-height: 1;
+    padding: 0.15rem 0.3rem;
+    cursor: pointer;
+  }
+  .sheet .drop:hover { color: var(--neon); }
+
+  /* ------------------------------------------------------- page and text -- */
+
+  .bench { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.2rem; }
+  .bench > div { min-width: 0; display: flex; flex-direction: column; }
+  .bench h3 { margin: 0 0 0.6rem; font-size: 0.8rem; color: var(--text-dim); font-weight: 400; }
+
+  .paper { background: var(--sunken); padding: 0.8rem; text-align: center; }
+  /* A portrait sheet at full column width would tower over the text beside
+     it, so the height is capped and the width follows the page's own shape. */
+  .paper canvas { max-height: 38rem; max-width: 100%; width: auto; height: auto; display: inline-block; }
+
+  .raw { display: flex; flex-direction: column; flex: 1; gap: 0.5rem; }
+  .raw textarea {
+    width: 100%;
+    flex: 1;
+    min-height: 22rem;
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    line-height: 1.5;
+    resize: vertical;
+  }
+  .raw .foot { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; }
+  .raw .foot .grow { flex: 1; font-size: 0.72rem; color: var(--text-faint); }
+
+  .status { font-size: 0.85rem; margin-top: 0.9rem; min-height: 1.2em; }
+  .bar { height: 3px; background: var(--line-soft); margin-top: 0.8rem; display: none; }
+  .bar.on { display: block; }
+  .bar i { display: block; height: 100%; background: var(--neon); box-shadow: var(--glow-soft); transition: width 0.2s ease; }
+
+  .note { font-size: 0.78rem; margin-top: 1.2rem; max-width: 70ch; }
+  .note strong { color: var(--text-dim); font-weight: 400; }
+
+  @media (max-width: 860px) {
+    .bench { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 620px) {
+    body { padding: 2rem 1rem 4rem; }
+    .acts { margin-left: 0; width: 100%; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <a class="home" href="index.html">&larr; index</a>
+  <h1>Images &rarr; Searchable PDF</h1>
+  <p class="lede">Drop a pile of photographs or scans and get back one document you can search.
+  Each picture gets a page of its own, laid on white paper with an inch of margin and nothing
+  cropped off, and the words that were read out of it are written underneath it in ink you cannot
+  see &mdash; so the page looks exactly like the photograph and still answers Ctrl+F. The reading
+  happens in this tab, and it is a machine reading handwriting and shadows, so there is a box for
+  fixing what it got wrong.</p>
+
+  <div class="card">
+    <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Choose pictures">
+      <div id="dropLabel">Drop pictures here, or click to choose some</div>
+      <div class="hint">JPEG, PNG, WebP &mdash; the text is read here in the browser, and nothing is uploaded</div>
+      <input type="file" id="fileInput" accept="image/*" multiple>
+    </div>
+    <div class="status" id="status">No pictures yet.</div>
+    <div class="bar" id="bar"><i id="barFill"></i></div>
+  </div>
+
+  <div class="card off" id="pagesCard">
+    <h2>The pages</h2>
+    <div class="rank">
+      <div class="field">
+        <label for="paperSel">Paper</label>
+        <select id="paperSel">
+          <option value="612x792" selected>Letter &mdash; 8.5 &times; 11 in</option>
+          <option value="595x842">A4 &mdash; 210 &times; 297 mm</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="margin">Margin</label>
+        <input type="number" id="margin" min="0" max="3" step="0.25" value="1">
+        <span class="unit">inches on every side</span>
+      </div>
+      <div class="field">
+        <label for="quality">Picture</label>
+        <select id="quality">
+          <option value="jpeg" selected>JPEG &mdash; smaller file</option>
+          <option value="lossless">Lossless &mdash; sharper text, bigger file</option>
+        </select>
+        <span class="unit" id="qualityNote">a JPEG goes in untouched where it can</span>
+      </div>
+      <div class="acts">
+        <button type="button" id="ocrBtn" class="ghost">Read them again</button>
+        <button type="button" id="clearBtn" class="ghost">Remove them all</button>
+      </div>
+    </div>
+    <div class="strip" id="strip"></div>
+  </div>
+
+  <div class="card off" id="viewCard">
+    <div class="bench">
+      <div>
+        <h3 id="pageTitle">The page</h3>
+        <div class="paper"><canvas id="paper" width="612" height="792" aria-label="The page as it will be"></canvas></div>
+      </div>
+      <div>
+        <h3>The text on it, as read &mdash; correct it here</h3>
+        <div class="raw">
+          <textarea id="rawText" spellcheck="true" placeholder="Nothing was read off this one."></textarea>
+          <div class="foot">
+            <span class="grow" id="rawNote"></span>
+            <button type="button" id="revertBtn" class="ghost">Put it back</button>
+            <button type="button" id="copyBtn" class="ghost">Copy all the text</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card off" id="outCard">
+    <h2>Take it away</h2>
+    <div class="rank">
+      <div class="acts" style="margin-left:0">
+        <button type="button" id="pdfBtn">Searchable .pdf</button>
+        <button type="button" id="mdBtn" class="ghost">.md</button>
+        <button type="button" id="txtBtn" class="ghost">.txt</button>
+      </div>
+    </div>
+    <div class="status" id="outStatus"></div>
+  </div>
+
+  <p class="note"><strong>The picture is placed, not cropped.</strong> Each page is a sheet of the
+  paper you chose with the margin you set taken off every side, and the picture is scaled by
+  whichever of width or height runs out first, then centred both ways. Nothing is cut off and
+  nothing is stretched, so a tall receipt and a wide spread both come out whole on the same size
+  of page.</p>
+
+  <p class="note"><strong>The text goes in invisible.</strong> Every word is written over the place
+  it was read from in PDF text rendering mode 3, which draws nothing at all, so the page you look
+  at is the photograph and the page a search looks at is the words. Each word is squeezed or
+  stretched to the width of the box it came from, so dragging to select lands roughly where you
+  would expect rather than drifting along the line.</p>
+
+  <p class="note"><strong>A JPEG goes in untouched where it can.</strong> PDF carries JPEG natively,
+  so a baseline JPEG is embedded exactly as it arrived &mdash; no decoding, no re-encoding, no
+  second generation of loss. A progressive JPEG cannot go in that way, because PDF's decoder does
+  not read them, so those are re-encoded along with PNGs and everything else. Choose lossless and
+  the pixels are deflated instead, which keeps small text crisp and makes a much bigger file.</p>
+
+  <p class="note"><strong>Corrections move the words, within reason.</strong> The reading comes back
+  as lines with a box each. When you edit the text, your lines are matched to those boxes in order,
+  so fixing a word keeps it where it was; adding lines past the end of what was read stacks them
+  under the last box. Rewriting a page completely will leave the invisible text in roughly the
+  right place rather than exactly, which costs nothing for searching and shows only if you drag to
+  select.</p>
+
+  <p class="note"><strong>Markdown is a best effort and says so.</strong> Paragraphs are kept, and
+  a line set noticeably larger than the rest of its page becomes a heading. It does not try to
+  rebuild tables or columns out of a photograph, because that is guessing dressed as structure.
+  The plain text output does none of this: it is the words, in order, and nothing else.</p>
+
+  <p class="note"><strong>It runs here, and it is a big download the first time.</strong> The reader
+  is <a href="https://github.com/naptha/tesseract.js">Tesseract.js</a> with the English model, about
+  7 MB of engine and training data in <a href="vendor/">vendor/tesseract/</a>. It is in the repo
+  rather than fetched from anyone's CDN, so no picture and no text ever leaves the tab &mdash; but
+  it does mean this page is the one here that wants to be served rather than opened straight off
+  the filesystem, because a browser will not start a worker from a <code>file://</code> folder. The
+  page says so if you open it that way.</p>
+</main>
+
+<script src="vendor/tesseract/tesseract.min.js"></script>
+<script>
+"use strict";
+
+const el = (id) => document.getElementById(id);
+
+const dropzone = el("dropzone");
+const fileInput= el("fileInput");
+const statusEl = el("status");
+const stripEl  = el("strip");
+const paper    = el("paper");
+const rawText  = el("rawText");
+
+const DPI = 72;                   // PDF's own unit: 72 points to the inch
+let pages = [];                   // { file, img, name, text, lines, state }
+let current = 0;
+let worker = null;
+let reading = false;
+
+function setStatus(message, bad = false) {
+  statusEl.textContent = message;
+  statusEl.style.color = bad ? "var(--neon-hot)" : "";
+}
+
+/* ---------------------------------------------------------------- taking -- */
+
+function loadImage(file) {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => resolve({ img, url });
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+    img.src = url;
+  });
+}
+
+async function take(files) {
+  const pictures = [...files].filter((f) => f.type.startsWith("image/"));
+  if (!pictures.length) { setStatus("Nothing in there was an image.", true); return; }
+
+  setStatus(`Opening ${pictures.length}…`);
+  for (const file of pictures) {
+    const loaded = await loadImage(file);
+    if (!loaded) continue;
+    pages.push({
+      file, name: file.name, img: loaded.img, url: loaded.url,
+      w: loaded.img.naturalWidth, h: loaded.img.naturalHeight,
+      text: "", read: "", lines: [], state: "waiting",
+    });
+  }
+
+  el("pagesCard").classList.remove("off");
+  el("viewCard").classList.remove("off");
+  paintStrip();
+  show(Math.min(current, pages.length - 1));
+  await readAll();
+}
+
+dropzone.addEventListener("click", () => fileInput.click());
+dropzone.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInput.click(); }
+});
+fileInput.addEventListener("change", () => { take(fileInput.files); fileInput.value = ""; });
+for (const kind of ["dragenter", "dragover"]) {
+  dropzone.addEventListener(kind, (e) => { e.preventDefault(); dropzone.classList.add("over"); });
+}
+for (const kind of ["dragleave", "drop"]) {
+  dropzone.addEventListener(kind, () => dropzone.classList.remove("over"));
+}
+dropzone.addEventListener("drop", (e) => { e.preventDefault(); take(e.dataTransfer.files); });
+
+/* ----------------------------------------------------------- the reading -- */
+
+async function getWorker() {
+  if (worker) return worker;
+  if (location.protocol === "file:") {
+    throw new Error("a browser will not start a worker from a file:// folder — "
+      + "serve this directory (python3 -m http.server) and open it over http");
+  }
+  setStatus("Starting the reader — about 7 MB the first time…");
+  worker = await Tesseract.createWorker("eng", 1, {
+    workerPath: new URL("vendor/tesseract/worker.min.js", location.href).href,
+    corePath: new URL("vendor/tesseract/tesseract-core-simd-lstm.wasm.js", location.href).href,
+    langPath: new URL("vendor/tesseract/", location.href).href,
+    gzip: true,
+  });
+  return worker;
+}
+
+// Paragraphs come back as a blank line between them, which is what both the
+// Markdown and the box for corrections want.
+function textOf(blocks) {
+  const paragraphs = [];
+  for (const block of blocks || []) {
+    for (const paragraph of block.paragraphs || []) {
+      const lines = (paragraph.lines || []).map((l) => l.text.replace(/\s+$/, "")).filter(Boolean);
+      if (lines.length) paragraphs.push(lines.join("\n"));
+    }
+  }
+  return paragraphs.join("\n\n");
+}
+
+function linesOf(blocks) {
+  const out = [];
+  for (const block of blocks || []) {
+    for (const paragraph of block.paragraphs || []) {
+      for (const line of paragraph.lines || []) {
+        const text = line.text.trim();
+        if (text) out.push({ text, bbox: line.bbox });
+      }
+    }
+  }
+  return out;
+}
+
+async function readAll(force = false) {
+  const todo = pages.filter((p) => force || p.state === "waiting");
+  if (!todo.length) return;
+  if (reading) return;
+  reading = true;
+  el("bar").classList.add("on");
+
+  try {
+    const engine = await getWorker();
+    let done = 0;
+    for (const page of todo) {
+      page.state = "reading";
+      paintStrip();
+      setStatus(`Reading ${page.name} — ${done + 1} of ${todo.length}…`);
+      try {
+        const result = await engine.recognize(page.file, {}, { blocks: true, text: true });
+        const blocks = result.data.blocks || [];
+        page.lines = linesOf(blocks);
+        page.read = textOf(blocks) || (result.data.text || "").trim();
+        if (!page.text.trim() || force) page.text = page.read;
+        page.state = "done";
+      } catch (err) {
+        console.error(err);
+        page.state = "failed";
+        page.note = err.message;
+      }
+      done++;
+      el("barFill").style.width = `${(done / todo.length) * 100}%`;
+      paintStrip();
+      if (pages[current] === page) show(current);
+    }
+
+    const failed = pages.filter((p) => p.state === "failed").length;
+    const words = pages.reduce((n, p) => n + (p.text.trim() ? p.text.trim().split(/\s+/).length : 0), 0);
+    setStatus(`${pages.length} page${pages.length === 1 ? "" : "s"}, ${words} words read`
+      + (failed ? ` — ${failed} could not be read` : ""), Boolean(failed));
+    el("outCard").classList.remove("off");
+  } catch (err) {
+    console.error(err);
+    setStatus(err.message, true);
+    for (const page of pages) if (page.state === "reading") page.state = "waiting";
+    paintStrip();
+    // The pages are still usable as a plain PDF, just without any text in it.
+    el("outCard").classList.remove("off");
+  } finally {
+    reading = false;
+    el("bar").classList.remove("on");
+    el("barFill").style.width = "0%";
+  }
+}
+
+el("ocrBtn").addEventListener("click", () => readAll(true));
+
+/* ------------------------------------------------------------- the strip -- */
+
+let dragFrom = null;
+
+function paintStrip() {
+  stripEl.textContent = "";
+  pages.forEach((page, i) => {
+    const cell = document.createElement("div");
+    cell.className = "sheet"
+      + (i === current ? " on" : "")
+      + (page.state === "done" ? " done" : "");
+    cell.draggable = true;
+    cell.title = page.name;
+
+    const thumb = document.createElement("img");
+    thumb.src = page.url;
+    thumb.alt = "";
+
+    const no = document.createElement("span");
+    no.className = "no";
+    no.textContent = String(i + 1);
+
+    const state = document.createElement("span");
+    state.className = "state";
+    state.textContent = page.state === "done" ? "read"
+      : page.state === "reading" ? "…"
+      : page.state === "failed" ? "failed" : "waiting";
+
+    const drop = document.createElement("button");
+    drop.className = "drop";
+    drop.type = "button";
+    drop.textContent = "×";
+    drop.setAttribute("aria-label", `Remove ${page.name}`);
+    drop.addEventListener("click", (e) => {
+      e.stopPropagation();
+      URL.revokeObjectURL(page.url);
+      pages.splice(i, 1);
+      if (current >= pages.length) current = Math.max(0, pages.length - 1);
+      paintStrip();
+      show(current);
+      if (!pages.length) {
+        el("viewCard").classList.add("off");
+        el("outCard").classList.add("off");
+        setStatus("No pictures yet.");
+      }
+    });
+
+    cell.addEventListener("click", () => show(i));
+    cell.addEventListener("dragstart", () => { dragFrom = i; cell.classList.add("dragging"); });
+    cell.addEventListener("dragend", () => { dragFrom = null; cell.classList.remove("dragging"); });
+    cell.addEventListener("dragover", (e) => { e.preventDefault(); cell.classList.add("over"); });
+    cell.addEventListener("dragleave", () => cell.classList.remove("over"));
+    cell.addEventListener("drop", (e) => {
+      e.preventDefault();
+      cell.classList.remove("over");
+      if (dragFrom === null || dragFrom === i) return;
+      const held = pages[current];
+      const [moved] = pages.splice(dragFrom, 1);
+      pages.splice(i, 0, moved);
+      current = pages.indexOf(held);
+      paintStrip();
+      show(current);
+    });
+
+    cell.append(thumb, no, state, drop);
+    stripEl.appendChild(cell);
+  });
+}
+
+/* ------------------------------------------------------- paper and place -- */
+
+function paperSize() {
+  const [w, h] = el("paperSel").value.split("x").map(Number);
+  return { w, h };
+}
+
+// Scaled by whichever of width or height runs out first, then centred: the
+// whole picture, on the page, never cropped and never stretched.
+function placeOn(page, sheet) {
+  const margin = Math.max(0, Number(el("margin").value) || 0) * DPI;
+  const room = { w: Math.max(1, sheet.w - margin * 2), h: Math.max(1, sheet.h - margin * 2) };
+  const scale = Math.min(room.w / page.w, room.h / page.h);
+  const w = page.w * scale;
+  const h = page.h * scale;
+  return { x: (sheet.w - w) / 2, y: (sheet.h - h) / 2, w, h };
+}
+
+function show(index) {
+  if (!pages.length) {
+    paper.getContext("2d").clearRect(0, 0, paper.width, paper.height);
+    rawText.value = "";
+    return;
+  }
+  current = Math.max(0, Math.min(index, pages.length - 1));
+  const page = pages[current];
+
+  el("pageTitle").textContent = `Page ${current + 1} of ${pages.length} — ${page.name}`;
+  rawText.value = page.text;
+  el("rawNote").textContent = page.state === "failed"
+    ? `could not be read: ${page.note || "unknown"}`
+    : page.state === "done"
+      ? `${page.lines.length} line${page.lines.length === 1 ? "" : "s"} read from ${page.w} × ${page.h}`
+      : "not read yet";
+
+  paintStrip();
+  drawPaper();
+}
+
+function drawPaper() {
+  const sheet = paperSize();
+  paper.width = sheet.w;
+  paper.height = sheet.h;
+  const ctx = paper.getContext("2d");
+
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, sheet.w, sheet.h);
+  if (!pages.length) return;
+
+  const page = pages[current];
+  const box = placeOn(page, sheet);
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(page.img, box.x, box.y, box.w, box.h);
+}
+
+rawText.addEventListener("input", () => {
+  if (pages.length) pages[current].text = rawText.value;
+});
+el("revertBtn").addEventListener("click", () => {
+  if (!pages.length) return;
+  pages[current].text = pages[current].read;
+  rawText.value = pages[current].read;
+});
+el("copyBtn").addEventListener("click", async () => {
+  try {
+    if (!navigator.clipboard || !window.isSecureContext) throw new Error("no clipboard here");
+    await navigator.clipboard.writeText(buildText());
+    el("rawNote").textContent = "Copied every page's text.";
+    setTimeout(() => show(current), 1200);
+  } catch (err) {
+    console.error(err);
+    el("rawNote").textContent = "This browser would not let the page copy.";
+  }
+});
+
+for (const id of ["paperSel", "margin"]) el(id).addEventListener("input", drawPaper);
+el("paperSel").addEventListener("change", drawPaper);
+el("clearBtn").addEventListener("click", () => {
+  for (const page of pages) URL.revokeObjectURL(page.url);
+  pages = [];
+  current = 0;
+  paintStrip();
+  show(0);
+  el("viewCard").classList.add("off");
+  el("outCard").classList.add("off");
+  setStatus("No pictures yet.");
+});
+
+/* ---------------------------------------------------------------- output -- */
+
+function buildText() {
+  return pages.map((p) => p.text.trim()).filter(Boolean).join("\n\n") + "\n";
+}
+
+// Best effort, and only what a photograph can honestly support: paragraphs,
+// and a heading where a line was set much larger than its neighbours.
+function buildMarkdown() {
+  const out = [];
+  pages.forEach((page, i) => {
+    out.push(`## ${page.name || `Page ${i + 1}`}`);
+    out.push("");
+
+    // A line is a heading if it is set much larger than the others — measured
+    // against the median of everything *else* on the page, because on a page
+    // of two lines the heading would otherwise be half the median itself.
+    const heights = page.lines.map((l) => l.bbox.y1 - l.bbox.y0);
+    const median = (list) => {
+      if (!list.length) return 0;
+      const sorted = [...list].sort((a, b) => a - b);
+      return sorted[Math.floor(sorted.length / 2)];
+    };
+    const headings = new Set(page.lines.filter((line, i) => {
+      const rest = median(heights.filter((_, n) => n !== i));
+      return rest > 0 && heights[i] > rest * 1.4;
+    }).map((l) => l.text.trim()));
+
+    for (const paragraph of page.text.split(/\n{2,}/)) {
+      const body = paragraph.trim();
+      if (!body) continue;
+
+      // A title and the sentence under it often come back as one paragraph
+      // with no blank line between, so the lines are walked rather than the
+      // paragraph judged as a whole.
+      let run = [];
+      const flush = () => {
+        if (!run.length) return;
+        out.push(run.join("  \n"));       // two spaces: a line break within a paragraph
+        out.push("");
+        run = [];
+      };
+      for (const line of body.split("\n")) {
+        const text = line.trim();
+        if (headings.has(text)) { flush(); out.push(`### ${text}`); out.push(""); }
+        else run.push(line);
+      }
+      flush();
+    }
+  });
+  return out.join("\n").replace(/\n{3,}/g, "\n\n");
+}
+
+/* ------------------------------------------------------------------- pdf -- */
+
+const encoder = new TextEncoder();
+
+// PDF strings are bytes, and the base fourteen fonts here are read as
+// WinAnsi. Anything outside it becomes a question mark rather than a mojibake
+// pair, which only ever shows up in a search, never on the page.
+const WIN_ANSI_EXTRA = new Map(Object.entries({
+  "€": 128, "‚": 130, "ƒ": 131, "„": 132, "…": 133, "†": 134,
+  "‡": 135, "ˆ": 136, "‰": 137, "Š": 138, "‹": 139, "Œ": 140,
+  "Ž": 142, "‘": 145, "’": 146, "“": 147, "”": 148, "•": 149,
+  "–": 150, "—": 151, "˜": 152, "™": 153, "š": 154, "›": 155,
+  "œ": 156, "ž": 158, "Ÿ": 159,
+}));
+
+function winAnsi(text) {
+  const out = [];
+  for (const ch of String(text)) {
+    const code = ch.codePointAt(0);
+    if (code === 13 || code === 10 || code === 9) { out.push(32); continue; }
+    if (code >= 32 && code <= 126) { out.push(code); continue; }
+    if (WIN_ANSI_EXTRA.has(ch)) { out.push(WIN_ANSI_EXTRA.get(ch)); continue; }
+    if (code >= 160 && code <= 255) { out.push(code); continue; }
+    out.push(63);                         // '?'
+  }
+  return out;
+}
+
+function pdfString(text) {
+  let out = "";
+  for (const code of winAnsi(text)) {
+    if (code === 40 || code === 41 || code === 92) out += "\\" + String.fromCharCode(code);
+    else if (code < 32 || code > 126) out += "\\" + code.toString(8).padStart(3, "0");
+    else out += String.fromCharCode(code);
+  }
+  return `(${out})`;
+}
+
+// Helvetica and Arial share their widths, so the browser can measure what the
+// PDF will do. Used to squeeze each word to the width of its own box.
+const ruler = document.createElement("canvas").getContext("2d");
+function naturalWidth(text, size) {
+  ruler.font = `${size}px Helvetica, Arial, sans-serif`;
+  return ruler.measureText(text).width;
+}
+
+// Baseline JPEG goes in as it stands; a progressive one cannot, because PDF's
+// DCTDecode does not read them.
+function jpegShape(bytes) {
+  if (bytes[0] !== 0xff || bytes[1] !== 0xd8) return null;
+  let at = 2;
+  while (at < bytes.length - 9) {
+    if (bytes[at] !== 0xff) { at++; continue; }
+    const marker = bytes[at + 1];
+    if (marker === 0xd8 || marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) { at += 2; continue; }
+    const length = (bytes[at + 2] << 8) | bytes[at + 3];
+    // SOF0 and SOF1 are the sequential ones DCTDecode understands.
+    if (marker === 0xc0 || marker === 0xc1) {
+      return {
+        height: (bytes[at + 5] << 8) | bytes[at + 6],
+        width: (bytes[at + 7] << 8) | bytes[at + 8],
+        components: bytes[at + 9],
+      };
+    }
+    if (marker >= 0xc2 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
+      return null;                        // progressive, or another kind we don't embed raw
+    }
+    if (marker === 0xda) return null;     // reached the scan without a baseline header
+    at += 2 + length;
+  }
+  return null;
+}
+
+async function deflate(bytes) {
+  const stream = new Blob([bytes]).stream().pipeThrough(new CompressionStream("deflate"));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+// What actually goes in the file for one picture.
+async function imageFor(page) {
+  const wantLossless = el("quality").value === "lossless";
+
+  if (!wantLossless && /jpe?g$/i.test(page.file.type.split("/")[1] || "")) {
+    const bytes = new Uint8Array(await page.file.arrayBuffer());
+    const shape = jpegShape(bytes);
+    if (shape && (shape.components === 3 || shape.components === 1)) {
+      return {
+        bytes, width: shape.width, height: shape.height,
+        filter: "/DCTDecode",
+        space: shape.components === 1 ? "/DeviceGray" : "/DeviceRGB",
+      };
+    }
+  }
+
+  // Everything else goes through a canvas, flattened onto white because a
+  // page of paper has no transparency.
+  const flat = document.createElement("canvas");
+  flat.width = page.w;
+  flat.height = page.h;
+  const ctx = flat.getContext("2d");
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, flat.width, flat.height);
+  ctx.drawImage(page.img, 0, 0);
+
+  if (wantLossless) {
+    const data = ctx.getImageData(0, 0, flat.width, flat.height).data;
+    const rgb = new Uint8Array(flat.width * flat.height * 3);
+    for (let i = 0, j = 0; i < data.length; i += 4, j += 3) {
+      rgb[j] = data[i]; rgb[j + 1] = data[i + 1]; rgb[j + 2] = data[i + 2];
+    }
+    return {
+      bytes: await deflate(rgb), width: flat.width, height: flat.height,
+      filter: "/FlateDecode", space: "/DeviceRGB",
+    };
+  }
+
+  const blob = await new Promise((done) => flat.toBlob(done, "image/jpeg", 0.88));
+  return {
+    bytes: new Uint8Array(await blob.arrayBuffer()), width: flat.width, height: flat.height,
+    filter: "/DCTDecode", space: "/DeviceRGB",
+  };
+}
+
+// The corrected text, line by line, over the boxes the reading came from.
+function textLayer(page, box) {
+  const typed = page.text.split("\n").map((l) => l.trim()).filter(Boolean);
+  if (!typed.length) return "";
+
+  const boxes = page.lines;
+  const parts = ["BT", "3 Tr", "/F1 1 Tf"];
+  const lastBox = boxes.length ? boxes[boxes.length - 1].bbox : null;
+  const fallbackHeight = lastBox ? (lastBox.y1 - lastBox.y0) : page.h / 40;
+
+  typed.forEach((line, i) => {
+    let bbox;
+    if (i < boxes.length) {
+      bbox = boxes[i].bbox;
+    } else if (lastBox) {
+      // Past what was read: stack under the last line at its own spacing.
+      const step = fallbackHeight * 1.6 * (i - boxes.length + 1);
+      bbox = { x0: lastBox.x0, x1: lastBox.x1, y0: lastBox.y0 + step, y1: lastBox.y1 + step };
+    } else {
+      const step = fallbackHeight * 1.6 * i;
+      bbox = { x0: 0, x1: page.w, y0: step, y1: step + fallbackHeight };
+    }
+
+    // Image pixels to page points, and PDF counts up from the bottom.
+    const sx = box.w / page.w;
+    const sy = box.h / page.h;
+    const x = box.x + bbox.x0 * sx;
+    const y = box.y + box.h - bbox.y1 * sy;
+    const width = Math.max(1, (bbox.x1 - bbox.x0) * sx);
+    const size = Math.max(1, (bbox.y1 - bbox.y0) * sy);
+    if (y < -size || y > box.y + box.h + size) return;
+
+    const natural = naturalWidth(line, size);
+    const squeeze = natural > 0 ? Math.max(1, Math.min(1000, (width / natural) * 100)) : 100;
+    parts.push(`/F1 ${size.toFixed(2)} Tf`);
+    parts.push(`${squeeze.toFixed(1)} Tz`);
+    parts.push(`1 0 0 1 ${x.toFixed(2)} ${y.toFixed(2)} Tm`);
+    parts.push(`${pdfString(line)} Tj`);
+  });
+
+  parts.push("ET");
+  return parts.join("\n");
+}
+
+async function buildPdf() {
+  const sheet = paperSize();
+  const chunks = [];
+  const offsets = [];
+  let length = 0;
+
+  const push = (bytes) => { chunks.push(bytes); length += bytes.length; };
+  const pushText = (text) => push(encoder.encode(text));
+
+  // Object 1 is the catalog, 2 the page tree, 3 the font; then three objects
+  // for every page: the page, its contents and its image.
+  const pageCount = pages.length;
+  const objectCount = 3 + pageCount * 3;
+  const pageId = (i) => 4 + i * 3;
+
+  const begin = (id) => { offsets[id] = length; pushText(`${id} 0 obj\n`); };
+  const end = () => pushText("\nendobj\n");
+
+  pushText("%PDF-1.4\n%âãÏÓ\n");
+
+  begin(1);
+  pushText("<< /Type /Catalog /Pages 2 0 R >>");
+  end();
+
+  begin(2);
+  const kids = pages.map((_, i) => `${pageId(i)} 0 R`).join(" ");
+  pushText(`<< /Type /Pages /Kids [${kids}] /Count ${pageCount} >>`);
+  end();
+
+  begin(3);
+  pushText("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>");
+  end();
+
+  for (let i = 0; i < pageCount; i++) {
+    const page = pages[i];
+    const id = pageId(i);
+    const contentId = id + 1;
+    const imageId = id + 2;
+    const box = placeOn(page, sheet);
+    const picture = await imageFor(page);
+
+    begin(id);
+    pushText(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${sheet.w} ${sheet.h}] `
+      + `/Resources << /XObject << /Im0 ${imageId} 0 R >> /Font << /F1 3 0 R >> >> `
+      + `/Contents ${contentId} 0 R >>`);
+    end();
+
+    const body = `q\n${box.w.toFixed(2)} 0 0 ${box.h.toFixed(2)} `
+      + `${box.x.toFixed(2)} ${box.y.toFixed(2)} cm\n/Im0 Do\nQ\n`
+      + textLayer(page, box);
+    const bodyBytes = encoder.encode(body);
+    begin(contentId);
+    pushText(`<< /Length ${bodyBytes.length} >>\nstream\n`);
+    push(bodyBytes);
+    pushText("\nendstream");
+    end();
+
+    begin(imageId);
+    pushText(`<< /Type /XObject /Subtype /Image /Width ${picture.width} `
+      + `/Height ${picture.height} /ColorSpace ${picture.space} /BitsPerComponent 8 `
+      + `/Filter ${picture.filter} /Length ${picture.bytes.length} >>\nstream\n`);
+    push(picture.bytes);
+    pushText("\nendstream");
+    end();
+  }
+
+  const startxref = length;
+  pushText(`xref\n0 ${objectCount + 1}\n0000000000 65535 f \n`);
+  for (let id = 1; id <= objectCount; id++) {
+    pushText(`${String(offsets[id] || 0).padStart(10, "0")} 00000 n \n`);
+  }
+  pushText(`trailer\n<< /Size ${objectCount + 1} /Root 1 0 R >>\nstartxref\n${startxref}\n%%EOF\n`);
+
+  return new Blob(chunks, { type: "application/pdf" });
+}
+
+/* ----------------------------------------------------------------- saves -- */
+
+function stem() {
+  const first = pages[0] ? pages[0].name.replace(/\.[^.]+$/, "") : "pages";
+  return (first.replace(/[^\w.-]+/g, "-").slice(0, 50) || "pages")
+    + (pages.length > 1 ? `-and-${pages.length - 1}-more` : "");
+}
+
+function saveBlob(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = name;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  el("outStatus").textContent = `Saved ${name} — ${(blob.size / 1024).toFixed(1)} KB.`;
+}
+
+el("pdfBtn").addEventListener("click", async () => {
+  if (!pages.length) return;
+  el("outStatus").textContent = "Building the PDF…";
+  try {
+    saveBlob(await buildPdf(), `${stem()}.pdf`);
+  } catch (err) {
+    console.error(err);
+    el("outStatus").textContent = `Couldn't build it: ${err.message}`;
+  }
+});
+
+el("mdBtn").addEventListener("click", () => {
+  if (!pages.length) return;
+  saveBlob(new Blob([buildMarkdown()], { type: "text/markdown" }), `${stem()}.md`);
+});
+
+el("txtBtn").addEventListener("click", () => {
+  if (!pages.length) return;
+  saveBlob(new Blob([buildText()], { type: "text/plain" }), `${stem()}.txt`);
+});
+
+if (location.protocol === "file:") {
+  setStatus("Opened from a folder — the reader needs this served. Run "
+    + "python3 -m http.server in the repo and open it over http, or pictures will "
+    + "still make a PDF but with no text in it.", true);
+}
+</script>
+</body>
+</html>

@@ -60,3 +60,32 @@ current one because it still ships a UMD build, and both it and its worker are l
 plain scripts, so the page reads a PDF the same opened off the filesystem as it does
 served. [`pdfjs/README.md`](pdfjs/README.md) has the reasoning and the command to fetch
 them again.
+
+---
+
+`tesseract/` is [Tesseract.js](https://github.com/naptha/tesseract.js) 7.0.0 with
+`tesseract.js-core` 7.0.0 and the English model, which reads the text in
+[`../images-to-pdf.html`](../images-to-pdf.html). Both are Apache 2.0 and their licences
+are beside them.
+
+| File | From |
+| --- | --- |
+| `tesseract.min.js` | `tesseract.js@7.0.0`, `dist/tesseract.min.js` |
+| `worker.min.js` | `tesseract.js@7.0.0`, `dist/worker.min.js` |
+| `tesseract-core-simd-lstm.wasm.js` | `tesseract.js-core@7.0.0` |
+| `eng.traineddata.gz` | `@tesseract.js-data/eng@1.0.0`, `4.0.0_best_int/` |
+
+Note the core version: `tesseract.js-core`'s `latest` tag points at 6.1.2, which does not
+carry the builds tesseract.js 7 asks for, so 7.0.0 has to be named outright.
+
+Only the SIMD LSTM build is here, and `corePath` names that file directly rather than the
+folder, because tesseract.js would otherwise feature-detect and ask for one of five
+variants at four megabytes each. The wasm-in-JS form is the one it wants. The model is the
+quantised `best_int` one at 3 MB rather than the 11 MB standard, which is accurate and a
+third of the download.
+
+Fetch them again with:
+
+```
+npm pack tesseract.js@7.0.0 tesseract.js-core@7.0.0 @tesseract.js-data/eng@1.0.0
+```
