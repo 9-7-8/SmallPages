@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pomodoro Timer</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  /* Layout and sizing only — with one deliberate exception, the same one
+     hex-clock.html makes. Every other page in the repo declares no colour at
+     all and takes the palette from theme.css; this one paints the background
+     itself, because the background is how the page says which phase you are
+     in. The three phase colours are set from JavaScript onto :root, and the
+     few surfaces and inks that have to sit on top of them are written here in
+     black and white alpha rather than taken from the theme's ink ramp, which
+     is mixed for a page that is always pure black. Everything else — buttons,
+     the segmented control, inputs, focus rings, the type scale — still comes
+     from theme.css. */
+
+  html, body {
+    background: var(--ground, #000000);
+    transition: background-color 0.9s ease;
+  }
+
+  :root {
+    /* White at a fixed alpha keeps its footing on all three phase colours;
+       --text-faint over the deep red comes out at about 1.4:1 and vanishes. */
+    --ink:      rgba(255, 255, 255, 0.93);
+    --ink-lead: rgba(255, 255, 255, 0.80);
+    --ink-dim:  rgba(255, 255, 255, 0.66);
+    --ink-edge: rgba(255, 255, 255, 0.40);
+    --ink-hair: rgba(255, 255, 255, 0.13);
+
+    /* The lit colour of the current phase. Before the first start there is no
+       phase yet, so it falls back to the theme accent and the page opens
+       looking like every other page here. */
+    --lit: var(--phase, var(--neon));
+  }
+
+  body {
+    margin: 0;
+    padding: 2.2rem 1.5rem 4rem;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+  main { max-width: 760px; margin: 0 auto; }
+
+  h1 { color: var(--lit); text-shadow: 0 0 10px var(--lit); }
+  p.lede { margin: 0 0 2rem; max-width: 56ch; color: var(--ink-dim); }
+
+  .home { color: var(--ink-dim); }
+  .home:hover, .home:focus-visible { color: var(--ink); }
+
+  /* The settings panel is black at an alpha rather than the theme's --raised,
+     so it reads as a panel over whichever colour the page has gone. */
+  .card {
+    background: rgba(0, 0, 0, 0.42);
+    border-color: var(--ink-hair);
+    margin-bottom: 1.5rem;
+  }
+  .card input[type="number"], .card select {
+    background: rgba(0, 0, 0, 0.45);
+    border-color: var(--ink-edge);
+    color: var(--ink);
+  }
+  .card label { color: var(--ink-dim); }
+
+  /* ------------------------------------------------------------- the dial -- */
+
+  .timer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.4rem;
+    margin: 0 0 2.4rem;
+  }
+
+  .dial {
+    position: relative;
+    width: min(76vmin, 400px);
+    aspect-ratio: 1;
+    display: grid;
+    place-items: center;
+  }
+  .dial svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .ring-track { fill: none; stroke: var(--ink-hair); stroke-width: 1.1; }
+  .ring-arc {
+    fill: none;
+    stroke: var(--lit);
+    stroke-width: 1.1;
+    filter: drop-shadow(0 0 3px var(--lit));
+  }
+  /* Stopped is a different thing from running, and the ring says so. */
+  body.resting .ring-arc { filter: none; opacity: 0.5; }
+
+  .read {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+
+  .phase {
+    font-size: clamp(0.72rem, 2.4vmin, 0.85rem);
+    font-weight: 400;
+    letter-spacing: 0.26em;
+    text-indent: 0.26em;          /* puts the tracking back on the last glyph */
+    text-transform: uppercase;
+    color: var(--lit);
+    text-shadow: 0 0 10px var(--lit);
+  }
+
+  .time {
+    font-weight: 200;
+    font-size: clamp(2.4rem, 14vmin, 4.6rem);
+    line-height: 1;
+    color: var(--ink);
+    white-space: nowrap;
+  }
+  /* Lexend Deca has no tabular figures and no tnum feature to ask for: its 1
+     is two thirds the width of its 0, so a clock set in it re-centres itself
+     every time a digit ticks over. Each glyph gets its own box instead. */
+  .time i {
+    font-style: normal;
+    display: inline-block;
+    width: 1.05ch;
+    text-align: center;
+  }
+  .time i.sep { width: 0.6ch; opacity: 0.3; }
+
+  /* One pip per focus run in the set, filled as each is finished, so how far
+     it is to the long break is readable without counting anything. */
+  .pips { display: flex; gap: 0.45rem; height: 7px; align-items: center; }
+  .pips i {
+    display: block;
+    width: 7px;
+    height: 7px;
+    border: 1px solid var(--ink-hair);
+  }
+  .pips i.now { border-color: var(--lit); }
+  .pips i.on { background: var(--lit); border-color: var(--lit); box-shadow: 0 0 7px var(--lit); }
+
+  .upto {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.74rem;
+    color: var(--ink-edge);
+    text-align: center;
+  }
+
+  /* ------------------------------------------------------------ the chrome -- */
+
+  .acts { display: flex; flex-wrap: wrap; gap: 0.6rem; justify-content: center; }
+  .acts button { min-width: 7.5rem; color: var(--ink); border-color: var(--ink-edge); }
+  .acts button.ghost { min-width: 0; color: var(--ink-dim); }
+  .acts button:not(:disabled):hover,
+  .acts button:not(:disabled):focus-visible {
+    color: var(--ink);
+    border-color: var(--ink);
+    background: rgba(255, 255, 255, 0.08);
+    box-shadow: none;
+  }
+
+  .status { font-size: 0.85rem; min-height: 1.2em; text-align: center; color: var(--ink-dim); }
+
+  .readout {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.3rem 1.4rem;
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.74rem;
+    color: var(--ink-edge);
+  }
+
+  .keys { font-family: var(--mono); font-size: 0.72rem; color: var(--ink-edge); text-align: center; margin: 0; }
+  .keys b { color: var(--ink-dim); font-weight: 400; }
+
+  /* ---------------------------------------------------------- the settings -- */
+
+  h2 { color: var(--ink-lead); margin: 0 0 1.1rem; }
+
+  .rank { display: flex; flex-wrap: wrap; gap: 1.2rem; align-items: flex-end; }
+  .rank + .rank { margin-top: 1.3rem; }
+  .field { display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; }
+  .field label { font-size: 0.8rem; }
+  .field .unit { font-size: 0.72rem; margin-top: 0.1rem; color: var(--ink-edge); }
+  .field input[type="number"] { width: 6rem; }
+  .field input[type="range"] { width: 11rem; max-width: 100%; }
+  .presets { margin-left: auto; }
+
+  .seg { border-color: var(--ink-edge); }
+  .seg button { color: var(--ink-dim); border-color: var(--ink-edge); }
+  .seg button:hover, .seg button:focus-visible { color: var(--ink); }
+
+  .check { display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; color: var(--ink-dim); }
+  .check input { margin: 0; }
+
+  .note { font-size: 0.78rem; margin-top: 1.2rem; max-width: 64ch; color: var(--ink-dim); }
+  .note strong { color: var(--ink-lead); font-weight: 400; }
+
+  /* Fullscreen is for leaving it on a spare monitor, so everything that is not
+     the dial steps out of the way and the dial takes the room it leaves. */
+  body.zen { padding: 1.2rem; display: flex; flex-direction: column; justify-content: center; }
+  body.zen main { max-width: none; width: 100%; }
+  body.zen .home, body.zen h1, body.zen p.lede, body.zen .card,
+  body.zen .note, body.zen .keys { display: none; }
+  body.zen .timer { margin: 0; gap: 1.8rem; }
+  body.zen .dial { width: min(78vmin, 620px); }
+  body.zen .time { font-size: clamp(3rem, 18vmin, 7.5rem); }
+  /* The chrome fades once the pointer has been still for a few seconds, and
+     comes straight back on the next move, key or focus. */
+  body.zen .acts, body.zen .status, body.zen .readout { transition: opacity 0.6s ease; }
+  body.zen.idle .acts, body.zen.idle .status, body.zen.idle .readout { opacity: 0; }
+
+  @media (max-width: 620px) {
+    body { padding: 1.6rem 1rem 3.5rem; }
+    .presets { margin-left: 0; width: 100%; }
+    .acts { width: 100%; }
+    /* Four buttons will not fit across a phone, so they go two by two: the
+       basis puts two on a row and the min-width is what the primary button
+       asks for on a wide screen, which is more than there is here. */
+    .acts button { flex: 1 1 40%; min-width: 0; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <a class="home" href="index.html">&larr; index</a>
+  <h1>Pomodoro Timer</h1>
+  <p class="lede">Work for a set stretch, break for a shorter one, and take a longer break every
+  few rounds &mdash; with all of the lengths yours to set. The page goes the colour of whichever
+  phase it is in, so a glance from across the room says whether you are working or not, without
+  reading a single digit.</p>
+
+  <div class="timer">
+    <div class="dial">
+      <svg viewBox="0 0 100 100" aria-hidden="true" focusable="false">
+        <circle class="ring-track" cx="50" cy="50" r="46"/>
+        <circle class="ring-arc" id="arc" cx="50" cy="50" r="46" transform="rotate(-90 50 50)"
+                stroke-linecap="butt" stroke-dasharray="289.03 289.03"/>
+      </svg>
+      <div class="read">
+        <div class="phase" id="phaseName">Focus</div>
+        <div class="time" id="time" role="timer" aria-live="off"></div>
+        <div class="pips" id="pips"></div>
+      </div>
+    </div>
+
+    <div class="upto" id="upto"></div>
+
+    <div class="acts">
+      <button type="button" id="goBtn">Start</button>
+      <button type="button" id="skipBtn" class="ghost">Skip</button>
+      <button type="button" id="resetBtn" class="ghost">Reset</button>
+      <button type="button" id="fullBtn" class="ghost">Fullscreen</button>
+    </div>
+
+    <div class="status" id="status"></div>
+    <div class="readout" id="readout"></div>
+    <p class="keys"><b>space</b> start and pause &middot; <b>n</b> next phase &middot; <b>r</b> reset</p>
+  </div>
+
+  <div class="card">
+    <h2>Lengths</h2>
+
+    <div class="rank">
+      <div class="field">
+        <label for="focusIn">Focus</label>
+        <input type="number" id="focusIn" min="1" max="180" step="1" value="25">
+        <span class="unit">minutes</span>
+      </div>
+
+      <div class="field">
+        <label for="shortIn">Short break</label>
+        <input type="number" id="shortIn" min="1" max="60" step="1" value="5">
+        <span class="unit">minutes</span>
+      </div>
+
+      <div class="field">
+        <label for="longIn">Long break</label>
+        <input type="number" id="longIn" min="1" max="120" step="1" value="15">
+        <span class="unit">minutes</span>
+      </div>
+
+      <div class="field presets">
+        <label>Presets</label>
+        <div class="seg" id="presetSeg">
+          <button type="button" data-set="25,5,15,4">25 / 5</button>
+          <button type="button" data-set="50,10,30,2">50 / 10</button>
+          <button type="button" data-set="15,3,12,4">15 / 3</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="rank">
+      <div class="field">
+        <label for="everyIn">Long break every</label>
+        <input type="number" id="everyIn" min="1" max="12" step="1" value="4">
+        <span class="unit">focus runs</span>
+      </div>
+
+      <div class="field">
+        <label for="stopIn">Stop after</label>
+        <input type="number" id="stopIn" min="0" max="24" step="1" value="0">
+        <span class="unit">focus runs &mdash; 0 keeps going</span>
+      </div>
+
+      <div class="field">
+        <label for="volIn">Chime <span id="volOut"></span></label>
+        <input type="range" id="volIn" min="0" max="100" step="1" value="55">
+        <span class="unit">at the end of every phase &mdash; 0 is silent</span>
+      </div>
+
+      <div class="field">
+        <label class="check"><input type="checkbox" id="autoIn" checked> Start the next phase by itself</label>
+        <span class="unit">off waits for you at the end of each one</span>
+      </div>
+    </div>
+  </div>
+
+  <p class="note"><strong>The background is the phase.</strong> Deep red while you are working,
+  green on a short break, blue on a long one &mdash; and each one brightens a little as its phase
+  runs down, so the room says roughly how far through you are before you have looked at the
+  clock. Hue carries the signal and the lightness travels only a few points, so the page stays a
+  dark ground throughout rather than lighting the room up. Until the first start it is black like
+  every other page here, and a reset puts it back.</p>
+
+  <p class="note"><strong>It counts from the clock, not from its own ticks.</strong> Every phase
+  is a timestamp to land on rather than a thousand additions, and the next phase is measured from
+  the moment the last one was due to end rather than from when the page noticed &mdash; so
+  nothing drifts and the schedule stays the schedule. Browsers throttle a tab you are not looking
+  at, and a locked phone stops it altogether; come back and the page works out which phase you
+  ought to be in, says how many it caught up on, and carries on from the right place.</p>
+
+  <p class="note"><strong>The chime is made here, not played from a file.</strong> Struck tones
+  from the browser's own audio engine &mdash; rising into a break, falling back into work, and a
+  longer fall when the set is done. Browsers will not let a page make sound until you have asked
+  it to, which is why the first start is also what builds it, and a chime that falls due while the
+  tab is asleep arrives late or not at all. The colour and the clock are the signals to trust.</p>
+
+  <p class="note"><strong>Skip and reset mean different things.</strong> Skip moves to the next
+  phase without counting the one you left, so a focus run you abandon earns no pip and brings the
+  long break no closer. Reset stops everything, empties the set and clears the tally. The tally
+  counts real running time only &mdash; a paused timer is not focus &mdash; and it lives no
+  longer than the tab does.</p>
+
+  <p class="note"><strong>Twenty-five minutes is a convention, not a finding.</strong> It is the
+  length Francesco Cirillo happened to set a kitchen timer to in the late eighties, and the method
+  is named after the tomato that timer was shaped like. Nothing measured says twenty-five is the
+  right number for you, which is why every length here is a box you can type in: the part worth
+  keeping is the shape of it &mdash; one thing at a time, for a decided stretch, then stop. The
+  settings are kept in this browser so the page opens where you left it; nothing else is kept,
+  and nothing leaves the page.</p>
+</main>
+
+<script>
+"use strict";
+
+const el = (id) => document.getElementById(id);
+const root = document.documentElement;
+
+const arcEl     = el("arc");
+const phaseEl   = el("phaseName");
+const timeEl    = el("time");
+const pipsEl    = el("pips");
+const uptoEl    = el("upto");
+const goBtn     = el("goBtn");
+const skipBtn   = el("skipBtn");
+const resetBtn  = el("resetBtn");
+const fullBtn   = el("fullBtn");
+const statusEl  = el("status");
+const readoutEl = el("readout");
+const volOut    = el("volOut");
+
+const focusIn = el("focusIn");
+const shortIn = el("shortIn");
+const longIn  = el("longIn");
+const everyIn = el("everyIn");
+const stopIn  = el("stopIn");
+const volIn   = el("volIn");
+const autoIn  = el("autoIn");
+
+const DASH = "—";
+
+/* The three phases and the colour each paints the page. `from` and `to` are
+   the background lightness at the start of the phase and at the end of it. */
+const PHASES = {
+  focus: { name: "Focus",       hue: 6,   sat: 68, from: 4, to: 11 },
+  short: { name: "Short break", hue: 166, sat: 46, from: 4, to: 10 },
+  long:  { name: "Long break",  hue: 214, sat: 52, from: 4, to: 10 },
+};
+
+const RING = 2 * Math.PI * 46;      // the dial's circumference, in user units
+
+const pad = (n) => String(n).padStart(2, "0");
+
+/* ------------------------------------------------------------- settings -- */
+
+const KEY = "smallpages.pomodoro";
+
+const clamp = (n, lo, hi, fallback) =>
+  Number.isFinite(n) ? Math.min(hi, Math.max(lo, Math.round(n))) : fallback;
+
+const mins   = (input, lo, hi, fallback) => clamp(Number(input.value), lo, hi, fallback);
+const every  = () => mins(everyIn, 1, 12, 4);
+const stopAt = () => clamp(Number(stopIn.value), 0, 24, 0);
+
+function lengthOf(which) {
+  if (which === "focus") return mins(focusIn, 1, 180, 25) * 60000;
+  if (which === "short") return mins(shortIn, 1, 60, 5) * 60000;
+  return mins(longIn, 1, 120, 15) * 60000;
+}
+
+function save() {
+  const kept = {
+    focus: focusIn.value, short: shortIn.value, long: longIn.value,
+    every: everyIn.value, stop: stopIn.value,
+    vol: volIn.value, auto: autoIn.checked,
+  };
+  try { localStorage.setItem(KEY, JSON.stringify(kept)); } catch { /* private mode, fine */ }
+}
+
+function load() {
+  let kept = null;
+  try { kept = JSON.parse(localStorage.getItem(KEY) || "null"); } catch { /* nothing kept, then */ }
+  if (!kept || typeof kept !== "object") return;
+  // Whatever is in storage is put through the input's own bounds on the way
+  // in, so a hand-edited key shows a number the page would have allowed. Every
+  // read is clamped again anyway, which is what actually keeps it honest.
+  for (const [field, input] of [["focus", focusIn], ["short", shortIn], ["long", longIn],
+                                ["every", everyIn], ["stop", stopIn], ["vol", volIn]]) {
+    if (kept[field] === undefined || kept[field] === null) continue;
+    input.value = kept[field];
+    // A number box hands back "" for anything that was never a number, which
+    // is the one case that wants the page's own default rather than the floor.
+    const raw = input.value === "" ? NaN : Number(input.value);
+    input.value = String(clamp(raw, Number(input.min), Number(input.max),
+                               Number(input.defaultValue)));
+  }
+  if (typeof kept.auto === "boolean") autoIn.checked = kept.auto;
+}
+
+/* ---------------------------------------------------------------- state -- */
+
+let phase     = "focus";   // focus · short · long
+let running   = false;
+let started   = false;     // has anything run at all since the last reset
+let span      = 0;         // how long the current phase is, ms
+let left      = 0;         // how much of it is still to go, while stopped
+let endAt     = 0;         // when the current phase is due to end, epoch ms
+let lastAcct  = 0;         // how far the focus tally has been credited to
+let sinceLong = 0;         // finished focus runs since the last long break
+let setRuns   = 0;         // finished focus runs in this set, for "stop after"
+let runs      = 0;         // finished focus runs since the page opened
+let focusedMs = 0;         // time actually spent running in focus
+let setDone   = false;     // the last advance() finished the set
+let frame     = 0;
+let shownTime = "";
+let shownRest = "";        // everything but the digits, as one key
+
+load();
+span = lengthOf("focus");
+left = span;
+
+/* ---------------------------------------------------------------- chime -- */
+
+let ctx = null;
+
+function wakeAudio() {
+  try {
+    if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state === "suspended") ctx.resume();
+  } catch (err) {
+    console.error(err);
+    ctx = null;
+  }
+}
+
+// A struck tone: the fundamental with two quieter partials over it, each
+// decaying on its own exponential, which is as near a bell as three
+// oscillators get for nothing.
+function strike(freq, at, hold, level) {
+  for (const [mult, share] of [[1, 1], [2, 0.3], [3, 0.09]]) {
+    const osc = ctx.createOscillator();
+    const env = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.value = freq * mult;
+    env.gain.setValueAtTime(0.0001, at);
+    env.gain.exponentialRampToValueAtTime(level * share, at + 0.012);
+    env.gain.exponentialRampToValueAtTime(0.0001, at + hold);
+    osc.connect(env).connect(ctx.destination);
+    osc.start(at);
+    osc.stop(at + hold + 0.05);
+  }
+}
+
+// Loudness is nearer the square of a fader's travel than its travel.
+const shape = (pct) => (pct / 100) ** 2;
+
+// D5 and A5, two ways round, and a longer fall for the end of a set.
+const CHIMES = {
+  rise: [[587.33, 0], [880, 0.16]],
+  fall: [[880, 0], [587.33, 0.16]],
+  done: [[880, 0], [698.46, 0.2], [587.33, 0.4], [440, 0.62]],
+};
+
+function chime(which) {
+  const level = shape(Number(volIn.value) || 0) * 0.5;
+  if (!ctx || level <= 0 || !CHIMES[which]) return;
+  const at = ctx.currentTime + 0.02;
+  for (const [freq, offset] of CHIMES[which]) {
+    strike(freq, at + offset, which === "done" ? 1.7 : 1.1, level);
+  }
+}
+
+/* --------------------------------------------------------------- phases -- */
+
+// Focus time is credited by the stretch rather than by the tick, so a phase
+// that ran out while the tab was asleep still lands in the tally exactly once.
+function account(upTo) {
+  if (running && phase === "focus") focusedMs += Math.max(0, upTo - lastAcct);
+  lastAcct = upTo;
+}
+
+// One step round the cycle. `finished` says whether the phase ran out on its
+// own: a phase you skipped counts for nothing, which is the whole of the
+// difference between skipping one and sitting through it.
+function advance(finished) {
+  setDone = false;
+
+  if (phase !== "focus") { phase = "focus"; return; }
+
+  if (finished) { runs += 1; setRuns += 1; sinceLong += 1; }
+
+  const stop = stopAt();
+  if (finished && stop && setRuns >= stop) {
+    phase = "focus";
+    sinceLong = 0;
+    setRuns = 0;
+    setDone = true;
+    return;
+  }
+
+  if (finished && sinceLong >= every()) {
+    phase = "long";
+    sinceLong = 0;
+  } else {
+    phase = "short";
+  }
+}
+
+// Stopped at the top of whatever phase is current now, waiting for a start.
+function hold() {
+  running = false;
+  span = lengthOf(phase);
+  left = span;
+}
+
+function start() {
+  if (running) return;
+  wakeAudio();
+  started = true;
+  running = true;
+  const now = Date.now();
+  endAt = now + left;
+  lastAcct = now;
+  say(`${PHASES[phase].name} ${DASH} running.`);
+  loop();
+}
+
+function pause() {
+  if (!running) return;
+  const now = Date.now();
+  account(now);
+  left = Math.max(0, endAt - now);
+  running = false;
+  cancelAnimationFrame(frame);
+  say(`Paused with ${fmt(left)} of the ${PHASES[phase].name.toLowerCase()} left.`);
+  paint(now);
+}
+
+function skip() {
+  const now = Date.now();
+  const was = phase;
+  const wasRunning = running;
+  account(now);
+  cancelAnimationFrame(frame);
+  running = false;
+  advance(false);
+  hold();
+  // Skipping doesn't change whether the timer is running: a paused timer that
+  // skips is still paused, and one that was going carries straight on.
+  if (wasRunning) start();
+  else paint(now);
+  say(`Skipped the ${PHASES[was].name.toLowerCase()}. ${PHASES[phase].name} ${wasRunning ? "now" : "next"}.`);
+}
+
+function reset() {
+  running = false;
+  started = false;
+  cancelAnimationFrame(frame);
+  phase = "focus";
+  sinceLong = 0;
+  setRuns = 0;
+  runs = 0;
+  focusedMs = 0;
+  span = lengthOf("focus");
+  left = span;
+  root.style.removeProperty("--ground");
+  root.style.removeProperty("--phase");
+  say(`Back to the start of the set. Focus for ${howLong(span)}.`);
+  paint(Date.now());
+}
+
+/* ----------------------------------------------------------------- loop -- */
+
+function loop() {
+  const now = Date.now();
+  let crossed = 0;
+  let rang = null;
+
+  // A phase that is up may not be the only one: rAF stops in a hidden tab, so
+  // the page can come back minutes or hours late. Each boundary is taken in
+  // turn, and the next phase is measured from the boundary rather than from
+  // now, so the schedule is the one it would have been had anyone been looking.
+  while (running && now >= endAt) {
+    const boundary = endAt;
+    const was = phase;
+    account(boundary);
+    advance(true);
+    lastAcct = boundary;
+    rang = setDone ? "done" : (was === "focus" ? "rise" : "fall");
+    crossed += 1;
+
+    if (setDone || !autoIn.checked) { hold(); break; }
+
+    span = lengthOf(phase);
+    left = span;
+    endAt = boundary + span;
+
+    // A one-minute phase and a tab left for a fortnight is a lot of laps. The
+    // cap is only here so the page cannot be made to sit in this loop.
+    if (crossed > 500) { hold(); break; }
+  }
+
+  if (rang) {
+    chime(rang);
+    if (setDone) {
+      say(`Set finished ${DASH} ${runs} focus run${runs === 1 ? "" : "s"}, ${howLong(focusedMs)} in focus.`);
+    } else if (crossed > 1) {
+      say(`Caught up ${crossed} phases the tab slept through. ${PHASES[phase].name} ${running ? "now" : "next"}.`);
+    } else if (running) {
+      say(`${PHASES[phase].name} ${DASH} running.`);
+    } else {
+      say(`${PHASES[phase].name} is next. Press start.`);
+    }
+  }
+
+  paint(now);
+  if (running) frame = requestAnimationFrame(loop);
+}
+
+/* ---------------------------------------------------------------- paint -- */
+
+function fmt(ms) {
+  const total = Math.ceil(Math.max(0, ms) / 1000);
+  return `${pad(Math.floor(total / 60))}:${pad(total % 60)}`;
+}
+
+function howLong(ms) {
+  const m = Math.round(ms / 60000);
+  return m < 60 ? `${m}m` : `${Math.floor(m / 60)}h ${pad(m % 60)}m`;
+}
+
+function say(text) { statusEl.textContent = text; }
+
+// Each glyph has its own box, so the row is rebuilt only when the number of
+// them changes and is otherwise written over a character at a time.
+function writeTime(str) {
+  if (str === shownTime) return;
+  if (str.length !== shownTime.length) {
+    timeEl.textContent = "";
+    for (const ch of str) {
+      const box = document.createElement("i");
+      if (ch === ":") box.className = "sep";
+      box.textContent = ch;
+      timeEl.appendChild(box);
+    }
+  } else {
+    for (let i = 0; i < str.length; i++) {
+      if (timeEl.children[i].textContent !== str[i]) timeEl.children[i].textContent = str[i];
+    }
+  }
+  shownTime = str;
+}
+
+function writePips() {
+  const want = every();
+  if (pipsEl.children.length !== want) {
+    pipsEl.textContent = "";
+    for (let i = 0; i < want; i++) pipsEl.appendChild(document.createElement("i"));
+  }
+  for (let i = 0; i < want; i++) {
+    pipsEl.children[i].className =
+      i < sinceLong ? "on" : (i === sinceLong && phase === "focus" ? "now" : "");
+  }
+}
+
+function writeReadout() {
+  readoutEl.textContent = "";
+  for (const line of [`${runs} run${runs === 1 ? "" : "s"} done`, `${howLong(focusedMs)} in focus`]) {
+    const cell = document.createElement("span");
+    cell.textContent = line;
+    readoutEl.appendChild(cell);
+  }
+}
+
+// Called on every frame while the timer runs, so only the ring and the digits
+// are touched every time. Everything else is behind one key comparison and
+// moves when the second, the phase or a setting does.
+function paint(now) {
+  const look = PHASES[phase];
+  const ms = running ? Math.max(0, endAt - now) : left;
+  const rest = span > 0 ? Math.min(1, Math.max(0, ms / span)) : 0;
+  const str = fmt(ms);
+
+  arcEl.setAttribute("stroke-dasharray", `${(RING * rest).toFixed(2)} ${RING.toFixed(2)}`);
+  writeTime(str);
+
+  const key = [str, phase, started, running, sinceLong, runs, every(),
+               howLong(focusedMs), left < span].join("|");
+  if (key === shownRest) return;
+  shownRest = key;
+
+  document.body.classList.toggle("resting", !running);
+  phaseEl.textContent = look.name;
+  goBtn.textContent = running ? "Pause" : (left < span ? "Resume" : "Start");
+
+  // The background carries a 0.9s transition, so it is written once a second
+  // at most: a fresh colour sixty times a second would only fight it.
+  if (started) {
+    const grade = look.from + (look.to - look.from) * (1 - rest);
+    root.style.setProperty("--ground", `hsl(${look.hue} ${look.sat}% ${grade.toFixed(1)}%)`);
+    root.style.setProperty("--phase", `hsl(${look.hue} ${look.sat}% 74%)`);
+  }
+
+  document.title = started ? `${str} · ${look.name}` : "Pomodoro Timer";
+
+  const to = Math.max(0, every() - sinceLong);
+  uptoEl.textContent = phase === "long"
+    ? `the long break ${DASH} ${howLong(span)}`
+    : `${to} focus run${to === 1 ? "" : "s"} to the long break`;
+
+  writePips();
+  writeReadout();
+}
+
+/* ---------------------------------------------------------------- input -- */
+
+goBtn.addEventListener("click", () => { if (running) pause(); else start(); });
+skipBtn.addEventListener("click", skip);
+resetBtn.addEventListener("click", reset);
+
+// A length you change applies from the next phase, except when the current one
+// has not started running yet — then it is the phase you are setting.
+function settingChanged() {
+  save();
+  if (!running && left === span) { span = lengthOf(phase); left = span; }
+  shownRest = "";
+  paint(Date.now());
+}
+
+for (const input of [focusIn, shortIn, longIn, everyIn, stopIn]) {
+  input.addEventListener("input", settingChanged);
+}
+
+autoIn.addEventListener("change", save);
+
+volIn.addEventListener("input", () => {
+  volOut.textContent = Number(volIn.value) ? `${volIn.value}%` : "off";
+  save();
+});
+
+// The knob is easier to set against the sound it makes than against a number.
+volIn.addEventListener("change", () => { wakeAudio(); chime("rise"); });
+
+el("presetSeg").addEventListener("click", (e) => {
+  const button = e.target.closest("button");
+  if (!button) return;
+  const [focus, short, long, gap] = button.dataset.set.split(",");
+  focusIn.value = focus;
+  shortIn.value = short;
+  longIn.value = long;
+  everyIn.value = gap;
+  settingChanged();
+  say(`Focus ${focus}, short break ${short}, long break ${long} every ${gap}.`);
+});
+
+document.addEventListener("keydown", (e) => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const target = e.target instanceof Element ? e.target : null;
+  if (target && target.closest("input, select, textarea")) return;
+
+  if (e.code === "Space") {
+    // Space on a focused button is that button's own click, not ours.
+    if (target && target.closest("button")) return;
+    e.preventDefault();
+    if (running) pause(); else start();
+  } else if (e.key === "n" || e.key === "N") {
+    e.preventDefault();
+    skip();
+  } else if (e.key === "r" || e.key === "R") {
+    e.preventDefault();
+    reset();
+  }
+});
+
+/* ------------------------------------------------- the tab and the room -- */
+
+// rAF stops in a hidden tab, which is where the catching up comes from.
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState !== "visible") return;
+  if (running) loop();
+  else paint(Date.now());
+});
+
+fullBtn.addEventListener("click", async () => {
+  try {
+    if (document.fullscreenElement) await document.exitFullscreen();
+    else await root.requestFullscreen();
+  } catch (err) {
+    console.error(err);
+    fullBtn.textContent = "Fullscreen is blocked here";
+  }
+});
+
+document.addEventListener("fullscreenchange", () => {
+  const on = Boolean(document.fullscreenElement);
+  document.body.classList.toggle("zen", on);
+  fullBtn.textContent = on ? "Exit fullscreen" : "Fullscreen";
+  if (!on) document.body.classList.remove("idle");
+  stir();
+});
+
+// Only in fullscreen: a page you are reading should not fade out from under you.
+let idleTimer = null;
+
+function stir() {
+  document.body.classList.remove("idle");
+  clearTimeout(idleTimer);
+  if (document.fullscreenElement) {
+    idleTimer = setTimeout(() => document.body.classList.add("idle"), 4000);
+  }
+}
+
+for (const type of ["pointermove", "pointerdown", "keydown", "focusin", "wheel"]) {
+  document.addEventListener(type, stir, { passive: true });
+}
+
+volOut.textContent = Number(volIn.value) ? `${volIn.value}%` : "off";
+say(`Focus for ${howLong(span)}. Press start.`);
+paint(Date.now());
+</script>
+</body>
+</html>
