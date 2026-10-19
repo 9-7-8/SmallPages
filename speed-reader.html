@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Speed Reader</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  /* Layout and sizing only. Colour, type and component styling live in theme.css. */
+
+  body { margin: 0; padding: 3rem 1.5rem 5rem; }
+  main { max-width: 860px; margin: 0 auto; }
+  p.lede { margin: 0 0 2.2rem; max-width: 58ch; }
+  .card { margin-bottom: 1.5rem; }
+
+  textarea { width: 100%; min-height: 9rem; resize: vertical; }
+
+  .dropzone { padding: 1.1rem 1.5rem; text-align: center; cursor: pointer; margin-top: 0.9rem; }
+  .dropzone input { display: none; }
+  .dropzone .hint { font-size: 0.85rem; margin-top: 0.3rem; }
+
+  .rank { display: flex; flex-wrap: wrap; gap: 1.2rem; align-items: flex-end; }
+  .rank + .rank { margin-top: 1.3rem; }
+  .field { display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; }
+  .field label { font-size: 0.8rem; }
+  .field .unit { font-size: 0.72rem; margin-top: 0.1rem; }
+  .field input[type="range"] { width: 13rem; max-width: 100%; }
+  .acts { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-left: auto; }
+
+  .status { font-size: 0.85rem; margin-top: 0.9rem; min-height: 1.2em; }
+
+  /* ------------------------------------------------------------ the word -- */
+
+  .reader { display: none; }
+  .reader.ready { display: block; }
+
+  .pane {
+    position: relative;
+    padding: 3.2rem 1rem;
+    overflow: hidden;
+  }
+
+  /* The word is laid out so the focus letter lands on the same column every
+     time: two halves that grow outwards from a fixed centre line, rather
+     than one string that re-centres itself on every tick. */
+  .word {
+    display: flex;
+    justify-content: center;
+    align-items: baseline;
+    font-size: clamp(1.6rem, 6vw, 3.2rem);
+    font-weight: 200;
+    line-height: 1.15;
+    white-space: pre;
+  }
+  .word .left  { flex: 1; text-align: right; }
+  .word .right { flex: 1; text-align: left; }
+  .word .pivot { flex: none; color: var(--neon); text-shadow: var(--text-glow); }
+
+  /* Two hairline ticks above and below the pivot column, so the eye has
+     something to hold on to between words. */
+  .tick {
+    position: absolute;
+    left: 50%;
+    width: 1px;
+    height: 0.9rem;
+    background: var(--line);
+  }
+  .tick.up { top: 1.5rem; }
+  .tick.down { bottom: 1.5rem; }
+
+  .track { height: 2px; background: var(--line-soft); margin-top: 1rem; }
+  .track i { display: block; height: 100%; width: 0; background: var(--neon); box-shadow: var(--glow-soft); }
+
+  .counts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 1.4rem;
+    margin-top: 0.8rem;
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.76rem;
+    color: var(--text-faint);
+  }
+
+  /* The sentence the current word sits in, so a word on its own is never the
+     only thing you have to go on. */
+  .around {
+    margin-top: 1.1rem;
+    font-size: 0.85rem;
+    color: var(--text-faint);
+    max-width: 70ch;
+    min-height: 2.6em;
+  }
+  .around b { color: var(--text); font-weight: 400; }
+
+  .note { font-size: 0.78rem; margin-top: 1.2rem; max-width: 64ch; }
+  .note strong { color: var(--text-dim); font-weight: 400; }
+  kbd {
+    font-family: var(--mono);
+    font-size: 0.9em;
+    border: 1px solid var(--line);
+    padding: 0 0.3em;
+  }
+
+  @media (max-width: 620px) {
+    body { padding: 2rem 1rem 4rem; }
+    .acts { margin-left: 0; width: 100%; }
+    .acts button { flex: 1 1 5rem; padding-left: 0.5rem; padding-right: 0.5rem; }
+    .pane { padding: 2.4rem 0.5rem; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <a class="home" href="index.html">&larr; index</a>
+  <h1>Speed Reader</h1>
+  <p class="lede">Paste something in and read it one word at a time, in place, at a pace you set.
+  Your eyes stop moving, which is where a good part of ordinary reading time goes. The focus
+  letter is marked and every word is hung on it, so the word lands under your eye already lined
+  up.</p>
+
+  <div class="card">
+    <label for="textIn">The text</label>
+    <textarea id="textIn" placeholder="Paste a script, an email, a chapter&hellip;"></textarea>
+
+    <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Choose a text file">
+      <div>Or drop a text file here, or click to choose one</div>
+      <div class="hint"><code>.txt</code> <code>.md</code> <code>.csv</code> &mdash; anything that is really text</div>
+      <input type="file" id="fileInput" accept=".txt,.md,.markdown,.csv,.log,.json,text/*">
+    </div>
+
+    <div class="rank" style="margin-top:1.2rem">
+      <div class="acts" style="margin-left:0">
+        <button type="button" id="loadBtn" class="ghost">Load an example</button>
+        <button type="button" id="clearBtn" class="ghost">Clear</button>
+      </div>
+    </div>
+
+    <div class="status" id="status">Nothing to read yet.</div>
+  </div>
+
+  <div class="reader" id="reader">
+    <div class="card">
+      <div class="pane">
+        <span class="tick up"></span>
+        <span class="tick down"></span>
+        <!-- No whitespace between these three: the box is white-space: pre and
+             a flex row, so a stray newline would become a flex item of its own
+             and push the pivot off the centre line it exists to hold. --><div
+          class="word" id="word" role="status" aria-live="off"
+        ><span class="left"></span><span class="pivot"></span><span class="right"></span></div>
+      </div>
+
+      <div class="track"><i id="trackFill"></i></div>
+      <div class="counts" id="counts"></div>
+      <div class="around" id="around"></div>
+
+      <div class="rank" style="margin-top:1.3rem">
+        <div class="field">
+          <label for="wpm">Pace <span id="wpmOut"></span></label>
+          <input type="range" id="wpm" min="100" max="900" step="10" value="300">
+          <span class="unit">words a minute</span>
+        </div>
+
+        <div class="field">
+          <label for="chunk">Words at a time</label>
+          <select id="chunk">
+            <option value="1" selected>One</option>
+            <option value="2">Two</option>
+            <option value="3">Three</option>
+          </select>
+        </div>
+
+        <div class="acts">
+          <button type="button" id="backBtn" class="ghost">&larr; 10</button>
+          <button type="button" id="playBtn">Play</button>
+          <button type="button" id="fwdBtn" class="ghost">10 &rarr;</button>
+          <button type="button" id="topBtn" class="ghost">Restart</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p class="note"><strong><kbd>Space</kbd> plays and pauses</strong>, the arrow keys step a word
+  either way, <kbd>&uarr;</kbd> and <kbd>&darr;</kbd> move the pace, and <kbd>Home</kbd> goes back
+  to the start. The sentence under the word is there so that when you stop &mdash; and you will
+  stop &mdash; you can see where you are without starting again.</p>
+
+  <p class="note"><strong>It does not hold the pace exactly.</strong> A long word is given a
+  little longer than a short one, and a word that ends a clause or a sentence is held longer still,
+  because reading punctuation at a flat rate is what makes this kind of thing feel like being
+  shouted at. The pace you set is the average it works out to, not the gap between every pair.</p>
+
+  <p class="note"><strong>What it costs.</strong> Reading this way removes the thing that makes
+  reading reliable: going back. On straightforward prose at 400 or 500 words a minute most people
+  lose little. On anything you would normally re-read a line of &mdash; a contract, a proof,
+  poetry &mdash; comprehension falls off a cliff, and no pace setting fixes that. It is a tool for
+  getting through the inbox, not for studying.</p>
+</main>
+
+<script>
+"use strict";
+
+const el = (id) => document.getElementById(id);
+
+const textIn   = el("textIn");
+const dropzone = el("dropzone");
+const fileInput= el("fileInput");
+const statusEl = el("status");
+const readerEl = el("reader");
+const wordEl   = el("word");
+const leftEl   = wordEl.querySelector(".left");
+const pivotEl  = wordEl.querySelector(".pivot");
+const rightEl  = wordEl.querySelector(".right");
+const trackFill= el("trackFill");
+const countsEl = el("counts");
+const aroundEl = el("around");
+const wpmIn    = el("wpm");
+const wpmOut   = el("wpmOut");
+const chunkSel = el("chunk");
+const playBtn  = el("playBtn");
+
+const EXAMPLE =
+`The first thing to understand about reading one word at a time is that it is not reading faster. \
+It is reading differently. Ordinary reading spends a surprising share of its time on saccades — \
+the small jumps your eyes make from one fixation to the next — and on regressions, the jumps \
+backwards to a word you are no longer sure you read. Hold the word still and both disappear.
+
+What disappears with them is the ability to glance back, and that turns out to matter more than \
+the speed you gain. On a familiar sort of text, the kind where each sentence lands the first \
+time, you will read this way at four or five hundred words a minute without noticing the loss. \
+On a dense one you will finish the page and find you have nothing.
+
+So the honest use for a tool like this is the pile of things you have to get through rather than \
+the few you want to think about: the long thread, the script, the report you only need the shape \
+of. Set it a little faster than feels comfortable, and stop the moment you notice you have been \
+watching the words rather than reading them.`;
+
+let words = [];      // { text, pause } — pause is a multiplier on the base gap
+let at = 0;
+let timer = null;
+let playing = false;
+
+/* ----------------------------------------------------------------- text -- */
+
+// Sentence ends get a long hold, clause ends a shorter one. The word keeps
+// its punctuation on screen: stripping it would hide where you are.
+function split(raw) {
+  const out = [];
+  for (const piece of String(raw).split(/\s+/)) {
+    const text = piece.trim();
+    if (!text) continue;
+    let pause = 1;
+    if (/[,;:)\]]$/.test(text)) pause = 1.6;
+    if (/[.!?]["'”’)]?$/.test(text)) pause = 2.2;
+    if (/[—–]$/.test(text)) pause = 1.6;
+    out.push({ text, pause });
+  }
+  return out;
+}
+
+// Where the eye lands in a word is a little left of the middle, and holding
+// every word on that letter is most of what makes this readable at speed.
+function pivotAt(text) {
+  const n = text.length;
+  if (n <= 1) return 0;
+  if (n <= 5) return 1;
+  if (n <= 9) return 2;
+  return 3;
+}
+
+function load(raw) {
+  words = split(raw);
+  at = 0;
+  stop();
+  if (!words.length) {
+    readerEl.classList.remove("ready");
+    setStatus("Nothing to read yet.");
+    return;
+  }
+  readerEl.classList.add("ready");
+  setStatus(`${words.length.toLocaleString()} words ready.`);
+  show();
+}
+
+function setStatus(message, isError = false) {
+  statusEl.textContent = message;
+  statusEl.classList.toggle("error", isError);
+}
+
+/* -------------------------------------------------------------- showing -- */
+
+function show() {
+  const size = Number(chunkSel.value);
+  const group = words.slice(at, at + size).map((w) => w.text).join(" ");
+
+  if (size === 1) {
+    const i = pivotAt(group);
+    leftEl.textContent = group.slice(0, i);
+    pivotEl.textContent = group.slice(i, i + 1);
+    rightEl.textContent = group.slice(i + 1);
+  } else {
+    // With more than one word on screen there is no single letter to hang
+    // them on, so the group is simply centred.
+    leftEl.textContent = group;
+    pivotEl.textContent = "";
+    rightEl.textContent = "";
+  }
+
+  const done = Math.min(at + size, words.length);
+  trackFill.style.width = `${(done / words.length) * 100}%`;
+
+  const left = words.length - done;
+  const mins = left / Number(wpmIn.value);
+  countsEl.textContent = `${done.toLocaleString()} / ${words.length.toLocaleString()} words`
+    + ` · ${Math.round((done / words.length) * 100)}%`
+    + ` · ${left ? `${mins < 1 ? `${Math.ceil(mins * 60)}s` : `${Math.ceil(mins)}m`} left` : "done"}`;
+
+  showAround();
+}
+
+// The sentence the current word sits in, with the word itself picked out.
+function showAround() {
+  const from = Math.max(0, at - 12);
+  const to = Math.min(words.length, at + 13);
+  aroundEl.textContent = "";
+  for (let i = from; i < to; i++) {
+    const piece = document.createElement(i === at ? "b" : "span");
+    piece.textContent = `${words[i].text} `;
+    aroundEl.appendChild(piece);
+  }
+}
+
+/* --------------------------------------------------------------- paying -- */
+
+function gap(word) {
+  const base = 60000 / Number(wpmIn.value) * Number(chunkSel.value);
+  // A long word needs longer than a short one even at the same nominal pace.
+  const bulk = Math.min(1.5, 0.75 + word.text.length / 14);
+  return base * bulk * word.pause;
+}
+
+function step() {
+  const size = Number(chunkSel.value);
+  at += size;
+  if (at >= words.length) {
+    at = words.length - size > 0 ? words.length - size : 0;
+    show();
+    stop();
+    setStatus("That's the end.");
+    return;
+  }
+  show();
+  timer = setTimeout(step, gap(words[at]));
+}
+
+function play() {
+  if (!words.length || playing) return;
+  playing = true;
+  playBtn.textContent = "Pause";
+  setStatus("Reading.");
+  timer = setTimeout(step, gap(words[at]));
+}
+
+function stop() {
+  clearTimeout(timer);
+  timer = null;
+  playing = false;
+  playBtn.textContent = "Play";
+}
+
+function nudge(by) {
+  stop();
+  at = Math.max(0, Math.min(words.length - 1, at + by));
+  show();
+}
+
+/* ---------------------------------------------------------------- input -- */
+
+textIn.addEventListener("input", () => load(textIn.value));
+
+dropzone.addEventListener("click", () => fileInput.click());
+dropzone.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInput.click(); }
+});
+fileInput.addEventListener("change", () => {
+  if (fileInput.files.length) open(fileInput.files[0]);
+});
+
+for (const type of ["dragover", "dragenter"]) {
+  document.addEventListener(type, (e) => { e.preventDefault(); dropzone.classList.add("drag"); });
+}
+document.addEventListener("dragleave", (e) => {
+  if (e.relatedTarget === null) dropzone.classList.remove("drag");
+});
+document.addEventListener("drop", (e) => {
+  e.preventDefault();
+  dropzone.classList.remove("drag");
+  const file = e.dataTransfer.files && e.dataTransfer.files[0];
+  if (file) open(file);
+});
+
+async function open(file) {
+  try {
+    const text = await file.text();
+    textIn.value = text;
+    load(text);
+    setStatus(`${file.name} · ${words.length.toLocaleString()} words ready.`);
+  } catch (err) {
+    console.error(err);
+    setStatus(`Couldn't read that: ${err.message}`, true);
+  }
+}
+
+el("loadBtn").addEventListener("click", () => { textIn.value = EXAMPLE; load(EXAMPLE); });
+el("clearBtn").addEventListener("click", () => { textIn.value = ""; load(""); });
+
+playBtn.addEventListener("click", () => (playing ? stop() : play()));
+el("backBtn").addEventListener("click", () => nudge(-10));
+el("fwdBtn").addEventListener("click", () => nudge(10));
+el("topBtn").addEventListener("click", () => { stop(); at = 0; show(); });
+
+chunkSel.addEventListener("change", show);
+
+function syncWpm() { wpmOut.textContent = `${wpmIn.value} wpm`; show(); }
+wpmIn.addEventListener("input", syncWpm);
+
+// The keys only take over once there is something to read, and never while
+// the text box has the cursor in it.
+document.addEventListener("keydown", (e) => {
+  if (!words.length) return;
+  if (e.target === textIn || e.target.tagName === "SELECT") return;
+
+  if (e.key === " ") { e.preventDefault(); playing ? stop() : play(); }
+  else if (e.key === "ArrowLeft")  { e.preventDefault(); nudge(-1); }
+  else if (e.key === "ArrowRight") { e.preventDefault(); nudge(1); }
+  else if (e.key === "Home")       { e.preventDefault(); stop(); at = 0; show(); }
+  else if (e.key === "ArrowUp")    { e.preventDefault(); wpmIn.value = Math.min(900, +wpmIn.value + 25); syncWpm(); }
+  else if (e.key === "ArrowDown")  { e.preventDefault(); wpmIn.value = Math.max(100, +wpmIn.value - 25); syncWpm(); }
+});
+
+syncWpm();
+</script>
+</body>
+</html>
