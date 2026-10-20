@@ -212,8 +212,8 @@
   <a class="home" href="index.html">&larr; index</a>
   <h1>Noise Machine</h1>
   <p class="lede">Four noises to work, sleep or think through, built from scratch in the page by
-  the browser's own audio engine, with a drum that can beat under them and two ways of hearing a
-  beat that are not noise at all. Nothing is downloaded, because there is no recording &mdash; it
+  the browser's own audio engine, with a drum that can beat under them, something alive breathing
+  in the room, and two ways of hearing a beat that are not noise at all. Nothing is downloaded, because there is no recording &mdash; it
   is all generated as it plays. Start from one of the settings along the top, or move everything
   yourself; whatever you end up with is in the address bar, so it can be bookmarked or sent to
   somebody.</p>
@@ -346,6 +346,65 @@
   waterfall, or the inside of an aeroplane.</p>
 
   <div class="card">
+    <h2>Breathing</h2>
+
+    <div class="chips" id="beastChips"></div>
+
+    <div class="rank" style="margin-top:1.4rem">
+      <div class="field grow">
+        <label for="paceIn">Pace</label>
+        <div class="pair">
+          <input type="range" id="paceIn" min="4" max="60" step="1" value="28"
+                 style="max-width:18rem" aria-label="Breaths a minute">
+          <input type="number" id="paceNum" min="4" max="60" step="1" value="28"
+                 aria-label="Breaths a minute">
+        </div>
+        <span class="unit" id="paceNote"></span>
+      </div>
+      <div class="field grow">
+        <label for="effortIn">Effort</label>
+        <div class="pair">
+          <input type="range" id="effortIn" min="0" max="100" step="1" value="55"
+                 style="max-width:18rem" aria-label="Effort">
+          <input type="number" id="effortNum" min="0" max="100" step="1" value="55"
+                 aria-label="Effort out of a hundred">
+        </div>
+        <span class="unit" id="effortNote"></span>
+      </div>
+    </div>
+
+    <h2 style="margin-top:2rem">Purr</h2>
+    <p class="note" style="margin-top:0">Kept apart from the breathing on purpose, so a cat is not
+    the same thing as a motor and anything else can be given one. What you hear as its pitch is
+    the rate of the buzz itself rather than a note.</p>
+
+    <div class="chips" id="purrChips"></div>
+
+    <div class="rank" style="margin-top:1.4rem">
+      <div class="field grow">
+        <label for="purrIn">Rate</label>
+        <div class="pair">
+          <input type="range" id="purrIn" min="5" max="40" step="0.5" value="28"
+                 style="max-width:18rem" aria-label="Purr rate">
+          <input type="number" id="purrNum" min="5" max="40" step="0.1" value="28"
+                 aria-label="Purr rate in hertz">
+        </div>
+        <span class="unit" id="purrNote"></span>
+      </div>
+      <div class="field grow">
+        <label for="grainIn">Grain</label>
+        <div class="pair">
+          <input type="range" id="grainIn" min="0" max="100" step="1" value="55"
+                 style="max-width:18rem" aria-label="Purr grain">
+          <input type="number" id="grainNum" min="0" max="100" step="1" value="55"
+                 aria-label="Grain out of a hundred">
+        </div>
+        <span class="unit" id="grainNote"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
     <h2>Isochronic tone</h2>
 
     <div class="field">
@@ -415,6 +474,27 @@
       </div>
     </div>
   </div>
+
+  <p class="note"><strong>Breathing is one engine, not six sound effects.</strong> Noise through
+  a moving airway: a broad band of airflow with two resonances in parallel over it, shaped by an
+  envelope. Inhale gathers and exhale releases, which is the whole of it &mdash; the peak sits
+  late on the way in and early on the way out, the resonances climb slightly as the airway opens
+  and relax as the pressure goes, and the low-pass opens for the draw and closes for the release.
+  A slow irregular wobble runs underneath, so no two breaths are identical. The numbers behind
+  each creature are tuning seeds rather than measured species signatures, and two of them are
+  worth naming: the woman and the man are two adult timbre presets, not one pitched up from the
+  other, because resonance position and bandwidth are what differ and a pitch shift would just
+  sound like a pitch shift. The horse breathes through its nose, as horses do. The dragon is
+  sound design and makes no claim to be anything else: slow gestures, several low resonances, and
+  a little irregularity, rather than a horse slowed down.</p>
+
+  <p class="note"><strong>The purr is deliberately not part of the animal.</strong> Keeping it
+  separate means a cat is not synonymous with a motor, and that anything can be given one. What
+  you hear as its pitch is the rate of the buzz itself rather than a note &mdash; low-passed noise
+  chopped twenty-odd times a second for a cat on your chest, and down near eight for something
+  the size of a house, where you can nearly count the cycles. Grain is how sharply each cycle
+  starts: smooth is almost a hum, ragged is every cycle audible. It never cuts to silence, because
+  a purr does not.</p>
 
   <p class="note"><strong>The fan is noise, shaped.</strong> Brown under a low-pass that
   breathes, with a quiet tone at the blade rate underneath &mdash; a real fan has one, and
@@ -509,6 +589,20 @@ const idutyIn      = el("idutyIn");
 const idutyNum     = el("idutyNum");
 const idutyNote    = el("idutyNote");
 const isoChips     = el("isoChips");
+const beastChips   = el("beastChips");
+const paceIn       = el("paceIn");
+const paceNum      = el("paceNum");
+const paceNote     = el("paceNote");
+const effortIn     = el("effortIn");
+const effortNum    = el("effortNum");
+const effortNote   = el("effortNote");
+const purrChips    = el("purrChips");
+const purrIn       = el("purrIn");
+const purrNum      = el("purrNum");
+const purrNote     = el("purrNote");
+const grainIn      = el("grainIn");
+const grainNum     = el("grainNum");
+const grainNote    = el("grainNote");
 const idepthIn     = el("idepthIn");
 const idepthNum    = el("idepthNum");
 const idepthNote   = el("idepthNote");
@@ -536,6 +630,12 @@ const saidBox      = el("saidBox");
 
 let swapped = false;   // which ear gets the higher of the two tones
 
+let beast = "cat";
+let breathPace = 28;        // breaths a minute
+let breathEffort = 55;      // how hard it is working
+let purrRate = 28;          // a small cat up at 28, something enormous near 8
+let purrGrain = 55;         // how rough the buzz is
+
 let isoTone = 200;
 let isoRate = 10;
 let isoDuty = 50;
@@ -562,6 +662,8 @@ const SOUNDS = [
   { id: "pink",  name: "Pink",   what: "−3 dB an octave — rain, wind, river",  level: 35 },
   { id: "brown", name: "Brown",  what: "−6 dB an octave — nearly all bottom",  level: 0 },
   { id: "fan",   name: "Fan",    what: "brown under a breathing low-pass",               level: 0 },
+  { id: "breath",   name: "Breathing", what: "something alive in the room",          level: 0, trim: 0.95 },
+  { id: "purr",     name: "Purr",     what: "a cat, or something much larger",      level: 0, trim: 0.8 },
   { id: "drum",     name: "Drum",     what: "a slow pulse under the rest",           level: 0, trim: 0.55 },
   { id: "isochronic", name: "Isochronic", what: "one tone, pulsed — speakers are fine", level: 0, trim: 0.42 },
   { id: "binaural", name: "Binaural", what: "two tones, one an ear — headphones",   level: 0, trim: 0.40 },
@@ -581,6 +683,42 @@ const BANDS = [
 ];
 
 const bandAt = (hz) => BANDS.find((b) => hz >= b.from && hz < b.to) || BANDS[BANDS.length - 1];
+
+/* Breathing is one engine with anatomy presets rather than six sound
+   effects. Every figure here is a tuning seed from the source, not a measured
+   species signature: durations in seconds, hp and lp the airflow band, bands
+   the two parallel airway resonances, level the loudness of the phase. Woman
+   and man are two adult timbre presets, not one pitched up — resonance
+   positions and bandwidth do the work, which is why neither is the other
+   shifted. */
+const CREATURES = [
+  { id: "cat", name: "Cat", pace: 28,
+    inhale: { d: 0.55, hp: 450, lp: 6500, bands: [1800, 3400], level: 0.10 },
+    exhale: { d: 0.70, hp: 350, lp: 4800, bands: [1400, 2800], level: 0.085 },
+    purr: 28, says: "small, restrained nasal draw with fine high detail" },
+  { id: "dog", name: "Dog", pace: 24,
+    inhale: { d: 0.38, hp: 220, lp: 5500, bands: [900, 2200], level: 0.16 },
+    exhale: { d: 0.48, hp: 160, lp: 4200, bands: [650, 1700], level: 0.20 },
+    purr: 24, says: "nasal sniff or open mouth, and a paired pant timing" },
+  { id: "woman", name: "Woman", pace: 14,
+    inhale: { d: 1.20, hp: 250, lp: 6500, bands: [1100, 2900], level: 0.14 },
+    exhale: { d: 1.65, hp: 180, lp: 5000, bands: [850, 2300], level: 0.13 },
+    purr: 20, says: "airy draw with moderately higher airway resonances" },
+  { id: "man", name: "Man", pace: 13,
+    inhale: { d: 1.35, hp: 180, lp: 5500, bands: [800, 2200], level: 0.15 },
+    exhale: { d: 1.85, hp: 120, lp: 4200, bands: [600, 1700], level: 0.15 },
+    purr: 17, says: "airy draw with somewhat lower, broader resonances" },
+  { id: "horse", name: "Horse", pace: 12,
+    inhale: { d: 1.50, hp: 110, lp: 4800, bands: [480, 1400], level: 0.22 },
+    exhale: { d: 1.90, hp: 90, lp: 3800, bands: [350, 1050], level: 0.25 },
+    purr: 14, says: "broad nasal draw — horses breathe through the nose" },
+  { id: "dragon", name: "Dragon", pace: 6,
+    inhale: { d: 2.80, hp: 45, lp: 3500, bands: [180, 650], level: 0.26 },
+    exhale: { d: 3.60, hp: 35, lp: 2800, bands: [110, 420], level: 0.30 },
+    purr: 9, says: "slow, spacious intake over several low resonances" },
+];
+
+const creatureOf = (id) => CREATURES.find((c) => c.id === id) || CREATURES[0];
 
 /* A bar is however many beats the figure says; a hit is where in the bar it
    lands and how hard. Nothing swings and nothing is random: a pulse you are
@@ -804,6 +942,30 @@ function build(id) {
     hum.start(at);
 
     nodes.push(s, lp, body, hum, humGain, ...breathe);
+
+  } else if (id === "breath") {
+    nodes.push({ beat: breather(gain) });
+
+  } else if (id === "purr") {
+    const body = looping(noise("brown"));
+    const low = ctx.createBiquadFilter();
+    low.type = "lowpass";
+    low.frequency.value = 120 + purrRate * 16;
+    low.Q.value = 2.2;
+    const gate = ctx.createGain();
+    gate.gain.value = 0;
+    const weight = ctx.createGain();
+    weight.gain.value = 2.2;
+    body.connect(low).connect(gate).connect(weight).connect(gain);
+    body.start(at);
+    nodes.push(body, low, gate, weight, { beat: purrer(gate) });
+
+    tune = () => {
+      const now = ctx.currentTime;
+      low.frequency.cancelScheduledValues(now);
+      low.frequency.setValueAtTime(low.frequency.value, now);
+      low.frequency.linearRampToValueAtTime(120 + purrRate * 16, now + 0.1);
+    };
 
   } else if (id === "drum") {
     nodes.push({ beat: beater(gain) });
@@ -1031,6 +1193,161 @@ function pulser(gate) {
   return state;
 }
 
+/* ------------------------------------------------------- breathing -- */
+
+/* Inhale gathers; exhale releases. That is the whole art direction, and it
+   is why the two phases differ in more than level: the peak sits late in an
+   inhale and early in an exhale, the rise and fall curve differently, the
+   airway resonances climb slightly on the way in and relax on the way out,
+   and the low-pass opens for the draw and closes for the release. A slow,
+   irregular wobble runs underneath so no two breaths are the same. */
+function breathEnvelope(inhale, seconds, level) {
+  const values = new Float32Array(256);
+  const peakAt = inhale ? 0.58 : 0.22;
+  const risePower = inhale ? 1.25 : 0.70;
+  const fallPower = inhale ? 0.85 : 1.65;
+
+  const count = Math.max(5, Math.ceil(seconds * 10));
+  const knots = Array.from({ length: count }, () => 0.88 + Math.random() * 0.12);
+
+  for (let i = 0; i < values.length; i++) {
+    const u = i / (values.length - 1);
+    const shape = u < peakAt
+      ? Math.pow(u / peakAt, risePower)
+      : Math.pow((1 - u) / (1 - peakAt), fallPower);
+
+    const x = u * (knots.length - 1);
+    const k = Math.min(Math.floor(x), knots.length - 2);
+    const f = x - k;
+    const smooth = f * f * (3 - 2 * f);
+    const wobble = knots[k] + (knots[k + 1] - knots[k]) * smooth;
+
+    values[i] = level * shape * wobble;
+  }
+  values[0] = 0;
+  values[values.length - 1] = 0;
+  return values;
+}
+
+function breathe(inhale, at, out) {
+  const beastNow = creatureOf(beast);
+  const phase = inhale ? beastNow.inhale : beastNow.exhale;
+  const effort = 0.45 + (breathEffort / 100) * 1.1;
+  const seconds = phase.d * (28 / Math.max(4, breathPace)) * 0.6 + phase.d * 0.4;
+
+  const source = ctx.createBufferSource();
+  source.buffer = noise("white");
+  source.loop = true;
+
+  const hp = ctx.createBiquadFilter();
+  hp.type = "highpass";
+  hp.frequency.value = phase.hp;
+  const lp = ctx.createBiquadFilter();
+  lp.type = "lowpass";
+  lp.frequency.value = phase.lp;
+
+  const mix = ctx.createGain();
+  const envelope = ctx.createGain();
+  envelope.gain.value = 0;
+
+  source.connect(hp).connect(lp);
+
+  // The broad airflow, which is most of what a breath is.
+  const air = ctx.createGain();
+  air.gain.value = 0.65;
+  lp.connect(air).connect(mix);
+
+  // Two airway resonances in parallel, not a chain: a chain would just be a
+  // narrower filter, where parallel bands are two formants at once.
+  phase.bands.forEach((hz, index) => {
+    const band = ctx.createBiquadFilter();
+    band.type = "bandpass";
+    band.frequency.value = hz;
+    band.Q.value = 1.0;
+    const amount = ctx.createGain();
+    amount.gain.value = index === 0 ? 0.45 : 0.25;
+    lp.connect(band).connect(amount).connect(mix);
+
+    const from = inhale ? 0.90 : 1.08;
+    const to = inhale ? 1.08 : 0.88;
+    band.frequency.setValueAtTime(hz * from, at);
+    band.frequency.exponentialRampToValueAtTime(hz * to, at + seconds);
+  });
+
+  lp.frequency.setValueAtTime(phase.lp * (inhale ? 0.80 : 1.0), at);
+  lp.frequency.exponentialRampToValueAtTime(phase.lp * (inhale ? 1.0 : 0.65), at + seconds);
+
+  mix.connect(envelope).connect(out);
+  envelope.gain.setValueCurveAtTime(breathEnvelope(inhale, seconds, phase.level * effort), at, seconds);
+
+  source.start(at);
+  source.stop(at + seconds + 0.03);
+  source.onended = () => {
+    for (const node of [source, hp, lp, air, mix, envelope]) { try { node.disconnect(); } catch {} }
+  };
+  return at + seconds;
+}
+
+function breather(out) {
+  const state = { timer: null, cancelled: false, next: 0 };
+  state.next = Math.max(ctx.currentTime, openAt) + 0.1;
+  const pump = () => {
+    if (state.cancelled || !ctx) return;
+    if (state.next < ctx.currentTime - 1) state.next = ctx.currentTime + 0.1;
+    while (state.next < ctx.currentTime + 1.2) {
+      const afterIn = breathe(true, state.next, out);
+      const afterOut = breathe(false, afterIn + 0.12, out);
+      const cycle = 60 / Math.max(4, breathPace);
+      state.next = Math.max(afterOut + 0.15, state.next + cycle);
+    }
+    state.timer = setTimeout(pump, 200);
+  };
+  pump();
+  return state;
+}
+
+/* A purr is kept away from the airflow, so a cat is not synonymous with a
+   motor and anything else can be given one. What you hear as its pitch is
+   the rate of the buzz itself, not a tone: low-passed noise chopped twenty
+   to thirty times a second for a cat, and a third of that for something the
+   size of a house. */
+function purrCurve() {
+  const n = 128;
+  const out = new Float32Array(n);
+  const sharp = purrGrain / 100;
+  for (let i = 0; i < n; i++) {
+    const u = i / (n - 1);
+    const smooth = 0.5 - 0.5 * Math.cos(2 * Math.PI * u);
+    const rise = 0.18;
+    const edged = u < rise ? u / rise : Math.pow(1 - (u - rise) / (1 - rise), 1.6);
+    out[i] = 0.3 + 0.7 * (smooth * (1 - sharp) + edged * sharp);
+  }
+  return out;
+}
+
+function purrer(gate) {
+  const state = { timer: null, cancelled: false, next: 0, rate: 0 };
+  state.next = Math.max(ctx.currentTime, openAt) + 0.06;
+  const pump = () => {
+    if (state.cancelled || !ctx) return;
+    const period = 1 / purrRate;
+    if (state.rate && Math.abs(period - state.rate) > 1e-9) {
+      state.next = Math.max(state.next, ctx.currentTime + 0.03);
+    }
+    state.rate = period;
+    if (state.next < ctx.currentTime - 0.5) state.next = ctx.currentTime + 0.06;
+    const curve = purrCurve();
+    while (state.next < ctx.currentTime + LOOKAHEAD) {
+      try { gate.gain.setValueCurveAtTime(curve, state.next, period); }
+      catch { gate.gain.setValueAtTime(curve[0], state.next); }
+      state.next += period;
+    }
+    state.timer = setTimeout(pump, 40);
+  };
+  pump();
+  return state;
+}
+
 /* ------------------------------------------------------------ the mixer -- */
 
 const LEAD = 0.12;
@@ -1240,6 +1557,13 @@ function meter() {
   const on = SOUNDS.filter((s) => Number(el(`lvl-${s.id}`).value) > 0);
   bits.push(on.length ? on.map((s) => s.name.toLowerCase()).join(" + ") : "everything down");
   bits.push(`${(20 * Math.log10(Math.max(rms, 1e-5))).toFixed(0)} dB RMS`);
+
+  if (Number(el("lvl-breath").value) > 0) {
+    bits.push(`${creatureOf(beast).name.toLowerCase()} at ${breathPace} a minute`);
+  }
+  if (Number(el("lvl-purr").value) > 0) {
+    bits.push(`purring at ${purrRate}`);
+  }
 
   if (Number(el("lvl-drum").value) > 0) {
     bits.push(`${drumBpm} bpm ${(SHAPES[drumShape] || SHAPES.pulse).name.toLowerCase()}`);
@@ -1514,6 +1838,68 @@ ishapeSel.addEventListener("change", () => setIso({ shape: ishapeSel.value }));
 
 setIso({});
 
+/* ------------------------------------------------------- the breathing -- */
+
+function setBreath(next, origin) {
+  if (next.beast !== undefined && CREATURES.some((c) => c.id === next.beast)) beast = String(next.beast);
+  if (next.pace !== undefined) breathPace = clamp(Math.round(next.pace), 4, 60);
+  if (next.effort !== undefined) breathEffort = clamp(Math.round(next.effort), 0, 100);
+  if (next.purr !== undefined) purrRate = clamp(next.purr, 5, 40);
+  if (next.grain !== undefined) purrGrain = clamp(Math.round(next.grain), 0, 100);
+
+  if (origin !== "paceIn") paceIn.value = String(breathPace);
+  if (origin !== "paceNum") paceNum.value = String(breathPace);
+  if (origin !== "effortIn") effortIn.value = String(breathEffort);
+  if (origin !== "effortNum") effortNum.value = String(breathEffort);
+  if (origin !== "purrIn") purrIn.value = String(purrRate);
+  if (origin !== "purrNum") purrNum.value = String(Number(purrRate.toFixed(1)));
+  if (origin !== "grainIn") grainIn.value = String(purrGrain);
+  if (origin !== "grainNum") grainNum.value = String(purrGrain);
+  drawBreath();
+}
+
+function drawBreath() {
+  const who = creatureOf(beast);
+  const cycle = 60 / breathPace;
+  paceNote.textContent = `${breathPace} a minute — one every ${cycle.toFixed(1)}s`
+    + (breathPace === who.pace ? ` — about right for a ${who.name.toLowerCase()}` : "");
+  effortNote.textContent = breathEffort < 20 ? "barely there, asleep"
+    : breathEffort < 55 ? "resting" : breathEffort < 80 ? "working" : "hard, after running";
+
+  purrNote.textContent = purrRate >= 26 ? `${purrRate} a second — a cat on your chest`
+    : purrRate >= 18 ? `${purrRate} a second — something larger than a cat`
+    : purrRate >= 11 ? `${purrRate} a second — big enough to feel through the floor`
+    : `${purrRate} a second — slow enough to count, and the size of a house`;
+  grainNote.textContent = purrGrain < 25 ? "smooth, almost a hum"
+    : purrGrain < 70 ? "the ordinary rough buzz" : "ragged, every cycle audible";
+
+  for (const button of beastChips.children) button.classList.toggle("on", button.dataset.beast === beast);
+  for (const button of purrChips.children) {
+    button.classList.toggle("on", Math.abs(Number(button.dataset.purr) - purrRate) < 0.01);
+  }
+  if (running && lanes.purr && lanes.purr.tune) lanes.purr.tune();
+}
+
+for (const who of CREATURES) {
+  plainChip(beastChips, who.name, who.says, { beast: who.id },
+    () => setBreath({ beast: who.id, pace: who.pace, purr: who.purr }));
+}
+for (const who of CREATURES) {
+  plainChip(purrChips, `${who.name} ${who.purr}`, `a purr at the size of a ${who.name.toLowerCase()}`,
+    { purr: String(who.purr) }, () => setBreath({ purr: who.purr }));
+}
+
+paceIn.addEventListener("input", () => setBreath({ pace: num(paceIn.value, breathPace) }, "paceIn"));
+paceNum.addEventListener("input", () => setBreath({ pace: num(paceNum.value, breathPace) }, "paceNum"));
+effortIn.addEventListener("input", () => setBreath({ effort: num(effortIn.value, breathEffort) }, "effortIn"));
+effortNum.addEventListener("input", () => setBreath({ effort: num(effortNum.value, breathEffort) }, "effortNum"));
+purrIn.addEventListener("input", () => setBreath({ purr: num(purrIn.value, purrRate) }, "purrIn"));
+purrNum.addEventListener("input", () => setBreath({ purr: num(purrNum.value, purrRate) }, "purrNum"));
+grainIn.addEventListener("input", () => setBreath({ grain: num(grainIn.value, purrGrain) }, "grainIn"));
+grainNum.addEventListener("input", () => setBreath({ grain: num(grainNum.value, purrGrain) }, "grainNum"));
+
+setBreath({});
+
 /* ------------------------------------------------------------ the state -- */
 
 /* Every knob on the page, once. The presets, the ones you keep and the
@@ -1543,6 +1929,8 @@ const FIELDS = [
   { key: "brown", def: 0,  get: () => levelOf("brown"), set: (v) => setLevel("brown", v) },
   { key: "fan",   def: 0,  get: () => levelOf("fan"),   set: (v) => setLevel("fan", v) },
   { key: "drum",  def: 0,  get: () => levelOf("drum"),  set: (v) => setLevel("drum", v) },
+  { key: "breath", def: 0, get: () => levelOf("breath"), set: (v) => setLevel("breath", v) },
+  { key: "purr",  def: 0,  get: () => levelOf("purr"),  set: (v) => setLevel("purr", v) },
   { key: "iso",   def: 0,  get: () => levelOf("isochronic"), set: (v) => setLevel("isochronic", v) },
   { key: "bin",   def: 0,  get: () => levelOf("binaural"),   set: (v) => setLevel("binaural", v) },
   { key: "vol",   def: 60, get: () => Number(masterIn.value),
@@ -1554,6 +1942,11 @@ const FIELDS = [
   { key: "tone",  def: 200, get: () => carrierHz, set: (v) => setBinaural(Number(v), beatHz) },
   { key: "split", def: 10,  get: () => beatHz,    set: (v) => setBinaural(carrierHz, Number(v)) },
   { key: "swap",  def: 0,   get: () => (swapped ? 1 : 0), set: (v) => setSwap(Number(v) === 1) },
+  { key: "beast", def: "cat", get: () => beast, set: (v) => setBreath({ beast: String(v) }) },
+  { key: "pace",  def: 28, get: () => breathPace, set: (v) => setBreath({ pace: Number(v) }) },
+  { key: "eff",   def: 55, get: () => breathEffort, set: (v) => setBreath({ effort: Number(v) }) },
+  { key: "prate", def: 28, get: () => purrRate, set: (v) => setBreath({ purr: Number(v) }) },
+  { key: "grain", def: 55, get: () => purrGrain, set: (v) => setBreath({ grain: Number(v) }) },
   { key: "itone", def: 200, get: () => isoTone, set: (v) => setIso({ tone: Number(v) }) },
   { key: "irate", def: 10,  get: () => isoRate, set: (v) => setIso({ rate: Number(v) }) },
   { key: "iduty", def: 50,  get: () => isoDuty, set: (v) => setIso({ duty: Number(v) }) },
