@@ -86,21 +86,77 @@
     color: var(--text-dim);
   }
 
-  .bands {
+  .chips {
     display: flex;
     flex-wrap: wrap;
     gap: 0.4rem;
-    margin-top: 1.1rem;
+    margin-top: 0.7rem;
   }
-  .bands button {
+  .chips button {
     font-size: 0.74rem;
     padding: 0.3rem 0.7rem;
   }
-  .bands button.on {
+  .chips button.on {
     color: var(--neon);
     border-color: var(--neon);
     text-shadow: var(--text-glow);
   }
+  .chips button i {
+    font-style: normal;
+    color: var(--text-faint);
+    margin-left: 0.4rem;
+  }
+  .chips button.on i { color: var(--neon-deep); }
+
+  /* A slider to sweep with and a box to land on an exact figure: 7.83 and
+     136.1 are not values you find by dragging. */
+  .pair { display: flex; gap: 0.6rem; align-items: center; }
+  .pair input[type="range"] { flex: 1; min-width: 7rem; }
+  .pair input[type="number"] {
+    width: 6.2rem;
+    flex: none;
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.8rem;
+  }
+
+  .ears {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.82rem;
+    color: var(--neon);
+    text-shadow: var(--text-glow);
+  }
+
+  .said {
+    margin-top: 1.4rem;
+    padding: 0.9rem 1rem;
+    background: var(--sunken);
+    border: 1px solid var(--line-soft);
+    font-size: 0.8rem;
+  }
+  .said h3 {
+    margin: 0 0 0.5rem;
+    font-size: 0.74rem;
+    font-weight: 400;
+    color: var(--text-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .said p { margin: 0 0 0.5rem; color: var(--text-dim); }
+  .said p:last-child { margin-bottom: 0; }
+  .said b { font-weight: 400; color: var(--text); }
+  /* The claim and the standing of the claim are different things and are not
+     allowed to look alike. */
+  .said .holds { color: var(--text-faint); }
+  .said .holds::before {
+    content: "";
+    display: inline-block;
+    width: 6px; height: 6px;
+    margin-right: 0.45rem;
+    background: var(--neon-hot);
+  }
+  .said .holds.some::before { background: var(--neon); }
 
   .note { font-size: 0.78rem; margin-top: 1.2rem; max-width: 64ch; }
   .note strong { color: var(--text-dim); font-weight: 400; }
@@ -167,21 +223,41 @@
     reconciling them. Played through speakers they meet in the air instead and you get an ordinary
     tremolo, which is a different thing that happens to sound similar.</p>
 
-    <div class="rank">
-      <div class="field">
-        <label for="beatIn">Beat <span id="beatOut"></span></label>
-        <input type="range" id="beatIn" min="0.5" max="40" step="0.5" value="10" style="width:15rem;max-width:100%">
-        <span class="unit" id="bandOut"></span>
+    <div class="field">
+      <label for="carrierIn">Base tone — the pitch both ears hear</label>
+      <div class="pair">
+        <input type="range" id="carrierIn" min="20" max="1000" step="1" value="200"
+               style="max-width:26rem" aria-label="Base tone">
+        <input type="number" id="carrierNum" min="20" max="1000" step="0.1" value="200"
+               aria-label="Base tone in hertz">
       </div>
+      <span class="unit" id="carrierNote"></span>
+    </div>
+    <div class="chips" id="carrierChips"></div>
 
+    <div class="field" style="margin-top:1.5rem">
+      <label for="beatIn">Difference — how far apart the two are, and the rate you hear</label>
+      <div class="pair">
+        <input type="range" id="beatIn" min="0.1" max="40" step="0.1" value="10"
+               style="max-width:26rem" aria-label="Difference">
+        <input type="number" id="beatNum" min="0.1" max="40" step="0.01" value="10"
+               aria-label="Difference in hertz">
+      </div>
+      <span class="unit" id="bandOut"></span>
+    </div>
+    <div class="chips" id="beatChips"></div>
+
+    <div class="rank" style="margin-top:1.5rem">
       <div class="field">
-        <label for="carrierIn">Carrier <span id="carrierOut"></span></label>
-        <input type="range" id="carrierIn" min="60" max="500" step="5" value="200" style="width:11rem;max-width:100%">
-        <span class="unit" id="earsOut"></span>
+        <label>Where the tones land</label>
+        <span class="ears" id="earsOut"></span>
+      </div>
+      <div class="acts">
+        <button type="button" id="swapBtn" class="ghost">Higher tone: right ear</button>
       </div>
     </div>
 
-    <div class="bands" id="bands"></div>
+    <div class="said" id="saidBox"></div>
   </div>
 
   <p class="note"><strong>What the colours mean.</strong> White noise has the same energy at
@@ -240,13 +316,19 @@ const sleepSel  = el("sleepSel");
 const playBtn   = el("playBtn");
 const statusEl  = el("status");
 
-const beatIn     = el("beatIn");
-const beatOut    = el("beatOut");
-const bandOut    = el("bandOut");
-const carrierIn  = el("carrierIn");
-const carrierOut = el("carrierOut");
-const earsOut    = el("earsOut");
-const bandsEl    = el("bands");
+const beatIn       = el("beatIn");
+const beatNum      = el("beatNum");
+const bandOut      = el("bandOut");
+const beatChips    = el("beatChips");
+const carrierIn    = el("carrierIn");
+const carrierNum   = el("carrierNum");
+const carrierNote  = el("carrierNote");
+const carrierChips = el("carrierChips");
+const earsOut      = el("earsOut");
+const swapBtn      = el("swapBtn");
+const saidBox      = el("saidBox");
+
+let swapped = false;   // which ear gets the higher of the two tones
 
 // trim is the ceiling a lane's fader reaches. Noise and a bare sine are not
 // the same loudness at the same amplitude, and a low sine is quieter again
@@ -262,18 +344,65 @@ const SOUNDS = [
 
 const TRIM = 0.9;
 
-// The conventional names for the rates, and a representative one from each.
-// The names are the bands themselves; what they are supposed to do to a
-// listener is a separate and much shakier claim, left to the note below.
+// The conventional names for the rates. These are real names for real rhythms
+// in an EEG; what playing a tone at the same rate does to a listener is a
+// separate question, answered in `holds` below rather than here.
 const BANDS = [
-  { name: "Delta", from: 0.5, to: 4,  pick: 2,  of: "the rate of deep sleep" },
-  { name: "Theta", from: 4,   to: 8,  pick: 6,  of: "drowsing, and the edge of sleep" },
-  { name: "Alpha", from: 8,   to: 13, pick: 10, of: "awake, eyes closed, not working at anything" },
-  { name: "Beta",  from: 13,  to: 30, pick: 18, of: "ordinary waking attention" },
-  { name: "Gamma", from: 30,  to: 40, pick: 35, of: "the top of the range, and the least settled" },
+  { name: "Delta", from: 0.1, to: 4,  of: "the rate of deep sleep" },
+  { name: "Theta", from: 4,   to: 8,  of: "drowsing, and the edge of sleep" },
+  { name: "Alpha", from: 8,   to: 13, of: "awake, eyes closed, working at nothing" },
+  { name: "Beta",  from: 13,  to: 30, of: "ordinary waking attention" },
+  { name: "Gamma", from: 30,  to: 41, of: "the top of the range, and the least settled" },
 ];
 
 const bandAt = (hz) => BANDS.find((b) => hz >= b.from && hz < b.to) || BANDS[BANDS.length - 1];
+
+/* Popular settings, and what is said about them. `said` is the claim as it is
+   usually made. `holds` is what becomes of the claim when looked at, which is
+   a different thing and is never merged into the first. `some` marks the two
+   entries with any real research behind them, and both come with a catch. */
+
+const CARRIERS = [
+  { hz: 136.1, name: "OM",
+    said: "tuned to the length of the Earth's year, and used as a drone in meditation",
+    holds: "the arithmetic — a year halved into the audible range — works for any number you "
+         + "start from, so it picks out nothing." },
+  { hz: 256, name: "Scientific pitch",
+    said: "C as a clean power of two, proposed in the 19th century as a tidier concert standard",
+    some: true,
+    holds: "a real historical proposal, and the only one here that never claimed to do anything "
+         + "to a listener. It is just a tuning." },
+  { hz: 432, name: "Verdi's A",
+    said: "warmer and more natural than the 440 Hz everything is tuned to",
+    holds: "no reliable evidence. The handful of studies are tiny and unblinded, and a 2 % pitch "
+         + "difference is below what most people notice at all." },
+  { hz: 528, name: "Solfeggio",
+    said: "the “love frequency”, said to repair DNA",
+    holds: "nothing supports this. The frequency set was invented in the 1970s from a numerological "
+         + "reading of a medieval hymn, and DNA has no mechanism that answers to audible sound." },
+];
+
+const BEATS = [
+  { hz: 2, name: "Delta", said: "the rhythm of deep sleep, played to encourage it",
+    holds: "weak. Sleep studies on binaural beats are small and inconsistent." },
+  { hz: 6, name: "Theta", said: "meditation, reverie, the edge of sleep",
+    holds: "weak, and the hardest band to test — the state is largely self-reported." },
+  { hz: 7.83, name: "Schumann", said: "the Earth's own electromagnetic resonance, for “grounding”",
+    holds: "the resonance is real and well measured. That hearing a tone beat at the same rate "
+         + "connects you to it is not a claim with a mechanism." },
+  { hz: 10, name: "Alpha", said: "relaxed, unfocused wakefulness — the most studied of them",
+    holds: "mixed. Some relaxation effects reported; the better-controlled trials find little, "
+         + "and a quiet room with headphones on is itself relaxing." },
+  { hz: 18, name: "Beta", said: "alertness, and holding attention on a task",
+    holds: "mixed to poor, with some trials finding attention slightly worse rather than better." },
+  { hz: 40, name: "Gamma", said: "attention, and the binding of memory", some: true,
+    holds: "40 Hz has genuine research behind it — but for flickering light and clicking tones in "
+         + "Alzheimer's work, which is a different stimulus from a binaural beat, and that research "
+         + "has not transferred." },
+];
+
+// Within a hertz or so of a preset, call it that one.
+const nearest = (list, hz, tol) => list.find((p) => Math.abs(p.hz - hz) <= tol) || null;
 
 let ctx = null;
 let master = null;
@@ -447,15 +576,18 @@ function build(id) {
 
     // Split the difference either side of the carrier, so changing the beat
     // widens the gap rather than walking the pitch upward.
-    tune = (carrier, beat, ramp = 0.05) => {
+    tune = (carrier, beat, flip, ramp = 0.05) => {
       const now = ctx.currentTime;
-      for (const [osc, hz] of [[left, carrier - beat / 2], [right, carrier + beat / 2]]) {
+      const low = carrier - beat / 2;
+      const high = carrier + beat / 2;
+      const pairs = flip ? [[left, high], [right, low]] : [[left, low], [right, high]];
+      for (const [osc, hz] of pairs) {
         osc.frequency.cancelScheduledValues(now);
         osc.frequency.setValueAtTime(osc.frequency.value, now);
         osc.frequency.linearRampToValueAtTime(Math.max(1, hz), now + ramp);
       }
     };
-    tune(Number(carrierIn.value), Number(beatIn.value), 0);
+    tune(carrierHz, beatHz, swapped, 0);
   }
 
   return {
@@ -558,21 +690,91 @@ function applyLevels(ramp = 0.08) {
   }
 }
 
-function applyBinaural() {
-  const carrier = Number(carrierIn.value);
-  const beat = Number(beatIn.value);
-  const band = bandAt(beat);
+/* The slider and the box are two views of one number, not two numbers. The
+   number is the truth: a slider stepping in tenths cannot land on 7.83, so
+   the box keeps the figure and the slider shows roughly where it sits. */
+let carrierHz = 200;
+let beatHz = 10;
 
-  beatOut.textContent = `${beat.toFixed(1)} Hz`;
-  carrierOut.textContent = `${carrier} Hz`;
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+const num = (text, fallback) => {
+  const n = Number(text);
+  return text !== "" && Number.isFinite(n) ? n : fallback;
+};
+
+function setBinaural(carrier, beat, origin) {
+  carrierHz = clamp(carrier, 20, 1000);
+  beatHz = clamp(beat, 0.1, 40);
+  // Never write back into the control being typed in, or the caret jumps.
+  if (origin !== "carrierIn") carrierIn.value = String(carrierHz);
+  if (origin !== "carrierNum") carrierNum.value = String(Number(carrierHz.toFixed(1)));
+  if (origin !== "beatIn") beatIn.value = String(beatHz);
+  if (origin !== "beatNum") beatNum.value = String(Number(beatHz.toFixed(2)));
+  drawBinaural();
+}
+
+function drawBinaural() {
+  const band = bandAt(beatHz);
+  const onCarrier = nearest(CARRIERS, carrierHz, 0.6);
+  const onBeat = nearest(BEATS, beatHz, 0.05);
+
   bandOut.textContent = `${band.name.toLowerCase()} — ${band.of}`;
-  earsOut.textContent = `${(carrier - beat / 2).toFixed(1)} left · ${(carrier + beat / 2).toFixed(1)} right`;
+  carrierNote.textContent = onCarrier
+    ? `${onCarrier.name} — one of the named ones`
+    : "a hum at the bottom, a whistle at the top; the beat is clearest from 100 to 500";
 
-  for (const button of bandsEl.children) {
-    button.classList.toggle("on", button.dataset.band === band.name);
+  const low = carrierHz - beatHz / 2;
+  const high = carrierHz + beatHz / 2;
+  const [l, r] = swapped ? [high, low] : [low, high];
+  earsOut.textContent = `${l.toFixed(2)} Hz left · ${r.toFixed(2)} Hz right`;
+
+  for (const button of carrierChips.children) {
+    button.classList.toggle("on", !!onCarrier && Number(button.dataset.hz) === onCarrier.hz);
   }
+  for (const button of beatChips.children) {
+    button.classList.toggle("on", !!onBeat && Number(button.dataset.hz) === onBeat.hz);
+  }
+
+  drawSaid(onCarrier, onBeat, band);
+
   if (running && lanes.binaural && lanes.binaural.tune) {
-    lanes.binaural.tune(carrier, beat);
+    lanes.binaural.tune(carrierHz, beatHz, swapped);
+  }
+}
+
+// The claim and what becomes of the claim are two paragraphs, never one
+// sentence: running them together is how a page ends up endorsing folklore
+// by tone of voice.
+function drawSaid(onCarrier, onBeat, band) {
+  saidBox.replaceChildren();
+  const head = document.createElement("h3");
+  head.textContent = "What is said about this setting";
+  saidBox.append(head);
+
+  const picked = [];
+  if (onCarrier) picked.push(["base tone", onCarrier]);
+  if (onBeat) picked.push(["difference", onBeat]);
+
+  if (!picked.length) {
+    const only = document.createElement("p");
+    only.textContent = `Nothing in particular. ${carrierHz.toFixed(1)} Hz is just a pitch, and `
+      + `${beatHz.toFixed(2)} Hz falls in ${band.name.toLowerCase()} — ${band.of}. `
+      + `The settings people make claims about are on the buttons.`;
+    saidBox.append(only);
+    return;
+  }
+
+  for (const [what, item] of picked) {
+    const claim = document.createElement("p");
+    const label = document.createElement("b");
+    label.textContent = `${item.hz} Hz, ${item.name}, as the ${what}: `;
+    claim.append(label, document.createTextNode(`${item.said}.`));
+
+    const holds = document.createElement("p");
+    holds.className = item.some ? "holds some" : "holds";
+    holds.textContent = item.holds;
+
+    saidBox.append(claim, holds);
   }
 }
 
@@ -608,8 +810,7 @@ function meter() {
   bits.push(`${(20 * Math.log10(Math.max(rms, 1e-5))).toFixed(0)} dB RMS`);
 
   if (Number(el("lvl-binaural").value) > 0) {
-    const beat = Number(beatIn.value);
-    bits.push(`${beat.toFixed(1)} Hz beat, ${bandAt(beat).name.toLowerCase()}`);
+    bits.push(`${carrierHz.toFixed(1)} Hz, ${beatHz.toFixed(2)} Hz apart, ${bandAt(beatHz).name.toLowerCase()}`);
   }
 
   if (sleepAt) {
@@ -688,23 +889,37 @@ masterOut.textContent = `${masterIn.value}%`;
 
 /* --------------------------------------------------------- the two tones -- */
 
-for (const band of BANDS) {
+function chip(into, item, go) {
   const button = document.createElement("button");
   button.type = "button";
   button.className = "ghost";
-  button.dataset.band = band.name;
-  button.textContent = `${band.name} ${band.from}–${band.to}`;
-  button.title = band.of;
-  button.addEventListener("click", () => {
-    beatIn.value = String(band.pick);
-    applyBinaural();
-  });
-  bandsEl.appendChild(button);
+  button.dataset.hz = String(item.hz);
+  button.append(document.createTextNode(`${item.hz} Hz`));
+  const who = document.createElement("i");
+  who.textContent = item.name;
+  button.append(who);
+  button.title = item.said;
+  button.addEventListener("click", go);
+  into.append(button);
 }
 
-beatIn.addEventListener("input", applyBinaural);
-carrierIn.addEventListener("input", applyBinaural);
-applyBinaural();
+for (const item of CARRIERS) chip(carrierChips, item, () => setBinaural(item.hz, beatHz));
+for (const item of BEATS) chip(beatChips, item, () => setBinaural(carrierHz, item.hz));
+
+carrierIn.addEventListener("input", () => setBinaural(num(carrierIn.value, carrierHz), beatHz, "carrierIn"));
+carrierNum.addEventListener("input", () => setBinaural(num(carrierNum.value, carrierHz), beatHz, "carrierNum"));
+beatIn.addEventListener("input", () => setBinaural(carrierHz, num(beatIn.value, beatHz), "beatIn"));
+beatNum.addEventListener("input", () => setBinaural(carrierHz, num(beatNum.value, beatHz), "beatNum"));
+
+// Which ear gets the higher tone changes nothing about the beat, and some
+// people find one way round easier to sit with than the other.
+swapBtn.addEventListener("click", () => {
+  swapped = !swapped;
+  swapBtn.textContent = `Higher tone: ${swapped ? "left" : "right"} ear`;
+  drawBinaural();
+});
+
+setBinaural(carrierHz, beatHz);
 
 sleepSel.addEventListener("change", () => { startTimer(); say(); });
 
