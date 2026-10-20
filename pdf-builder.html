@@ -1,0 +1,926 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PDF Builder</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  /* Layout and sizing only. Colour and components live in theme.css. */
+
+  body { margin: 0; padding: 3rem 1.5rem 5rem; }
+  main { max-width: 1120px; margin: 0 auto; }
+  p.lede { margin: 0 0 2.2rem; max-width: 64ch; }
+  .card { margin-bottom: 1.5rem; }
+  .card.off { opacity: 0.45; pointer-events: none; }
+
+  h2 { margin: 0 0 0.9rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--line-soft); }
+
+  .rank { display: flex; flex-wrap: wrap; gap: 1.1rem; align-items: flex-end; }
+  .field { display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; }
+  .field label { font-size: 0.8rem; }
+  .field .unit { font-size: 0.72rem; margin-top: 0.1rem; color: var(--text-faint); }
+  .acts { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  .acts.right { margin-left: auto; }
+
+  .dropzone { padding: 1.8rem 1.5rem; text-align: center; cursor: pointer; }
+  .dropzone input { display: none; }
+  .dropzone .hint { font-size: 0.82rem; margin-top: 0.4rem; color: var(--text-faint); }
+
+  /* ------------------------------------------------------------ the sheets -- */
+
+  .sources {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 1rem;
+    font-size: 0.74rem;
+  }
+  .sources span {
+    padding: 0.25rem 0.6rem;
+    border: 1px solid var(--line-soft);
+    color: var(--text-dim);
+    font-family: var(--mono);
+  }
+  .sources span i { font-style: normal; color: var(--text-faint); margin-left: 0.4rem; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+    gap: 0.8rem;
+    margin-top: 1.2rem;
+  }
+
+  .sheet {
+    position: relative;
+    border: 1px solid var(--line-soft);
+    background: var(--sunken);
+    cursor: grab;
+    user-select: none;
+    padding-bottom: 1.5rem;
+  }
+  .sheet.on { border-color: var(--neon); box-shadow: var(--glow-soft); }
+  .sheet.dragging { opacity: 0.35; }
+  .sheet.before { border-left-color: var(--neon-hot); border-left-width: 3px; }
+  .sheet.after { border-right-color: var(--neon-hot); border-right-width: 3px; }
+
+  .sheet .paper {
+    display: block;
+    width: 100%;
+    aspect-ratio: 1 / 1.3;
+    object-fit: contain;
+    background: #fff;
+    transition: transform 0.15s ease;
+  }
+  .sheet .blank { background: repeating-linear-gradient(45deg, #fff, #fff 6px, #f1f1f1 6px, #f1f1f1 12px); }
+  .sheet .waiting { background: var(--raised); }
+
+  .sheet .tag {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    display: flex;
+    justify-content: space-between;
+    gap: 0.3rem;
+    padding: 0.18rem 0.35rem;
+    font-family: var(--mono);
+    font-size: 0.64rem;
+    color: var(--text-faint);
+    background: var(--bg);
+  }
+  .sheet .tag b { color: var(--text-dim); font-weight: 400; }
+  .sheet .tag em { font-style: normal; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .tally {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.78rem;
+    color: var(--text-faint);
+    margin-top: 1rem;
+  }
+  .tally b { color: var(--text); font-weight: 400; }
+
+  .status { font-size: 0.85rem; margin-top: 0.9rem; min-height: 1.2em; }
+  .status.bad { color: var(--neon-hot); }
+
+  .turnaway {
+    margin-top: 1rem;
+    padding: 0.8rem 1rem;
+    border-left: 2px solid var(--neon-hot);
+    background: var(--sunken);
+    font-size: 0.8rem;
+    color: var(--text-dim);
+  }
+  .turnaway a { color: var(--neon); }
+
+  .note { font-size: 0.78rem; margin-top: 1.2rem; max-width: 70ch; }
+  .note strong { color: var(--text-dim); font-weight: 400; }
+
+  @media (max-width: 620px) {
+    body { padding: 2rem 1rem 4rem; }
+    .grid { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); }
+  }
+</style>
+</head>
+<body>
+<main>
+  <a class="home" href="index.html">&larr; index</a>
+  <h1>PDF Builder</h1>
+  <p class="lede">Put documents in, take one document out. Every page of everything you drop in
+  turns up as a thumbnail you can drag into order, delete, rotate or duplicate, and what you are
+  left with saves as a single PDF. PDFs keep their pages exactly as they were &mdash; the real
+  page is copied over, fonts and all, not a picture of it. Word, OpenDocument, Markdown and plain
+  text are set as fresh pages here, because they have no pages of their own until something lays
+  them out.</p>
+
+  <div class="card">
+    <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Choose documents">
+      <div>Drop documents here, or click to choose them</div>
+      <div class="hint"><code>.pdf</code> <code>.docx</code> <code>.odt</code> <code>.md</code>
+      <code>.txt</code> <code>.rtf</code> &middot; nothing is uploaded</div>
+      <input type="file" id="fileInput" multiple
+             accept=".pdf,.docx,.odt,.md,.markdown,.txt,.text,.rtf">
+    </div>
+
+    <div class="sources" id="sources"></div>
+    <div class="status" id="status">Nothing loaded yet.</div>
+    <div class="turnaway" id="turnaway" hidden></div>
+  </div>
+
+  <div class="card off" id="deskCard">
+    <h2>The pages</h2>
+
+    <div class="rank">
+      <div class="acts">
+        <button type="button" id="allBtn" class="ghost">Select all</button>
+        <button type="button" id="noneBtn" class="ghost">None</button>
+        <button type="button" id="invertBtn" class="ghost">Invert</button>
+      </div>
+      <div class="acts">
+        <button type="button" id="leftBtn" class="ghost">Rotate left</button>
+        <button type="button" id="rightBtn" class="ghost">Rotate right</button>
+        <button type="button" id="dupBtn" class="ghost">Duplicate</button>
+        <button type="button" id="blankBtn" class="ghost">Insert blank</button>
+      </div>
+      <div class="acts">
+        <button type="button" id="upBtn" class="ghost">To front</button>
+        <button type="button" id="downBtn" class="ghost">To back</button>
+        <button type="button" id="reverseBtn" class="ghost">Reverse</button>
+      </div>
+      <div class="acts right">
+        <button type="button" id="deleteBtn">Delete</button>
+      </div>
+    </div>
+
+    <div class="grid" id="grid"></div>
+    <div class="tally" id="tally"></div>
+  </div>
+
+  <div class="card off" id="outCard">
+    <div class="rank">
+      <div class="field">
+        <label for="nameIn">Save as</label>
+        <input type="text" id="nameIn" value="built" style="width:14rem">
+        <span class="unit">.pdf is added for you</span>
+      </div>
+      <div class="field">
+        <label for="sizeSel">Pages made from text</label>
+        <select id="sizeSel">
+          <option value="letter" selected>Letter</option>
+          <option value="a4">A4</option>
+        </select>
+        <span class="unit">the size new pages are set at</span>
+      </div>
+      <div class="acts right">
+        <button type="button" id="saveBtn">Save the PDF</button>
+      </div>
+    </div>
+    <div class="status" id="outStatus"></div>
+  </div>
+
+  <p class="note"><strong>A copied page is the page, not a picture of it.</strong> When a PDF goes
+  in, its pages are carried across whole &mdash; the text stays text, the fonts come with it, and
+  anything searchable stays searchable. That is the difference between this and rasterising a
+  document: nothing is re-encoded, so nothing is lost and the file does not balloon. Rotation is
+  recorded as the page's own rotation rather than by redrawing it, which is why it costs nothing
+  and can be undone by turning it back.</p>
+
+  <p class="note"><strong>Word and OpenDocument have no pages until something makes them.</strong>
+  A <code>.docx</code> is a zip of XML describing a flow of paragraphs; where the page breaks fall
+  is decided by whatever opens it. So those are laid out here &mdash; unzipped in the page, the
+  paragraphs read out, headings kept as headings, and the text set onto fresh pages at the size
+  you choose. It is a faithful reading of the words and an honest admission about everything else:
+  columns, tables, floated images and precise spacing are not reproduced. If a document's layout
+  matters, export it to PDF from the program that made it and drop that in instead.</p>
+
+  <p class="note"><strong>Everything happens in this tab.</strong> The zip reading is the
+  browser's own <code>DecompressionStream</code>; the PDF work is
+  <a href="vendor/pdf-lib/">pdf-lib</a> for building and <a href="vendor/pdfjs/">pdf.js</a> for
+  the thumbnails, both vendored in this repository rather than fetched from anywhere. No file is
+  uploaded and nothing leaves the page.</p>
+</main>
+
+<script src="vendor/pdf-lib/pdf-lib.min.js"></script>
+<script src="vendor/pdfjs/pdf.min.js"></script>
+<script src="vendor/pdfjs/pdf.worker.min.js"></script>
+<script>
+"use strict";
+
+const el = (id) => document.getElementById(id);
+
+const dropzone = el("dropzone");
+const gridEl = el("grid");
+const statusEl = el("status");
+const sourcesEl = el("sources");
+const turnaway = el("turnaway");
+
+const PAPER = { letter: [612, 792], a4: [595.28, 841.89] };
+
+let docs = new Map();      // id -> { id, name, lib, bytes, count, built }
+let pages = [];            // { key, docId, index, rotate, blank }
+let selected = new Set();
+let nextId = 1;
+let anchor = null;         // for shift-clicking a run
+const thumbs = new Map();  // `${docId}:${index}` -> dataURL
+
+function setStatus(words, bad = false) {
+  statusEl.textContent = words;
+  statusEl.classList.toggle("bad", bad);
+}
+
+/* ------------------------------------------------------------- the zips -- */
+
+/* A .docx and an .odt are both a zip of XML. The central directory at the end
+   is the index and DecompressionStream inflates the entries, so neither half
+   of the job needs a library. */
+
+function findEOCD(view) {
+  const earliest = Math.max(0, view.byteLength - 0xffff - 22);
+  for (let at = view.byteLength - 22; at >= earliest; at--) {
+    if (view.getUint32(at, true) === 0x06054b50) return at;
+  }
+  throw new Error("that isn't a zip container");
+}
+
+function readZip(buffer) {
+  const view = new DataView(buffer);
+  const eocd = findEOCD(view);
+  const count = view.getUint16(eocd + 10, true);
+  let at = view.getUint32(eocd + 16, true);
+  if (at === 0xffffffff || count === 0xffff) throw new Error("Zip64 archives aren't supported");
+
+  const entries = new Map();
+  for (let i = 0; i < count; i++) {
+    if (view.getUint32(at, true) !== 0x02014b50) throw new Error("its central directory is corrupt");
+    const flags = view.getUint16(at + 8, true);
+    const nameLength = view.getUint16(at + 28, true);
+    const name = new TextDecoder(flags & 0x800 ? "utf-8" : "windows-1252")
+      .decode(buffer.slice(at + 46, at + 46 + nameLength));
+    entries.set(name, {
+      name,
+      method: view.getUint16(at + 10, true),
+      packedSize: view.getUint32(at + 20, true),
+      localOffset: view.getUint32(at + 42, true),
+      encrypted: (flags & 0x1) !== 0,
+    });
+    at += 46 + nameLength + view.getUint16(at + 30, true) + view.getUint16(at + 32, true);
+  }
+  return entries;
+}
+
+async function unzipEntry(file, entry) {
+  if (entry.encrypted) throw new Error(`${entry.name} is password-protected`);
+  const header = new DataView(await file.slice(entry.localOffset, entry.localOffset + 30).arrayBuffer());
+  if (header.getUint32(0, true) !== 0x04034b50) throw new Error(`${entry.name} has a corrupt local header`);
+  const start = entry.localOffset + 30 + header.getUint16(26, true) + header.getUint16(28, true);
+  const packed = file.slice(start, start + entry.packedSize);
+  if (entry.method === 0) return packed;
+  if (entry.method !== 8) throw new Error(`${entry.name} uses compression method ${entry.method}`);
+  return new Response(packed.stream().pipeThrough(new DecompressionStream("deflate-raw"))).blob();
+}
+
+/* ------------------------------------------------------------- the words -- */
+
+// Blocks rather than a wall of text: a heading has to stay a heading, or the
+// document that comes out is a different document.
+async function readDocx(file) {
+  const entries = readZip(await file.arrayBuffer());
+  const main = entries.get("word/document.xml");
+  if (!main) throw new Error("there is no word/document.xml inside it");
+  const xml = await (await unzipEntry(file, main)).text();
+  const doc = new DOMParser().parseFromString(xml, "application/xml");
+  if (doc.querySelector("parsererror")) throw new Error("its XML would not parse");
+
+  const blocks = [];
+  for (const node of doc.getElementsByTagName("*")) {
+    if (node.localName !== "p") continue;
+    let text = "";
+    for (const run of node.getElementsByTagName("*")) {
+      if (run.localName === "t") text += run.textContent;
+      else if (run.localName === "tab") text += "  ";
+      else if (run.localName === "br") text += "\n";
+    }
+    const style = [...node.getElementsByTagName("*")].find((n) => n.localName === "pStyle");
+    const named = style ? (style.getAttribute("w:val") || style.getAttribute("val") || "") : "";
+    const heading = /^heading\s*([1-6])$/i.exec(named.replace(/[-_]/g, " "));
+    blocks.push({ text: text.trim(), level: heading ? Number(heading[1]) : 0 });
+  }
+  return blocks;
+}
+
+async function readOdt(file) {
+  const entries = readZip(await file.arrayBuffer());
+  const main = entries.get("content.xml");
+  if (!main) throw new Error("there is no content.xml inside it");
+  const xml = await (await unzipEntry(file, main)).text();
+  const doc = new DOMParser().parseFromString(xml, "application/xml");
+  if (doc.querySelector("parsererror")) throw new Error("its XML would not parse");
+
+  const blocks = [];
+  for (const node of doc.getElementsByTagName("*")) {
+    if (node.localName !== "p" && node.localName !== "h") continue;
+    const level = node.localName === "h"
+      ? Number(node.getAttribute("text:outline-level") || node.getAttribute("outline-level") || 1)
+      : 0;
+    blocks.push({ text: node.textContent.trim(), level: Math.min(6, level) });
+  }
+  return blocks;
+}
+
+function readPlain(text, markdown) {
+  const blocks = [];
+  for (const raw of text.replace(/\r\n?/g, "\n").split(/\n{2,}/)) {
+    const line = raw.trim();
+    if (!line) continue;
+    const head = markdown ? /^(#{1,6})\s+(.*)$/.exec(line) : null;
+    if (head) blocks.push({ text: head[2], level: head[1].length });
+    else blocks.push({ text: line.replace(/\n/g, " "), level: 0 });
+  }
+  return blocks;
+}
+
+// RTF is a brace language wrapped round the text. This pulls the words out
+// and makes no attempt at the formatting, which is what it is here for.
+function readRtf(text) {
+  let out = text
+    .replace(/\\'([0-9a-f]{2})/gi, (all, hex) => String.fromCharCode(parseInt(hex, 16)))
+    .replace(/\\u(-?\d+)\s?\??/g, (all, code) => String.fromCharCode(Number(code) & 0xffff))
+    .replace(/\\par[d]?\b/g, "\n")
+    .replace(/\\line\b/g, "\n")
+    .replace(/\\tab\b/g, "  ")
+    .replace(/\{\\\*[^{}]*\}/g, "")
+    .replace(/\\[a-z]+-?\d*\s?/gi, "")
+    .replace(/[{}]/g, "");
+  return readPlain(out, false);
+}
+
+/* The standard fonts speak WinAnsi and nothing else, so anything outside it
+   has to be dealt with before it reaches the page rather than thrown at
+   draw time. The common typographic characters are mapped to what they
+   stand in for; the rest are counted and reported rather than silently lost. */
+const STANDS_FOR = {
+  "‘": "'", "’": "'", "‚": ",", "“": '"', "”": '"',
+  "–": "-", "—": "--", "…": "...", " ": " ", "•": "-",
+  "→": "->", "←": "<-", "­": "", "​": "", "﻿": "",
+  " ": " ", " ": " ", "−": "-", "×": "x",
+};
+
+let dropped = 0;
+
+function winAnsi(text) {
+  let out = "";
+  for (const ch of text) {
+    if (STANDS_FOR[ch] !== undefined) { out += STANDS_FOR[ch]; continue; }
+    const code = ch.codePointAt(0);
+    if (code === 9 || code === 10) { out += " "; continue; }
+    if (code >= 32 && code <= 255) { out += ch; continue; }
+    dropped++;
+  }
+  return out;
+}
+
+function wrap(text, font, size, maxWidth) {
+  const words = text.split(/\s+/).filter(Boolean);
+  const lines = [];
+  let line = "";
+  for (const word of words) {
+    const tryIt = line ? `${line} ${word}` : word;
+    if (font.widthOfTextAtSize(tryIt, size) <= maxWidth) { line = tryIt; continue; }
+    if (line) lines.push(line);
+    // A single word too long for the measure is broken rather than left to
+    // run off the edge of the paper.
+    let rest = word;
+    while (font.widthOfTextAtSize(rest, size) > maxWidth && rest.length > 1) {
+      let cut = rest.length;
+      while (cut > 1 && font.widthOfTextAtSize(rest.slice(0, cut), size) > maxWidth) cut--;
+      lines.push(rest.slice(0, cut));
+      rest = rest.slice(cut);
+    }
+    line = rest;
+  }
+  if (line) lines.push(line);
+  return lines.length ? lines : [""];
+}
+
+async function setText(blocks, paper) {
+  const { PDFDocument, StandardFonts } = PDFLib;
+  const doc = await PDFDocument.create();
+  const body = await doc.embedFont(StandardFonts.Helvetica);
+  const strong = await doc.embedFont(StandardFonts.HelveticaBold);
+
+  const [width, height] = PAPER[paper] || PAPER.letter;
+  const margin = 64;
+  const measure = width - margin * 2;
+
+  let page = doc.addPage([width, height]);
+  let y = height - margin;
+
+  const room = (needed) => {
+    if (y - needed >= margin) return;
+    page = doc.addPage([width, height]);
+    y = height - margin;
+  };
+
+  for (const block of blocks) {
+    const text = winAnsi(block.text);
+    if (!text) continue;
+    const size = block.level ? Math.max(11, 22 - block.level * 2.5) : 11;
+    const font = block.level ? strong : body;
+    const leading = size * 1.42;
+
+    y -= block.level ? size * 0.9 : size * 0.5;
+    for (const line of wrap(text, font, size, measure)) {
+      room(leading);
+      page.drawText(line, { x: margin, y: y - size, size, font });
+      y -= leading;
+    }
+  }
+  if (doc.getPageCount() === 0) doc.addPage([width, height]);
+  return doc;
+}
+
+/* ------------------------------------------------------------ the intake -- */
+
+const KIND = (name) => {
+  const ext = (name.split(".").pop() || "").toLowerCase();
+  if (ext === "pdf") return "pdf";
+  if (ext === "docx" || ext === "docm" || ext === "dotx") return "docx";
+  if (ext === "odt" || ext === "ott") return "odt";
+  if (ext === "rtf") return "rtf";
+  if (["md", "markdown", "txt", "text", "log", "csv"].includes(ext)) return "plain";
+  return null;
+};
+
+async function take(file) {
+  const kind = KIND(file.name);
+  if (!kind) throw new Error("not a paginated document");
+
+  const paper = el("sizeSel").value;
+  const id = `d${nextId++}`;
+  let lib;
+  let built = false;
+
+  if (kind === "pdf") {
+    lib = await PDFLib.PDFDocument.load(await file.arrayBuffer(), { ignoreEncryption: true });
+  } else {
+    built = true;
+    const blocks = kind === "docx" ? await readDocx(file)
+      : kind === "odt" ? await readOdt(file)
+      : kind === "rtf" ? readRtf(await file.text())
+      : readPlain(await file.text(), /\.(md|markdown)$/i.test(file.name));
+    if (!blocks.length) throw new Error("there are no words in it");
+    lib = await setText(blocks, paper);
+  }
+
+  const count = lib.getPageCount();
+  if (!count) throw new Error("it has no pages");
+  const bytes = await lib.save();
+
+  docs.set(id, { id, name: file.name, lib, bytes, count, built });
+  for (let i = 0; i < count; i++) {
+    pages.push({ key: `p${nextId++}`, docId: id, index: i, rotate: 0, blank: false });
+  }
+  return count;
+}
+
+async function intake(files) {
+  const refused = [];
+  let added = 0;
+  dropped = 0;
+
+  for (const file of files) {
+    if (!KIND(file.name)) { refused.push(file.name); continue; }
+    setStatus(`Reading ${file.name}…`);
+    try {
+      added += await take(file);
+    } catch (err) {
+      console.error(err);
+      refused.push(`${file.name} — ${err.message}`);
+    }
+  }
+
+  drawSources();
+  drawGrid();
+  if (added) {
+    el("deskCard").classList.remove("off");
+    el("outCard").classList.remove("off");
+    setStatus(`${added} page${added === 1 ? "" : "s"} added.`
+      + (dropped ? ` ${dropped} character${dropped === 1 ? "" : "s"} outside the standard fonts were dropped.` : ""));
+  } else if (!refused.length) {
+    setStatus("Nothing to add.");
+  }
+
+  if (refused.length) {
+    turnaway.hidden = false;
+    turnaway.innerHTML = `<strong>Not taken:</strong> ${refused.map(escapeHtml).join(", ")}.
+      This page wants documents that already have pages, or text that can be given some.
+      A picture, a screenshot or a scan belongs in
+      <a href="images-to-pdf.html">Images &rarr; PDF</a>, which will make a searchable document
+      out of it; anything else at all goes through
+      <a href="anything-to-image.html">Anything &rarr; Image</a> first. Bring the PDF back here.`;
+  } else {
+    turnaway.hidden = true;
+  }
+}
+
+const escapeHtml = (text) => String(text)
+  .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+/* ------------------------------------------------------------- the sheets -- */
+
+function drawSources() {
+  sourcesEl.replaceChildren();
+  for (const doc of docs.values()) {
+    const used = pages.filter((p) => p.docId === doc.id).length;
+    if (!used && !doc.count) continue;
+    const chip = document.createElement("span");
+    chip.textContent = doc.name;
+    const note = document.createElement("i");
+    note.textContent = `${used} of ${doc.count}${doc.built ? " · set here" : ""}`;
+    chip.append(note);
+    sourcesEl.append(chip);
+  }
+}
+
+let watcher = null;
+
+function drawGrid() {
+  if (watcher) watcher.disconnect();
+  watcher = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      if (entry.isIntersecting) { paint(entry.target); watcher.unobserve(entry.target); }
+    }
+  }, { rootMargin: "300px" });
+
+  gridEl.replaceChildren();
+  pages.forEach((page, at) => {
+    const sheet = document.createElement("div");
+    sheet.className = "sheet" + (selected.has(page.key) ? " on" : "");
+    sheet.dataset.key = page.key;
+    sheet.draggable = true;
+    sheet.tabIndex = 0;
+
+    const paper = document.createElement(page.blank ? "div" : "img");
+    paper.className = "paper " + (page.blank ? "blank" : "waiting");
+    paper.style.transform = `rotate(${page.rotate}deg)`;
+    if (!page.blank) paper.alt = "";
+    sheet.append(paper);
+
+    const tag = document.createElement("div");
+    tag.className = "tag";
+    const where = document.createElement("b");
+    where.textContent = String(at + 1);
+    const from = document.createElement("em");
+    from.textContent = page.blank ? "blank" : `${docs.get(page.docId).name} ${page.index + 1}`;
+    tag.append(where, from);
+    sheet.append(tag);
+
+    gridEl.append(sheet);
+    if (!page.blank) watcher.observe(sheet);
+  });
+
+  drawTally();
+  drawSources();
+}
+
+async function paint(sheet) {
+  const page = pages.find((p) => p.key === sheet.dataset.key);
+  if (!page || page.blank) return;
+  const img = sheet.querySelector("img");
+  if (!img) return;
+  const cacheKey = `${page.docId}:${page.index}`;
+
+  if (!thumbs.has(cacheKey)) {
+    try {
+      thumbs.set(cacheKey, await render(page.docId, page.index));
+    } catch (err) {
+      console.error(err);
+      thumbs.set(cacheKey, null);
+    }
+  }
+  const url = thumbs.get(cacheKey);
+  if (url) { img.src = url; img.classList.remove("waiting"); }
+}
+
+const opened = new Map();
+
+async function render(docId, index) {
+  if (!opened.has(docId)) {
+    const doc = docs.get(docId);
+    opened.set(docId, pdfjsLib.getDocument({ data: doc.bytes.slice() }).promise);
+  }
+  const pdf = await opened.get(docId);
+  const page = await pdf.getPage(index + 1);
+  const first = page.getViewport({ scale: 1 });
+  const scale = Math.min(200 / first.width, 260 / first.height);
+  const viewport = page.getViewport({ scale });
+
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.ceil(viewport.width);
+  canvas.height = Math.ceil(viewport.height);
+  await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+  return canvas.toDataURL("image/png");
+}
+
+function drawTally() {
+  const bits = [`<b>${pages.length}</b> page${pages.length === 1 ? "" : "s"}`];
+  if (selected.size) bits.push(`<b>${selected.size}</b> selected`);
+  const sources = new Set(pages.map((p) => p.docId)).size;
+  if (sources > 1) bits.push(`from <b>${sources}</b> documents`);
+  const turned = pages.filter((p) => p.rotate % 360 !== 0).length;
+  if (turned) bits.push(`<b>${turned}</b> turned`);
+  el("tally").innerHTML = bits.join(" · ");
+}
+
+/* --------------------------------------------------------- the selecting -- */
+
+gridEl.addEventListener("click", (e) => {
+  const sheet = e.target.closest(".sheet");
+  if (!sheet) return;
+  const key = sheet.dataset.key;
+  const at = pages.findIndex((p) => p.key === key);
+
+  if (e.shiftKey && anchor !== null) {
+    const from = Math.min(anchor, at), to = Math.max(anchor, at);
+    if (!e.ctrlKey && !e.metaKey) selected.clear();
+    for (let i = from; i <= to; i++) selected.add(pages[i].key);
+  } else if (e.ctrlKey || e.metaKey) {
+    if (selected.has(key)) selected.delete(key); else selected.add(key);
+    anchor = at;
+  } else {
+    const only = selected.size === 1 && selected.has(key);
+    selected.clear();
+    if (!only) selected.add(key);
+    anchor = at;
+  }
+  paintSelection();
+});
+
+function paintSelection() {
+  for (const sheet of gridEl.children) {
+    sheet.classList.toggle("on", selected.has(sheet.dataset.key));
+  }
+  drawTally();
+}
+
+const chosen = () => pages.filter((p) => selected.has(p.key));
+
+function needPages(what) {
+  if (selected.size) return true;
+  setStatus(`Select the pages to ${what} first.`, true);
+  return false;
+}
+
+/* ---------------------------------------------------------- the arranging -- */
+
+el("allBtn").addEventListener("click", () => { selected = new Set(pages.map((p) => p.key)); paintSelection(); });
+el("noneBtn").addEventListener("click", () => { selected.clear(); paintSelection(); });
+el("invertBtn").addEventListener("click", () => {
+  const was = selected;
+  selected = new Set(pages.filter((p) => !was.has(p.key)).map((p) => p.key));
+  paintSelection();
+});
+
+function turn(by) {
+  if (!needPages("turn")) return;
+  for (const page of chosen()) page.rotate = (((page.rotate + by) % 360) + 360) % 360;
+  drawGrid();
+  setStatus(`Turned ${selected.size} page${selected.size === 1 ? "" : "s"}.`);
+}
+el("leftBtn").addEventListener("click", () => turn(-90));
+el("rightBtn").addEventListener("click", () => turn(90));
+
+el("deleteBtn").addEventListener("click", () => {
+  if (!needPages("delete")) return;
+  const going = selected.size;
+  pages = pages.filter((p) => !selected.has(p.key));
+  selected.clear();
+  anchor = null;
+  drawGrid();
+  setStatus(`Deleted ${going} page${going === 1 ? "" : "s"}.`);
+  if (!pages.length) {
+    el("deskCard").classList.add("off");
+    el("outCard").classList.add("off");
+    setStatus("Every page is gone. Drop something in to start again.");
+  }
+});
+
+el("dupBtn").addEventListener("click", () => {
+  if (!needPages("duplicate")) return;
+  const made = [];
+  const next = [];
+  for (const page of pages) {
+    next.push(page);
+    if (selected.has(page.key)) {
+      const copy = { ...page, key: `p${nextId++}` };
+      next.push(copy);
+      made.push(copy.key);
+    }
+  }
+  pages = next;
+  selected = new Set(made);
+  drawGrid();
+  setStatus(`Duplicated ${made.length} page${made.length === 1 ? "" : "s"}.`);
+});
+
+el("blankBtn").addEventListener("click", () => {
+  const at = selected.size
+    ? Math.max(...pages.map((p, i) => (selected.has(p.key) ? i : -1))) + 1
+    : pages.length;
+  const sheet = { key: `p${nextId++}`, docId: null, index: 0, rotate: 0, blank: true };
+  pages.splice(at, 0, sheet);
+  selected = new Set([sheet.key]);
+  drawGrid();
+  setStatus("A blank page was put in.");
+});
+
+function shunt(toFront) {
+  if (!needPages("move")) return;
+  const moving = pages.filter((p) => selected.has(p.key));
+  const rest = pages.filter((p) => !selected.has(p.key));
+  pages = toFront ? [...moving, ...rest] : [...rest, ...moving];
+  drawGrid();
+  setStatus(`Moved ${moving.length} page${moving.length === 1 ? "" : "s"} to the ${toFront ? "front" : "back"}.`);
+}
+el("upBtn").addEventListener("click", () => shunt(true));
+el("downBtn").addEventListener("click", () => shunt(false));
+
+el("reverseBtn").addEventListener("click", () => {
+  pages.reverse();
+  drawGrid();
+  setStatus("The order was reversed.");
+});
+
+/* ---------------------------------------------------------- the dragging -- */
+
+let dragKey = null;
+
+gridEl.addEventListener("dragstart", (e) => {
+  const sheet = e.target.closest(".sheet");
+  if (!sheet) return;
+  dragKey = sheet.dataset.key;
+  sheet.classList.add("dragging");
+  e.dataTransfer.effectAllowed = "move";
+  try { e.dataTransfer.setData("text/plain", dragKey); } catch {}
+});
+
+gridEl.addEventListener("dragover", (e) => {
+  if (!dragKey) return;
+  e.preventDefault();
+  const sheet = e.target.closest(".sheet");
+  for (const other of gridEl.children) other.classList.remove("before", "after");
+  if (!sheet || sheet.dataset.key === dragKey) return;
+  const box = sheet.getBoundingClientRect();
+  sheet.classList.add(e.clientX < box.left + box.width / 2 ? "before" : "after");
+});
+
+gridEl.addEventListener("drop", (e) => {
+  if (!dragKey) return;
+  e.preventDefault();
+  const sheet = e.target.closest(".sheet");
+  for (const other of gridEl.children) other.classList.remove("before", "after");
+  if (!sheet || sheet.dataset.key === dragKey) return;
+
+  const box = sheet.getBoundingClientRect();
+  const after = e.clientX >= box.left + box.width / 2;
+
+  // Everything selected travels with the page being dragged, so a run can be
+  // moved in one go rather than one sheet at a time.
+  const moving = selected.has(dragKey) && selected.size > 1
+    ? pages.filter((p) => selected.has(p.key))
+    : [pages.find((p) => p.key === dragKey)];
+  const movingKeys = new Set(moving.map((p) => p.key));
+
+  const rest = pages.filter((p) => !movingKeys.has(p.key));
+  let at = rest.findIndex((p) => p.key === sheet.dataset.key);
+  if (at < 0) at = rest.length - 1;
+  rest.splice(at + (after ? 1 : 0), 0, ...moving);
+  pages = rest;
+  drawGrid();
+  setStatus(`Moved ${moving.length} page${moving.length === 1 ? "" : "s"}.`);
+});
+
+gridEl.addEventListener("dragend", () => {
+  dragKey = null;
+  for (const other of gridEl.children) other.classList.remove("dragging", "before", "after");
+});
+
+document.addEventListener("keydown", (e) => {
+  if (/^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement?.tagName || "")) return;
+  if ((e.key === "Delete" || e.key === "Backspace") && selected.size) {
+    e.preventDefault();
+    el("deleteBtn").click();
+  } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a" && pages.length) {
+    e.preventDefault();
+    el("allBtn").click();
+  }
+});
+
+/* ------------------------------------------------------------- the intake -- */
+
+dropzone.addEventListener("click", () => el("fileInput").click());
+dropzone.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" || e.key === " ") { e.preventDefault(); el("fileInput").click(); }
+});
+el("fileInput").addEventListener("change", async (e) => {
+  const files = [...e.target.files];
+  e.target.value = "";
+  if (files.length) await intake(files);
+});
+for (const kind of ["dragenter", "dragover"]) {
+  dropzone.addEventListener(kind, (e) => { e.preventDefault(); dropzone.classList.add("over"); });
+}
+for (const kind of ["dragleave", "drop"]) {
+  dropzone.addEventListener(kind, () => dropzone.classList.remove("over"));
+}
+dropzone.addEventListener("drop", async (e) => {
+  e.preventDefault();
+  const files = [...e.dataTransfer.files];
+  if (files.length) await intake(files);
+});
+
+/* -------------------------------------------------------------- the save -- */
+
+el("saveBtn").addEventListener("click", async () => {
+  if (!pages.length) { el("outStatus").textContent = "There are no pages to save."; return; }
+  el("saveBtn").disabled = true;
+  el("outStatus").textContent = "Building…";
+
+  try {
+    const { PDFDocument } = PDFLib;
+    const out = await PDFDocument.create();
+
+    /* Copied in one batch per source rather than one call per page. Each
+       copy carries the page's own resources across with it, so a page that
+       was text stays text and a font is embedded once rather than per page. */
+    const wanted = new Map();                 // docId -> [pageIndex, ...]
+    for (const page of pages) {
+      if (page.blank) continue;
+      if (!wanted.has(page.docId)) wanted.set(page.docId, []);
+      wanted.get(page.docId).push(page.index);
+    }
+
+    const copies = new Map();                 // docId -> [copied page, ...]
+    for (const [docId, indices] of wanted) {
+      copies.set(docId, await out.copyPages(docs.get(docId).lib, indices));
+    }
+
+    const taken = new Map();
+    const [blankW, blankH] = PAPER[el("sizeSel").value] || PAPER.letter;
+
+    for (const page of pages) {
+      if (page.blank) { out.addPage([blankW, blankH]); continue; }
+      const at = taken.get(page.docId) || 0;
+      taken.set(page.docId, at + 1);
+      const copied = copies.get(page.docId)[at];
+      // Recorded as the page's own rotation, so nothing is redrawn and
+      // nothing is lost: turning it back undoes it exactly.
+      if (page.rotate % 360 !== 0) {
+        const was = copied.getRotation().angle || 0;
+        copied.setRotation(PDFLib.degrees((((was + page.rotate) % 360) + 360) % 360));
+      }
+      out.addPage(copied);
+    }
+
+    const bytes = await out.save();
+    const name = (el("nameIn").value.trim() || "built").replace(/[^\w .-]+/g, " ").slice(0, 60);
+    const blob = new Blob([bytes], { type: "application/pdf" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${name}.pdf`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+
+    el("outStatus").textContent =
+      `Saved ${link.download} — ${pages.length} page${pages.length === 1 ? "" : "s"}, `
+      + `${(blob.size / 1024).toFixed(0)} KB.`;
+  } catch (err) {
+    console.error(err);
+    el("outStatus").textContent = `Could not build it: ${err.message}`;
+  } finally {
+    el("saveBtn").disabled = false;
+  }
+});
+</script>
+</body>
+</html>
