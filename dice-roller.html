@@ -1,0 +1,1973 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dice Roller</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  /* Layout and sizing only. Colour, type and component styling live in theme.css. */
+
+  body { margin: 0; padding: 3rem 1.5rem 5rem; }
+  main { max-width: 860px; margin: 0 auto; }
+  p.lede { margin: 0 0 2.2rem; max-width: 60ch; }
+  .card { margin-bottom: 1.5rem; }
+
+  .rank { display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-end; }
+  .field { display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; flex: 1 1 18rem; }
+  .field label { font-size: 0.8rem; }
+
+  #expr {
+    font-family: var(--mono);
+    font-size: 1.05rem;
+    letter-spacing: 0.04em;
+    padding: 0.6rem 0.7rem;
+  }
+  #rollBtn { padding: 0.72rem 1.7rem; font-size: 0.95rem; }
+
+  .quick { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-top: 1rem; }
+  .quick .cap { font-size: 0.75rem; color: var(--text-faint); letter-spacing: 0.06em; }
+  .quick .seg button { font-size: 0.78rem; padding: 0.3rem 0.65rem; font-family: var(--mono); }
+
+  #err { display: none; margin: 1rem 0 0; font-size: 0.85rem; }
+  #err.on { display: block; }
+
+  /* ------------------------------------------------------------- total -- */
+
+  /* The one figure you actually want, set as large as the card will take,
+     with the arithmetic that made it directly underneath. */
+  .total { text-align: center; padding: 1.3rem 0 0.2rem; }
+  .total .n {
+    display: block;
+    font-weight: 200;
+    font-size: clamp(3.2rem, 13vw, 5.6rem);
+    line-height: 1;
+    letter-spacing: 0.01em;
+    font-variant-numeric: tabular-nums;
+    color: var(--neon);
+    text-shadow: var(--text-glow);
+  }
+  .total .n.none { color: var(--text-faint); text-shadow: none; }
+  .total .say {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    letter-spacing: 0.06em;
+    color: var(--text-faint);
+    min-height: 1.3em;
+    margin-top: 0.4rem;
+    word-break: break-word;
+  }
+
+  .terms { margin-top: 1.4rem; }
+  .term {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    align-items: baseline;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .term:last-child { border-bottom: none; }
+  .term .tag {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    flex: none;
+    min-width: 6ch;
+  }
+  .pip {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.82rem;
+    border: 1px solid var(--line-soft);
+    padding: 0.05rem 0.4rem;
+    color: var(--text);
+    min-width: 2.6ch;
+    text-align: center;
+  }
+  /* The two rolls a table actually reacts to get a mark, and nothing else
+     does: the top of the die lit, the bottom of it dimmed. */
+  .pip.top { color: var(--neon); border-color: var(--neon-deep); text-shadow: var(--text-glow); }
+  .pip.bottom { color: var(--text-faint); }
+  .pip.flat { border-style: dashed; color: var(--text-dim); }
+  .term .sum {
+    margin-left: auto;
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.82rem;
+    color: var(--text-dim);
+    flex: none;
+    padding-left: 0.8rem;
+  }
+
+  /* --------------------------------------------------------- the table -- */
+
+  #tray {
+    display: block;
+    width: 100%;
+    height: min(52vh, 420px);
+    background: var(--sunken);
+    border: 1px solid var(--line-soft);
+    touch-action: none;
+  }
+  .trayBar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.9rem;
+    align-items: center;
+    margin-top: 0.7rem;
+    font-size: 0.78rem;
+  }
+  .trayBar .what { color: var(--text-faint); flex: 1 1 16rem; min-width: 0; }
+  .trayBar label { display: flex; align-items: center; gap: 0.4rem; font-size: 0.78rem; }
+
+  /* -------------------------------------------------- the many throws -- */
+
+  .runs { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; font-size: 0.9rem; }
+  .runs input {
+    width: 9rem;
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+  #simBtn { padding: 0.55rem 1.3rem; }
+
+  #plotWrap { margin-top: 1.3rem; display: none; }
+  #plotWrap.on { display: block; }
+  #plot {
+    display: block;
+    width: 100%;
+    height: min(44vh, 330px);
+    touch-action: none;
+  }
+  #plot:focus-visible { outline: 1px solid var(--neon); outline-offset: 2px; }
+
+  .readout {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    min-height: 1.4em;
+    margin-top: 0.5rem;
+    word-break: break-word;
+  }
+  .figures {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 1.6rem;
+    margin-top: 0.7rem;
+    font-size: 0.78rem;
+    color: var(--text-faint);
+  }
+  .figures b {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-weight: 400;
+    color: var(--text);
+  }
+  .plotActs { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-top: 1rem; }
+
+  /* The same numbers as the chart, for anyone the chart does not reach. */
+  #table { display: none; margin-top: 1rem; max-height: 17rem; overflow: auto; }
+  #table.on { display: block; }
+  #table table { border-collapse: collapse; width: 100%; font-size: 0.78rem; }
+  #table th, #table td {
+    text-align: right;
+    padding: 0.2rem 0.5rem;
+    border-bottom: 1px solid var(--line-soft);
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+  }
+  #table th { color: var(--text-faint); font-weight: 400; position: sticky; top: 0; background: var(--raised); }
+  #table td:first-child, #table th:first-child { text-align: left; }
+  #table tr.mine td { color: var(--neon); }
+
+  /* ----------------------------------------------------------- the log -- */
+
+  .log { max-height: 19rem; overflow: auto; margin-top: 0.3rem; }
+  .entry {
+    display: flex;
+    gap: 0.9rem;
+    padding: 0.4rem 0.2rem;
+    border-bottom: 1px solid var(--line-soft);
+    font-size: 0.85rem;
+    align-items: baseline;
+  }
+  .entry:last-child { border-bottom: none; }
+  .entry .at {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.72rem;
+    color: var(--text-faint);
+    flex: none;
+    width: 9ch;
+  }
+  .entry .roll { font-family: var(--mono); font-size: 0.8rem; color: var(--text-dim); flex: none; }
+  .entry .got {
+    margin-left: auto;
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--neon);
+    flex: none;
+  }
+  .empty { font-size: 0.85rem; color: var(--text-faint); padding: 0.6rem 0.2rem; }
+
+  .acts { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-left: auto; }
+
+  .note { font-size: 0.78rem; margin-top: 1.2rem; max-width: 66ch; }
+  .note strong { color: var(--text-dim); font-weight: 400; }
+  .note code { font-family: var(--mono); font-size: 0.92em; color: var(--text-dim); }
+  kbd { font-family: var(--mono); font-size: 0.9em; border: 1px solid var(--line); padding: 0 0.3em; }
+
+  @media (max-width: 620px) {
+    body { padding: 2rem 1rem 4rem; }
+    .acts { margin-left: 0; width: 100%; }
+    #rollBtn { flex: 1; }
+    .term .sum { margin-left: 0; padding-left: 0; width: 100%; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <a class="home" href="index.html">&larr; index</a>
+  <h1>Dice Roller</h1>
+  <p class="lede">Type the roll the way you would say it &mdash; <code>2d6</code>,
+  <code>5d6 + 2d3</code>, <code>d20 + 7</code> &mdash; and watch it land. Every die in the roll
+  is a solid of the right number of faces, thrown across the table and left showing the number
+  it rolled. Then throw the same roll a million times over and see the shape of what it can
+  do.</p>
+
+  <div class="card">
+    <div class="rank">
+      <div class="field">
+        <label for="expr">The roll</label>
+        <input type="text" id="expr" value="2d6" spellcheck="false" autocomplete="off"
+               autocapitalize="off" placeholder="2d6 + 1d4 - 1" aria-describedby="err">
+      </div>
+      <button type="button" id="rollBtn">Roll</button>
+    </div>
+
+    <div class="quick">
+      <span class="cap">Add</span>
+      <div class="seg" id="quick">
+        <button type="button" data-sides="4">d4</button>
+        <button type="button" data-sides="6">d6</button>
+        <button type="button" data-sides="8">d8</button>
+        <button type="button" data-sides="10">d10</button>
+        <button type="button" data-sides="12">d12</button>
+        <button type="button" data-sides="20">d20</button>
+        <button type="button" data-sides="100">d100</button>
+      </div>
+      <button type="button" id="clearExpr" class="ghost">Empty it</button>
+    </div>
+
+    <p class="status error" id="err" role="alert"></p>
+
+    <div class="total">
+      <span class="n none" id="total">&mdash;</span>
+      <div class="say" id="say">Nothing rolled yet.</div>
+    </div>
+
+    <div class="terms" id="terms"></div>
+  </div>
+
+  <div class="card">
+    <canvas id="tray" role="img" aria-label="The dice, at rest"></canvas>
+    <div class="trayBar">
+      <span class="what" id="trayNote">The table is empty.</span>
+      <label><input type="checkbox" id="tumble" checked> Throw them</label>
+      <button type="button" id="againBtn" class="ghost">Throw again</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="runs">
+      <label for="runs">Simulate this roll</label>
+      <input type="text" id="runs" placeholder="1,000,000" spellcheck="false" autocomplete="off"
+             inputmode="numeric" aria-label="How many times to simulate the roll">
+      <span>times</span>
+      <button type="button" id="simBtn">Simulate</button>
+      <button type="button" id="stopBtn" class="ghost" disabled>Stop</button>
+    </div>
+    <p class="status" id="simSay">Leave the box empty and it runs the roll a million times.</p>
+
+    <div id="plotWrap">
+      <canvas id="plot" tabindex="0" role="img" aria-label="Distribution of simulated totals"></canvas>
+      <div class="readout" id="readout"></div>
+      <div class="figures" id="figures"></div>
+      <div class="plotActs">
+        <button type="button" id="tableBtn" class="ghost" aria-expanded="false">Show the numbers</button>
+        <button type="button" id="copySim" class="ghost">Copy the numbers</button>
+      </div>
+      <div id="table"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="rank" style="margin-bottom:0.6rem">
+      <div class="field" style="flex:0 1 auto"><label>What has been rolled</label></div>
+      <div class="acts">
+        <button type="button" id="copyBtn" class="ghost">Copy</button>
+        <button type="button" id="clearBtn" class="ghost">Clear the log</button>
+      </div>
+    </div>
+    <div class="log" id="log"></div>
+  </div>
+
+  <p class="note"><strong>The shapes are the real ones.</strong> Where a die of that many faces
+  exists, that is what you get: a tetrahedron for the d4, a cube, an octahedron, the ten-sided
+  trapezohedron with its kite faces, a dodecahedron, an icosahedron. An odd number of sides comes
+  out as a barrel &mdash; a prism with that many faces around it and a point at each end, which is
+  what a real d3, d5 or d7 is, because a prism with flat ends would stand up on one. Any other even
+  number is a bipyramid, two cones of triangles meeting at the equator, which is how a d14 or a d16
+  is made. The d4 is read at the top corner rather than the top face, the way a d4 with numbers at
+  its corners is.</p>
+
+  <p class="note"><strong>Past twenty-four faces it is shown on a twenty.</strong> There is no
+  honest solid with a hundred readable faces, so a d100 &mdash; or a d37, or anything else over
+  twenty-four &mdash; is rolled properly and landed on an icosahedron with the number it rolled
+  written on the face that came up. The other faces carry other numbers from the same range, which
+  is decoration; the one facing the ceiling is the result, and it is the same number as the one in
+  the breakdown above.</p>
+
+  <p class="note"><strong>The tumble is decoration over a result already decided.</strong> Every
+  die is rolled the moment you press the button, and the throw is then aimed so each one lands with
+  that face up. Said plainly because the alternative &mdash; letting the physics decide &mdash;
+  would make the fairness of the roll a property of the collision code, which is not a thing
+  anybody should have to audit. Turn <em>Throw them</em> off and the dice are simply set down
+  showing their numbers, which is also what happens if your system asks for reduced motion.</p>
+
+  <p class="note"><strong>The numbers come from the system's own randomness.</strong>
+  <code>crypto.getRandomValues</code> rather than <code>Math.random</code>, and the remainder is
+  taken only from the part of the range that divides evenly &mdash; draws that fall in the ragged
+  tail are thrown away and drawn again. Without that last step a d6 taken as <code>random % 6</code>
+  gives the low faces a hair more often than the high ones, which is small enough never to be
+  noticed and still a loaded die.</p>
+
+  <p class="note"><strong>A million throws is what you get for leaving the box empty.</strong>
+  Type a number for any other count, up to ten million. The chart is every total that came up and
+  how often, as a share of the throws rather than a count, so the shape is the same whether you
+  ran a thousand or a million; the mark across it is the roll sitting on the table above. Where
+  there are more totals than there are columns of pixels &mdash; a hundred dice have ninety
+  thousand of them &mdash; neighbouring totals share a bar, and the caption under the chart says
+  how many to a bar. Point at a bar, or walk it with the arrow keys, for that one's exact figures,
+  and <em>Show the numbers</em> is the same thing as a table you can read or copy.</p>
+
+  <p class="note"><strong>The simulation is not the roller.</strong> Rolling a hundred dice a
+  million times is a hundred million numbers, and asking the operating system for them one at a
+  time takes minutes. So the simulation seeds a fast generator &mdash; sfc32 &mdash; from
+  <code>crypto.getRandomValues</code> and runs from there, still throwing away the ragged tail so
+  each die stays even. It is worked in slices of twenty milliseconds, which is why the page still
+  answers while the count climbs and why <em>Stop</em> stops it where it stands and charts what it
+  has. The dice on the table above are never simulated; those are drawn one at a time from the
+  system.</p>
+
+  <p class="note"><strong>It will take anything you can say out loud.</strong> <code>XdY</code>
+  terms and plain numbers, added and subtracted: <code>4d6 + 2</code>, <code>d20 - 1</code>,
+  <code>2d8 + 1d6 + 3</code>. The <code>X</code> can be left off for one die. Up to a hundred dice
+  in a roll and a thousand sides on any of them, after which the tray and the arithmetic both stop
+  being useful. A die showing its highest face is lit in the breakdown and a 1 is dimmed, so a
+  natural twenty reads from across the room.</p>
+
+  <p class="note"><strong>It remembers.</strong> The roll you typed, whether the dice are thrown,
+  and the last forty results are kept in this browser, on this page. <kbd>Enter</kbd> in the box
+  rolls again. Nothing is sent anywhere.</p>
+</main>
+
+<script>
+"use strict";
+
+const el = (id) => document.getElementById(id);
+
+const exprIn   = el("expr");
+const errEl    = el("err");
+const totalEl  = el("total");
+const sayEl    = el("say");
+const termsEl  = el("terms");
+const logEl    = el("log");
+const trayNote = el("trayNote");
+const tumbleIn = el("tumble");
+const againBtn = el("againBtn");
+const canvas   = el("tray");
+const brush    = canvas.getContext("2d");
+
+const KEY = "dice-roller";
+const CAP = 40;            // log entries kept; the rest fall off the bottom
+const DICE_CAP = 100;      // dice in one roll
+const SIDES_CAP = 1000;    // faces on one die
+const SOLID_CAP = 24;      // the most faces we will build a solid for
+
+let entries = [];
+
+/* ================================================================ roll == */
+
+/* XdY terms and plain numbers, added and subtracted, and nothing else. The
+   count may be left off for one die. Every refusal says which part it could
+   not read, because "invalid expression" tells you nothing at a table. */
+function parseRoll(text) {
+  const src = String(text).replace(/\s+/g, "");
+  if (!src) return { error: "Type a roll first — 2d6, or d20 + 3." };
+
+  const terms = [];
+  let at = 0;
+  let sign = 1;
+  let many = 0;
+
+  while (at < src.length) {
+    if (terms.length || src[at] === "+" || src[at] === "-") {
+      const ch = src[at];
+      if (ch !== "+" && ch !== "-") {
+        return { error: `“${src.slice(at)}” needs a + or a - in front of it.` };
+      }
+      sign = ch === "-" ? -1 : 1;
+      at++;
+      if (at >= src.length) return { error: `The ${ch} on the end has nothing after it.` };
+    }
+
+    const m = /^(\d*)[dD](\d+)|^(\d+)/.exec(src.slice(at));
+    if (!m) return { error: `There is no “${src[at]}” in a roll — dice, numbers, + and - only.` };
+    at += m[0].length;
+
+    if (m[3] !== undefined) { terms.push({ kind: "flat", sign, value: Number(m[3]) }); continue; }
+
+    const count = m[1] === "" ? 1 : Number(m[1]);
+    const sides = Number(m[2]);
+    if (count < 1) return { error: `${m[0]} is no dice at all.` };
+    if (sides < 2) return { error: `A die needs at least two sides; ${m[0]} has nothing to roll.` };
+    if (sides > SIDES_CAP) {
+      return { error: `A d${sides} is further than this goes — ${SIDES_CAP} sides is the most.` };
+    }
+    many += count;
+    if (many > DICE_CAP) {
+      return { error: `${many} dice is more than the table holds — ${DICE_CAP} is the most.` };
+    }
+    terms.push({ kind: "dice", sign, count, sides });
+  }
+  return { terms };
+}
+
+/* The remainder of a random 32-bit number is only uniform over a range that
+   divides it evenly, so the ragged tail is drawn again rather than folded in.
+   Without this a d6 comes up 1 and 2 very slightly more often than 5 and 6 —
+   too little to notice and still a loaded die. */
+const bucket = new Uint32Array(1);
+function rollDie(sides) {
+  const cut = Math.floor(0x100000000 / sides) * sides;
+  let n;
+  do { crypto.getRandomValues(bucket); n = bucket[0]; } while (n >= cut);
+  return (n % sides) + 1;
+}
+
+const sum = (list) => list.reduce((a, b) => a + b, 0);
+
+function rollTerms(terms) {
+  return terms.map((t) => t.kind === "dice"
+    ? { ...t, rolls: Array.from({ length: t.count }, () => rollDie(t.sides)) }
+    : { ...t });
+}
+
+const subtotal = (t) => (t.kind === "dice" ? sum(t.rolls) : t.value);
+const totalOf = (rolled) => rolled.reduce((n, t) => n + t.sign * subtotal(t), 0);
+
+/* ============================================================== showing == */
+
+function span(cls, text) {
+  const node = document.createElement("span");
+  node.className = cls;
+  node.textContent = text;
+  return node;
+}
+
+function nameOf(t) {
+  return (t.kind === "dice" ? `${t.count}d${t.sides}` : String(t.value));
+}
+
+/* The arithmetic, written out. Every die shows while there are few enough to
+   read; past that each term collapses to its own total, because forty
+   addends on one line is not an explanation of anything. */
+function workingOf(rolled) {
+  const howMany = rolled.reduce((n, t) => n + (t.kind === "dice" ? t.count : 0), 0);
+  const parts = rolled.map((t, i) => {
+    const sign = t.sign < 0 ? "- " : i ? "+ " : "";
+    let body;
+    if (t.kind === "flat") body = String(t.value);
+    else if (howMany > 16) body = `${nameOf(t)} → ${sum(t.rolls)}`;
+    else if (t.rolls.length > 1) body = `(${t.rolls.join(" + ")})`;
+    else body = String(t.rolls[0]);
+    return sign + body;
+  });
+  return parts.join(" ");
+}
+
+/* One die and nothing else adds up to itself, and writing "80 = 80" under an
+   80 helps nobody; what is worth saying there is what it was thrown out of. */
+function sayOf(rolled, total) {
+  if (rolled.length === 1 && rolled[0].kind === "dice" && rolled[0].count === 1) {
+    const { lo, hi } = spread(rolled);
+    // One die has no breakdown to light a natural top in, so it is said here.
+    const edge = total === hi ? " \u2014 the top of it" : total === lo ? " \u2014 the bottom of it" : "";
+    return `${nameOf(rolled[0])}, out of ${lo} to ${hi}${edge}`;
+  }
+  return `${workingOf(rolled)} = ${total}`;
+}
+
+function paintTerms(rolled) {
+  termsEl.textContent = "";
+  if (rolled.length < 2 && rolled[0] && rolled[0].kind === "dice" && rolled[0].count < 2) return;
+  for (const t of rolled) {
+    const row = document.createElement("div");
+    row.className = "term";
+    row.append(span("tag", (t.sign < 0 ? "-" : "") + nameOf(t)));
+    if (t.kind === "dice") {
+      for (const v of t.rolls) {
+        row.append(span("pip" + (v === t.sides ? " top" : v === 1 ? " bottom" : ""), String(v)));
+      }
+    } else {
+      row.append(span("pip flat", String(t.value)));
+    }
+    row.append(span("sum", `${t.sign < 0 ? "-" : "+"} ${subtotal(t)}`));
+    termsEl.append(row);
+  }
+}
+
+function paintLog() {
+  logEl.textContent = "";
+  if (!entries.length) {
+    const none = document.createElement("div");
+    none.className = "empty";
+    none.textContent = "Nothing rolled yet.";
+    logEl.append(none);
+    return;
+  }
+  for (const entry of entries) {
+    const row = document.createElement("div");
+    row.className = "entry";
+    row.append(span("at", entry.at), span("roll", entry.expr), span("got", String(entry.total)));
+    logEl.append(row);
+  }
+}
+
+/* Kept as what was rolled rather than as the markup that showed it, so the
+   log can be copied out and nothing from storage reaches the parser. */
+function save() {
+  try {
+    localStorage.setItem(KEY, JSON.stringify({
+      expr: exprIn.value, tumble: tumbleIn.checked, entries: entries.slice(0, CAP),
+    }));
+  } catch {}
+}
+
+function load() {
+  let held = null;
+  try { held = JSON.parse(localStorage.getItem(KEY) || "null"); } catch {}
+  if (!held || typeof held !== "object") return;
+  if (typeof held.expr === "string") exprIn.value = held.expr;
+  if (typeof held.tumble === "boolean") tumbleIn.checked = held.tumble;
+  entries = Array.isArray(held.entries)
+    ? held.entries.filter((e) => e && typeof e.at === "string" && typeof e.expr === "string"
+        && Number.isFinite(e.total)).slice(0, CAP)
+    : [];
+}
+
+/* =============================================================== solids == */
+
+const v3 = (x, y, z) => ({ x, y, z });
+const add = (a, b) => v3(a.x + b.x, a.y + b.y, a.z + b.z);
+const sub = (a, b) => v3(a.x - b.x, a.y - b.y, a.z - b.z);
+const mul = (a, k) => v3(a.x * k, a.y * k, a.z * k);
+const dot = (a, b) => a.x * b.x + a.y * b.y + a.z * b.z;
+const cross = (a, b) => v3(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x);
+const vlen = (a) => Math.sqrt(dot(a, a));
+const unit = (a) => mul(a, 1 / (vlen(a) || 1));
+const perp = (a) => unit(cross(a, Math.abs(a.x) < 0.9 ? v3(1, 0, 0) : v3(0, 1, 0)));
+
+const qMul = (a, b) => ({
+  w: a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z,
+  x: a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y,
+  y: a.w * b.y - a.x * b.z + a.y * b.w + a.z * b.x,
+  z: a.w * b.z + a.x * b.y - a.y * b.x + a.z * b.w,
+});
+const qUnit = (q) => {
+  const l = Math.hypot(q.w, q.x, q.y, q.z) || 1;
+  return { w: q.w / l, x: q.x / l, y: q.y / l, z: q.z / l };
+};
+const qAxis = (axis, angle) => {
+  const s = Math.sin(angle / 2);
+  return { w: Math.cos(angle / 2), x: axis.x * s, y: axis.y * s, z: axis.z * s };
+};
+function turn(q, v) {                      // v rotated by q
+  const u = v3(q.x, q.y, q.z);
+  const t = mul(cross(u, v), 2);
+  return add(add(v, mul(t, q.w)), cross(u, t));
+}
+/* The shortest rotation taking one direction to another: used to tip a die
+   onto the face it rolled without spinning it any further than it has to. */
+function qBetween(a, b) {
+  const d = dot(a, b);
+  if (d > 0.999999) return { w: 1, x: 0, y: 0, z: 0 };
+  if (d < -0.999999) { const ax = perp(a); return { w: 0, x: ax.x, y: ax.y, z: ax.z }; }
+  const c = cross(a, b);
+  return qUnit({ w: 1 + d, x: c.x, y: c.y, z: c.z });
+}
+function qSlerp(a, b, t) {
+  let d = a.w * b.w + a.x * b.x + a.y * b.y + a.z * b.z;
+  let to = b;
+  if (d < 0) { to = { w: -b.w, x: -b.x, y: -b.y, z: -b.z }; d = -d; }
+  if (d > 0.9995) {
+    return qUnit({ w: a.w + (to.w - a.w) * t, x: a.x + (to.x - a.x) * t,
+                   y: a.y + (to.y - a.y) * t, z: a.z + (to.z - a.z) * t });
+  }
+  const th = Math.acos(d);
+  const s = Math.sin(th);
+  const k0 = Math.sin((1 - t) * th) / s;
+  const k1 = Math.sin(t * th) / s;
+  return { w: a.w * k0 + to.w * k1, x: a.x * k0 + to.x * k1,
+           y: a.y * k0 + to.y * k1, z: a.z * k0 + to.z * k1 };
+}
+
+/* Faces out of nothing but a pile of corners. For a convex solid a plane
+   through three of its vertices with every other vertex on one side of it is
+   a face — there is no other way for such a plane to touch the hull — so the
+   whole face list falls out of a triple loop, and every solid below is
+   described by its corners alone. Slow in principle and nothing at this size:
+   the largest of these has forty-eight corners, and each solid is built once. */
+function hullFaces(pts) {
+  const EPS = 1e-6;
+  const found = new Map();
+  const n = pts.length;
+  for (let a = 0; a < n; a++) {
+    for (let b = a + 1; b < n; b++) {
+      for (let c = b + 1; c < n; c++) {
+        let nrm = cross(sub(pts[b], pts[a]), sub(pts[c], pts[a]));
+        const l = vlen(nrm);
+        if (l < 1e-9) continue;                       // three in a line
+        nrm = mul(nrm, 1 / l);
+        let d = dot(nrm, pts[a]);
+        let over = 0;
+        let under = 0;
+        for (let i = 0; i < n; i++) {
+          const side = dot(nrm, pts[i]) - d;
+          if (side > EPS) over++; else if (side < -EPS) under++;
+        }
+        if (over && under) continue;                  // a plane through the solid
+        if (over) { nrm = mul(nrm, -1); d = -d; }     // make the normal the outward one
+        const key = `${Math.round(nrm.x * 1e4)},${Math.round(nrm.y * 1e4)},${Math.round(nrm.z * 1e4)}`;
+        if (found.has(key)) continue;
+
+        const verts = [];
+        for (let i = 0; i < n; i++) if (Math.abs(dot(nrm, pts[i]) - d) < EPS) verts.push(i);
+        if (verts.length < 3) continue;
+
+        let mid = v3(0, 0, 0);
+        for (const i of verts) mid = add(mid, pts[i]);
+        mid = mul(mid, 1 / verts.length);
+
+        // Wound anticlockwise seen from outside, so the winding is consistent
+        // and a back face is the one whose normal points away from the eye.
+        const u = unit(sub(pts[verts[0]], mid));
+        const w = cross(nrm, u);
+        const around = (i) => {
+          const p = sub(pts[i], mid);
+          return Math.atan2(dot(p, w), dot(p, u));
+        };
+        verts.sort((i, j) => around(i) - around(j));
+
+        let area = 0;
+        for (let i = 1; i + 1 < verts.length; i++) {
+          area += vlen(cross(sub(pts[verts[i]], pts[verts[0]]),
+                             sub(pts[verts[i + 1]], pts[verts[0]]))) / 2;
+        }
+        found.set(key, { normal: nrm, verts, mid, area, read: -1 });
+      }
+    }
+  }
+  return [...found.values()];
+}
+
+const PHI = (1 + Math.sqrt(5)) / 2;
+
+function ring(many, radius, y, twist = 0) {
+  const out = [];
+  for (let i = 0; i < many; i++) {
+    const a = twist + (i * Math.PI * 2) / many;
+    out.push(v3(Math.cos(a) * radius, y, Math.sin(a) * radius));
+  }
+  return out;
+}
+
+function icosaPoints() {
+  const p = [];
+  for (const a of [-1, 1]) for (const b of [-PHI, PHI]) p.push(v3(0, a, b), v3(a, b, 0), v3(b, 0, a));
+  return p;
+}
+
+function dodecaPoints() {
+  const p = [];
+  for (const x of [-1, 1]) for (const y of [-1, 1]) for (const z of [-1, 1]) p.push(v3(x, y, z));
+  const i = 1 / PHI;
+  for (const a of [-i, i]) for (const b of [-PHI, PHI]) p.push(v3(0, a, b), v3(a, b, 0), v3(b, 0, a));
+  return p;
+}
+
+/* The d10. Two rings of five, a half-step out of phase, and a point at each
+   end: the kites are only flat for one height, which is the ratio below —
+   put the apex anywhere else and the ten faces become twenty triangles. */
+function trapezohedron(k) {
+  const beta = Math.PI / k;
+  const c = (1 - Math.cos(beta)) / (1 + Math.cos(beta));
+  return [v3(0, 1, 0), v3(0, -1, 0), ...ring(k, 1, c), ...ring(k, 1, -c, beta)];
+}
+
+const SHAPE_WORD = {
+  coin: "a two-sided flip",
+  tetra: "a tetrahedron",
+  cube: "a cube",
+  octa: "an octahedron",
+  trap: "a ten-sided trapezohedron",
+  dodeca: "a dodecahedron",
+  icosa: "an icosahedron",
+  bipyramid: "a bipyramid",
+  barrel: "a barrel",
+  "stand-in": "a twenty, standing in",
+};
+
+function solidPoints(sides) {
+  if (sides === 2) return { pts: [...ring(22, 1, 0.17), ...ring(22, 1, -0.17)], reads: 2, kind: "coin" };
+  if (sides === 4) return { pts: [v3(1, 1, 1), v3(1, -1, -1), v3(-1, 1, -1), v3(-1, -1, 1)], reads: 4, kind: "tetra" };
+  if (sides === 6) {
+    const p = [];
+    for (const x of [-1, 1]) for (const y of [-1, 1]) for (const z of [-1, 1]) p.push(v3(x, y, z));
+    return { pts: p, reads: 6, kind: "cube" };
+  }
+  if (sides === 8) return { pts: [v3(0, 1, 0), v3(0, -1, 0), ...ring(4, 1, 0)], reads: 8, kind: "octa" };
+  if (sides === 10) return { pts: trapezohedron(5), reads: 10, kind: "trap" };
+  if (sides === 12) return { pts: dodecaPoints(), reads: 12, kind: "dodeca" };
+  if (sides === 20) return { pts: icosaPoints(), reads: 20, kind: "icosa" };
+  // Nothing honest has this many readable faces, so the number is rolled
+  // properly and landed on a twenty with that number written on it.
+  if (sides > SOLID_CAP) return { pts: icosaPoints(), reads: 20, kind: "stand-in" };
+  // Any other even number: two cones of triangles meeting at the equator.
+  if (sides % 2 === 0) {
+    return { pts: [v3(0, 1.12, 0), v3(0, -1.12, 0), ...ring(sides / 2, 1, 0)], reads: sides, kind: "bipyramid" };
+  }
+  // Odd: a barrel, numbered around the sides, pointed at both ends so that it
+  // cannot come to rest on one. Which is what a real d3, d5 or d7 is.
+  return {
+    pts: [v3(0, 1.6, 0), v3(0, -1.6, 0), ...ring(sides, 1, 0.72), ...ring(sides, 1, -0.72)],
+    reads: sides,
+    kind: "barrel",
+  };
+}
+
+const shapes = new Map();
+
+function shapeFor(sides) {
+  const held = shapes.get(sides);
+  if (held) return held;
+
+  const spec = solidPoints(sides);
+  let pts = spec.pts;
+  const faces = hullFaces(pts);
+  // The faces that carry numbers are the big ones: the sides of a barrel
+  // rather than the triangles of its caps, the two flats of a coin rather
+  // than its rim. On a solid where every face is the same they are all of them.
+  faces.sort((a, b) => b.area - a.area);
+  const reads = faces.slice(0, Math.min(spec.reads, faces.length));
+  reads.forEach((f, i) => { f.read = i; });
+
+  // Scaled on the average distance of a corner from the middle, so a die of
+  // any shape is about as big as the next one in the tray. Not on the face
+  // distance, which makes a coin enormous, and not on the furthest corner,
+  // which makes a barrel a splinter.
+  let far = 0;
+  for (const p of pts) far += vlen(p);
+  const k = pts.length / far;
+  pts = pts.map((p) => mul(p, k));
+  for (const f of faces) { f.mid = mul(f.mid, k); f.area *= k * k; }
+
+  // How big a number will sit on each face: the room between the middle of
+  // the face and its nearest edge, so the long thin sides of a barrel carry a
+  // smaller figure than the flats of a coin rather than overrunning them.
+  for (const f of faces) {
+    let room = Infinity;
+    for (let i = 0; i < f.verts.length; i++) {
+      const a = pts[f.verts[i]];
+      const b = pts[f.verts[(i + 1) % f.verts.length]];
+      const along = sub(b, a);
+      const reach = vlen(along) || 1;
+      room = Math.min(room, vlen(cross(along, sub(f.mid, a))) / reach);
+    }
+    f.fit = room;
+  }
+
+  const opposite = reads.map((f) => reads.findIndex((g) => dot(f.normal, g.normal) < -0.999));
+  let out = 0;
+  for (const p of pts) out = Math.max(out, vlen(p));
+
+  const shape = { kind: spec.kind, sides, pts, faces, reads, opposite, radius: out };
+  shapes.set(sides, shape);
+  return shape;
+}
+
+/* Opposite faces summing to one more than the number of sides, the way they
+   do on the real thing, wherever the solid has opposite faces at all. */
+function labelsFor(shape, sides, value) {
+  const n = shape.reads.length;
+  if (shape.kind === "tetra") return [1, 2, 3, 4];
+  if (sides === n) {
+    const out = new Array(n).fill(0);
+    const done = new Array(n).fill(false);
+    let low = 1;
+    let high = sides;
+    for (let i = 0; i < n; i++) {
+      if (done[i]) continue;
+      const j = shape.opposite[i];
+      if (j > i && !done[j]) { out[i] = low++; out[j] = high--; done[i] = done[j] = true; }
+      else { out[i] = low++; done[i] = true; }
+    }
+    return out;
+  }
+  // The stand-in twenty: the rolled number, and nineteen others for company.
+  const pool = new Set([value]);
+  while (pool.size < n) pool.add(1 + Math.floor(Math.random() * sides));
+  const list = [...pool];
+  for (let i = list.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [list[i], list[j]] = [list[j], list[i]];
+  }
+  return list;
+}
+
+/* ============================================================== the tray = */
+
+const TRAY = { w: 8.6, d: 5.2 };          // half-width and half-depth, in world units
+const EYE = v3(0, 9.2, 12.4);
+const AIM = v3(0, 0.2, 0);
+const LIGHT = unit(v3(-0.35, 1, 0.5));
+const GRAV = 30;
+const TUMBLE = 1.15;                      // seconds of throw
+const BLEND = 0.55;                       // seconds of coming to rest
+
+const FWD = unit(sub(AIM, EYE));
+const RIGHT = unit(cross(FWD, v3(0, 1, 0)));
+const UPC = cross(RIGHT, FWD);
+const toCam = (p) => {
+  const q = sub(p, EYE);
+  return v3(dot(q, RIGHT), dot(q, UPC), dot(q, FWD));
+};
+
+const dice = [];
+let view = { f: 1, ox: 0, oy: 0, w: 0, h: 0 };
+let dpr = 1;
+let hue = 288;
+let colour = 0;
+let faceFont = "sans-serif";
+let raf = 0;
+
+/* The focal length is whatever makes the whole table fit the canvas, so the
+   view is right at any shape of window rather than at one of them. */
+function frameUp(w, h) {
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const x of [-TRAY.w, TRAY.w]) {
+    for (const y of [0, 2.6]) {
+      for (const z of [-TRAY.d, TRAY.d]) {
+        const c = toCam(v3(x, y, z));
+        if (c.z < 0.3) continue;
+        const sx = c.x / c.z;
+        const sy = -c.y / c.z;
+        if (sx < minX) minX = sx;
+        if (sx > maxX) maxX = sx;
+        if (sy < minY) minY = sy;
+        if (sy > maxY) maxY = sy;
+      }
+    }
+  }
+  const f = Math.min(w * 0.97 / (maxX - minX), h * 0.97 / (maxY - minY));
+  view = { f, ox: w / 2 - f * (minX + maxX) / 2, oy: h / 2 - f * (minY + maxY) / 2, w, h };
+}
+
+function project(p) {
+  const c = toCam(p);
+  if (c.z < 0.25) return null;
+  return { x: view.ox + view.f * c.x / c.z, y: view.oy - view.f * c.y / c.z, z: c.z };
+}
+
+function fitCanvas() {
+  dpr = Math.min(window.devicePixelRatio || 1, 3);
+  const w = Math.max(1, Math.round(canvas.clientWidth));
+  const h = Math.max(1, Math.round(canvas.clientHeight));
+  if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+  }
+  brush.setTransform(dpr, 0, 0, dpr, 0, 0);
+  if (view.w !== w || view.h !== h) frameUp(w, h);
+}
+
+// Every colour on the canvas comes off the two knobs in theme.css, so the
+// dice are whatever the rest of the page is rather than a palette of their own.
+function tone(l, alpha) {
+  const lit = Math.max(0, Math.min(100, l));
+  return `hsl(${hue} ${Math.round(colour * 62)}% ${lit.toFixed(1)}%`
+    + (alpha === undefined ? ")" : ` / ${alpha})`);
+}
+
+function readTheme() {
+  const style = getComputedStyle(document.documentElement);
+  hue = parseFloat(style.getPropertyValue("--h")) || 288;
+  colour = parseFloat(style.getPropertyValue("--sat")) || 0;
+  faceFont = getComputedStyle(document.body).fontFamily || "sans-serif";
+}
+
+/* ----------------------------------------------------------- the throw -- */
+
+function dieSize(n) {
+  const room = TRAY.w * 2 * TRAY.d * 2;
+  return Math.max(0.3, Math.min(2.2, Math.sqrt(room / n) * 0.26));
+}
+
+function makeDie(sides, value, r) {
+  const shape = shapeFor(sides);
+  const labels = labelsFor(shape, sides, value);
+  const upRead = shape.kind === "tetra" ? -1 : labels.indexOf(value);
+  return {
+    sides, value, shape, labels, r,
+    upRead: upRead < 0 ? 0 : upRead,
+    upVertex: shape.kind === "tetra" ? Math.max(0, labels.indexOf(value)) : -1,
+    pos: v3(0, 0, 0),
+    vel: v3(0, 0, 0),
+    omega: v3(0, 0, 0),
+    quat: { w: 1, x: 0, y: 0, z: 0 },
+    world: [],
+  };
+}
+
+// Which way is up on this die when it is lying still: the normal of the face
+// it rolled, or for a four, the corner that number sits at.
+function winningUp(die) {
+  return die.shape.kind === "tetra"
+    ? unit(die.shape.pts[die.upVertex])
+    : die.shape.reads[die.upRead].normal;
+}
+
+const randomQuat = () => qUnit({
+  w: Math.random() - 0.5, x: Math.random() - 0.5,
+  y: Math.random() - 0.5, z: Math.random() - 0.5,
+});
+
+function launch() {
+  const n = dice.length;
+  dice.forEach((die, i) => {
+    // Thrown from along the back edge, but with enough of a spread in how
+    // hard and how straight that they do not all pull up in the same row.
+    const across = n === 1 ? 0 : ((i + 0.5) / n - 0.5) * TRAY.w * 1.5;
+    die.pos = v3(across + (Math.random() - 0.5) * 1.6,
+                 2.8 + Math.random() * 3.4,
+                 -TRAY.d * 0.8 + (Math.random() - 0.5) * 1.6);
+    die.vel = v3((Math.random() - 0.5) * 7, 0.5 + Math.random() * 1.5,
+                 1.8 + Math.random() * 6.4);
+    die.omega = mul(unit(v3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5)),
+                    9 + Math.random() * 11);
+    die.quat = randomQuat();
+    die.resting = false;
+  });
+}
+
+const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+const FACING = 0.38;        // radians off square: enough to show a second face
+
+/* A die that stops with an edge toward you is a die you cannot read, which is
+   a poor result for a page whose whole job is showing the number. So the
+   settle also turns it about the upright — the shortest turn that brings some
+   side face round to the camera — which changes nothing about what it rolled
+   and makes the difference between a readable die and a silhouette. */
+function faceTheRoom(die, q) {
+  let best = null;
+  for (const f of die.shape.reads) {
+    const n = turn(q, f.normal);
+    if (Math.hypot(n.x, n.z) < 0.3) continue;      // the top and the bottom
+    const ang = Math.atan2(n.x, n.z);              // 0 is straight at the eye
+    const off = Math.abs(wrap(ang - FACING));
+    if (!best || off < best.off) best = { off, ang };
+  }
+  if (!best) return q;
+  return qMul(qAxis(v3(0, 1, 0), FACING - best.ang), q);
+}
+
+// Where a die ends up: tipped onto the face it rolled, sitting on the table,
+// turned far enough round to be read, and no further.
+function aimToRest(die) {
+  const now = turn(die.quat, winningUp(die));
+  die.restQuat = faceTheRoom(die, qMul(qBetween(now, v3(0, 1, 0)), die.quat));
+  let low = Infinity;
+  for (const p of die.shape.pts) low = Math.min(low, turn(die.restQuat, p).y * die.r);
+  die.restY = -low;
+  die.fromQuat = die.quat;
+  die.fromY = die.pos.y;
+}
+
+function setDown() {
+  const n = dice.length;
+  const cols = Math.max(1, Math.min(n, Math.ceil(Math.sqrt(n * (TRAY.w / TRAY.d)))));
+  const rows = Math.ceil(n / cols);
+  const wide = Math.min(TRAY.w * 1.7 / Math.max(1, cols), TRAY.d * 1.7 / rows);
+  dice.forEach((die, i) => {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    // The last row is usually short, so each row is centred on its own count
+    // rather than hanging off the left of a grid.
+    const inRow = Math.min(cols, n - row * cols);
+    die.pos = v3((col - (inRow - 1) / 2) * wide, 0, (row - (rows - 1) / 2) * wide);
+    // A turn of its own before it is aimed, so a row of dice is not a row of
+    // identical dice; the aim then brings a face round to be read anyway.
+    die.quat = qAxis(v3(0, 1, 0), Math.random() * Math.PI * 2);
+    aimToRest(die);
+    die.quat = die.restQuat;
+    die.pos.y = die.restY;
+    die.resting = true;
+  });
+}
+
+function separate() {
+  for (let pass = 0; pass < 2; pass++) {
+    for (let i = 0; i < dice.length; i++) {
+      for (let j = i + 1; j < dice.length; j++) {
+        const a = dice[i];
+        const b = dice[j];
+        const ra = a.shape.radius * a.r;
+        const rb = b.shape.radius * b.r;
+        if (Math.abs(a.pos.y - b.pos.y) > ra + rb) continue;   // one is over the other
+        let dx = a.pos.x - b.pos.x;
+        let dz = a.pos.z - b.pos.z;
+        const want = (ra + rb) * 0.92;
+        let d = Math.hypot(dx, dz);
+        if (d >= want) continue;
+        if (d < 1e-4) { dx = Math.random() - 0.5; dz = Math.random() - 0.5; d = Math.hypot(dx, dz); }
+        const push = (want - d) / 2 / d;
+        a.pos.x += dx * push; a.pos.z += dz * push;
+        b.pos.x -= dx * push; b.pos.z -= dz * push;
+      }
+    }
+  }
+}
+
+function hemIn(die) {
+  const room = die.shape.radius * die.r;
+  die.pos.x = Math.max(-TRAY.w + room, Math.min(TRAY.w - room, die.pos.x));
+  die.pos.z = Math.max(-TRAY.d + room, Math.min(TRAY.d - room, die.pos.z));
+}
+
+function step(dt) {
+  for (const die of dice) {
+    die.vel.y -= GRAV * dt;
+    die.pos = add(die.pos, mul(die.vel, dt));
+
+    const w = { w: 0, x: die.omega.x, y: die.omega.y, z: die.omega.z };
+    const dq = qMul(w, die.quat);
+    die.quat = qUnit({
+      w: die.quat.w + dq.w * dt * 0.5, x: die.quat.x + dq.x * dt * 0.5,
+      y: die.quat.y + dq.y * dt * 0.5, z: die.quat.z + dq.z * dt * 0.5,
+    });
+
+    // The table is the lowest corner, not a sphere around the middle, so a
+    // die landing on a point rides up on it the way it should.
+    let low = Infinity;
+    for (const p of die.shape.pts) low = Math.min(low, turn(die.quat, p).y * die.r);
+    if (die.pos.y + low < 0) {
+      die.pos.y = -low;
+      if (die.vel.y < 0) {
+        die.vel.y = -die.vel.y * 0.42;
+        die.vel.x *= 0.76;
+        die.vel.z *= 0.76;
+        die.omega = add(mul(die.omega, 0.7),
+          v3((Math.random() - 0.5) * 5, (Math.random() - 0.5) * 3, (Math.random() - 0.5) * 5));
+      }
+    }
+
+    const room = die.shape.radius * die.r;
+    if (die.pos.x > TRAY.w - room) { die.pos.x = TRAY.w - room; die.vel.x = -Math.abs(die.vel.x) * 0.5; }
+    if (die.pos.x < -TRAY.w + room) { die.pos.x = -TRAY.w + room; die.vel.x = Math.abs(die.vel.x) * 0.5; }
+    if (die.pos.z > TRAY.d - room) { die.pos.z = TRAY.d - room; die.vel.z = -Math.abs(die.vel.z) * 0.5; }
+    if (die.pos.z < -TRAY.d + room) { die.pos.z = -TRAY.d + room; die.vel.z = Math.abs(die.vel.z) * 0.5; }
+  }
+  separate();
+}
+
+/* ---------------------------------------------------------- the drawing -- */
+
+function paintTable() {
+  brush.strokeStyle = tone(26, 0.5);
+  brush.lineWidth = 1;
+  const corners = [v3(-TRAY.w, 0, -TRAY.d), v3(TRAY.w, 0, -TRAY.d),
+                   v3(TRAY.w, 0, TRAY.d), v3(-TRAY.w, 0, TRAY.d)].map(project);
+  if (corners.every(Boolean)) {
+    brush.beginPath();
+    corners.forEach((p, i) => (i ? brush.lineTo(p.x, p.y) : brush.moveTo(p.x, p.y)));
+    brush.closePath();
+    brush.stroke();
+  }
+  brush.strokeStyle = tone(18, 0.55);
+  for (let i = 1; i < 4; i++) {
+    const x = -TRAY.w + (i / 4) * TRAY.w * 2;
+    const a = project(v3(x, 0, -TRAY.d));
+    const b = project(v3(x, 0, TRAY.d));
+    if (!a || !b) continue;
+    brush.beginPath(); brush.moveTo(a.x, a.y); brush.lineTo(b.x, b.y); brush.stroke();
+  }
+  for (let i = 1; i < 3; i++) {
+    const z = -TRAY.d + (i / 3) * TRAY.d * 2;
+    const a = project(v3(-TRAY.w, 0, z));
+    const b = project(v3(TRAY.w, 0, z));
+    if (!a || !b) continue;
+    brush.beginPath(); brush.moveTo(a.x, a.y); brush.lineTo(b.x, b.y); brush.stroke();
+  }
+
+  // A smudge under each die, fading as it rises, which is most of what tells
+  // you a die is in the air rather than drawn slightly higher up.
+  for (const die of dice) {
+    const under = project(v3(die.pos.x, 0.004, die.pos.z));
+    const side = project(v3(die.pos.x + die.shape.radius * die.r * 1.15, 0.004, die.pos.z));
+    if (!under || !side) continue;
+    const wide = Math.abs(side.x - under.x);
+    const high = Math.max(0, die.pos.y - die.r * 0.6);
+    const dark = Math.max(0, 0.5 - high * 0.09);
+    if (wide < 0.5 || dark <= 0.01) continue;
+    brush.save();
+    brush.translate(under.x, under.y);
+    brush.scale(1, 0.42);
+    brush.beginPath();
+    brush.arc(0, 0, wide * (1 + high * 0.08), 0, Math.PI * 2);
+    brush.fillStyle = `rgba(0,0,0,${dark.toFixed(3)})`;
+    brush.fill();
+    brush.restore();
+  }
+}
+
+/* Text lying on the face rather than floating over it: the two in-plane
+   directions are projected alongside the middle of the face and the pair of
+   screen offsets becomes the transform the glyphs are drawn through. The one
+   chosen as the across direction is whichever comes out level on screen, so a
+   number is never upside down on the face you are reading. */
+function faceText(nrm, at, text, high, fill, glow) {
+  const s = 0.2;
+  const e1 = perp(nrm);
+  const e2 = cross(nrm, e1);
+  const p0 = project(at);
+  const p1 = project(add(at, mul(e1, s)));
+  const p2 = project(add(at, mul(e2, s)));
+  if (!p0 || !p1 || !p2) return;
+  const d1 = { x: p1.x - p0.x, y: p1.y - p0.y };
+  const d2 = { x: p2.x - p0.x, y: p2.y - p0.y };
+  const th = Math.atan2(-d1.y, d2.y);
+  let cu = Math.cos(th);
+  let su = Math.sin(th);
+  let ux = cu * d1.x + su * d2.x;
+  let uy = cu * d1.y + su * d2.y;
+  if (ux < 0) { ux = -ux; uy = -uy; cu = -cu; su = -su; }
+  const across = add(mul(e1, cu), mul(e2, su));
+  const down = cross(nrm, across);
+  const p3 = project(add(at, mul(down, s)));
+  if (!p3) return;
+  let vx = p3.x - p0.x;
+  let vy = p3.y - p0.y;
+  if (vy < 0) { vx = -vx; vy = -vy; }          // local down must read down the screen
+
+  const F = 40;
+  const k = high / F / s;
+  if (Math.hypot(ux, uy) * k * F < 7) return;  // too small on screen to bother
+
+  brush.save();
+  brush.setTransform(ux * k * dpr, uy * k * dpr, vx * k * dpr, vy * k * dpr, p0.x * dpr, p0.y * dpr);
+  brush.font = `500 ${F}px ${faceFont}`;
+  brush.textAlign = "center";
+  brush.textBaseline = "middle";
+  brush.fillStyle = fill;
+  if (glow) { brush.shadowColor = fill; brush.shadowBlur = 14; }
+  brush.fillText(text, 0, 0);
+  brush.restore();
+  brush.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+function paintFace(bit) {
+  const { die, face, nrm } = bit;
+  const flat = [];
+  for (const i of face.verts) {
+    const p = project(die.world[i]);
+    if (!p) return;
+    flat.push(p);
+  }
+
+  let twice = 0;
+  for (let i = 0; i < flat.length; i++) {
+    const a = flat[i];
+    const b = flat[(i + 1) % flat.length];
+    twice += a.x * b.y - b.x * a.y;
+  }
+  const area = Math.abs(twice) / 2;
+
+  const lit = 0.18 + 0.82 * Math.max(0, dot(nrm, LIGHT));
+  const up = nrm.y > 0.86;
+  const shade = 6 + 40 * lit + (up ? 9 : 0);
+
+  brush.beginPath();
+  flat.forEach((p, i) => (i ? brush.lineTo(p.x, p.y) : brush.moveTo(p.x, p.y)));
+  brush.closePath();
+  brush.fillStyle = tone(shade);
+  brush.fill();
+  brush.strokeStyle = tone(shade + 30, 0.75);
+  brush.lineWidth = 1;
+  brush.stroke();
+
+  if (area < 190) return;
+
+  if (die.shape.kind === "tetra") {
+    // Numbers at the corners, as a four has them, and the one at the top
+    // corner — the same number on all three faces you can see — is the roll.
+    for (const i of face.verts) {
+      const at = add(mul(die.world[i], 0.62), mul(add(die.pos, mul(turn(die.quat, face.mid), die.r)), 0.38));
+      const won = i === die.upVertex && turn(die.quat, unit(die.shape.pts[i])).y > 0.86;
+      faceText(nrm, at, String(die.labels[i]), Math.min(0.3, face.fit * 0.6) * die.r,
+        won ? tone(96) : tone(Math.min(96, shade + 46)), won);
+    }
+    return;
+  }
+
+  if (face.read < 0) return;
+  const at = add(die.pos, mul(turn(die.quat, face.mid), die.r));
+  const high = Math.min(0.62, face.fit * 1.5) * die.r;
+  faceText(nrm, at, String(die.labels[face.read]), high,
+    up ? tone(96) : tone(Math.min(96, shade + 44)), up);
+}
+
+function draw() {
+  readTheme();
+  fitCanvas();
+  brush.clearRect(0, 0, view.w, view.h);
+  paintTable();
+
+  const bits = [];
+  for (const die of dice) {
+    die.world = die.shape.pts.map((p) => add(die.pos, mul(turn(die.quat, p), die.r)));
+    for (const face of die.shape.faces) {
+      const nrm = turn(die.quat, face.normal);
+      const mid = add(die.pos, mul(turn(die.quat, face.mid), die.r));
+      if (dot(nrm, sub(EYE, mid)) <= 0) continue;          // facing away
+      const c = toCam(mid);
+      if (c.z < 0.3) continue;
+      bits.push({ die, face, nrm, depth: c.z });
+    }
+  }
+  // Furthest first. Within one die this cannot go wrong — no two faces of a
+  // convex solid that both face you overlap — and between dice the middles
+  // are far enough apart for it.
+  bits.sort((a, b) => b.depth - a.depth);
+  for (const bit of bits) paintFace(bit);
+}
+
+let began = 0;
+let last = 0;
+let blending = false;
+
+function tick(ms) {
+  if (!began) { began = ms; last = ms; }
+  const t = (ms - began) / 1000;
+  const dt = Math.min(0.034, Math.max(0.001, (ms - last) / 1000));
+  last = ms;
+
+  if (t < TUMBLE) {
+    step(dt / 2);
+    step(dt / 2);
+  } else {
+    if (!blending) { blending = true; for (const die of dice) aimToRest(die); }
+    const through = Math.min(1, (t - TUMBLE) / BLEND);
+    const ease = through * through * (3 - 2 * through);
+    for (const die of dice) {
+      die.quat = qSlerp(die.fromQuat, die.restQuat, ease);
+      die.pos.y = die.fromY + (die.restY - die.fromY) * ease;
+      hemIn(die);
+    }
+    separate();
+    for (const die of dice) hemIn(die);
+  }
+
+  draw();
+  if (t < TUMBLE + BLEND) { raf = requestAnimationFrame(tick); return; }
+
+  raf = 0;
+  for (const die of dice) {
+    die.quat = die.restQuat;
+    die.pos.y = die.restY;
+    die.resting = true;
+  }
+  draw();
+}
+
+function stopTick() {
+  if (raf) cancelAnimationFrame(raf);
+  raf = 0;
+  began = 0;
+  blending = false;
+}
+
+function describe() {
+  if (!dice.length) return "The table is empty.";
+  const seen = new Map();
+  for (const die of dice) seen.set(die.sides, (seen.get(die.sides) || 0) + 1);
+  const bits = [];
+  for (const [sides, many] of seen) {
+    const shape = shapeFor(sides);
+    let word = SHAPE_WORD[shape.kind];
+    if (shape.kind === "bipyramid" || shape.kind === "barrel") word = `a ${sides}-sided ${shape.kind}`;
+    bits.push(`${many} × d${sides} on ${word}`);
+  }
+  return bits.join(" · ");
+}
+
+function present(rolled, animate) {
+  stopTick();
+  dice.length = 0;
+  const wanted = [];
+  for (const t of rolled) {
+    if (t.kind !== "dice") continue;
+    for (const value of t.rolls) wanted.push({ sides: t.sides, value });
+  }
+  const r = dieSize(Math.max(1, wanted.length));
+  for (const d of wanted) dice.push(makeDie(d.sides, d.value, r));
+
+  trayNote.textContent = describe();
+  againBtn.disabled = !dice.length;
+  canvas.setAttribute("aria-label", dice.length
+    ? `${dice.length} dice at rest, showing ${dice.map((d) => d.value).join(", ")}`
+    : "An empty table");
+
+  if (!dice.length) { draw(); return; }
+  if (animate) { launch(); raf = requestAnimationFrame(tick); }
+  else { setDown(); draw(); }
+}
+
+/* ============================================================== wiring == */
+
+const calm = window.matchMedia("(prefers-reduced-motion: reduce)");
+const throwing = () => tumbleIn.checked && !calm.matches;
+
+let lastRolled = null;
+
+function fail(why) {
+  errEl.textContent = why;
+  errEl.classList.add("on");
+}
+
+function clearFail() {
+  errEl.textContent = "";
+  errEl.classList.remove("on");
+}
+
+function tidy(terms) {
+  return terms
+    .map((t, i) => (i ? (t.sign < 0 ? "- " : "+ ") : (t.sign < 0 ? "-" : "")) + nameOf(t))
+    .join(" ");
+}
+
+function clock() {
+  return new Date().toLocaleTimeString("en-GB",
+    { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
+
+function roll() {
+  const parsed = parseRoll(exprIn.value);
+  if (parsed.error) { fail(parsed.error); return null; }
+  clearFail();
+
+  const rolled = rollTerms(parsed.terms);
+  const total = totalOf(rolled);
+  lastRolled = rolled;
+
+  totalEl.textContent = String(total);
+  totalEl.classList.remove("none");
+  sayEl.textContent = sayOf(rolled, total);
+  paintTerms(rolled);
+
+  // The chart marks the roll on the table, so a new roll moves the mark
+  // rather than leaving the last one sitting there contradicting the total.
+  if (sim) { drawPlot(); paintFigures(); paintNumbers(); }
+
+  entries.unshift({ at: clock(), expr: tidy(parsed.terms), total });
+  if (entries.length > CAP) entries.length = CAP;
+  paintLog();
+  save();
+
+  present(rolled, throwing());
+  return rolled;
+}
+
+el("rollBtn").addEventListener("click", roll);
+
+exprIn.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter") return;
+  e.preventDefault();
+  roll();
+});
+exprIn.addEventListener("input", () => { clearFail(); save(); });
+
+el("quick").addEventListener("click", (e) => {
+  const sides = e.target instanceof HTMLElement && e.target.dataset.sides;
+  if (!sides) return;
+  const held = exprIn.value.trim();
+  exprIn.value = held ? `${held} + 1d${sides}` : `1d${sides}`;
+  clearFail();
+  save();
+  exprIn.focus();
+});
+
+el("clearExpr").addEventListener("click", () => {
+  exprIn.value = "";
+  clearFail();
+  save();
+  exprIn.focus();
+});
+
+againBtn.addEventListener("click", () => {
+  if (lastRolled) present(lastRolled, throwing());
+});
+
+tumbleIn.addEventListener("change", () => {
+  save();
+  if (lastRolled) present(lastRolled, throwing());
+});
+
+el("clearBtn").addEventListener("click", () => {
+  entries = [];
+  paintLog();
+  save();
+});
+
+el("copyBtn").addEventListener("click", async () => {
+  const text = entries.length
+    ? entries.map((e) => `${e.at}  ${e.expr} = ${e.total}`).join("\n")
+    : "Nothing rolled yet.";
+  try {
+    if (!navigator.clipboard || !window.isSecureContext) throw new Error("no clipboard here");
+    await navigator.clipboard.writeText(`${text}\n`);
+    const was = sayEl.textContent;
+    sayEl.textContent = "Copied the log.";
+    setTimeout(() => { sayEl.textContent = was; }, 900);
+  } catch (err) {
+    console.error(err);
+  }
+});
+
+// The dice keep their poses; only the framing is worked out again.
+if (window.ResizeObserver) {
+  new ResizeObserver(() => { if (!raf) draw(); }).observe(canvas);
+} else {
+  window.addEventListener("resize", () => { if (!raf) draw(); });
+}
+
+/* ========================================================== many throws == */
+
+const runsIn   = el("runs");
+const simSay   = el("simSay");
+const plotWrap = el("plotWrap");
+const plot     = el("plot");
+const pen      = plot.getContext("2d");
+const readout  = el("readout");
+const figures  = el("figures");
+const tableEl  = el("table");
+const stopBtn  = el("stopBtn");
+const simBtn   = el("simBtn");
+const tableBtn = el("tableBtn");
+
+const BY_DEFAULT = 1000000;
+const RUNS_CAP = 10000000;
+
+let sim = null;            // the run that finished
+let running = null;        // the run under way
+let hoverBin = -1;
+
+const fmt = (n) => Math.round(n).toLocaleString("en-GB");
+const pct = (x, places = 2) => `${(x * 100).toFixed(places)}%`;
+
+/* sfc32, seeded from the same place a single roll comes from. Not the
+   cryptographic generator itself for every draw: a million throws of a
+   hundred dice is a hundred million numbers, and asking the system for them
+   one at a time takes minutes to tell you what this tells you in a second.
+   The ragged tail is still thrown away, so each die is as even as a real one. */
+function makeRandom() {
+  const seed = crypto.getRandomValues(new Uint32Array(4));
+  let a = seed[0] | 0, b = seed[1] | 0, c = seed[2] | 0, d = (seed[3] | 0) || 1;
+  return function next() {
+    const t = ((a + b) | 0) + d | 0;
+    d = d + 1 | 0;
+    a = b ^ (b >>> 9);
+    b = c + (c << 3) | 0;
+    c = (c << 21) | (c >>> 11);
+    c = c + t | 0;
+    return t >>> 0;
+  };
+}
+
+// The lowest and highest the roll can land on, which is how wide the tally is.
+function spread(terms) {
+  let lo = 0;
+  let hi = 0;
+  for (const t of terms) {
+    if (t.kind === "flat") { lo += t.sign * t.value; hi += t.sign * t.value; continue; }
+    const least = t.count;
+    const most = t.count * t.sides;
+    lo += t.sign > 0 ? least : -most;
+    hi += t.sign > 0 ? most : -least;
+  }
+  return { lo, hi };
+}
+
+function howMany() {
+  const typed = runsIn.value.replace(/[\s,_]/g, "");
+  if (!typed) return BY_DEFAULT;
+  const n = Number(typed);
+  if (!Number.isFinite(n) || n < 1) return null;
+  return Math.min(RUNS_CAP, Math.floor(n));
+}
+
+function simFail(why) {
+  simSay.textContent = why;
+  simSay.classList.add("error");
+}
+
+function startSim() {
+  const parsed = parseRoll(exprIn.value);
+  if (parsed.error) { simFail(parsed.error); return; }
+  const trials = howMany();
+  if (trials === null) { simFail(`“${runsIn.value.trim()}” is not a number of throws.`); return; }
+  simSay.classList.remove("error");
+
+  const kinds = parsed.terms.filter((t) => t.kind === "dice").map((t) => ({
+    sign: t.sign, count: t.count, sides: t.sides,
+    cut: Math.floor(0x100000000 / t.sides) * t.sides,
+  }));
+  const flat = parsed.terms.reduce((n, t) => n + (t.kind === "flat" ? t.sign * t.value : 0), 0);
+
+  if (!kinds.length) {
+    sim = null;
+    plotWrap.classList.remove("on");
+    simSay.textContent = `${tidy(parsed.terms)} has no dice in it — every throw of it is ${flat}.`;
+    return;
+  }
+
+  const { lo, hi } = spread(parsed.terms);
+  stopSim();
+  running = {
+    trials, done: 0, lo, hi, flat, kinds,
+    counts: new Uint32Array(hi - lo + 1),
+    next: makeRandom(),
+    expr: tidy(parsed.terms),
+    began: performance.now(),
+  };
+  simBtn.disabled = true;
+  stopBtn.disabled = false;
+  running.capped = trials < Number(runsIn.value.replace(/[\s,_]/g, ""));
+  chunk();
+}
+
+/* Worked in slices of about twenty milliseconds so the page stays answering
+   while it runs: a hundred million dice is a second or two of arithmetic, and
+   a tab that locks up for a second or two looks broken rather than busy. */
+function chunk() {
+  if (!running) return;
+  const r = running;
+  const next = r.next;
+  const counts = r.counts;
+  const kinds = r.kinds;
+  const lo = r.lo;
+  const flat = r.flat;
+  const until = performance.now() + 20;
+
+  while (r.done < r.trials) {
+    const slice = Math.min(8000, r.trials - r.done);
+    for (let i = 0; i < slice; i++) {
+      let total = flat;
+      for (let t = 0; t < kinds.length; t++) {
+        const k = kinds[t];
+        const sides = k.sides;
+        const cut = k.cut;
+        const sign = k.sign;
+        for (let j = 0; j < k.count; j++) {
+          let u = next();
+          while (u >= cut) u = next();
+          total += sign * ((u % sides) + 1);
+        }
+      }
+      counts[total - lo]++;
+    }
+    r.done += slice;
+    if (performance.now() >= until) break;
+  }
+
+  if (r.done < r.trials) {
+    simSay.textContent = `${fmt(r.done)} of ${fmt(r.trials)} throws…`;
+    r.timer = setTimeout(chunk, 0);
+    return;
+  }
+  finishSim(false);
+}
+
+function stopSim() {
+  if (running && running.timer) clearTimeout(running.timer);
+  running = null;
+  simBtn.disabled = false;
+  stopBtn.disabled = true;
+}
+
+function finishSim(cut) {
+  const r = running;
+  if (!r) return;
+  const took = (performance.now() - r.began) / 1000;
+  stopSim();
+  if (!r.done) { simSay.textContent = "Stopped before anything was thrown."; return; }
+
+  sim = summarise(r);
+  hoverBin = -1;
+  plotWrap.classList.add("on");
+  drawPlot();
+  paintFigures();
+  paintNumbers();
+  simSay.classList.remove("error");
+  simSay.textContent = cut
+    ? `Stopped at ${fmt(sim.trials)} throws of ${sim.expr}.`
+    : `${fmt(sim.trials)} throws of ${sim.expr}, in `
+      + `${took < 0.1 ? `${Math.max(1, Math.round(took * 1000))} ms` : `${took.toFixed(2)} s`}.`
+      + (r.capped ? ` ${fmt(RUNS_CAP)} is as many as this will run.` : "");
+}
+
+/* Everything the chart and the figures need, read off the tally in one pass.
+   The sums are taken about the middle of the range rather than about zero:
+   a hundred million throws of a total near a thousand squares up to a number
+   big enough to start losing its own low digits. */
+function summarise(r) {
+  const counts = r.counts;
+  const lo = r.lo;
+  const mid = Math.round((r.lo + r.hi) / 2);
+  let n = 0;
+  let s1 = 0;
+  let s2 = 0;
+  let first = null;
+  let last = lo;
+  let peak = 0;
+  let peakAt = lo;
+  for (let i = 0; i < counts.length; i++) {
+    const c = counts[i];
+    if (!c) continue;
+    const v = lo + i;
+    const off = v - mid;
+    n += c;
+    s1 += c * off;
+    s2 += c * off * off;
+    if (first === null) first = v;
+    last = v;
+    if (c > peak) { peak = c; peakAt = v; }
+  }
+  const mean = mid + s1 / n;
+  const sd = Math.sqrt(Math.max(0, s2 / n - (s1 / n) * (s1 / n)));
+  let run = 0;
+  let median = lo;
+  for (let i = 0; i < counts.length; i++) {
+    run += counts[i];
+    if (run >= n / 2) { median = lo + i; break; }
+  }
+  return {
+    counts, lo, hi: r.hi, trials: n, expr: r.expr,
+    first, last, peak, peakAt, mean, sd, median,
+    bins: null, binWidth: 0,
+  };
+}
+
+const countAt = (total) =>
+  (total < sim.lo || total > sim.hi ? 0 : sim.counts[total - sim.lo]);
+
+// How often the roll came out at least as high as the one on the table, which
+// is the question anybody looking at this chart is actually asking.
+function shareAtOrAbove(total) {
+  let n = 0;
+  for (let v = Math.max(sim.first, total); v <= sim.last; v++) n += countAt(v);
+  return n / sim.trials;
+}
+
+/* One bar per total while they fit, and bars of several totals each when they
+   do not — a d100 spans a hundred columns and four hundred pixels. */
+function binsFor(width) {
+  const span = sim.last - sim.first + 1;
+  const room = Math.max(1, Math.floor(width / 4));
+  const per = Math.max(1, Math.ceil(span / room));
+  if (sim.bins && sim.binWidth === per) return sim.bins;
+  const bins = [];
+  for (let v = sim.first; v <= sim.last; v += per) {
+    const hi = Math.min(sim.last, v + per - 1);
+    let n = 0;
+    for (let k = v; k <= hi; k++) n += countAt(k);
+    bins.push({ lo: v, hi, n });
+  }
+  sim.bins = bins;
+  sim.binWidth = per;
+  return bins;
+}
+
+function niceStep(top, want) {
+  const raw = top / want;
+  const power = Math.pow(10, Math.floor(Math.log10(raw)));
+  for (const k of [1, 2, 2.5, 5, 10]) if (raw <= k * power) return k * power;
+  return 10 * power;
+}
+
+const PAD = { l: 54, r: 14, t: 22, b: 38 };
+
+function plotRoom() {
+  const w = Math.max(1, Math.round(plot.clientWidth));
+  const h = Math.max(1, Math.round(plot.clientHeight));
+  return { w, h, pw: w - PAD.l - PAD.r, ph: h - PAD.t - PAD.b };
+}
+
+function drawPlot() {
+  if (!sim) return;
+  readTheme();
+  const ratio = Math.min(window.devicePixelRatio || 1, 3);
+  const { w, h, pw, ph } = plotRoom();
+  if (plot.width !== Math.round(w * ratio) || plot.height !== Math.round(h * ratio)) {
+    plot.width = Math.round(w * ratio);
+    plot.height = Math.round(h * ratio);
+  }
+  pen.setTransform(ratio, 0, 0, ratio, 0, 0);
+  pen.clearRect(0, 0, w, h);
+  if (pw < 60 || ph < 40) return;
+
+  const bins = binsFor(pw);
+  const ink = getComputedStyle(document.body);
+  const text = ink.getPropertyValue("--text-faint") || "#777";
+  const bright = ink.getPropertyValue("--neon") || "#fff";
+  const sans = faceFont;
+
+  let top = 0;
+  for (const b of bins) top = Math.max(top, b.n);
+  const topShare = top / sim.trials;
+  const step = niceStep(topShare, 4);
+  const ceiling = Math.max(step, Math.ceil(topShare / step) * step);
+  const yOf = (share) => PAD.t + ph - (share / ceiling) * ph;
+
+  // Hairline grid, one shade off the ground, with the share up the side.
+  const places = step >= 0.01 ? 1 : step >= 0.001 ? 2 : 3;
+  pen.font = `400 11px ${sans}`;
+  pen.textAlign = "right";
+  pen.textBaseline = "middle";
+  for (let v = 0; v <= ceiling + 1e-9; v += step) {
+    const y = yOf(v);
+    pen.strokeStyle = tone(v === 0 ? 30 : 18, 0.85);
+    pen.lineWidth = 1;
+    pen.beginPath();
+    pen.moveTo(PAD.l, Math.round(y) + 0.5);
+    pen.lineTo(PAD.l + pw, Math.round(y) + 0.5);
+    pen.stroke();
+    pen.fillStyle = text;
+    pen.fillText(v === 0 ? "0%" : `${(v * 100).toFixed(places)}%`, PAD.l - 8, y);
+  }
+
+  const slot = pw / bins.length;
+  const wide = Math.max(1, slot - 2);           // a 2px gap of ground between bars
+  const mine = lastRolled ? totalOf(lastRolled) : null;
+
+  bins.forEach((b, i) => {
+    const x = PAD.l + i * slot;
+    const y = yOf(b.n / sim.trials);
+    const tall = PAD.t + ph - y;
+    const holdsMine = mine !== null && mine >= b.lo && mine <= b.hi;
+    const under = i === hoverBin;
+    pen.fillStyle = under ? tone(84) : holdsMine ? tone(66) : tone(44);
+    pen.fillRect(x, y, wide, Math.max(tall, b.n ? 1 : 0));
+  });
+
+  // The total on the table, marked where it falls, because the one thing you
+  // want from a distribution is where your own roll sits in it.
+  if (mine !== null && mine >= sim.first && mine <= sim.last) {
+    const at = PAD.l + ((mine - sim.first + 0.5) / (sim.last - sim.first + 1)) * pw;
+    pen.strokeStyle = bright;
+    pen.globalAlpha = 0.5;
+    pen.setLineDash([]);
+    pen.lineWidth = 1;
+    pen.beginPath();
+    pen.moveTo(Math.round(at) + 0.5, PAD.t - 6);
+    pen.lineTo(Math.round(at) + 0.5, PAD.t + ph);
+    pen.stroke();
+    pen.globalAlpha = 1;
+    pen.fillStyle = bright;
+    pen.textBaseline = "alphabetic";
+    pen.textAlign = at > PAD.l + pw - 90 ? "right" : "left";
+    pen.font = `400 11px ${sans}`;
+    pen.fillText(` you rolled ${mine} `, at, PAD.t - 9);
+  }
+
+  // The totals along the bottom: the ends always, and a few in between.
+  pen.fillStyle = text;
+  pen.textBaseline = "top";
+  pen.font = `400 11px ${sans}`;
+  const marks = Math.max(2, Math.min(7, Math.floor(pw / 70)));
+  for (let m = 0; m <= marks; m++) {
+    const i = Math.round((m / marks) * (bins.length - 1));
+    const b = bins[i];
+    const x = PAD.l + i * slot + wide / 2;
+    pen.textAlign = m === 0 ? "left" : m === marks ? "right" : "center";
+    pen.fillText(String(b.lo), m === 0 ? PAD.l : m === marks ? PAD.l + pw : x, PAD.t + ph + 8);
+  }
+  pen.textAlign = "center";
+  pen.fillText(sim.binWidth > 1 ? `total rolled, ${sim.binWidth} to a bar` : "total rolled",
+    PAD.l + pw / 2, PAD.t + ph + 23);
+
+  sayBin(hoverBin >= 0 ? hoverBin : null, bins);
+}
+
+function sayBin(which, bins) {
+  if (!sim) return;
+  if (which === null) {
+    const share = sim.peak / sim.trials;
+    const mine = lastRolled ? totalOf(lastRolled) : null;
+    const yours = mine !== null && mine >= sim.first && mine <= sim.last
+      ? `  ·  ${mine} or better: ${pct(shareAtOrAbove(mine))}`
+      : "";
+    readout.textContent = `most often ${sim.peakAt}, on ${pct(share)} of throws${yours}`;
+    return;
+  }
+  const b = bins[which];
+  const label = b.lo === b.hi ? `${b.lo}` : `${b.lo} to ${b.hi}`;
+  readout.textContent = `${label}  ·  ${fmt(b.n)} throws  ·  ${pct(b.n / sim.trials)}`;
+}
+
+function paintFigures() {
+  figures.textContent = "";
+  const rows = [
+    ["throws", fmt(sim.trials)],
+    ["mean", sim.mean.toFixed(2)],
+    ["median", String(sim.median)],
+    ["spread", `±${sim.sd.toFixed(2)}`],
+    ["lowest", String(sim.first)],
+    ["highest", String(sim.last)],
+  ];
+  const mine = lastRolled ? totalOf(lastRolled) : null;
+  if (mine !== null) rows.push([`${mine} or better`, pct(shareAtOrAbove(mine), 2)]);
+  for (const [what, value] of rows) {
+    const cell = document.createElement("span");
+    cell.append(`${what} `);
+    const b = document.createElement("b");
+    b.textContent = value;
+    cell.append(b);
+    figures.append(cell);
+  }
+}
+
+/* The same numbers as the chart, in the same bins, for anyone the chart does
+   not reach — and for anyone who wants to paste them somewhere else. */
+function paintNumbers() {
+  const bins = binsFor(plotRoom().pw);
+  const mine = lastRolled ? totalOf(lastRolled) : null;
+  const table = document.createElement("table");
+  const head = document.createElement("tr");
+  for (const what of ["Total", "Throws", "Share"]) {
+    const th = document.createElement("th");
+    th.textContent = what;
+    head.append(th);
+  }
+  table.append(head);
+  for (const b of bins) {
+    const row = document.createElement("tr");
+    if (mine !== null && mine >= b.lo && mine <= b.hi) row.className = "mine";
+    for (const cell of [b.lo === b.hi ? `${b.lo}` : `${b.lo}–${b.hi}`,
+                        fmt(b.n), pct(b.n / sim.trials)]) {
+      const td = document.createElement("td");
+      td.textContent = cell;
+      row.append(td);
+    }
+    table.append(row);
+  }
+  tableEl.textContent = "";
+  tableEl.append(table);
+  plot.setAttribute("aria-label",
+    `How ${fmt(sim.trials)} throws of ${sim.expr} came out: `
+    + `${sim.first} at the lowest, ${sim.last} at the highest, `
+    + `most often ${sim.peakAt} on ${pct(sim.peak / sim.trials)} of throws. `
+    + "The same numbers are under Show the numbers.");
+}
+
+/* ---------------------------------------------------------- pointing at -- */
+
+function binUnder(x) {
+  const { pw } = plotRoom();
+  if (!sim || pw < 60) return -1;
+  const bins = binsFor(pw);
+  const i = Math.floor((x - PAD.l) / (pw / bins.length));
+  return i >= 0 && i < bins.length ? i : -1;
+}
+
+plot.addEventListener("pointermove", (e) => {
+  if (!sim) return;
+  const box = plot.getBoundingClientRect();
+  const was = hoverBin;
+  hoverBin = binUnder(e.clientX - box.left);
+  if (hoverBin !== was) drawPlot();
+});
+plot.addEventListener("pointerleave", () => {
+  if (hoverBin === -1) return;
+  hoverBin = -1;
+  drawPlot();
+});
+plot.addEventListener("keydown", (e) => {
+  if (!sim) return;
+  const bins = binsFor(plotRoom().pw);
+  let to = hoverBin;
+  if (e.key === "ArrowRight") to = Math.min(bins.length - 1, (hoverBin < 0 ? -1 : hoverBin) + 1);
+  else if (e.key === "ArrowLeft") to = (hoverBin < 0 ? bins.length : hoverBin) - 1;
+  else if (e.key === "Home") to = 0;
+  else if (e.key === "End") to = bins.length - 1;
+  else if (e.key === "Escape") to = -1;
+  else return;
+  e.preventDefault();
+  hoverBin = Math.max(-1, to);
+  drawPlot();
+});
+
+simBtn.addEventListener("click", startSim);
+stopBtn.addEventListener("click", () => finishSim(true));
+runsIn.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter") return;
+  e.preventDefault();
+  startSim();
+});
+
+tableBtn.addEventListener("click", () => {
+  const open = tableEl.classList.toggle("on");
+  tableBtn.setAttribute("aria-expanded", String(open));
+  tableBtn.textContent = open ? "Hide the numbers" : "Show the numbers";
+});
+
+el("copySim").addEventListener("click", async () => {
+  if (!sim) return;
+  const bins = binsFor(plotRoom().pw);
+  const lines = [`total\tthrows\tshare`,
+    ...bins.map((b) => `${b.lo === b.hi ? b.lo : `${b.lo}-${b.hi}`}\t${b.n}\t${(b.n / sim.trials * 100).toFixed(4)}`)];
+  try {
+    if (!navigator.clipboard || !window.isSecureContext) throw new Error("no clipboard here");
+    await navigator.clipboard.writeText(`${lines.join("\n")}\n`);
+    const was = readout.textContent;
+    readout.textContent = "Copied the numbers.";
+    setTimeout(() => { readout.textContent = was; }, 900);
+  } catch (err) {
+    console.error(err);
+  }
+});
+
+if (window.ResizeObserver) {
+  new ResizeObserver(() => drawPlot()).observe(plot);
+} else {
+  window.addEventListener("resize", () => drawPlot());
+}
+
+load();
+paintLog();
+againBtn.disabled = true;
+draw();
+</script>
+</body>
+</html>
