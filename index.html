@@ -17,7 +17,26 @@
   main { max-width: 1000px; margin: 0 auto; }
 
   h1 { margin-bottom: 0.4rem; }
-  p.lede { margin: 0 0 3rem; max-width: 46ch; }
+  p.lede { margin: 0 0 2.6rem; max-width: 46ch; }
+
+  /* The pages are grouped by what they are for rather than run together in
+     one list: thirty-odd tiles in a single alphabet is a wall to read, and
+     the thing you came for is almost always one of a handful that go
+     together. Alphabetical inside each group. */
+  nav section + section { margin-top: 2.9rem; }
+  nav h2 {
+    margin: 0;
+    font-weight: 400;
+    font-size: 0.72rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+  nav .gloss {
+    margin: 0.35rem 0 1rem;
+    font-size: 0.78rem;
+    color: var(--text-faint);
+  }
 
   /* The grid is laid out with a 1px gap over a hairline ground, so the lines
      between tiles are the hairline that separates everything else here. The
@@ -44,6 +63,9 @@
     align-items: flex-start;
     gap: 0.6rem;
     height: 100%;
+    /* Each group is its own grid, so without a floor on the height a group
+       of short descriptions would sit shallower than the one above it. */
+    min-height: 9.1rem;
     padding: 1.2rem 1.15rem 1.3rem;
     border-bottom: none;
     color: var(--text);
@@ -87,7 +109,10 @@
 
   @media (max-width: 520px) {
     body { padding: 2.5rem 1.2rem 4rem; }
-    nav a { padding: 1rem; }
+    /* One column on a phone, so the floor on the height is only dead space to
+       scroll past: a row of one is as even as a row gets. */
+    nav a { padding: 1rem; min-height: 0; }
+    nav section + section { margin-top: 2.2rem; }
   }
 </style>
 </head>
@@ -296,96 +321,15 @@
   <p class="lede">Single-purpose tools that run entirely in the browser. Nothing uploads anywhere.</p>
 
   <nav>
-    <ul>
+    <section>
+      <h2>Pictures</h2>
+      <p class="gloss">Something in, a picture out.</p>
+      <ul>
       <li>
         <a href="anything-to-image.html">
           <svg class="ico" aria-hidden="true"><use href="#i-picture"/></svg>
           <span class="name">Anything &rarr; Image</span>
           <span class="what">Paste or drop anything &mdash; PDFs and spreadsheets too &mdash; get a picture</span>
-        </a>
-      </li>
-      <li>
-        <a href="audio-to-text.html">
-          <svg class="ico" aria-hidden="true"><use href="#i-transcribe"/></svg>
-          <span class="name">Audio &rarr; Text</span>
-          <span class="what">Transcribe a recording, with timestamps and subtitles</span>
-        </a>
-      </li>
-      <li>
-        <a href="bingo-cards.html">
-          <svg class="ico" aria-hidden="true"><use href="#i-bingo"/></svg>
-          <span class="name">Bingo Cards</span>
-          <span class="what">Your list, a card each, free squares from the middle out</span>
-        </a>
-      </li>
-      <li>
-        <a href="blank-page.html">
-          <svg class="ico" aria-hidden="true"><use href="#i-blank"/></svg>
-          <span class="name">Blank Page</span>
-          <span class="what">Somewhere to write, with nothing in the way</span>
-        </a>
-      </li>
-      <li>
-        <a href="captions-to-transcript.html">
-          <svg class="ico" aria-hidden="true"><use href="#i-captions"/></svg>
-          <span class="name">Captions &rarr; Transcript</span>
-          <span class="what">Subtitles into readable prose, stutter removed</span>
-        </a>
-      </li>
-      <li>
-        <a href="color-picker.html">
-          <svg class="ico" aria-hidden="true"><use href="#i-dropper"/></svg>
-          <span class="name">Colour Picker</span>
-          <span class="what">Pick, sample, match to thread and Pantone</span>
-        </a>
-      </li>
-      <li>
-        <a href="combat-health-tracker.html">
-          <svg class="ico" aria-hidden="true"><use href="#i-heart"/></svg>
-          <span class="name">Combat Health Tracker</span>
-          <span class="what">Hit points big enough to read across a table, with the log underneath</span>
-        </a>
-      </li>
-      <li>
-        <a href="dice-roller.html">
-          <svg class="ico" aria-hidden="true"><use href="#i-dice"/></svg>
-          <span class="name">Dice Roller</span>
-          <span class="what">XdY in, the dice thrown in 3D, and the odds behind them</span>
-        </a>
-      </li>
-      <li>
-        <a href="document-viewer.html">
-          <svg class="ico" aria-hidden="true"><use href="#i-doc"/></svg>
-          <span class="name">Document Viewer</span>
-          <span class="what">Open a log, text or Word file and filter it by line</span>
-        </a>
-      </li>
-      <li>
-        <a href="dragon-tree.html">
-          <svg class="ico" aria-hidden="true"><use href="#i-lineage"/></svg>
-          <span class="name">Dragon Tree</span>
-          <span class="what">Saved Flight Rising pages into a family tree</span>
-        </a>
-      </li>
-      <li>
-        <a href="gif-to-mcmeta.html">
-          <svg class="ico" aria-hidden="true"><use href="#i-strip"/></svg>
-          <span class="name">GIF &rarr; .mcmeta</span>
-          <span class="what">Animated texture strip for Minecraft</span>
-        </a>
-      </li>
-      <li>
-        <a href="hex-clock.html">
-          <svg class="ico" aria-hidden="true"><use href="#i-clock"/></svg>
-          <span class="name">Hex Clock</span>
-          <span class="what">The time, painted as the colour its own digits spell</span>
-        </a>
-      </li>
-      <li>
-        <a href="house-style.html">
-          <svg class="ico" aria-hidden="true"><use href="#i-knobs"/></svg>
-          <span class="name">House Style</span>
-          <span class="what">The theme itself, with both knobs live</span>
         </a>
       </li>
       <li>
@@ -410,13 +354,6 @@
         </a>
       </li>
       <li>
-        <a href="images-to-pdf.html">
-          <svg class="ico" aria-hidden="true"><use href="#i-searchable"/></svg>
-          <span class="name">Images &rarr; Searchable PDF</span>
-          <span class="what">A pile of scans into one document you can search</span>
-        </a>
-      </li>
-      <li>
         <a href="make-cassette-image.html">
           <svg class="ico" aria-hidden="true"><use href="#i-cassette"/></svg>
           <span class="name">Make Cassette Image</span>
@@ -431,80 +368,10 @@
         </a>
       </li>
       <li>
-        <a href="mic-monitor.html">
-          <svg class="ico" aria-hidden="true"><use href="#i-mic"/></svg>
-          <span class="name">Mic Monitor</span>
-          <span class="what">Microphone straight back out, with a level meter</span>
-        </a>
-      </li>
-      <li>
-        <a href="minecraft-item.html">
-          <svg class="ico" aria-hidden="true"><use href="#i-pad"/></svg>
-          <span class="name">Minecraft Item</span>
-          <span class="what">Pad to square, then every texture size</span>
-        </a>
-      </li>
-      <li>
-        <a href="noise-machine.html">
-          <svg class="ico" aria-hidden="true"><use href="#i-noise"/></svg>
-          <span class="name">Noise Machine</span>
-          <span class="what">White, pink, brown, a fan, breath and beats, generated live</span>
-        </a>
-      </li>
-      <li>
-        <a href="palette-to-gem.html">
-          <svg class="ico" aria-hidden="true"><use href="#i-gem"/></svg>
-          <span class="name">Palette &rarr; Gem</span>
-          <span class="what">Grow a faceted stone from a palette</span>
-        </a>
-      </li>
-      <li>
-        <a href="pdf-builder.html">
-          <svg class="ico" aria-hidden="true"><use href="#i-stack"/></svg>
-          <span class="name">PDF Builder</span>
-          <span class="what">Merge, reorder and drop pages across documents</span>
-        </a>
-      </li>
-      <li>
-        <a href="playlist-to-audio.html">
-          <svg class="ico" aria-hidden="true"><use href="#i-playlist"/></svg>
-          <span class="name">Playlist &rarr; Audio</span>
-          <span class="what">Build the yt-dlp command for a playlist</span>
-        </a>
-      </li>
-      <li>
         <a href="png-to-swirl-gif.html">
           <svg class="ico" aria-hidden="true"><use href="#i-swirl"/></svg>
           <span class="name">PNG &rarr; Swirl GIF</span>
           <span class="what">Spin a still image into a loop</span>
-        </a>
-      </li>
-      <li>
-        <a href="pomodoro.html">
-          <svg class="ico" aria-hidden="true"><use href="#i-pomodoro"/></svg>
-          <span class="name">Pomodoro Timer</span>
-          <span class="what">The whole page turns the colour of the phase</span>
-        </a>
-      </li>
-      <li>
-        <a href="quiz-converter.html">
-          <svg class="ico" aria-hidden="true"><use href="#i-swap-cards"/></svg>
-          <span class="name">Quiz Converter</span>
-          <span class="what">An Anki deck or a quiz site&rsquo;s CSV, turned into any of the others</span>
-        </a>
-      </li>
-      <li>
-        <a href="rain-machine.html">
-          <svg class="ico" aria-hidden="true"><use href="#i-rain"/></svg>
-          <span class="name">Rain Machine</span>
-          <span class="what">A storm on a map, heard from four places</span>
-        </a>
-      </li>
-      <li>
-        <a href="readability-check.html">
-          <svg class="ico" aria-hidden="true"><use href="#i-readability"/></svg>
-          <span class="name">Readability Check</span>
-          <span class="what">Grade level by five formulas, with the hard parts marked</span>
         </a>
       </li>
       <li>
@@ -515,24 +382,30 @@
         </a>
       </li>
       <li>
-        <a href="sleep-calculator.html">
-          <svg class="ico" aria-hidden="true"><use href="#i-moon"/></svg>
-          <span class="name">Sleep Calculator</span>
-          <span class="what">Bedtimes and wake-ups that land between cycles</span>
+        <a href="video-to-animation.html">
+          <svg class="ico" aria-hidden="true"><use href="#i-play"/></svg>
+          <span class="name">Video &rarr; Animation</span>
+          <span class="what">A silent loop as a GIF, WebP, APNG or WebM</span>
+        </a>
+      </li>
+      </ul>
+    </section>
+    <section>
+      <h2>Colour</h2>
+      <p class="gloss">Picking colours, and making them agree.</p>
+      <ul>
+      <li>
+        <a href="color-picker.html">
+          <svg class="ico" aria-hidden="true"><use href="#i-dropper"/></svg>
+          <span class="name">Colour Picker</span>
+          <span class="what">Pick, sample, match to thread and Pantone</span>
         </a>
       </li>
       <li>
-        <a href="speed-reader.html">
-          <svg class="ico" aria-hidden="true"><use href="#i-pivot"/></svg>
-          <span class="name">Speed Reader</span>
-          <span class="what">A link or your own text, one word at a time, held still</span>
-        </a>
-      </li>
-      <li>
-        <a href="tile-pdf-pages.html">
-          <svg class="ico" aria-hidden="true"><use href="#i-impose"/></svg>
-          <span class="name">Tile PDF Pages</span>
-          <span class="what">Several pages side by side on one big sheet</span>
+        <a href="palette-to-gem.html">
+          <svg class="ico" aria-hidden="true"><use href="#i-gem"/></svg>
+          <span class="name">Palette &rarr; Gem</span>
+          <span class="what">Grow a faceted stone from a palette</span>
         </a>
       </li>
       <li>
@@ -542,18 +415,147 @@
           <span class="what">Cross-mix colours into a set that agrees</span>
         </a>
       </li>
+      </ul>
+    </section>
+    <section>
+      <h2>Paper</h2>
+      <p class="gloss">Documents, and the pages inside them.</p>
+      <ul>
       <li>
-        <a href="unzip.html">
-          <svg class="ico" aria-hidden="true"><use href="#i-unzip"/></svg>
-          <span class="name">Unzip</span>
-          <span class="what">Open a zip and pull files out of it</span>
+        <a href="document-viewer.html">
+          <svg class="ico" aria-hidden="true"><use href="#i-doc"/></svg>
+          <span class="name">Document Viewer</span>
+          <span class="what">Open a log, text or Word file and filter it by line</span>
         </a>
       </li>
       <li>
-        <a href="video-to-animation.html">
-          <svg class="ico" aria-hidden="true"><use href="#i-play"/></svg>
-          <span class="name">Video &rarr; Animation</span>
-          <span class="what">A silent loop as a GIF, WebP, APNG or WebM</span>
+        <a href="images-to-pdf.html">
+          <svg class="ico" aria-hidden="true"><use href="#i-searchable"/></svg>
+          <span class="name">Images &rarr; Searchable PDF</span>
+          <span class="what">A pile of scans into one document you can search</span>
+        </a>
+      </li>
+      <li>
+        <a href="pdf-builder.html">
+          <svg class="ico" aria-hidden="true"><use href="#i-stack"/></svg>
+          <span class="name">PDF Builder</span>
+          <span class="what">Merge, reorder and drop pages across documents</span>
+        </a>
+      </li>
+      <li>
+        <a href="tile-pdf-pages.html">
+          <svg class="ico" aria-hidden="true"><use href="#i-impose"/></svg>
+          <span class="name">Tile PDF Pages</span>
+          <span class="what">Several pages side by side on one big sheet</span>
+        </a>
+      </li>
+      </ul>
+    </section>
+    <section>
+      <h2>Words</h2>
+      <p class="gloss">Text to write, read back, or measure.</p>
+      <ul>
+      <li>
+        <a href="blank-page.html">
+          <svg class="ico" aria-hidden="true"><use href="#i-blank"/></svg>
+          <span class="name">Blank Page</span>
+          <span class="what">Somewhere to write, with nothing in the way</span>
+        </a>
+      </li>
+      <li>
+        <a href="captions-to-transcript.html">
+          <svg class="ico" aria-hidden="true"><use href="#i-captions"/></svg>
+          <span class="name">Captions &rarr; Transcript</span>
+          <span class="what">Subtitles into readable prose, stutter removed</span>
+        </a>
+      </li>
+      <li>
+        <a href="quiz-converter.html">
+          <svg class="ico" aria-hidden="true"><use href="#i-swap-cards"/></svg>
+          <span class="name">Quiz Converter</span>
+          <span class="what">An Anki deck or a quiz site&rsquo;s CSV, turned into any of the others</span>
+        </a>
+      </li>
+      <li>
+        <a href="readability-check.html">
+          <svg class="ico" aria-hidden="true"><use href="#i-readability"/></svg>
+          <span class="name">Readability Check</span>
+          <span class="what">Grade level by five formulas, with the hard parts marked</span>
+        </a>
+      </li>
+      <li>
+        <a href="speed-reader.html">
+          <svg class="ico" aria-hidden="true"><use href="#i-pivot"/></svg>
+          <span class="name">Speed Reader</span>
+          <span class="what">A link or your own text, one word at a time, held still</span>
+        </a>
+      </li>
+      </ul>
+    </section>
+    <section>
+      <h2>Sound</h2>
+      <p class="gloss">Made in the tab, or turned into writing.</p>
+      <ul>
+      <li>
+        <a href="audio-to-text.html">
+          <svg class="ico" aria-hidden="true"><use href="#i-transcribe"/></svg>
+          <span class="name">Audio &rarr; Text</span>
+          <span class="what">Transcribe a recording, with timestamps and subtitles</span>
+        </a>
+      </li>
+      <li>
+        <a href="mic-monitor.html">
+          <svg class="ico" aria-hidden="true"><use href="#i-mic"/></svg>
+          <span class="name">Mic Monitor</span>
+          <span class="what">Microphone straight back out, with a level meter</span>
+        </a>
+      </li>
+      <li>
+        <a href="noise-machine.html">
+          <svg class="ico" aria-hidden="true"><use href="#i-noise"/></svg>
+          <span class="name">Noise Machine</span>
+          <span class="what">White, pink, brown, a fan, breath and beats, generated live</span>
+        </a>
+      </li>
+      <li>
+        <a href="playlist-to-audio.html">
+          <svg class="ico" aria-hidden="true"><use href="#i-playlist"/></svg>
+          <span class="name">Playlist &rarr; Audio</span>
+          <span class="what">Build the yt-dlp command for a playlist</span>
+        </a>
+      </li>
+      <li>
+        <a href="rain-machine.html">
+          <svg class="ico" aria-hidden="true"><use href="#i-rain"/></svg>
+          <span class="name">Rain Machine</span>
+          <span class="what">A storm on a map, heard from four places</span>
+        </a>
+      </li>
+      </ul>
+    </section>
+    <section>
+      <h2>At the table</h2>
+      <p class="gloss">Dice, hit points, and things to hand round.</p>
+      <ul>
+      <li>
+        <a href="bingo-cards.html">
+          <svg class="ico" aria-hidden="true"><use href="#i-bingo"/></svg>
+          <span class="name">Bingo Cards</span>
+          <span class="what">Your list, a card each, free squares from the middle out</span>
+        </a>
+      </li>
+      <li>
+        <a href="combat-health-tracker.html">
+          <svg class="ico" aria-hidden="true"><use href="#i-heart"/></svg>
+          <span class="name">Combat Health Tracker</span>
+          <span class="what">Hit points big enough to read across a table, with the log underneath</span>
+        </a>
+      </li>
+      <li>
+        <a href="dice-roller.html">
+          <svg class="ico" aria-hidden="true"><use href="#i-dice"/></svg>
+          <span class="name">Dice Roller</span>
+          <span class="what">XdY in, the dice thrown in 3D, and the odds behind them</span>
         </a>
       </li>
       <li>
@@ -563,7 +565,82 @@
           <span class="what">A crossword, a word search and six more from your own list</span>
         </a>
       </li>
-    </ul>
+      </ul>
+    </section>
+    <section>
+      <h2>Minecraft</h2>
+      <p class="gloss">Textures, the way the game wants them.</p>
+      <ul>
+      <li>
+        <a href="gif-to-mcmeta.html">
+          <svg class="ico" aria-hidden="true"><use href="#i-strip"/></svg>
+          <span class="name">GIF &rarr; .mcmeta</span>
+          <span class="what">Animated texture strip for Minecraft</span>
+        </a>
+      </li>
+      <li>
+        <a href="minecraft-item.html">
+          <svg class="ico" aria-hidden="true"><use href="#i-pad"/></svg>
+          <span class="name">Minecraft Item</span>
+          <span class="what">Pad to square, then every texture size</span>
+        </a>
+      </li>
+      </ul>
+    </section>
+    <section>
+      <h2>The day</h2>
+      <p class="gloss">Clocks, timers, and when to go to bed.</p>
+      <ul>
+      <li>
+        <a href="hex-clock.html">
+          <svg class="ico" aria-hidden="true"><use href="#i-clock"/></svg>
+          <span class="name">Hex Clock</span>
+          <span class="what">The time, painted as the colour its own digits spell</span>
+        </a>
+      </li>
+      <li>
+        <a href="pomodoro.html">
+          <svg class="ico" aria-hidden="true"><use href="#i-pomodoro"/></svg>
+          <span class="name">Pomodoro Timer</span>
+          <span class="what">The whole page turns the colour of the phase</span>
+        </a>
+      </li>
+      <li>
+        <a href="sleep-calculator.html">
+          <svg class="ico" aria-hidden="true"><use href="#i-moon"/></svg>
+          <span class="name">Sleep Calculator</span>
+          <span class="what">Bedtimes and wake-ups that land between cycles</span>
+        </a>
+      </li>
+      </ul>
+    </section>
+    <section>
+      <h2>Odds and ends</h2>
+      <p class="gloss">The ones that are only themselves.</p>
+      <ul>
+      <li>
+        <a href="dragon-tree.html">
+          <svg class="ico" aria-hidden="true"><use href="#i-lineage"/></svg>
+          <span class="name">Dragon Tree</span>
+          <span class="what">Saved Flight Rising pages into a family tree</span>
+        </a>
+      </li>
+      <li>
+        <a href="house-style.html">
+          <svg class="ico" aria-hidden="true"><use href="#i-knobs"/></svg>
+          <span class="name">House Style</span>
+          <span class="what">The theme itself, with both knobs live</span>
+        </a>
+      </li>
+      <li>
+        <a href="unzip.html">
+          <svg class="ico" aria-hidden="true"><use href="#i-unzip"/></svg>
+          <span class="name">Unzip</span>
+          <span class="what">Open a zip and pull files out of it</span>
+        </a>
+      </li>
+      </ul>
+    </section>
   </nav>
 </main>
 </body>

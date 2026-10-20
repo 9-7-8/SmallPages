@@ -19,13 +19,18 @@ a pull request instead.
 
 ## The index
 
-The tiles in [`index.html`](index.html) are in alphabetical order by the name shown
-on the tile. A new page goes in its alphabetical place, not on the end.
+The tiles in [`index.html`](index.html) are grouped by what the page is for, in
+sections with a heading and a line saying what the group is: Pictures, Colour,
+Paper, Words, Sound, At the table, Minecraft, The day, Odds and ends. A new page
+goes in the group it belongs to, in its alphabetical place inside that group —
+not on the end, and not in a group of its own unless there is genuinely nothing
+it sits with. The order of the sections themselves is the order above.
 
 Sort on the visible name with the arrows and punctuation taken out, so
 `Palette &rarr; Gem` sorts under *palette gem* and lands before `PNG &rarr; Swirl
-GIF`. Case is ignored. The `<symbol>` sprite above the list is referenced by id and
-its order does not matter.
+GIF`. Case is ignored. Every tile is the same height whatever group it is in,
+which is what the `min-height` on `nav a` is for. The `<symbol>` sprite above the
+list is referenced by id and its order does not matter.
 
 ## Tests
 

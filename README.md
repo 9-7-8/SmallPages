@@ -147,7 +147,8 @@ and render the audio offline and measure it.
 2. Link the theme in `<head>`: `<link rel="stylesheet" href="theme.css">`
 3. Use the shared vocabulary — `.card`, `.dropzone`, `.field`, `.status`, `.stage`,
    `button` — and the page inherits the look with almost no CSS of its own.
-4. Add a row to the `<nav>` list in `index.html`, in its alphabetical place.
+4. Add a tile to `index.html`, in the group it belongs to and in its alphabetical
+   place inside that group.
 5. Add a row to the table above, and a suite in [`tests/`](tests/).
 
 Keep the "one file, one job, runs in the browser" rule. It's the whole point of the
