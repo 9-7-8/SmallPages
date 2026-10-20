@@ -351,7 +351,7 @@
     <div class="field">
       <label for="itoneIn">Tone &mdash; the pitch being switched</label>
       <div class="pair">
-        <input type="range" id="itoneIn" min="40" max="1000" step="1" value="200"
+        <input type="range" id="itoneIn" min="0" max="1000" step="1" value="700"
                style="max-width:26rem" aria-label="Tone">
         <input type="number" id="itoneNum" min="40" max="1000" step="0.1" value="200"
                aria-label="Tone in hertz">
@@ -362,9 +362,9 @@
     <div class="field" style="margin-top:1.5rem">
       <label for="irateIn">Rate &mdash; how many times a second it is switched</label>
       <div class="pair">
-        <input type="range" id="irateIn" min="0.1" max="40" step="0.1" value="10"
+        <input type="range" id="irateIn" min="0.5" max="50" step="0.1" value="10"
                style="max-width:26rem" aria-label="Pulse rate">
-        <input type="number" id="irateNum" min="0.1" max="40" step="0.01" value="10"
+        <input type="number" id="irateNum" min="0.5" max="50" step="0.01" value="10"
                aria-label="Pulses a second">
       </div>
       <span class="unit" id="irateNote"></span>
@@ -381,6 +381,39 @@
       </div>
       <span class="unit" id="idutyNote"></span>
     </div>
+
+    <div class="field" style="margin-top:1.5rem">
+      <label for="idepthIn">Depth &mdash; how far the level falls between pulses</label>
+      <div class="pair">
+        <input type="range" id="idepthIn" min="0" max="100" step="1" value="100"
+               style="max-width:26rem" aria-label="Modulation depth">
+        <input type="number" id="idepthNum" min="0" max="100" step="1" value="100"
+               aria-label="Depth as a percentage">
+      </div>
+      <span class="unit" id="idepthNote"></span>
+    </div>
+
+    <div class="rank" style="margin-top:1.5rem">
+      <div class="field grow">
+        <label for="isoftIn">Edge &mdash; how quickly each pulse fades in and out</label>
+        <div class="pair">
+          <input type="range" id="isoftIn" min="0" max="50" step="1" value="12"
+                 style="max-width:18rem" aria-label="Edge softness">
+          <input type="number" id="isoftNum" min="0" max="50" step="1" value="12"
+                 aria-label="Edge as a percentage of the on-window">
+        </div>
+        <span class="unit" id="isoftNote"></span>
+      </div>
+      <div class="field">
+        <label for="ishapeSel">Shape</label>
+        <select id="ishapeSel">
+          <option value="soft" selected>Soft-edged</option>
+          <option value="round">Rounded</option>
+          <option value="sine">Sinusoidal</option>
+        </select>
+        <span class="unit" id="ishapeNote"></span>
+      </div>
+    </div>
   </div>
 
   <p class="note"><strong>The fan is noise, shaped.</strong> Brown under a low-pass that
@@ -393,9 +426,13 @@
   headphones and does nothing through a speaker. The isochronic tone is one tone switched on and
   off instead, so the pulse is really in the air and a speaker carries it perfectly well; it is
   also the blunter of the two, and more tiring to sit under. Its edges are ramped rather than
-  square, because a tone cut dead is a click and a click ten times a second is a buzz. The duty
-  is how much of each cycle the tone is present for: low is a tick, high is a wobble on a tone
-  that never quite stops. Everything said in the note above about what these are supposed to do
+  square, because a tone cut dead is a click and a click ten times a second is a buzz, and the
+  ramps are a proportion of the on-window so they can never outgrow the pulse they belong to.
+  The duty is how much of each cycle the tone is present for. Depth is how far the level falls
+  between pulses, and it carries a naming rule rather than just a number: at full depth the
+  tone reaches silence, which is what the word isochronic means, and anything short of that
+  never actually stops, so the page calls it a tremolo instead. At nothing it is the bare
+  carrier, which is the honest way to hear what the pulsing is adding. Everything said in the note above about what these are supposed to do
   to a listener applies here in the same measure, which is to say not much.</p>
 
   <p class="note"><strong>Why the beat needs two ears.</strong> Nothing in the signal pulses.
@@ -408,14 +445,22 @@
   mixing instead and you get an ordinary tremolo &mdash; a real effect, an audibly similar one,
   and not the same thing.</p>
 
-  <p class="note"><strong>On what it is supposed to do.</strong> The bands are named after
-  rhythms seen in an EEG, and the usual claim is that playing a beat at one of those rates pulls
-  the brain toward it. The hearing part is solid and well over a century old. The rest is not:
-  the studies are mostly small, rarely blinded well &mdash; it is hard to give someone a
-  convincing placebo tone &mdash; and the reviews keep landing on inconsistent effects of a size
-  that could as easily be the quiet, the headphones, or expecting it to work. It is here because
-  it is a pleasant thing to listen to under noise and costs two oscillators. Treat the band names
-  as names.</p>
+  <p class="note"><strong>On what these are supposed to do.</strong> The bands are named after
+  rhythms seen in an EEG, and the usual claim is that a beat at one of those rates pulls the
+  brain toward it. The first half of that is solid: a periodic sound really does produce a
+  measurable, time-locked response. The second half does not follow from the first, and the
+  figures are worth knowing. A systematic review of binaural beats found five studies supporting
+  entrainment, eight not, and one mixed. A 2024 study put an isochronic-derived stimulus against
+  binaural beats and white noise over four minutes in 28 people: the EEG differed, and what the
+  participants reported about their own relaxation did not. For sleep, a review of 34 studies
+  covering 1,103 people found no clear evidence for white or pink noise &mdash; while ordinary
+  music before bed has a Cochrane review behind it, moderate-certainty, 10 studies and 708
+  people. The best-supported noise finding is narrower than it sounds: a meta-analysis of 13
+  studies and 335 young people found a small gain on attention tasks for those with ADHD
+  symptoms, and the pooled result for everyone else points the other way, slightly worse. Even
+  40&nbsp;Hz, the one rate with real research behind it, is mostly research into flickering light
+  with clicking sound in Alzheimer's work, not an audio track. Detecting a rhythmic response is a
+  much narrower claim than putting a brain into a chosen mode, and nothing here is the latter.</p>
 
   <p class="note"><strong>It needs the first click.</strong> Browsers will not let a page make
   sound until you have asked it to, which is also why the page cannot start itself when you open
@@ -464,6 +509,14 @@ const idutyIn      = el("idutyIn");
 const idutyNum     = el("idutyNum");
 const idutyNote    = el("idutyNote");
 const isoChips     = el("isoChips");
+const idepthIn     = el("idepthIn");
+const idepthNum    = el("idepthNum");
+const idepthNote   = el("idepthNote");
+const isoftIn      = el("isoftIn");
+const isoftNum     = el("isoftNum");
+const isoftNote    = el("isoftNote");
+const ishapeSel    = el("ishapeSel");
+const ishapeNote   = el("ishapeNote");
 const presetChips  = el("presetChips");
 const presetName   = el("presetName");
 const keepBtn      = el("keepBtn");
@@ -486,6 +539,16 @@ let swapped = false;   // which ear gets the higher of the two tones
 let isoTone = 200;
 let isoRate = 10;
 let isoDuty = 50;
+let isoDepth = 100;     // 100 reaches silence; below that it is a tremolo
+let isoSoft = 12;       // the edge, as a percentage of the on-window
+let isoShape = "soft";
+
+// Pitch is heard in ratios, so the slider moves in them: the bottom half of
+// its travel covers 40–200 Hz and the top half 200–1000, rather than the
+// first fifth covering everything you would actually use.
+const TONE_LOW = 40, TONE_HIGH = 1000;
+const toneAt = (pos) => TONE_LOW * Math.pow(TONE_HIGH / TONE_LOW, pos / 1000);
+const posOf = (hz) => 1000 * Math.log(hz / TONE_LOW) / Math.log(TONE_HIGH / TONE_LOW);
 
 let drumBpm = 60;
 let drumDepth = 80;
@@ -887,28 +950,82 @@ function beater(out) {
   return state;
 }
 
-// One tone switched on and off. The beat is in the air rather than in the
-// head, which is why this one carries over a speaker where the binaural pair
-// cannot — and why the edges have to be ramped: a tone cut dead is a click,
-// and a click repeated ten times a second is a buzz, not a pulse.
+/* One tone switched on and off. The beat is in the air rather than in the
+   head, which is why this one carries over a speaker where the binaural pair
+   cannot.
+
+   The envelope is one cycle of
+
+       g(t) with depth m applied as  (1 - m) + m * g(t)
+
+   so m = 1 falls to silence between pulses and m = 0 is the carrier
+   unmodulated — which is also an exact "same sound, no pulses" comparison.
+   Anything short of 1 never actually switches off, and the page calls that a
+   tremolo rather than an isochronic pulse, because it is one. */
+
+const CURVE = 256;
+
+/* The edge is a proportion of the on-window, as the source has it, capped at
+   half so rise + fall can never outgrow the window. But a proportion alone is
+   not enough: at fifty pulses a second and a tenth duty the on-window is two
+   milliseconds, and a tenth of that is a step, not a fade. So there is also a
+   floor in real time — below about a millisecond an edge is a click however
+   it is described — and the figure the page reports is the one actually used. */
+const EDGE_FLOOR = 0.0012;
+
+function edgeFraction() {
+  if (isoShape !== "soft") return 0;
+  const onSeconds = (isoDuty / 100) / isoRate;
+  const wanted = isoSoft / 100;
+  const least = onSeconds > 0 ? EDGE_FLOOR / onSeconds : 0.5;
+  return Math.min(0.5, Math.max(wanted, Math.min(0.5, least)));
+}
+
+function pulseCurve() {
+  const out = new Float32Array(CURVE);
+  const duty = isoDuty / 100;
+  const m = isoDepth / 100;
+  const edge = edgeFraction();
+
+  for (let i = 0; i < CURVE; i++) {
+    const u = i / (CURVE - 1);
+    let g;
+    if (isoShape === "sine") {
+      g = 0.5 - 0.5 * Math.cos(2 * Math.PI * u);
+    } else if (u >= duty) {
+      g = 0;
+    } else {
+      const v = u / duty;
+      if (isoShape === "round") g = 0.5 - 0.5 * Math.cos(2 * Math.PI * v);
+      else if (edge <= 0) g = 1;
+      else if (v < edge) g = v / edge;
+      else if (v > 1 - edge) g = (1 - v) / edge;
+      else g = 1;
+    }
+    out[i] = (1 - m) + m * g;
+  }
+  return out;
+}
+
 function pulser(gate) {
-  const state = { timer: null, cancelled: false, next: 0 };
+  const state = { timer: null, cancelled: false, next: 0, period: 0 };
   state.next = Math.max(ctx.currentTime, openAt) + 0.06;
   const pump = () => {
     if (state.cancelled || !ctx) return;
     const period = 1 / isoRate;
-    const on = period * (isoDuty / 100);
-    const edge = Math.min(0.012, on / 3);
-    if (state.next < ctx.currentTime - 0.5) state.next = ctx.currentTime + 0.06;
-    while (state.next < ctx.currentTime + LOOKAHEAD) {
-      const t = state.next;
-      gate.gain.setValueAtTime(0, t);
-      gate.gain.linearRampToValueAtTime(1, t + edge);
-      gate.gain.setValueAtTime(1, t + on - edge);
-      gate.gain.linearRampToValueAtTime(0, t + on);
-      state.next = t + period;
+    // A changed rate restarts the cycle rather than drifting into the old one.
+    if (state.period && Math.abs(period - state.period) > 1e-9) {
+      state.next = Math.max(state.next, ctx.currentTime + 0.03);
     }
-    state.timer = setTimeout(pump, 50);
+    state.period = period;
+    if (state.next < ctx.currentTime - 0.5) state.next = ctx.currentTime + 0.06;
+    const curve = pulseCurve();
+    while (state.next < ctx.currentTime + LOOKAHEAD) {
+      try { gate.gain.setValueCurveAtTime(curve, state.next, period); }
+      catch { gate.gain.setValueAtTime(curve[0], state.next); }
+      state.next += period;
+    }
+    state.timer = setTimeout(pump, 40);
   };
   pump();
   return state;
@@ -1313,28 +1430,59 @@ setDrum(drumBpm, drumDepth, drumShape);
 
 /* ------------------------------------------------------ the pulsed tone -- */
 
-function setIso(tone, rate, duty, origin) {
-  isoTone = clamp(tone, 40, 1000);
-  isoRate = clamp(rate, 0.1, 40);
-  isoDuty = clamp(Math.round(duty), 10, 90);
-  if (origin !== "itoneIn") itoneIn.value = String(isoTone);
+function setIso(next, origin) {
+  if (next.tone !== undefined) isoTone = clamp(next.tone, TONE_LOW, TONE_HIGH);
+  if (next.rate !== undefined) isoRate = clamp(next.rate, 0.5, 50);
+  if (next.duty !== undefined) isoDuty = clamp(Math.round(next.duty), 10, 90);
+  if (next.depth !== undefined) isoDepth = clamp(Math.round(next.depth), 0, 100);
+  if (next.soft !== undefined) isoSoft = clamp(Math.round(next.soft), 0, 50);
+  if (next.shape !== undefined && ["soft", "round", "sine"].includes(next.shape)) isoShape = next.shape;
+
+  if (origin !== "itoneIn") itoneIn.value = String(Math.round(posOf(isoTone)));
   if (origin !== "itoneNum") itoneNum.value = String(Number(isoTone.toFixed(1)));
   if (origin !== "irateIn") irateIn.value = String(isoRate);
   if (origin !== "irateNum") irateNum.value = String(Number(isoRate.toFixed(2)));
   if (origin !== "idutyIn") idutyIn.value = String(isoDuty);
   if (origin !== "idutyNum") idutyNum.value = String(isoDuty);
+  if (origin !== "idepthIn") idepthIn.value = String(isoDepth);
+  if (origin !== "idepthNum") idepthNum.value = String(isoDepth);
+  if (origin !== "isoftIn") isoftIn.value = String(isoSoft);
+  if (origin !== "isoftNum") isoftNum.value = String(isoSoft);
+  ishapeSel.value = isoShape;
   drawIso();
 }
 
 function drawIso() {
   const band = bandAt(isoRate);
-  const on = (1000 / isoRate) * (isoDuty / 100);
+  const period = 1000 / isoRate;
+  const on = isoShape === "sine" ? period : period * (isoDuty / 100);
+
   itoneNote.textContent = isoTone < 80 ? "low enough to feel as a flutter rather than a pitch"
     : isoTone > 700 ? "high and sharp — easier to notice, harder to sit under"
     : "in the range the pulse reads most clearly";
   irateNote.textContent = `${band.name.toLowerCase()} — ${band.of}`;
-  idutyNote.textContent = `${on.toFixed(0)} ms on, ${((1000 / isoRate) - on).toFixed(0)} ms off`
-    + (isoDuty <= 25 ? " — a tick" : isoDuty >= 75 ? " — a wobble on a tone that never quite stops" : "");
+  idutyNote.textContent = isoShape === "sine"
+    ? "no on-window to speak of — a sinusoid is rising or falling the whole cycle"
+    : `${on.toFixed(0)} ms on, ${(period - on).toFixed(0)} ms off`
+      + (isoDuty <= 25 ? " — a tick" : isoDuty >= 75 ? " — a wobble on a tone that never quite stops" : "");
+
+  // The naming matters: below full depth the tone never actually stops, and
+  // calling that an isochronic pulse would be describing a different signal.
+  idepthNote.textContent = isoDepth >= 100
+    ? "full — it reaches silence between pulses, which is what makes it isochronic"
+    : isoDepth === 0
+      ? "none — the carrier unmodulated, for comparing against the pulses"
+      : `the level falls to ${100 - isoDepth}% between pulses, so this is a tremolo rather than isochronic pulses`;
+
+  const edgeMs = edgeFraction() * on;
+  const floored = isoShape === "soft" && edgeFraction() > isoSoft / 100 + 1e-9;
+  isoftNote.textContent = isoShape === "soft"
+    ? `${edgeMs.toFixed(1)} ms in and ${edgeMs.toFixed(1)} ms out of ${on.toFixed(1)} ms`
+      + (floored ? " — held at the shortest edge that will not click" : "")
+    : "set by the shape";
+  ishapeNote.textContent = isoShape === "soft" ? "flat top, ramped edges"
+    : isoShape === "round" ? "a raised cosine over the on-window"
+    : "a continuous sinusoid, never flat";
 
   const near = nearest(BEATS, isoRate, 0.05);
   for (const button of isoChips.children) {
@@ -1345,17 +1493,26 @@ function drawIso() {
 
 for (const item of BEATS) {
   plainChip(isoChips, `${item.hz} Hz`, item.said, { hz: String(item.hz) },
-    () => setIso(isoTone, item.hz, isoDuty));
+    () => setIso({ rate: item.hz }));
 }
+// The one combination with a published precedent behind it, which is not the
+// same as the best one.
+plainChip(isoChips, "440 / 40 / 50%", "a stimulus used in published work — reproducible, not optimal",
+  { hz: "published" }, () => setIso({ tone: 440, rate: 40, duty: 50, depth: 100, shape: "soft" }));
 
-itoneIn.addEventListener("input", () => setIso(num(itoneIn.value, isoTone), isoRate, isoDuty, "itoneIn"));
-itoneNum.addEventListener("input", () => setIso(num(itoneNum.value, isoTone), isoRate, isoDuty, "itoneNum"));
-irateIn.addEventListener("input", () => setIso(isoTone, num(irateIn.value, isoRate), isoDuty, "irateIn"));
-irateNum.addEventListener("input", () => setIso(isoTone, num(irateNum.value, isoRate), isoDuty, "irateNum"));
-idutyIn.addEventListener("input", () => setIso(isoTone, isoRate, num(idutyIn.value, isoDuty), "idutyIn"));
-idutyNum.addEventListener("input", () => setIso(isoTone, isoRate, num(idutyNum.value, isoDuty), "idutyNum"));
+itoneIn.addEventListener("input", () => setIso({ tone: toneAt(num(itoneIn.value, posOf(isoTone))) }, "itoneIn"));
+itoneNum.addEventListener("input", () => setIso({ tone: num(itoneNum.value, isoTone) }, "itoneNum"));
+irateIn.addEventListener("input", () => setIso({ rate: num(irateIn.value, isoRate) }, "irateIn"));
+irateNum.addEventListener("input", () => setIso({ rate: num(irateNum.value, isoRate) }, "irateNum"));
+idutyIn.addEventListener("input", () => setIso({ duty: num(idutyIn.value, isoDuty) }, "idutyIn"));
+idutyNum.addEventListener("input", () => setIso({ duty: num(idutyNum.value, isoDuty) }, "idutyNum"));
+idepthIn.addEventListener("input", () => setIso({ depth: num(idepthIn.value, isoDepth) }, "idepthIn"));
+idepthNum.addEventListener("input", () => setIso({ depth: num(idepthNum.value, isoDepth) }, "idepthNum"));
+isoftIn.addEventListener("input", () => setIso({ soft: num(isoftIn.value, isoSoft) }, "isoftIn"));
+isoftNum.addEventListener("input", () => setIso({ soft: num(isoftNum.value, isoSoft) }, "isoftNum"));
+ishapeSel.addEventListener("change", () => setIso({ shape: ishapeSel.value }));
 
-setIso(isoTone, isoRate, isoDuty);
+setIso({});
 
 /* ------------------------------------------------------------ the state -- */
 
@@ -1397,9 +1554,12 @@ const FIELDS = [
   { key: "tone",  def: 200, get: () => carrierHz, set: (v) => setBinaural(Number(v), beatHz) },
   { key: "split", def: 10,  get: () => beatHz,    set: (v) => setBinaural(carrierHz, Number(v)) },
   { key: "swap",  def: 0,   get: () => (swapped ? 1 : 0), set: (v) => setSwap(Number(v) === 1) },
-  { key: "itone", def: 200, get: () => isoTone, set: (v) => setIso(Number(v), isoRate, isoDuty) },
-  { key: "irate", def: 10,  get: () => isoRate, set: (v) => setIso(isoTone, Number(v), isoDuty) },
-  { key: "iduty", def: 50,  get: () => isoDuty, set: (v) => setIso(isoTone, isoRate, Number(v)) },
+  { key: "itone", def: 200, get: () => isoTone, set: (v) => setIso({ tone: Number(v) }) },
+  { key: "irate", def: 10,  get: () => isoRate, set: (v) => setIso({ rate: Number(v) }) },
+  { key: "iduty", def: 50,  get: () => isoDuty, set: (v) => setIso({ duty: Number(v) }) },
+  { key: "idep",  def: 100, get: () => isoDepth, set: (v) => setIso({ depth: Number(v) }) },
+  { key: "isoft", def: 12,  get: () => isoSoft,  set: (v) => setIso({ soft: Number(v) }) },
+  { key: "ishape", def: "soft", get: () => isoShape, set: (v) => setIso({ shape: String(v) }) },
 ];
 
 const DEFAULTS = Object.fromEntries(FIELDS.map((f) => [f.key, f.def]));
