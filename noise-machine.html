@@ -73,6 +73,35 @@
 
   .status { font-size: 0.85rem; margin-top: 0.9rem; min-height: 1.2em; }
 
+  h2 { margin: 0 0 0.9rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--line-soft); }
+
+  /* Not decoration: on speakers the thing does not work at all, and saying so
+     once at the top is cheaper than a note nobody reaches. */
+  .warn {
+    font-size: 0.78rem;
+    margin: 0 0 1.2rem;
+    padding: 0.6rem 0.8rem;
+    border-left: 2px solid var(--neon-hot);
+    background: var(--sunken);
+    color: var(--text-dim);
+  }
+
+  .bands {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 1.1rem;
+  }
+  .bands button {
+    font-size: 0.74rem;
+    padding: 0.3rem 0.7rem;
+  }
+  .bands button.on {
+    color: var(--neon);
+    border-color: var(--neon);
+    text-shadow: var(--text-glow);
+  }
+
   .note { font-size: 0.78rem; margin-top: 1.2rem; max-width: 64ch; }
   .note strong { color: var(--text-dim); font-weight: 400; }
 
@@ -92,9 +121,10 @@
   <a class="home" href="index.html">&larr; index</a>
   <h1>Noise Machine</h1>
   <p class="lede">Five sounds to work, sleep or think through, built from scratch in the page by
-  the browser's own audio engine. Nothing is downloaded and nothing loops, because there is no
-  recording to loop &mdash; the noise is generated as it plays, so it never repeats and never
-  gives you that four-second seam to listen for.</p>
+  the browser's own audio engine, and a sixth that is not noise at all: two tones a few hertz
+  apart, one to each ear. Nothing is downloaded and nothing loops, because there is no recording
+  to loop &mdash; the noise is generated as it plays, so it never repeats and never gives you
+  that four-second seam to listen for.</p>
 
   <div class="card">
     <div class="deck" id="deck"></div>
@@ -130,6 +160,30 @@
     <div class="status" id="status">Nothing playing.</div>
   </div>
 
+  <div class="card">
+    <h2>Binaural beats</h2>
+    <p class="warn"><strong>Headphones, or this does nothing.</strong> The beat is not in the
+    sound &mdash; it is two steady tones, one per ear, and the throb you hear is your own hearing
+    reconciling them. Played through speakers they meet in the air instead and you get an ordinary
+    tremolo, which is a different thing that happens to sound similar.</p>
+
+    <div class="rank">
+      <div class="field">
+        <label for="beatIn">Beat <span id="beatOut"></span></label>
+        <input type="range" id="beatIn" min="0.5" max="40" step="0.5" value="10" style="width:15rem;max-width:100%">
+        <span class="unit" id="bandOut"></span>
+      </div>
+
+      <div class="field">
+        <label for="carrierIn">Carrier <span id="carrierOut"></span></label>
+        <input type="range" id="carrierIn" min="60" max="500" step="5" value="200" style="width:11rem;max-width:100%">
+        <span class="unit" id="earsOut"></span>
+      </div>
+    </div>
+
+    <div class="bands" id="bands"></div>
+  </div>
+
   <p class="note"><strong>What the colours mean.</strong> White noise has the same energy at
   every frequency, which to an ear that hears high frequencies with far more resolution sounds
   like a hiss, weighted toward the top. Pink drops 3&nbsp;dB per octave as it climbs and lands
@@ -142,6 +196,25 @@
   droplets on top of it; the fan is brown noise under a low-pass that breathes, with a quiet tone
   at the blade rate underneath. Neither is a recording, so neither has anything to recognise on
   the second pass.</p>
+
+  <p class="note"><strong>Why the beat needs two ears.</strong> Nothing in the signal pulses.
+  There are two steady sine tones, say 195&nbsp;Hz and 205&nbsp;Hz, and the ten-hertz throb
+  appears only where they are compared, which is well inside the head. That is also why the two
+  channels are kept apart with a merger rather than a pair of panners: panning is a mix, so at
+  anything short of hard over a little of each tone reaches the wrong ear and the pair beat
+  together acoustically on the way in. Separate inputs on a merger are separate channels, and
+  nothing in the graph afterwards folds them back together. Through speakers the air does the
+  mixing instead and you get an ordinary tremolo &mdash; a real effect, an audibly similar one,
+  and not the same thing.</p>
+
+  <p class="note"><strong>On what it is supposed to do.</strong> The bands are named after
+  rhythms seen in an EEG, and the usual claim is that playing a beat at one of those rates pulls
+  the brain toward it. The hearing part is solid and well over a century old. The rest is not:
+  the studies are mostly small, rarely blinded well &mdash; it is hard to give someone a
+  convincing placebo tone &mdash; and the reviews keep landing on inconsistent effects of a size
+  that could as easily be the quiet, the headphones, or expecting it to work. It is here because
+  it is a pleasant thing to listen to under noise and costs two oscillators. Treat the band names
+  as names.</p>
 
   <p class="note"><strong>It needs the first click.</strong> Browsers will not let a page make
   sound until you have asked it to, which is also why the page cannot start itself when you open
@@ -167,13 +240,40 @@ const sleepSel  = el("sleepSel");
 const playBtn   = el("playBtn");
 const statusEl  = el("status");
 
+const beatIn     = el("beatIn");
+const beatOut    = el("beatOut");
+const bandOut    = el("bandOut");
+const carrierIn  = el("carrierIn");
+const carrierOut = el("carrierOut");
+const earsOut    = el("earsOut");
+const bandsEl    = el("bands");
+
+// trim is the ceiling a lane's fader reaches. Noise and a bare sine are not
+// the same loudness at the same amplitude, and a low sine is quieter again
+// for being low, so the tones get their own ceiling rather than the noise one.
 const SOUNDS = [
   { id: "white", name: "White",  what: "flat across the band — a hiss",            level: 0 },
   { id: "pink",  name: "Pink",   what: "−3 dB an octave — rain, wind, river",  level: 35 },
   { id: "brown", name: "Brown",  what: "−6 dB an octave — nearly all bottom",  level: 0 },
   { id: "rain",  name: "Rain",   what: "filtered noise, with droplets over it",          level: 0 },
   { id: "fan",   name: "Fan",    what: "brown under a breathing low-pass",               level: 0 },
+  { id: "binaural", name: "Binaural", what: "two tones, one an ear — headphones",   level: 0, trim: 0.40 },
 ];
+
+const TRIM = 0.9;
+
+// The conventional names for the rates, and a representative one from each.
+// The names are the bands themselves; what they are supposed to do to a
+// listener is a separate and much shakier claim, left to the note below.
+const BANDS = [
+  { name: "Delta", from: 0.5, to: 4,  pick: 2,  of: "the rate of deep sleep" },
+  { name: "Theta", from: 4,   to: 8,  pick: 6,  of: "drowsing, and the edge of sleep" },
+  { name: "Alpha", from: 8,   to: 13, pick: 10, of: "awake, eyes closed, not working at anything" },
+  { name: "Beta",  from: 13,  to: 30, pick: 18, of: "ordinary waking attention" },
+  { name: "Gamma", from: 30,  to: 40, pick: 35, of: "the top of the range, and the least settled" },
+];
+
+const bandAt = (hz) => BANDS.find((b) => hz >= b.from && hz < b.to) || BANDS[BANDS.length - 1];
 
 let ctx = null;
 let master = null;
@@ -262,6 +362,7 @@ function build(id) {
   gain.gain.value = 0;
   gain.connect(master);
   const nodes = [gain];
+  let tune = null;      // only the tones have anything to retune
 
   if (id === "white") {
     const s = looping(whiteBuffer(rate));
@@ -326,10 +427,40 @@ function build(id) {
     hum.start();
 
     nodes.push(s, lp, body, hum, humGain, ...breathe);
+
+  } else if (id === "binaural") {
+    // A merger rather than two panners, because panning is a mix: at any
+    // setting short of hard over, some of each tone reaches the other ear and
+    // the two beat against each other in the air on the way. Separate inputs
+    // on a merger are separate channels, and stay separate all the way out.
+    const merger = ctx.createChannelMerger(2);
+    const left = ctx.createOscillator();
+    const right = ctx.createOscillator();
+    left.type = "sine";
+    right.type = "sine";
+    left.connect(merger, 0, 0);
+    right.connect(merger, 0, 1);
+    merger.connect(gain);
+    left.start();
+    right.start();
+    nodes.push(left, right, merger);
+
+    // Split the difference either side of the carrier, so changing the beat
+    // widens the gap rather than walking the pitch upward.
+    tune = (carrier, beat, ramp = 0.05) => {
+      const now = ctx.currentTime;
+      for (const [osc, hz] of [[left, carrier - beat / 2], [right, carrier + beat / 2]]) {
+        osc.frequency.cancelScheduledValues(now);
+        osc.frequency.setValueAtTime(osc.frequency.value, now);
+        osc.frequency.linearRampToValueAtTime(Math.max(1, hz), now + ramp);
+      }
+    };
+    tune(Number(carrierIn.value), Number(beatIn.value), 0);
   }
 
   return {
     gain,
+    tune,
     stop() {
       for (const n of nodes) {
         if (n && n.drops) { clearTimeout(n.drops.timer); n.drops.cancelled = true; continue; }
@@ -423,7 +554,25 @@ function applyLevels(ramp = 0.08) {
     const lane = lanes[sound.id];
     lane.gain.gain.cancelScheduledValues(now);
     lane.gain.gain.setValueAtTime(lane.gain.gain.value, now);
-    lane.gain.gain.linearRampToValueAtTime(shape(pct) * 0.9, now + ramp);
+    lane.gain.gain.linearRampToValueAtTime(shape(pct) * (sound.trim ?? TRIM), now + ramp);
+  }
+}
+
+function applyBinaural() {
+  const carrier = Number(carrierIn.value);
+  const beat = Number(beatIn.value);
+  const band = bandAt(beat);
+
+  beatOut.textContent = `${beat.toFixed(1)} Hz`;
+  carrierOut.textContent = `${carrier} Hz`;
+  bandOut.textContent = `${band.name.toLowerCase()} — ${band.of}`;
+  earsOut.textContent = `${(carrier - beat / 2).toFixed(1)} left · ${(carrier + beat / 2).toFixed(1)} right`;
+
+  for (const button of bandsEl.children) {
+    button.classList.toggle("on", button.dataset.band === band.name);
+  }
+  if (running && lanes.binaural && lanes.binaural.tune) {
+    lanes.binaural.tune(carrier, beat);
   }
 }
 
@@ -457,6 +606,11 @@ function meter() {
   const on = SOUNDS.filter((s) => Number(el(`lvl-${s.id}`).value) > 0);
   bits.push(on.length ? on.map((s) => s.name.toLowerCase()).join(" + ") : "everything down");
   bits.push(`${(20 * Math.log10(Math.max(rms, 1e-5))).toFixed(0)} dB RMS`);
+
+  if (Number(el("lvl-binaural").value) > 0) {
+    const beat = Number(beatIn.value);
+    bits.push(`${beat.toFixed(1)} Hz beat, ${bandAt(beat).name.toLowerCase()}`);
+  }
 
   if (sleepAt) {
     const left = Math.max(0, sleepAt - performance.now());
@@ -531,6 +685,26 @@ masterIn.addEventListener("input", () => {
   applyMaster();
 });
 masterOut.textContent = `${masterIn.value}%`;
+
+/* --------------------------------------------------------- the two tones -- */
+
+for (const band of BANDS) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "ghost";
+  button.dataset.band = band.name;
+  button.textContent = `${band.name} ${band.from}–${band.to}`;
+  button.title = band.of;
+  button.addEventListener("click", () => {
+    beatIn.value = String(band.pick);
+    applyBinaural();
+  });
+  bandsEl.appendChild(button);
+}
+
+beatIn.addEventListener("input", applyBinaural);
+carrierIn.addEventListener("input", applyBinaural);
+applyBinaural();
 
 sleepSel.addEventListener("change", () => { startTimer(); say(); });
 
