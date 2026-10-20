@@ -661,7 +661,11 @@ function shapeWeather(ramp = 0.3) {
   set(washNodes.near.gain, wet * over * 0.5 * place.wash);
   set(washNodes.far.gain, wet * far * 0.85 * place.wash);
   set(washNodes.farFilter.frequency, 420 + far * 900);
-  set(washNodes.nearFilter.frequency, 900 + wet * 2600);
+  // Level carries the intensity; the filter barely moves. Sweeping a
+  // bandpass across 2,600 Hz of noise is a whoosh, and tying it to the
+  // gusted value meant it swept every time the wind came up. It follows the
+  // underlying level rather than the gusted one, over a fifth of the range.
+  set(washNodes.nearFilter.frequency, 1100 + BANDS.rain.now * 520);
   const blowing = nowOf("wind");
   set(airNodes.gain.gain, blowing * 0.3);
   set(airNodes.filter.frequency, 320 + blowing * 900);
@@ -733,15 +737,20 @@ function thunder(flashAt, metres) {
     const bodyPeak = (0.1 + close * 0.5) * energy * share;
 
     for (let k = 0; k < swells; k++) {
-      const begin = at + (k === 0 ? 0 : k * 0.3 + Math.random() * 1.6);
-      const rise = 0.18 + Math.random() * 0.55 + (1 - close) * 0.5;
+      const begin = at + (k === 0 ? 0 : k * 0.16 + Math.random() * 0.85);
+      // Short, and linear. An exponential ramp *upward* from near-silence is
+      // the sound of audio played backwards: almost nothing for most of its
+      // length, then a rush into the peak. Thunder's roll comes from many
+      // overlapping arrivals at different distances, not from each one
+      // swelling up on its own.
+      const rise = 0.035 + Math.random() * 0.11 + (1 - close) * 0.12;
       const fall = 2.2 + Math.random() * 3.4 + (1 - close) * 3;
       const peak = Math.max(0.0008, bodyPeak * (k === 0 ? 1 : 0.5 + Math.random() * 0.5));
 
       const source = looping(noise("brown"));
       const env = ctx.createGain();
       env.gain.setValueAtTime(0.0001, begin);
-      env.gain.exponentialRampToValueAtTime(peak, begin + rise);
+      env.gain.linearRampToValueAtTime(peak, begin + rise);
       // Two stages down rather than one: a single ramp to nothing loses
       // twenty decibels in the first half second and the tail never lands.
       env.gain.exponentialRampToValueAtTime(peak * 0.35, begin + rise + fall * 0.35);
