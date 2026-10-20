@@ -38,6 +38,9 @@ PDF and read its text back, render the audio offline and measure the envelope.
 Several bugs here survived a passing test and a quick look, and were caught by
 a person listening.
 
-Fixtures go in `tests/docs`, `tests/caps` or beside the suite. Nothing personal
-and nothing large: the suites read fixtures through `WORK`, which is linked to
-them at startup, and write scratch output to the same place, which is ignored.
+Fixtures go in `tests/docs`, `tests/caps` or beside the suite, and must be
+named in the `FIXTURES` list in `tests/lib/env.mjs` to be copied in. Nothing
+personal and nothing large. A suite reads them through `WORK` and writes its
+scratch output to the same ignored directory, so a fixture there is a fresh
+copy, not the committed file — link them instead and a suite that saves output
+under a fixture's name overwrites it for every suite after.

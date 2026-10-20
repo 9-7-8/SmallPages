@@ -69,9 +69,13 @@ Suites are named for the page they exercise. The ones worth knowing about:
 
 `docs/`, `caps/`, `dragons/`, `pdflib/`, `clip.webm`, `sample.pdf` and
 `text.pdf` are all synthetic — generated for the test, carrying nobody's
-content. They are linked into the scratch directory at startup, so a suite's
-`WORK + "/docs/alpha.pdf"` reads the fixture and its `WORK + "/shot.png"`
-writes somewhere git ignores.
+content. They are copied into the scratch directory, fresh for each suite, so
+a suite's `WORK + "/docs/alpha.pdf"` reads the fixture and its
+`WORK + "/shot.png"` writes somewhere git ignores. Copied rather than linked
+because linking was tried first and was wrong: `test-pdfb` saves its output as
+`text.pdf`, which went through the link and replaced the fixture
+`test-ati-file` reads, in the working tree, for good. A new fixture has to be
+named in `FIXTURES` in `lib/env.mjs` or it will not be there to read.
 
 Two suites are not runnable as checked out. `test-quiz.mjs` and
 `test-quiz2.mjs` were written against a personal 5,000-card Anki collection,
