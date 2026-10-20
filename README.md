@@ -118,13 +118,36 @@ falls back to a CDN if it is carried off without the repo around it. Its optiona
 model is the exception to the bundling: transformers.js and the BiRefNet-lite weights are
 loaded from jsDelivr and Hugging Face at run time, because the weights are too big to commit.
 
+## Tests
+
+The pages have no build step, but they do have tests: Playwright suites that open
+each page in a real browser and check what it actually did, in
+[`tests/`](tests/).
+
+```
+node tests/run.mjs              # all of them
+node tests/run.mjs rain noise   # the ones whose name contains either
+```
+
+It starts the server they point at and the caption stub, runs each suite and adds
+up the result. [`tests/README.md`](tests/README.md) says what it needs and what
+each suite covers; from an empty checkout,
+`npm i -D playwright && npx playwright install chromium` is enough.
+
+Checking the saved bytes matters more here than it looks. A page that builds a PDF
+can produce a file that opens fine and has quietly rasterised every page; one that
+generates audio can sound right in a quick listen and click once every eight
+seconds. Both of those happened. The suites reload the saved file and read it back,
+and render the audio offline and measure it.
+
 ## Adding a page
 
 1. Drop a new `.html` file in the repo root.
 2. Link the theme in `<head>`: `<link rel="stylesheet" href="theme.css">`
 3. Use the shared vocabulary — `.card`, `.dropzone`, `.field`, `.status`, `.stage`,
    `button` — and the page inherits the look with almost no CSS of its own.
-4. Add a row to the `<nav>` list in `index.html`.
+4. Add a row to the `<nav>` list in `index.html`, in its alphabetical place.
+5. Add a row to the table above, and a suite in [`tests/`](tests/).
 
 Keep the "one file, one job, runs in the browser" rule. It's the whole point of the
 repo, and it's why any page here can be handed to someone as a single file.

@@ -26,3 +26,18 @@ Sort on the visible name with the arrows and punctuation taken out, so
 `Palette &rarr; Gem` sorts under *palette gem* and lands before `PNG &rarr; Swirl
 GIF`. Case is ignored. The `<symbol>` sprite above the list is referenced by id and
 its order does not matter.
+
+## Tests
+
+Suites live in [`tests/`](tests/) and run with `node tests/run.mjs`, which starts
+the server and the caption stub itself. A new page gets a suite; a bug that
+reached the user's ears gets a check that fails if it comes back.
+
+Check what the page produced, not what a function returned — reload the saved
+PDF and read its text back, render the audio offline and measure the envelope.
+Several bugs here survived a passing test and a quick look, and were caught by
+a person listening.
+
+Fixtures go in `tests/docs`, `tests/caps` or beside the suite. Nothing personal
+and nothing large: the suites read fixtures through `WORK`, which is linked to
+them at startup, and write scratch output to the same place, which is ignored.

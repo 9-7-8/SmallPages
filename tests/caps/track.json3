@@ -1,0 +1,1 @@
+{"events": [{"tStartMs": 500, "dDurationMs": 2000, "segs": [{"utf8": "hello "}, {"utf8": "from json3"}]}, {"tStartMs": 2500, "dDurationMs": 2000, "segs": [{"utf8": "hello from json3 "}, {"utf8": "and more"}]}]}

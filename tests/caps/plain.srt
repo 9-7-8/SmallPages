@@ -1,0 +1,7 @@
+1
+00:00:01,000 --> 00:00:03,500
+A plain subtitle file.
+
+2
+00:00:03,500 --> 00:00:06,000
+With two cues and no repetition.
