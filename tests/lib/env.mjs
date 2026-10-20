@@ -70,17 +70,20 @@ const FIXTURES = [
   "clip.webm", "sample.pdf", "text.pdf",         // and the loose ones
 ];
 
+/* Copied rather than linked, and refreshed on every suite. Linking them was
+   the obvious thing and it was wrong: a suite that saves its output under a
+   fixture's name writes straight through the link and replaces the fixture
+   for every suite after it, which is how test-pdfb came to overwrite the PDF
+   test-ati-file reads. Copies cost half a megabyte and cannot do that, and
+   refreshing means each suite starts from the committed article however the
+   one before it left the directory. */
 fs.mkdirSync(WORK, { recursive: true });
 for (const kit of FIXTURES) {
   const into = path.join(WORK, kit);
   const from = path.join(TESTS, kit);
-  if (fs.existsSync(into) || !fs.existsSync(from)) continue;
-  const kind = fs.statSync(from).isDirectory() ? "dir" : "file";
-  try {
-    fs.symlinkSync(from, into, kind);
-  } catch {
-    fs.cpSync(from, into, { recursive: true });   // Windows without privilege
-  }
+  if (!fs.existsSync(from)) continue;
+  fs.rmSync(into, { recursive: true, force: true });
+  fs.cpSync(from, into, { recursive: true });
 }
 
 /* What nearly every suite opens with, so the launch options stop being

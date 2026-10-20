@@ -13,9 +13,12 @@ node tests/run.mjs rain noise   # the ones whose name contains either
 node tests/test-pdfb.mjs        # one, with the server already up on 8099
 ```
 
-`run.mjs` starts the static server the suites point at, starts the caption
-stub for the four suites that need it, runs each suite in turn and adds up the
-result. Nothing is left running afterwards.
+`run.mjs` starts the static server the suites point at, the caption stub for
+the four suites that need it and the relay stub for the one that does, runs
+each suite in turn and adds up the result. Nothing is left running afterwards.
+Running a suite by hand means starting those yourself — `test-caps-relay.mjs`
+with nothing on 8787 fails with the page's Chrome local-network hint, which
+reads like a browser problem and is really an empty port.
 
 ## What it needs
 

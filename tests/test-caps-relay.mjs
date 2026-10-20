@@ -1,10 +1,10 @@
 import { chromium, CHROMIUM_BIN, WORK } from './lib/env.mjs';
 const URL = 'http://127.0.0.1:8099/captions-to-transcript.html';
 const MINE = 'http://127.0.0.1:8787/fetch?key=testkey123&url={url}';
-const browser = await chromium.launch({ executablePath: CHROMIUM_BIN,
-  // Chrome gates a public page reaching 127.0.0.1 behind a prompt nobody is
-  // here to click; the relay itself still has to answer for the test to pass.
-  args: ["--disable-features=LocalNetworkAccessChecks,PrivateNetworkAccessChecks"] });
+// Needs stubs/stub-relay.py on 8787; run.mjs starts it. Without something
+// listening there the page reports Chrome's local-network hint, which looks
+// like a browser problem and is really an empty port.
+const browser = await chromium.launch({ executablePath: CHROMIUM_BIN });
 const ctx = await browser.newContext({ viewport: { width: 1250, height: 1300 } });
 const page = await ctx.newPage();
 const ok = (n, c, x='') => console.log((c ? 'PASS' : 'FAIL') + '  ' + n + (c ? '' : '  <<< ' + x));

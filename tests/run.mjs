@@ -16,7 +16,9 @@ import path from "node:path";
 import { PORT, REPO, TESTS } from "./lib/env.mjs";
 
 const STUB_PORT = 8098;
+const RELAY_PORT = 8787;
 const WANTS_STUB = /^test-caps-(diag|fetch|relay|slow)\.mjs$/;
+const WANTS_RELAY = /^test-caps-relay\.mjs$/;
 
 const asked = process.argv.slice(2);
 const suites = fs.readdirSync(TESTS)
@@ -61,6 +63,9 @@ const site = await serve(PORT, ["-m", "http.server", String(PORT), "--bind", "12
 const stub = suites.some((f) => WANTS_STUB.test(f))
   ? await serve(STUB_PORT, [path.join(TESTS, "stubs", "stub-yt.py")], TESTS)
   : null;
+const relay = suites.some((f) => WANTS_RELAY.test(f))
+  ? await serve(RELAY_PORT, [path.join(TESTS, "stubs", "stub-relay.py")], TESTS)
+  : null;
 
 const over = [];
 try {
@@ -73,7 +78,7 @@ try {
     over.push({ file, code, passed, failed, skipped });
   }
 } finally {
-  for (const child of [site, stub]) {
+  for (const child of [site, stub, relay]) {
     if (child) { try { process.kill(-child.pid); } catch { child.kill(); } }
   }
 }
