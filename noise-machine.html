@@ -136,6 +136,8 @@
   /* A slider to sweep with and a box to land on an exact figure: 7.83 and
      136.1 are not values you find by dragging. */
   .pair { display: flex; gap: 0.6rem; align-items: center; }
+  #presetName { flex: 1 1 10rem; min-width: 7rem; }
+  .field.grow { flex: 1 1 20rem; }
   .pair input[type="range"] { flex: 1; min-width: 7rem; }
   .pair input[type="number"] {
     width: 6.2rem;
@@ -209,11 +211,39 @@
 <main>
   <a class="home" href="index.html">&larr; index</a>
   <h1>Noise Machine</h1>
-  <p class="lede">Five noises to work, sleep or think through, built from scratch in the page by
-  the browser's own audio engine, with a drum that can beat under them and a pair of tones that
-  are not noise at all: two sines a few hertz apart, one to each ear. Nothing is downloaded,
-  because there is no recording &mdash; it is all generated as it plays. A sleep timer runs
-  across the top, set to four hours unless you say otherwise.</p>
+  <p class="lede">Four noises to work, sleep or think through, built from scratch in the page by
+  the browser's own audio engine, with a drum that can beat under them and two ways of hearing a
+  beat that are not noise at all. Nothing is downloaded, because there is no recording &mdash; it
+  is all generated as it plays. Start from one of the settings along the top, or move everything
+  yourself; whatever you end up with is in the address bar, so it can be bookmarked or sent to
+  somebody.</p>
+
+  <div class="card">
+    <h2>Settings</h2>
+    <div class="chips" id="presetChips"></div>
+
+    <div class="rank" style="margin-top:1.2rem">
+      <div class="field grow">
+        <label for="presetName">Keep this one</label>
+        <div class="pair">
+          <input type="text" id="presetName" placeholder="A name for it" maxlength="40">
+          <button type="button" id="keepBtn">Keep</button>
+        </div>
+        <span class="unit" id="keptNote"></span>
+      </div>
+      <div class="field">
+        <label for="mineSel">Yours</label>
+        <select id="mineSel"></select>
+      </div>
+      <div class="field">
+        <label>&nbsp;</label>
+        <div class="pair">
+          <button type="button" id="dropBtn" class="ghost">Forget</button>
+          <button type="button" id="linkBtn" class="ghost">Copy link</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <div class="card">
     <div class="deck" id="deck"></div>
@@ -315,11 +345,58 @@
   people can leave on. Brown drops 6&nbsp;dB per octave and is nearly all bottom end: a distant
   waterfall, or the inside of an aeroplane.</p>
 
-  <p class="note"><strong>Rain and the fan are the same noise, shaped.</strong> The rain is
-  filtered brown and white run together with a slow drift on the top end, and a scatter of short
-  droplets on top of it; the fan is brown noise under a low-pass that breathes, with a quiet tone
-  at the blade rate underneath. Neither is a recording, so neither has anything to recognise on
-  the second pass.</p>
+  <div class="card">
+    <h2>Isochronic tone</h2>
+
+    <div class="field">
+      <label for="itoneIn">Tone &mdash; the pitch being switched</label>
+      <div class="pair">
+        <input type="range" id="itoneIn" min="40" max="1000" step="1" value="200"
+               style="max-width:26rem" aria-label="Tone">
+        <input type="number" id="itoneNum" min="40" max="1000" step="0.1" value="200"
+               aria-label="Tone in hertz">
+      </div>
+      <span class="unit" id="itoneNote"></span>
+    </div>
+
+    <div class="field" style="margin-top:1.5rem">
+      <label for="irateIn">Rate &mdash; how many times a second it is switched</label>
+      <div class="pair">
+        <input type="range" id="irateIn" min="0.1" max="40" step="0.1" value="10"
+               style="max-width:26rem" aria-label="Pulse rate">
+        <input type="number" id="irateNum" min="0.1" max="40" step="0.01" value="10"
+               aria-label="Pulses a second">
+      </div>
+      <span class="unit" id="irateNote"></span>
+    </div>
+    <div class="chips" id="isoChips"></div>
+
+    <div class="field" style="margin-top:1.5rem">
+      <label for="idutyIn">Duty &mdash; how much of each cycle the tone is there for</label>
+      <div class="pair">
+        <input type="range" id="idutyIn" min="10" max="90" step="1" value="50"
+               style="max-width:26rem" aria-label="Duty">
+        <input type="number" id="idutyNum" min="10" max="90" step="1" value="50"
+               aria-label="Duty as a percentage">
+      </div>
+      <span class="unit" id="idutyNote"></span>
+    </div>
+  </div>
+
+  <p class="note"><strong>The fan is noise, shaped.</strong> Brown under a low-pass that
+  breathes, with a quiet tone at the blade rate underneath &mdash; a real fan has one, and
+  leaving it out is what makes filtered noise sound like filtered noise. It is not a recording,
+  so there is nothing to recognise on the second pass.</p>
+
+  <p class="note"><strong>Two ways to hear a beat.</strong> The binaural pair puts a steady tone
+  in each ear and lets your hearing find the difference between them, which is why it needs
+  headphones and does nothing through a speaker. The isochronic tone is one tone switched on and
+  off instead, so the pulse is really in the air and a speaker carries it perfectly well; it is
+  also the blunter of the two, and more tiring to sit under. Its edges are ramped rather than
+  square, because a tone cut dead is a click and a click ten times a second is a buzz. The duty
+  is how much of each cycle the tone is present for: low is a tick, high is a wobble on a tone
+  that never quite stops. Everything said in the note above about what these are supposed to do
+  to a listener applies here in the same measure, which is to say not much.</p>
 
   <p class="note"><strong>Why the beat needs two ears.</strong> Nothing in the signal pulses.
   There are two steady sine tones, say 195&nbsp;Hz and 205&nbsp;Hz, and the ten-hertz throb
@@ -377,6 +454,23 @@ const carrierNote  = el("carrierNote");
 const carrierChips = el("carrierChips");
 const earsOut      = el("earsOut");
 const swapBtn      = el("swapBtn");
+const itoneIn      = el("itoneIn");
+const itoneNum     = el("itoneNum");
+const itoneNote    = el("itoneNote");
+const irateIn      = el("irateIn");
+const irateNum     = el("irateNum");
+const irateNote    = el("irateNote");
+const idutyIn      = el("idutyIn");
+const idutyNum     = el("idutyNum");
+const idutyNote    = el("idutyNote");
+const isoChips     = el("isoChips");
+const presetChips  = el("presetChips");
+const presetName   = el("presetName");
+const keepBtn      = el("keepBtn");
+const keptNote     = el("keptNote");
+const mineSel      = el("mineSel");
+const dropBtn      = el("dropBtn");
+const linkBtn      = el("linkBtn");
 const bpmIn        = el("bpmIn");
 const bpmNum       = el("bpmNum");
 const bpmNote      = el("bpmNote");
@@ -389,6 +483,10 @@ const saidBox      = el("saidBox");
 
 let swapped = false;   // which ear gets the higher of the two tones
 
+let isoTone = 200;
+let isoRate = 10;
+let isoDuty = 50;
+
 let drumBpm = 60;
 let drumDepth = 80;
 let drumShape = "heart";
@@ -400,9 +498,9 @@ const SOUNDS = [
   { id: "white", name: "White",  what: "flat across the band — a hiss",            level: 0 },
   { id: "pink",  name: "Pink",   what: "−3 dB an octave — rain, wind, river",  level: 35 },
   { id: "brown", name: "Brown",  what: "−6 dB an octave — nearly all bottom",  level: 0 },
-  { id: "rain",  name: "Rain",   what: "filtered noise, with droplets over it",          level: 0 },
   { id: "fan",   name: "Fan",    what: "brown under a breathing low-pass",               level: 0 },
   { id: "drum",     name: "Drum",     what: "a slow pulse under the rest",           level: 0, trim: 0.55 },
+  { id: "isochronic", name: "Isochronic", what: "one tone, pulsed — speakers are fine", level: 0, trim: 0.42 },
   { id: "binaural", name: "Binaural", what: "two tones, one an ear — headphones",   level: 0, trim: 0.40 },
 ];
 
@@ -567,7 +665,7 @@ function fillBrown(data) {
 }
 
 /* Each kind is generated once and shared. Six of these were being built at
-   every Start — rain and the fan each made their own white and brown — which
+   every Start — the rain that used to be here and the fan each made their own — which
    is some nine megabytes and fourteen million random numbers on the main
    thread before a note sounded. That is the bang, and on a phone the static
    after it. */
@@ -620,34 +718,6 @@ function build(id) {
     const s = looping(noise("brown"));
     s.connect(gain); s.start(); nodes.push(s);
 
-  } else if (id === "rain") {
-    // The body of it: white through a wide band-pass whose corner drifts,
-    // which is the difference between rain and a hiss.
-    const body = looping(noise("white"));
-    const band = ctx.createBiquadFilter();
-    band.type = "bandpass";
-    band.Q.value = 0.4;
-    const wobble = drift(band.frequency, 700, 1600, 23);
-    const bodyGain = ctx.createGain();
-    bodyGain.gain.value = 1.4;
-    body.connect(band).connect(bodyGain).connect(gain);
-    body.start(at);
-
-    // Under it, the low rumble of rain on something solid.
-    const under = looping(noise("brown"));
-    const lp = ctx.createBiquadFilter();
-    lp.type = "lowpass";
-    lp.frequency.value = 420;
-    const underGain = ctx.createGain();
-    underGain.gain.value = 0.5;
-    under.connect(lp).connect(underGain).connect(gain);
-    under.start(at);
-
-    nodes.push(body, band, bodyGain, under, lp, underGain, ...wobble);
-    // And the droplets, scheduled rather than baked in, so they never land
-    // in the same place twice.
-    nodes.push({ drops: dropper(gain) });
-
   } else if (id === "fan") {
     const s = looping(noise("brown"));
     const lp = ctx.createBiquadFilter();
@@ -674,6 +744,23 @@ function build(id) {
 
   } else if (id === "drum") {
     nodes.push({ beat: beater(gain) });
+
+  } else if (id === "isochronic") {
+    const osc = ctx.createOscillator();
+    osc.type = "sine";
+    osc.frequency.value = isoTone;
+    const gate = ctx.createGain();
+    gate.gain.value = 0;
+    osc.connect(gate).connect(gain);
+    osc.start(at);
+    nodes.push(osc, gate, { beat: pulser(gate) });
+
+    tune = (tone) => {
+      const now = ctx.currentTime;
+      osc.frequency.cancelScheduledValues(now);
+      osc.frequency.setValueAtTime(osc.frequency.value, now);
+      osc.frequency.linearRampToValueAtTime(Math.max(20, tone), now + 0.05);
+    };
 
   } else if (id === "binaural") {
     // A merger rather than two panners, because panning is a mix: at any
@@ -800,27 +887,30 @@ function beater(out) {
   return state;
 }
 
-// Short enveloped blips at irregular intervals — the part of rain your ear
-// listens for, and the part a filter alone cannot give you.
-function dropper(out) {
-  const state = { timer: null, cancelled: false };
-  const next = () => {
+// One tone switched on and off. The beat is in the air rather than in the
+// head, which is why this one carries over a speaker where the binaural pair
+// cannot — and why the edges have to be ramped: a tone cut dead is a click,
+// and a click repeated ten times a second is a buzz, not a pulse.
+function pulser(gate) {
+  const state = { timer: null, cancelled: false, next: 0 };
+  state.next = Math.max(ctx.currentTime, openAt) + 0.06;
+  const pump = () => {
     if (state.cancelled || !ctx) return;
-    const now = ctx.currentTime;
-    const osc = ctx.createOscillator();
-    osc.type = "sine";
-    osc.frequency.setValueAtTime(900 + Math.random() * 2600, now);
-    osc.frequency.exponentialRampToValueAtTime(300 + Math.random() * 400, now + 0.04);
-    const env = ctx.createGain();
-    env.gain.setValueAtTime(0.0001, now);
-    env.gain.exponentialRampToValueAtTime(0.03 + Math.random() * 0.05, now + 0.004);
-    env.gain.exponentialRampToValueAtTime(0.0001, now + 0.06);
-    osc.connect(env).connect(out);
-    osc.start(now);
-    osc.stop(now + 0.08);
-    state.timer = setTimeout(next, 25 + Math.random() * 180);
+    const period = 1 / isoRate;
+    const on = period * (isoDuty / 100);
+    const edge = Math.min(0.012, on / 3);
+    if (state.next < ctx.currentTime - 0.5) state.next = ctx.currentTime + 0.06;
+    while (state.next < ctx.currentTime + LOOKAHEAD) {
+      const t = state.next;
+      gate.gain.setValueAtTime(0, t);
+      gate.gain.linearRampToValueAtTime(1, t + edge);
+      gate.gain.setValueAtTime(1, t + on - edge);
+      gate.gain.linearRampToValueAtTime(0, t + on);
+      state.next = t + period;
+    }
+    state.timer = setTimeout(pump, 50);
   };
-  next();
+  pump();
   return state;
 }
 
@@ -1038,6 +1128,10 @@ function meter() {
     bits.push(`${drumBpm} bpm ${(SHAPES[drumShape] || SHAPES.pulse).name.toLowerCase()}`);
   }
 
+  if (Number(el("lvl-isochronic").value) > 0) {
+    bits.push(`${isoTone.toFixed(0)} Hz pulsed ${isoRate.toFixed(2)}/s`);
+  }
+
   if (Number(el("lvl-binaural").value) > 0) {
     bits.push(`${carrierHz.toFixed(1)} Hz, ${beatHz.toFixed(2)} Hz apart, ${bandAt(beatHz).name.toLowerCase()}`);
   }
@@ -1145,11 +1239,13 @@ beatNum.addEventListener("input", () => setBinaural(carrierHz, num(beatNum.value
 
 // Which ear gets the higher tone changes nothing about the beat, and some
 // people find one way round easier to sit with than the other.
-swapBtn.addEventListener("click", () => {
-  swapped = !swapped;
+function setSwap(on) {
+  swapped = !!on;
   swapBtn.textContent = `Higher tone: ${swapped ? "left" : "right"} ear`;
   drawBinaural();
-});
+}
+
+swapBtn.addEventListener("click", () => setSwap(!swapped));
 
 setBinaural(carrierHz, beatHz);
 
@@ -1214,6 +1310,254 @@ depthIn.addEventListener("input", () => setDrum(drumBpm, num(depthIn.value, drum
 depthNum.addEventListener("input", () => setDrum(drumBpm, num(depthNum.value, drumDepth), null, "depthNum"));
 
 setDrum(drumBpm, drumDepth, drumShape);
+
+/* ------------------------------------------------------ the pulsed tone -- */
+
+function setIso(tone, rate, duty, origin) {
+  isoTone = clamp(tone, 40, 1000);
+  isoRate = clamp(rate, 0.1, 40);
+  isoDuty = clamp(Math.round(duty), 10, 90);
+  if (origin !== "itoneIn") itoneIn.value = String(isoTone);
+  if (origin !== "itoneNum") itoneNum.value = String(Number(isoTone.toFixed(1)));
+  if (origin !== "irateIn") irateIn.value = String(isoRate);
+  if (origin !== "irateNum") irateNum.value = String(Number(isoRate.toFixed(2)));
+  if (origin !== "idutyIn") idutyIn.value = String(isoDuty);
+  if (origin !== "idutyNum") idutyNum.value = String(isoDuty);
+  drawIso();
+}
+
+function drawIso() {
+  const band = bandAt(isoRate);
+  const on = (1000 / isoRate) * (isoDuty / 100);
+  itoneNote.textContent = isoTone < 80 ? "low enough to feel as a flutter rather than a pitch"
+    : isoTone > 700 ? "high and sharp — easier to notice, harder to sit under"
+    : "in the range the pulse reads most clearly";
+  irateNote.textContent = `${band.name.toLowerCase()} — ${band.of}`;
+  idutyNote.textContent = `${on.toFixed(0)} ms on, ${((1000 / isoRate) - on).toFixed(0)} ms off`
+    + (isoDuty <= 25 ? " — a tick" : isoDuty >= 75 ? " — a wobble on a tone that never quite stops" : "");
+
+  const near = nearest(BEATS, isoRate, 0.05);
+  for (const button of isoChips.children) {
+    button.classList.toggle("on", !!near && Number(button.dataset.hz) === near.hz);
+  }
+  if (running && lanes.isochronic && lanes.isochronic.tune) lanes.isochronic.tune(isoTone);
+}
+
+for (const item of BEATS) {
+  plainChip(isoChips, `${item.hz} Hz`, item.said, { hz: String(item.hz) },
+    () => setIso(isoTone, item.hz, isoDuty));
+}
+
+itoneIn.addEventListener("input", () => setIso(num(itoneIn.value, isoTone), isoRate, isoDuty, "itoneIn"));
+itoneNum.addEventListener("input", () => setIso(num(itoneNum.value, isoTone), isoRate, isoDuty, "itoneNum"));
+irateIn.addEventListener("input", () => setIso(isoTone, num(irateIn.value, isoRate), isoDuty, "irateIn"));
+irateNum.addEventListener("input", () => setIso(isoTone, num(irateNum.value, isoRate), isoDuty, "irateNum"));
+idutyIn.addEventListener("input", () => setIso(isoTone, isoRate, num(idutyIn.value, isoDuty), "idutyIn"));
+idutyNum.addEventListener("input", () => setIso(isoTone, isoRate, num(idutyNum.value, isoDuty), "idutyNum"));
+
+setIso(isoTone, isoRate, isoDuty);
+
+/* ------------------------------------------------------------ the state -- */
+
+/* Every knob on the page, once. The presets, the ones you keep and the
+   address bar are all the same list read three ways, which is the only way
+   they stay in step with each other as the page grows. */
+
+function levelOf(id) { return Number(el(`lvl-${id}`).value); }
+
+function setLevel(id, value) {
+  const slider = el(`lvl-${id}`);
+  slider.value = String(clamp(Math.round(Number(value) || 0), 0, 100));
+  slider.dispatchEvent(new Event("input"));
+}
+
+function setSleep(hours) {
+  const n = Number(hours) || 0;
+  sleepOn.checked = n > 0;
+  if (n > 0) sleepHrs.value = String(clamp(Math.round(n), 4, 24));
+  startTimer();
+  drawSleep();
+  say();
+}
+
+const FIELDS = [
+  { key: "white", def: 0,  get: () => levelOf("white"), set: (v) => setLevel("white", v) },
+  { key: "pink",  def: 35, get: () => levelOf("pink"),  set: (v) => setLevel("pink", v) },
+  { key: "brown", def: 0,  get: () => levelOf("brown"), set: (v) => setLevel("brown", v) },
+  { key: "fan",   def: 0,  get: () => levelOf("fan"),   set: (v) => setLevel("fan", v) },
+  { key: "drum",  def: 0,  get: () => levelOf("drum"),  set: (v) => setLevel("drum", v) },
+  { key: "iso",   def: 0,  get: () => levelOf("isochronic"), set: (v) => setLevel("isochronic", v) },
+  { key: "bin",   def: 0,  get: () => levelOf("binaural"),   set: (v) => setLevel("binaural", v) },
+  { key: "vol",   def: 60, get: () => Number(masterIn.value),
+    set: (v) => { masterIn.value = String(clamp(Math.round(Number(v) || 0), 0, 100)); masterIn.dispatchEvent(new Event("input")); } },
+  { key: "sleep", def: 4,  get: () => (sleepOn.checked ? Number(sleepHrs.value) : 0), set: setSleep },
+  { key: "bpm",   def: 60, get: () => drumBpm,   set: (v) => setDrum(Number(v), drumDepth, null) },
+  { key: "deep",  def: 80, get: () => drumDepth, set: (v) => setDrum(drumBpm, Number(v), null) },
+  { key: "shape", def: "heart", get: () => drumShape, set: (v) => setDrum(drumBpm, drumDepth, String(v)) },
+  { key: "tone",  def: 200, get: () => carrierHz, set: (v) => setBinaural(Number(v), beatHz) },
+  { key: "split", def: 10,  get: () => beatHz,    set: (v) => setBinaural(carrierHz, Number(v)) },
+  { key: "swap",  def: 0,   get: () => (swapped ? 1 : 0), set: (v) => setSwap(Number(v) === 1) },
+  { key: "itone", def: 200, get: () => isoTone, set: (v) => setIso(Number(v), isoRate, isoDuty) },
+  { key: "irate", def: 10,  get: () => isoRate, set: (v) => setIso(isoTone, Number(v), isoDuty) },
+  { key: "iduty", def: 50,  get: () => isoDuty, set: (v) => setIso(isoTone, isoRate, Number(v)) },
+];
+
+const DEFAULTS = Object.fromEntries(FIELDS.map((f) => [f.key, f.def]));
+const whole = (over) => ({ ...DEFAULTS, ...over });
+const sameState = (a, b) => FIELDS.every((f) => String(a[f.key]) === String(b[f.key]));
+
+function snapshot() {
+  const out = {};
+  for (const f of FIELDS) out[f.key] = f.get();
+  return out;
+}
+
+let settling = false;
+
+function restore(state) {
+  settling = true;
+  try {
+    for (const f of FIELDS) {
+      const value = state[f.key];
+      if (value === undefined || value === null || value === "") continue;
+      f.set(value);
+    }
+  } finally {
+    settling = false;
+  }
+  pushUrl();
+}
+
+/* ------------------------------------------------------------- the link -- */
+
+let urlTimer = null;
+
+function laterUrl() {
+  if (settling) return;
+  clearTimeout(urlTimer);
+  urlTimer = setTimeout(pushUrl, 250);
+}
+
+// Only what differs from the defaults goes in, so an untouched page has a
+// clean address and a shared one carries exactly what was changed.
+function pushUrl() {
+  const now = snapshot();
+  const parts = [];
+  for (const f of FIELDS) {
+    if (String(now[f.key]) !== String(f.def)) parts.push(`${f.key}=${encodeURIComponent(now[f.key])}`);
+  }
+  const query = parts.join("&");
+  try { history.replaceState(null, "", query ? `?${query}` : location.pathname); } catch {}
+  drawPresets();
+}
+
+function fromUrl() {
+  const params = new URLSearchParams(location.search);
+  const state = {};
+  let any = false;
+  for (const f of FIELDS) if (params.has(f.key)) { state[f.key] = params.get(f.key); any = true; }
+  if (any) restore(state);
+  return any;
+}
+
+document.addEventListener("input", laterUrl);
+document.addEventListener("change", laterUrl);
+
+/* ---------------------------------------------------------- the presets -- */
+
+const PRESETS = [
+  { name: "Sleep", state: whole({ brown: 46, pink: 16, bin: 26, tone: 180, split: 2.5, vol: 46, sleep: 8 }) },
+  { name: "Nap", state: whole({ pink: 40, brown: 22, bin: 24, tone: 200, split: 3.5, vol: 52, sleep: 4 }) },
+  { name: "Meditation", state: whole({ pink: 28, drum: 26, bpm: 38, deep: 96, shape: "tide",
+                                       bin: 32, tone: 136.1, split: 6, vol: 54, sleep: 4 }) },
+  { name: "Calming", state: whole({ pink: 44, fan: 16, bin: 24, tone: 200, split: 10, vol: 52, sleep: 6 }) },
+  { name: "Focus", state: whole({ pink: 30, white: 16, iso: 22, itone: 240, irate: 14, iduty: 40,
+                                  vol: 56, sleep: 8 }) },
+  { name: "Deep work", state: whole({ pink: 34, brown: 20, bin: 26, tone: 300, split: 16, vol: 56, sleep: 8 }) },
+  { name: "Energy", state: whole({ white: 22, iso: 28, itone: 320, irate: 40, iduty: 55,
+                                   drum: 26, bpm: 96, deep: 54, shape: "walk", vol: 60, sleep: 4 }) },
+];
+
+const KEPT = "noise-machine.kept";
+
+function loadKept() {
+  try { return JSON.parse(localStorage.getItem(KEPT)) || []; } catch { return []; }
+}
+function saveKept(list) {
+  try { localStorage.setItem(KEPT, JSON.stringify(list)); return true; } catch { return false; }
+}
+
+let kept = loadKept();
+
+function drawKept() {
+  mineSel.replaceChildren();
+  const blank = document.createElement("option");
+  blank.value = "";
+  blank.textContent = kept.length ? "Pick one" : "Nothing kept yet";
+  mineSel.append(blank);
+  for (const one of kept) {
+    const option = document.createElement("option");
+    option.value = one.name;
+    option.textContent = one.name;
+    mineSel.append(option);
+  }
+  dropBtn.disabled = !kept.length;
+}
+
+function drawPresets() {
+  const now = snapshot();
+  for (const button of presetChips.children) {
+    const named = PRESETS.find((x) => x.name === button.dataset.preset);
+    button.classList.toggle("on", !!named && sameState(named.state, now));
+  }
+  const match = kept.find((one) => sameState(one.state, now));
+  mineSel.value = match ? match.name : "";
+}
+
+for (const preset of PRESETS) {
+  plainChip(presetChips, preset.name, "sets every knob on the page",
+    { preset: preset.name }, () => restore(preset.state));
+}
+
+keepBtn.addEventListener("click", () => {
+  const name = presetName.value.trim();
+  if (!name) { keptNote.textContent = "Give it a name first."; return; }
+  kept = kept.filter((one) => one.name !== name);
+  kept.push({ name, state: snapshot() });
+  keptNote.textContent = saveKept(kept)
+    ? `Kept as ${name} — in this browser only.`
+    : "This browser will not store it; the address bar still has everything.";
+  presetName.value = "";
+  drawKept();
+  drawPresets();
+});
+
+mineSel.addEventListener("change", () => {
+  const one = kept.find((x) => x.name === mineSel.value);
+  if (one) { restore(one.state); keptNote.textContent = `Loaded ${one.name}.`; }
+});
+
+dropBtn.addEventListener("click", () => {
+  const name = mineSel.value;
+  if (!name) { keptNote.textContent = "Pick one of yours to forget."; return; }
+  kept = kept.filter((one) => one.name !== name);
+  saveKept(kept);
+  keptNote.textContent = `Forgot ${name}.`;
+  drawKept();
+  drawPresets();
+});
+
+linkBtn.addEventListener("click", async () => {
+  pushUrl();
+  try {
+    await navigator.clipboard.writeText(location.href);
+    keptNote.textContent = "Link copied — it carries every setting.";
+  } catch { keptNote.textContent = "This browser would not let the page copy."; }
+});
+
+drawKept();
+fromUrl();
+pushUrl();
 
 for (const control of [sleepOn, sleepHrs]) {
   control.addEventListener("input", () => { startTimer(); drawSleep(); say(); });
