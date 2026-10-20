@@ -767,6 +767,25 @@ async function answersAtAll(url) {
   }
 }
 
+// Chrome now asks before a public page may reach anything on this machine, and
+// until that is answered a relay on 127.0.0.1 looks exactly like one that is
+// not running. The permission says which it is.
+async function localAccessHint() {
+  let state;
+  try {
+    state = (await navigator.permissions.query({ name: "local-network-access" })).state;
+  } catch { return null; }
+  if (state === "prompt") {
+    return "Chrome is waiting for you to allow this page to reach your computer — click Allow"
+      + " on the prompt by the address bar (or the site settings, \"Local network access\"), then try again";
+  }
+  if (state === "denied") {
+    return "Chrome is blocking this page from reaching your computer — set \"Local network access\""
+      + " to Allow in this site's settings (the icon left of the address), then try again";
+  }
+  return null;
+}
+
 // Every relay unreachable at once, and a relay answering without the header,
 // are opposite diagnoses: the first points at this end, the second at theirs.
 function hintFor(relays) {
@@ -899,7 +918,8 @@ async function fetchVia(target, what, check) {
           said = `still nothing after a further ${PROBE_TIMEOUT / 1000}s — too slow to say which`;
           step.kind = "slow";
         } else {
-          said = "could not be reached — blocked here, offline, or gone";
+          said = (route.via === "your relay" && await localAccessHint())
+            || "could not be reached — blocked here, offline, or gone";
           step.kind = "unreachable";
         }
       }
