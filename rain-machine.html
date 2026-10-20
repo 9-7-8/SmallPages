@@ -320,12 +320,34 @@ const BANDS = {
 
 const lowOf = (k) => Math.min(Number(BANDS[k].lo.value), Number(BANDS[k].hi.value)) / 100;
 const highOf = (k) => Math.max(Number(BANDS[k].lo.value), Number(BANDS[k].hi.value)) / 100;
-const nowOf = (k) => BANDS[k].now;
+/* The stored value wanders; the gust rides on top of it and is gone when it
+   is gone. Nothing writes the gust back into the band. */
+const nowOf = (k) => {
+  const base = BANDS[k].now;
+  const lift = gustLevel();
+  if (k === "wind") return Math.min(1, base + lift * 0.5);
+  if (k === "rain") {
+    const hi = highOf("rain"), lo = lowOf("rain");
+    return Math.min(hi, base + lift * (hi - lo) * 0.45);
+  }
+  return base;
+};
 
 const restless = () => Number(el("driftIn").value) / 100;
 const dropSize = () => Number(el("dropsIn").value) / 100;
 
-let gustPush = 0;          // what the wind is currently doing to the rain
+/* A gust is an envelope with a life of its own, read fresh every frame and
+   never accumulated into anything. Adding it into the stored value each frame
+   was the rubber band: sixty times a second it pushed the rain further up
+   until it hit the ceiling, pinned there, and then sagged back. */
+let gustAt = -1;           // seconds into the current gust, or -1 for none
+let gustLife = 0;
+let gustSize = 0;
+
+function gustLevel() {
+  if (gustAt < 0 || gustLife <= 0) return 0;
+  return Math.sin(Math.PI * Math.min(1, gustAt / gustLife)) * gustSize;
+}
 
 /* The weather wanders rather than sitting. Each quantity creeps toward a
    target somewhere in its own band, and picks a new target now and then —
@@ -343,11 +365,12 @@ function drift(step) {
     band.now = Math.min(hi, Math.max(lo, band.now));
   }
 
-  // A squall is wind and rain together: the gust pushes the rain up with it,
-  // and the lull behind it takes the rain back down.
-  gustPush *= Math.pow(0.5, step / 2.5);
-  const lo = lowOf("rain"), hi = highOf("rain");
-  BANDS.rain.now = Math.min(hi, Math.max(lo, BANDS.rain.now + gustPush * (hi - lo) * 0.55));
+  // A squall is wind and rain together, and nowOf() is where they meet. All
+  // that happens here is that the gust gets older.
+  if (gustAt >= 0) {
+    gustAt += step;
+    if (gustAt > gustLife) gustAt = -1;
+  }
 }
 
 /* -------------------------------------------------------------- the sky -- */
@@ -395,7 +418,7 @@ function sky() {
 }
 
 function moveClouds(step) {
-  const speed = (12 + nowOf("wind") * 110) * step;
+  const speed = (5 + nowOf("wind") * 30) * step;
   const dx = Math.cos(windAngle) * speed;
   const dy = Math.sin(windAngle) * speed;
   for (const c of clouds) {
@@ -608,31 +631,23 @@ function shapeWeather(ramp = 0.3) {
   set(washNodes.far.gain, wet * far * 0.85 * place.wash);
   set(washNodes.farFilter.frequency, 420 + far * 900);
   set(washNodes.nearFilter.frequency, 900 + wet * 2600);
-  set(airNodes.gain.gain, nowOf("wind") * 0.22);
+  const blowing = nowOf("wind");
+  set(airNodes.gain.gain, blowing * 0.3);
+  set(airNodes.filter.frequency, 320 + blowing * 900);
 }
 
 function gust(forced = false) {
   if (!running) return;
-  const strength = nowOf("wind");
+  const strength = BANDS.wind.now;
   if (forced || strength > 0.08) {
-    const now = ctx.currentTime;
-    const peak = Math.max(0.12, strength) * 0.55;
-    const over = 2.5 + Math.random() * 4.5;
-    const air = airNodes.gain.gain;
-    const filter = airNodes.filter.frequency;
-    air.cancelScheduledValues(now);
-    air.setValueAtTime(air.value, now);
-    air.linearRampToValueAtTime(peak, now + over * 0.4);
-    air.linearRampToValueAtTime(strength * 0.22, now + over);
-    filter.cancelScheduledValues(now);
-    filter.setValueAtTime(filter.value, now);
-    filter.linearRampToValueAtTime(320 + strength * 1000, now + over * 0.4);
-    filter.linearRampToValueAtTime(400, now + over);
-
-    gusts.push({ from: windAngle + (Math.random() - 0.5) * 0.7, t: 0, life: over });
-    gustPush = Math.min(1, gustPush + 0.35 + strength * 0.5);
+    // Nothing is scheduled here. The gust only sets its own envelope, and
+    // shapeWeather is the single writer of the air it moves.
+    gustLife = 2.5 + Math.random() * 4.5;
+    gustAt = 0;
+    gustSize = Math.max(0.22, strength) * (forced ? 1 : 0.55 + Math.random() * 0.5);
+    gusts.push({ from: windAngle + (Math.random() - 0.5) * 0.7, t: 0, life: gustLife });
   }
-  gustTimer = setTimeout(() => gust(), 5000 + Math.random() * 11000 * (1.2 - nowOf("wind")));
+  gustTimer = setTimeout(() => gust(), 5000 + Math.random() * 11000 * (1.2 - BANDS.wind.now));
 }
 
 /* Thunder as several segments along the channel rather than one bang. The
@@ -642,8 +657,12 @@ function gust(forced = false) {
 function thunder(flashAt, metres) {
   const segments = 3 + Math.floor(Math.random() * 3);
   const sent = [];
+  let along = metres;
   for (let i = 0; i < segments; i++) {
-    const along = metres * (1 + i * (0.25 + Math.random() * 0.55));
+    // Accumulated, not multiplied by the index: a channel runs away from you,
+    // so each segment must be further than the last rather than rolling its
+    // own distance and sometimes landing nearer.
+    if (i > 0) along += metres * (0.2 + Math.random() * 0.5);
     const close = Math.max(0.03, 1 - along / (SPAN * 1.8));
     const at = flashAt + along / SOUND;
     const energy = (i === 0 ? 1 : 0.75 / i) * (0.35 + Math.random() * 0.65);
@@ -819,7 +838,7 @@ async function start() {
   raining();
   gust();
   strikeTimer = setTimeout(() => strike(), 3000 + Math.random() * 8000);
-  weatherTimer = setInterval(() => shapeWeather(0.35), 350);
+  weatherTimer = setInterval(() => shapeWeather(0.45), 200);
   say();
 }
 
