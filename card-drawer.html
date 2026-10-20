@@ -1,0 +1,2585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Card Drawer</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  /* Layout and sizing only. Colour, type and component styling live in theme.css. */
+
+  body { margin: 0; padding: 3rem 1.5rem 5rem; }
+  main { max-width: 860px; margin: 0 auto; }
+  p.lede { margin: 0 0 2.2rem; max-width: 60ch; }
+  .card { margin-bottom: 1.5rem; }
+
+  .rank { display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-end; }
+  .field { display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; flex: 1 1 18rem; }
+  .field label { font-size: 0.8rem; }
+
+
+
+  #err { display: none; margin: 1rem 0 0; font-size: 0.85rem; }
+  #err.on { display: block; }
+
+  /* ------------------------------------------------------------- total -- */
+
+  /* The one figure you actually want, set as large as the card will take,
+     with the arithmetic that made it directly underneath. */
+  .total { text-align: center; padding: 1.3rem 0 0.2rem; }
+  .total .n {
+    display: block;
+    font-weight: 200;
+    font-size: clamp(3.2rem, 13vw, 5.6rem);
+    line-height: 1;
+    letter-spacing: 0.01em;
+    font-variant-numeric: tabular-nums;
+    color: var(--neon);
+    text-shadow: var(--text-glow);
+  }
+  .total .n.none { color: var(--text-faint); text-shadow: none; }
+  .total .say {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    letter-spacing: 0.06em;
+    color: var(--text-faint);
+    min-height: 1.3em;
+    margin-top: 0.4rem;
+    word-break: break-word;
+  }
+
+  .terms { margin-top: 1.4rem; }
+  .term {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    align-items: baseline;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .term:last-child { border-bottom: none; }
+  .term .tag {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    flex: none;
+    min-width: 6ch;
+  }
+  .pip {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.82rem;
+    border: 1px solid var(--line-soft);
+    padding: 0.05rem 0.4rem;
+    color: var(--text);
+    min-width: 2.6ch;
+    text-align: center;
+  }
+  /* The two rolls a table actually reacts to get a mark, and nothing else
+     does: the top of the die lit, the bottom of it dimmed. */
+  .pip.top { color: var(--neon); border-color: var(--neon-deep); text-shadow: var(--text-glow); }
+  .pip.bottom { color: var(--text-faint); }
+  .pip.flat { border-style: dashed; color: var(--text-dim); }
+  .term .sum {
+    margin-left: auto;
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.82rem;
+    color: var(--text-dim);
+    flex: none;
+    padding-left: 0.8rem;
+  }
+
+  /* --------------------------------------------------------- the table -- */
+
+  #tray {
+    display: block;
+    width: 100%;
+    height: min(52vh, 420px);
+    background: var(--sunken);
+    border: 1px solid var(--line-soft);
+    touch-action: none;
+  }
+  .trayBar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.9rem;
+    align-items: center;
+    margin-top: 0.7rem;
+    font-size: 0.78rem;
+  }
+  .trayBar .what { color: var(--text-faint); flex: 1 1 16rem; min-width: 0; }
+  .trayBar label { display: flex; align-items: center; gap: 0.4rem; font-size: 0.78rem; }
+
+  /* -------------------------------------------------- the many throws -- */
+
+  .runs { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; font-size: 0.9rem; }
+  .runs input {
+    width: 9rem;
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+  #simBtn { padding: 0.55rem 1.3rem; }
+
+  #plotWrap { margin-top: 1.3rem; display: none; }
+  #plotWrap.on { display: block; }
+  #plot {
+    display: block;
+    width: 100%;
+    height: min(44vh, 330px);
+    touch-action: none;
+  }
+  #plot:focus-visible { outline: 1px solid var(--neon); outline-offset: 2px; }
+
+  .readout {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    min-height: 1.4em;
+    margin-top: 0.5rem;
+    word-break: break-word;
+  }
+  .figures {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 1.6rem;
+    margin-top: 0.7rem;
+    font-size: 0.78rem;
+    color: var(--text-faint);
+  }
+  .figures b {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-weight: 400;
+    color: var(--text);
+  }
+  .plotActs { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-top: 1rem; }
+
+  /* The same numbers as the chart, for anyone the chart does not reach. */
+  #table { display: none; margin-top: 1rem; max-height: 17rem; overflow: auto; }
+  #table.on { display: block; }
+  #table table { border-collapse: collapse; width: 100%; font-size: 0.78rem; }
+  #table th, #table td {
+    text-align: right;
+    padding: 0.2rem 0.5rem;
+    border-bottom: 1px solid var(--line-soft);
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+  }
+  #table th { color: var(--text-faint); font-weight: 400; position: sticky; top: 0; background: var(--raised); }
+  #table td:first-child, #table th:first-child { text-align: left; }
+  #table tr.mine td { color: var(--neon); }
+
+
+  /* ------------------------------------------------------- the deck ---- */
+
+  .picks { display: flex; flex-wrap: wrap; gap: 0.8rem 1rem; align-items: flex-end; }
+  .picks .seg button { font-size: 0.8rem; padding: 0.35rem 0.75rem; }
+  select { font-size: 0.85rem; max-width: 100%; }
+  #howMany { width: 5.5rem; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .tick { display: flex; align-items: center; gap: 0.45rem; font-size: 0.8rem; }
+  .tick input:disabled + span { color: var(--text-faint); }
+  #drawBtn { padding: 0.72rem 1.7rem; font-size: 0.95rem; }
+
+  /* The cards drawn, in the order they came out, each on its own line so a
+     spread reads down the page the way it is laid out on a table. */
+  .drawn { margin-top: 1.4rem; }
+  .drew {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem 0.7rem;
+    align-items: baseline;
+    padding: 0.45rem 0;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .drew:last-child { border-bottom: none; }
+  .drew .seat { font-size: 0.78rem; color: var(--text-faint); flex: 0 0 11ch; }
+  .drew .pip { font-family: var(--sans); font-size: 0.9rem; min-width: 3.2ch; }
+  .drew .face { color: var(--text); }
+  .drew .worth {
+    margin-left: auto;
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.82rem;
+    color: var(--text-dim);
+  }
+
+  .fields { display: flex; flex-wrap: wrap; gap: 0.8rem 1.1rem; margin-top: 0.4rem; }
+  .fields label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.75rem; }
+  .fields input {
+    width: 5.5rem;
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  textarea {
+    width: 100%;
+    min-height: 8rem;
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    line-height: 1.5;
+    resize: vertical;
+  }
+  .blockLabel {
+    font-size: 0.78rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin: 0 0 0.3rem;
+  }
+  .blockNote { font-size: 0.78rem; color: var(--text-faint); margin: 0 0 0.8rem; max-width: 64ch; }
+  .block + .block { margin-top: 1.8rem; padding-top: 1.5rem; border-top: 1px solid var(--line-soft); }
+  .fileIn { font-size: 0.78rem; color: var(--text-dim); }
+  .fileIn::file-selector-button {
+    font-family: var(--sans);
+    font-size: 0.78rem;
+    background: transparent;
+    color: var(--text-dim);
+    border: 1px solid var(--line);
+    border-radius: 0;
+    padding: 0.35rem 0.7rem;
+    margin-right: 0.6rem;
+    cursor: pointer;
+  }
+  .fileIn::file-selector-button:hover { color: var(--neon); border-color: var(--neon); }
+
+  @media (max-width: 620px) {
+    .drew .seat { flex: 1 0 100%; }
+    .drew .worth { margin-left: 0; }
+  }
+
+  /* ----------------------------------------------------------- the log -- */
+
+  .log { max-height: 19rem; overflow: auto; margin-top: 0.3rem; }
+  .entry {
+    display: flex;
+    gap: 0.9rem;
+    padding: 0.4rem 0.2rem;
+    border-bottom: 1px solid var(--line-soft);
+    font-size: 0.85rem;
+    align-items: baseline;
+  }
+  .entry:last-child { border-bottom: none; }
+  .entry .at {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.72rem;
+    color: var(--text-faint);
+    flex: none;
+    width: 9ch;
+  }
+  .entry .roll { font-family: var(--mono); font-size: 0.8rem; color: var(--text-dim); flex: none; }
+  .entry .got {
+    margin-left: auto;
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--neon);
+    flex: none;
+  }
+  .empty { font-size: 0.85rem; color: var(--text-faint); padding: 0.6rem 0.2rem; }
+
+  .acts { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-left: auto; }
+
+  .note { font-size: 0.78rem; margin-top: 1.2rem; max-width: 66ch; }
+  .note strong { color: var(--text-dim); font-weight: 400; }
+  .note code { font-family: var(--mono); font-size: 0.92em; color: var(--text-dim); }
+  kbd { font-family: var(--mono); font-size: 0.9em; border: 1px solid var(--line); padding: 0 0.3em; }
+
+  @media (max-width: 620px) {
+    body { padding: 2rem 1rem 4rem; }
+    .acts { margin-left: 0; width: 100%; }
+      .term .sum { margin-left: 0; padding-left: 0; width: 100%; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <a class="home" href="index.html">&larr; index</a>
+  <h1>Card Drawer</h1>
+  <p class="lede">Draw from a deck &mdash; playing cards, a tarot deck or either half of one,
+  an Uno deck, or one you write yourself &mdash; and watch the cards land. Underneath, the same
+  draw made ten thousand times over, so you can see what the totals do.</p>
+
+  <div class="card">
+    <div class="picks">
+      <div class="field" style="flex:1 1 20rem">
+        <label>The deck</label>
+        <div class="seg" id="decks">
+          <button type="button" data-deck="playing" class="on">Playing cards</button>
+          <button type="button" data-deck="tarot">Tarot</button>
+          <button type="button" data-deck="major">Major arcana</button>
+          <button type="button" data-deck="minor">Minor arcana</button>
+          <button type="button" data-deck="uno">Uno</button>
+          <button type="button" data-deck="custom">Your own</button>
+        </div>
+      </div>
+      <label class="tick"><input type="checkbox" id="jokers"> <span>With jokers</span></label>
+    </div>
+
+    <div class="picks" style="margin-top:1.1rem">
+      <div class="field">
+        <label for="spread">Spread</label>
+        <select id="spread"></select>
+      </div>
+      <div class="field">
+        <label for="howMany">How many</label>
+        <input type="text" id="howMany" value="3" inputmode="numeric" spellcheck="false"
+               autocomplete="off" aria-describedby="err">
+      </div>
+      <button type="button" id="drawBtn">Draw</button>
+    </div>
+
+    <p class="status error" id="err" role="alert"></p>
+
+    <div class="total">
+      <span class="n none" id="total">&mdash;</span>
+      <div class="say" id="say">Nothing drawn yet.</div>
+    </div>
+
+    <div class="drawn" id="drawn"></div>
+  </div>
+
+  <div class="card">
+    <canvas id="tray" role="img" aria-label="The cards, face up on the table"></canvas>
+    <div class="trayBar">
+      <span class="what" id="trayNote">The table is empty.</span>
+      <label class="tick"><input type="checkbox" id="tumble" checked> <span>Throw them</span></label>
+      <button type="button" id="againBtn" class="ghost">Throw again</button>
+      <button type="button" id="drawHere">Draw</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="block">
+      <p class="blockLabel">What the cards are worth</p>
+      <p class="blockNote" id="worthNote">The ones that are not a number of their own. Everything
+      else counts as the number on it.</p>
+      <div class="fields" id="worths"></div>
+      <div class="plotActs">
+        <button type="button" id="worthReset" class="ghost">Back to the usual</button>
+      </div>
+    </div>
+
+    <div class="block">
+      <p class="blockLabel">Your own deck</p>
+      <p class="blockNote">One card a line. A single symbol at the front is the icon on its face,
+      <code>= 7</code> on the end is what it is worth, and <code>&times;4</code> puts that many of
+      it in the deck. <code>&#9824; A = 11 &times;2</code> is two aces of spades worth eleven each.
+      Without a value, a card counts as the number in its name, or as nothing if it has none.</p>
+      <textarea id="ownDeck" spellcheck="false" placeholder="&#9824; A = 11&#10;&#9824; 2&#10;&#9824; 3&#10;&#9733; Joker = 0 &times;2"></textarea>
+      <div class="plotActs">
+        <button type="button" id="useOwn">Use this deck</button>
+        <span class="readout" id="ownSay" style="margin:0"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="block">
+      <p class="blockLabel">Spreads</p>
+      <p class="blockNote">A spread is a list of places to put cards in, and it sets how many are
+      drawn. The ones you make are kept in this browser; the file you load is read here and goes
+      nowhere.</p>
+      <div class="field" style="max-width:26rem">
+        <label for="spreadName">A name for it</label>
+        <input type="text" id="spreadName" spellcheck="false" autocomplete="off"
+               placeholder="Past, present, future">
+      </div>
+      <div class="field" style="margin-top:0.8rem">
+        <label for="spreadSeats">The places in it, one a line</label>
+        <textarea id="spreadSeats" spellcheck="false" style="min-height:6rem"
+                  placeholder="Past&#10;Present&#10;Future"></textarea>
+      </div>
+      <div class="plotActs">
+        <button type="button" id="saveSpread">Save the spread</button>
+        <button type="button" id="dropSpread" class="ghost">Delete the one picked</button>
+        <button type="button" id="copySpreads" class="ghost">Copy them as JSON</button>
+        <label class="fileIn">Load a file <input type="file" id="loadSpreads" accept=".json,application/json"></label>
+      </div>
+      <p class="readout" id="spreadSay"></p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="runs">
+      <label for="runs">Simulate this draw</label>
+      <input type="text" id="runs" placeholder="1,000,000" spellcheck="false" autocomplete="off"
+             inputmode="numeric" aria-label="How many times to simulate the draw">
+      <span>times</span>
+      <button type="button" id="simBtn">Simulate</button>
+      <button type="button" id="stopBtn" class="ghost" disabled>Stop</button>
+    </div>
+    <p class="status" id="simSay">Leave the box empty and it runs the draw a million times.</p>
+
+    <div id="plotWrap">
+      <canvas id="plot" tabindex="0" role="img" aria-label="Distribution of simulated totals"></canvas>
+      <div class="readout" id="readout"></div>
+      <div class="figures" id="figures"></div>
+      <div class="plotActs">
+        <button type="button" id="tableBtn" class="ghost" aria-expanded="false">Show the numbers</button>
+        <button type="button" id="copySim" class="ghost">Copy the numbers</button>
+        <button type="button" id="saveSim" class="ghost">Download this graph</button>
+      </div>
+      <div id="table"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="rank" style="margin-bottom:0.6rem">
+      <div class="field" style="flex:0 1 auto"><label>What has been drawn</label></div>
+      <div class="acts">
+        <button type="button" id="copyBtn" class="ghost">Copy</button>
+        <button type="button" id="clearBtn" class="ghost">Clear the log</button>
+      </div>
+    </div>
+    <div class="log" id="log"></div>
+  </div>
+
+  <p class="note"><strong>The cards are only a symbol and a number.</strong> There is no art on
+  them: a face carries the icon of its suit or colour and whatever is written on the card, which
+  is enough to read a hand across a table. The full name of each card is in the list above, where
+  there is room for it &mdash; a tarot face shows <code>XIII</code> and the list says
+  <em>Death</em>.</p>
+
+  <p class="note"><strong>Drawn, not rolled.</strong> A draw takes cards out of the deck and does
+  not put them back, so no card comes up twice in one draw and asking for more cards than the deck
+  holds is refused rather than quietly repeating itself. The shuffle is a Fisher-Yates with its
+  draws taken from <code>crypto.getRandomValues</code>, the ragged tail thrown away, so every
+  arrangement of the deck is as likely as every other.</p>
+
+  <p class="note"><strong>The throw is not steered.</strong> The cards are thrown at the table and
+  left to stop where they stop, the same physics the dice roller uses: every contact is an impulse
+  at the corner that is touching. What is settled in advance is which cards came out; which way up
+  each one lands is the throw's business, and the face is painted on whichever side ends up
+  looking at the ceiling, so a card is never face down when it matters. Turn <em>Throw them</em>
+  off, or ask your system for reduced motion, and they are simply laid out instead.</p>
+
+  <p class="note"><strong>Face cards are worth what you say they are.</strong> Everything that is
+  already a number counts as that number; the rest &mdash; aces, courts, Uno's skips and wilds
+  &mdash; have a box of their own under the table, and the totals and the chart follow them. The
+  values that come set are the usual ones: ace low, jack eleven, queen twelve, king thirteen, and
+  Uno scored the way the box says, twenty for a skip and fifty for a wild.</p>
+
+  <p class="note"><strong>Spreads are a list of places.</strong> Name one, write its places one to
+  a line, and drawing fills them in order &mdash; the list says which card went where, and so does
+  the table underneath each card. A spread sets how many cards are drawn, so the <em>How many</em>
+  box steps aside while one is picked. <em>Load a file</em> takes JSON: one spread as
+  <code>{"name": "...", "positions": ["...", "..."]}</code>, or an array of them, or
+  <code>{"spreads": [...]}</code>, which is what <em>Copy them as JSON</em> gives you.</p>
+
+  <p class="note"><strong>Every new draw is dealt ten thousand times over.</strong> Change the
+  deck, the count or what a face card is worth and the chart under it is redrawn from ten thousand
+  fresh draws, so it is never of a different draw than the one on the table. The simulation deals
+  the same way this page does &mdash; a partial shuffle, no card twice in a draw &mdash; from a
+  fast generator seeded by the system one. <em>Download this graph</em> saves it as a JPEG with
+  the draw written across the top.</p>
+
+  <p class="note"><strong>It remembers.</strong> The deck you picked, what you set the faces to,
+  your own deck and spreads, and the last forty draws are kept in this browser, on this page.
+  Nothing is sent anywhere.</p>
+</main>
+
+<script>
+"use strict";
+
+const el = (id) => document.getElementById(id);
+
+const errEl     = el("err");
+const totalEl   = el("total");
+const sayEl     = el("say");
+const drawnEl   = el("drawn");
+const logEl     = el("log");
+const trayNote  = el("trayNote");
+const tumbleIn  = el("tumble");
+const againBtn  = el("againBtn");
+const canvas    = el("tray");
+const brush     = canvas.getContext("2d");
+const spreadIn  = el("spread");
+const manyIn    = el("howMany");
+const jokersIn  = el("jokers");
+const worthsEl  = el("worths");
+const ownIn     = el("ownDeck");
+const ownSay    = el("ownSay");
+const spreadSay = el("spreadSay");
+
+const KEY = "card-drawer";
+const CAP = 40;              // log entries kept
+const MOST = 40;             // cards in one draw
+
+const fmt = (n) => Math.round(n).toLocaleString("en-GB");
+const pct = (x, places = 2) => `${(x * 100).toFixed(places)}%`;
+
+let entries = [];
+let deckKind = "playing";
+let worthSet = {};           // what the face cards are worth, per deck
+let mySpreads = [];
+let lastDraw = null;
+
+/* ================================================================ decks == */
+
+const PIPS = [["♠", "Spades"], ["♥", "Hearts"], ["♦", "Diamonds"], ["♣", "Clubs"]];
+const LONG = { A: "Ace", J: "Jack", Q: "Queen", K: "King" };
+
+const MAJORS = ["The Fool", "The Magician", "The High Priestess", "The Empress", "The Emperor",
+  "The Hierophant", "The Lovers", "The Chariot", "Strength", "The Hermit", "Wheel of Fortune",
+  "Justice", "The Hanged Man", "Death", "Temperance", "The Devil", "The Tower", "The Star",
+  "The Moon", "The Sun", "Judgement", "The World"];
+
+// Wands to clubs, cups to hearts, swords to spades, pentacles to diamonds:
+// the pairing the two decks have had since they were one deck.
+const ARCANA = [["♣", "Wands"], ["♥", "Cups"], ["♠", "Swords"], ["♦", "Pentacles"]];
+const COURTS = [["P", "Page"], ["N", "Knight"], ["Q", "Queen"], ["K", "King"]];
+
+const COLOURS = [["●", "Red"], ["◆", "Yellow"], ["▲", "Green"], ["■", "Blue"]];
+
+function roman(n) {
+  if (n === 0) return "0";
+  let left = n;
+  let out = "";
+  for (const [v, s] of [[10, "X"], [9, "IX"], [5, "V"], [4, "IV"], [1, "I"]]) {
+    while (left >= v) { out += s; left -= v; }
+  }
+  return out;
+}
+
+function playingDeck(worth, withJokers) {
+  const out = [];
+  for (const [icon, suit] of PIPS) {
+    for (let n = 1; n <= 13; n++) {
+      const label = n === 1 ? "A" : n === 11 ? "J" : n === 12 ? "Q" : n === 13 ? "K" : String(n);
+      out.push({ label, icon, name: `${LONG[label] || label} of ${suit}`, value: worth[label] ?? n });
+    }
+  }
+  if (withJokers) {
+    for (let i = 0; i < 2; i++) {
+      out.push({ label: "Joker", icon: "★", name: "Joker", value: worth.Joker ?? 0 });
+    }
+  }
+  return out;
+}
+
+const majorDeck = () => MAJORS.map((name, n) => ({
+  label: roman(n), icon: "✦", name: `${roman(n)} — ${name}`, value: n,
+}));
+
+function minorDeck(worth) {
+  const out = [];
+  for (const [icon, suit] of ARCANA) {
+    for (let n = 1; n <= 14; n++) {
+      const court = COURTS[n - 11];
+      const label = n === 1 ? "A" : court ? court[0] : String(n);
+      const full = n === 1 ? "Ace" : court ? court[1] : String(n);
+      out.push({ label, icon, name: `${full} of ${suit}`, value: worth[label] ?? n });
+    }
+  }
+  return out;
+}
+
+/* A hundred and eight: one nought and two each of one to nine in every colour,
+   two each of the three action cards, and eight wilds. Scored the way the box
+   says, which is where the twenties and fifties come from. */
+function unoDeck(worth) {
+  const out = [];
+  const add = (label, icon, name, value, many) => {
+    for (let i = 0; i < many; i++) out.push({ label, icon, name, value });
+  };
+  for (const [icon, colour] of COLOURS) {
+    add("0", icon, `${colour} nought`, 0, 1);
+    for (let n = 1; n <= 9; n++) add(String(n), icon, `${colour} ${n}`, n, 2);
+    add("⊘", icon, `${colour} skip`, worth.Skip ?? 20, 2);
+    add("⇄", icon, `${colour} reverse`, worth.Reverse ?? 20, 2);
+    add("+2", icon, `${colour} draw two`, worth["Draw two"] ?? 20, 2);
+  }
+  add("W", "✸", "Wild", worth.Wild ?? 50, 4);
+  add("+4", "✸", "Wild draw four", worth["Wild four"] ?? 50, 4);
+  return out;
+}
+
+/* One card a line. A symbol at the front is the icon on its face, "= 7" on the
+   end is what it is worth, "x4" puts that many of it in. Anything else is the
+   card's name, and its value is whatever number is in that name. */
+function ownDeckFrom(text) {
+  const cards = [];
+  const trouble = [];
+  for (const raw of String(text).split("\n")) {
+    let rest = raw.trim();
+    if (!rest || rest.startsWith("#")) continue;
+
+    let many = 1;
+    const copies = rest.match(/[x×*]\s*(\d{1,3})\s*$/i);
+    if (copies) {
+      many = Math.max(1, Math.min(200, Number(copies[1])));
+      rest = rest.slice(0, copies.index).trim();
+    }
+    let value = null;
+    const worth = rest.match(/=\s*(-?\d+(?:\.\d+)?)\s*$/);
+    if (worth) { value = Math.round(Number(worth[1])); rest = rest.slice(0, worth.index).trim(); }
+
+    let icon = "";
+    // A symbol first, but only one that is plainly a symbol: "+2" is a card
+    // called plus two, and "♠ 2" is a two of spades.
+    if (rest.length > 1 && /[^\w\s]/.test(rest[0]) && (rest.charCodeAt(0) > 127 || rest[1] === " ")) {
+      icon = rest[0];
+      rest = rest.slice(1).trim();
+    }
+    if (!rest) { trouble.push(raw.trim()); continue; }
+    if (value === null) {
+      const found = rest.match(/-?\d+/);
+      value = found ? Number(found[0]) : 0;
+    }
+    const digits = rest.match(/\d+/);
+    const label = rest.length <= 4 ? rest : digits ? digits[0] : rest.slice(0, 3);
+    for (let i = 0; i < many; i++) cards.push({ label, icon, name: rest, value });
+  }
+  return { cards, trouble };
+}
+
+const DECKS = {
+  playing: { say: "playing cards", jokers: true, worth: { A: 1, J: 11, Q: 12, K: 13, Joker: 0 },
+             build: (w, j) => playingDeck(w, j) },
+  tarot:   { say: "a tarot deck", worth: { A: 1, P: 11, N: 12, Q: 13, K: 14 },
+             build: (w) => [...majorDeck(), ...minorDeck(w)] },
+  major:   { say: "the major arcana", worth: {}, build: () => majorDeck() },
+  minor:   { say: "the minor arcana", worth: { A: 1, P: 11, N: 12, Q: 13, K: 14 },
+             build: (w) => minorDeck(w) },
+  uno:     { say: "an Uno deck", worth: { Skip: 20, Reverse: 20, "Draw two": 20, Wild: 50, "Wild four": 50 },
+             build: (w) => unoDeck(w) },
+  custom:  { say: "your own deck", worth: {}, build: () => ownDeckFrom(ownIn.value).cards },
+};
+
+const worthNow = () => ({ ...DECKS[deckKind].worth, ...(worthSet[deckKind] || {}) });
+
+function deckNow() {
+  const kind = DECKS[deckKind];
+  return kind.build(worthNow(), kind.jokers && jokersIn.checked);
+}
+
+function deckSay() {
+  const kind = DECKS[deckKind];
+  return kind.say + (kind.jokers && jokersIn.checked ? " with jokers" : "");
+}
+
+/* =============================================================== spreads == */
+
+const READY = [
+  { name: "Past, present, future", seats: ["Past", "Present", "Future"] },
+  { name: "Mind, body, spirit", seats: ["Mind", "Body", "Spirit"] },
+  { name: "What helps, what hinders", seats: ["The situation", "What helps", "What hinders"] },
+  { name: "Celtic cross", seats: ["The heart of it", "What crosses it", "The root", "The past",
+    "What may come", "The near future", "Yourself", "Your surroundings", "Hopes and fears",
+    "The outcome"] },
+  { name: "A hand of five", seats: ["First", "Second", "Third", "Fourth", "Fifth"] },
+];
+
+// Read out of a file, so: strings only, lengths capped, and nothing kept that
+// is not a name with a list of places under it.
+function spreadsFrom(data) {
+  const list = Array.isArray(data) ? data
+    : data && Array.isArray(data.spreads) ? data.spreads
+    : [data];
+  const out = [];
+  for (const one of list) {
+    if (!one || typeof one !== "object") continue;
+    const name = typeof one.name === "string" ? one.name.trim().slice(0, 60) : "";
+    const raw = Array.isArray(one.positions) ? one.positions
+      : Array.isArray(one.seats) ? one.seats : null;
+    if (!name || !raw) continue;
+    const seats = raw.filter((s) => typeof s === "string" && s.trim())
+      .map((s) => s.trim().slice(0, 40)).slice(0, MOST);
+    if (seats.length) out.push({ name, seats });
+  }
+  return out;
+}
+
+const allSpreads = () => [...READY, ...mySpreads];
+
+function spreadNow() {
+  const at = spreadIn.value;
+  if (at === "") return null;
+  return allSpreads()[Number(at)] || null;
+}
+
+function paintSpreads(keep) {
+  spreadIn.textContent = "";
+  const none = document.createElement("option");
+  none.value = "";
+  none.textContent = "No spread — just a number";
+  spreadIn.append(none);
+
+  const groups = [["Ready-made", READY, 0], ["Yours", mySpreads, READY.length]];
+  for (const [title, list, from] of groups) {
+    if (!list.length) continue;
+    const box = document.createElement("optgroup");
+    box.label = title;
+    list.forEach((s, i) => {
+      const o = document.createElement("option");
+      o.value = String(from + i);
+      o.textContent = `${s.name} (${s.seats.length})`;
+      box.append(o);
+    });
+    spreadIn.append(box);
+  }
+  if (keep !== undefined && spreadIn.querySelector(`option[value="${keep}"]`)) spreadIn.value = keep;
+  manyIn.disabled = spreadIn.value !== "";
+}
+
+function howManyNow() {
+  const spread = spreadNow();
+  if (spread) return spread.seats.length;
+  const n = Math.floor(Number(manyIn.value.replace(/[\s,_]/g, "")));
+  return Number.isFinite(n) ? n : 0;
+}
+
+const seatsNow = () => {
+  const spread = spreadNow();
+  return spread ? spread.seats : null;
+};
+
+function drawName() {
+  const spread = spreadNow();
+  return spread ? `${spread.name}, ${deckSay()}` : `${howManyNow()} from ${deckSay()}`;
+}
+
+/* ================================================================= draw == */
+
+/* The shuffle is only taken as far as the cards asked for, and the draws that
+   fall in the ragged tail of a 32-bit number are thrown away and taken again,
+   so every arrangement of the deck is as likely as every other. */
+const bucket = new Uint32Array(1);
+function pick(n) {
+  const cut = Math.floor(0x100000000 / n) * n;
+  let u;
+  do { crypto.getRandomValues(bucket); u = bucket[0]; } while (u >= cut);
+  return u % n;
+}
+
+function dealFrom(deck, many) {
+  const pool = deck.slice();
+  const out = [];
+  for (let i = 0; i < many; i++) {
+    const j = i + pick(pool.length - i);
+    const held = pool[i];
+    pool[i] = pool[j];
+    pool[j] = held;
+    out.push(pool[i]);
+  }
+  return out;
+}
+
+const totalOf = (drawn) => drawn.reduce((n, c) => n + c.value, 0);
+const shortOf = (card) => `${card.label}${card.icon}`;
+
+function fail(why) {
+  errEl.textContent = why;
+  errEl.classList.add("on");
+}
+
+function clearFail() {
+  errEl.textContent = "";
+  errEl.classList.remove("on");
+}
+
+function span(cls, text) {
+  const node = document.createElement("span");
+  node.className = cls;
+  node.textContent = text;
+  return node;
+}
+
+function sayOf(drawn, total) {
+  if (drawn.length === 1) return drawn[0].name;
+  if (drawn.length <= 16) return `${drawn.map((c) => c.value).join(" + ")} = ${total}`;
+  return `${drawn.length} cards, ${total} between them`;
+}
+
+function paintDrawn(drawn) {
+  drawnEl.textContent = "";
+  const seats = seatsNow();
+  drawn.forEach((card, i) => {
+    const row = document.createElement("div");
+    row.className = "drew";
+    if (seats) row.append(span("seat", seats[i] || ""));
+    row.append(span("pip", shortOf(card)), span("face", card.name),
+               span("worth", String(card.value)));
+    drawnEl.append(row);
+  });
+}
+
+function showDraw(drawn) {
+  const total = totalOf(drawn);
+  totalEl.textContent = String(total);
+  totalEl.classList.remove("none");
+  sayEl.textContent = sayOf(drawn, total);
+  paintDrawn(drawn);
+}
+
+function paintLog() {
+  logEl.textContent = "";
+  if (!entries.length) {
+    const none = document.createElement("div");
+    none.className = "empty";
+    none.textContent = "Nothing drawn yet.";
+    logEl.append(none);
+    return;
+  }
+  for (const entry of entries) {
+    const row = document.createElement("div");
+    row.className = "entry";
+    row.append(span("at", entry.at), span("roll", entry.cards), span("got", String(entry.total)));
+    logEl.append(row);
+  }
+}
+
+const clock = () => new Date().toLocaleTimeString("en-GB",
+  { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
+
+/* Kept as what was drawn rather than as the markup that showed it, so the log
+   can be copied out and nothing from storage reaches the parser. */
+function save() {
+  try {
+    localStorage.setItem(KEY, JSON.stringify({
+      deck: deckKind, jokers: jokersIn.checked, many: manyIn.value, spread: spreadIn.value,
+      tumble: tumbleIn.checked, worth: worthSet, own: ownIn.value,
+      spreads: mySpreads.slice(0, 60), entries: entries.slice(0, CAP),
+    }));
+  } catch {}
+}
+
+function load() {
+  let held = null;
+  try { held = JSON.parse(localStorage.getItem(KEY) || "null"); } catch {}
+  if (!held || typeof held !== "object") return;
+  if (typeof held.deck === "string" && DECKS[held.deck]) deckKind = held.deck;
+  if (typeof held.jokers === "boolean") jokersIn.checked = held.jokers;
+  if (typeof held.many === "string") manyIn.value = held.many;
+  if (typeof held.tumble === "boolean") tumbleIn.checked = held.tumble;
+  if (typeof held.own === "string") ownIn.value = held.own.slice(0, 20000);
+  if (held.worth && typeof held.worth === "object") {
+    for (const [kind, set] of Object.entries(held.worth)) {
+      if (!DECKS[kind] || !set || typeof set !== "object") continue;
+      worthSet[kind] = {};
+      for (const [k, v] of Object.entries(set)) {
+        if (Number.isFinite(v)) worthSet[kind][String(k).slice(0, 20)] = Math.round(v);
+      }
+    }
+  }
+  if (Array.isArray(held.spreads)) mySpreads = spreadsFrom(held.spreads);
+  entries = Array.isArray(held.entries)
+    ? held.entries.filter((e) => e && typeof e.at === "string" && typeof e.cards === "string"
+        && Number.isFinite(e.total)).slice(0, CAP)
+    : [];
+  if (typeof held.spread === "string") held.keepSpread = held.spread;
+  return held.spread;
+}
+
+/* ------------------------------------------------------- what they cost -- */
+
+function paintWorths() {
+  worthsEl.textContent = "";
+  const keys = Object.keys(DECKS[deckKind].worth);
+  const note = el("worthNote");
+  if (!keys.length) {
+    note.textContent = deckKind === "custom"
+      ? "Your own cards carry their value on the line that makes them."
+      : "Every card in this deck already counts as the number on it.";
+    return;
+  }
+  note.textContent = "The ones that are not a number of their own. Everything else counts as the "
+    + "number on it.";
+  const now = worthNow();
+  for (const key of keys) {
+    const label = document.createElement("label");
+    label.append(key);
+    const box = document.createElement("input");
+    box.type = "text";
+    box.inputMode = "numeric";
+    box.value = String(now[key]);
+    box.dataset.worth = key;
+    box.setAttribute("aria-label", `What ${key} is worth`);
+    label.append(box);
+    worthsEl.append(label);
+  }
+}
+
+// A card already on the table keeps its name but takes the new figure, so
+// changing what a king is worth changes the total in front of you.
+function refreshValues() {
+  if (!lastDraw) return;
+  const worth = new Map(deckNow().map((c) => [c.name, c.value]));
+  for (const card of lastDraw) if (worth.has(card.name)) card.value = worth.get(card.name);
+  showDraw(lastDraw);
+}
+
+/* =============================================================== shapes == */
+
+const v3 = (x, y, z) => ({ x, y, z });
+
+const add = (a, b) => v3(a.x + b.x, a.y + b.y, a.z + b.z);
+
+const sub = (a, b) => v3(a.x - b.x, a.y - b.y, a.z - b.z);
+
+const mul = (a, k) => v3(a.x * k, a.y * k, a.z * k);
+
+const dot = (a, b) => a.x * b.x + a.y * b.y + a.z * b.z;
+
+const cross = (a, b) => v3(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x);
+
+const vlen = (a) => Math.sqrt(dot(a, a));
+
+const unit = (a) => mul(a, 1 / (vlen(a) || 1));
+
+const perp = (a) => unit(cross(a, Math.abs(a.x) < 0.9 ? v3(1, 0, 0) : v3(0, 1, 0)));
+
+const qMul = (a, b) => ({
+  w: a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z,
+  x: a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y,
+  y: a.w * b.y - a.x * b.z + a.y * b.w + a.z * b.x,
+  z: a.w * b.z + a.x * b.y - a.y * b.x + a.z * b.w,
+});
+
+const qUnit = (q) => {
+  const l = Math.hypot(q.w, q.x, q.y, q.z) || 1;
+  return { w: q.w / l, x: q.x / l, y: q.y / l, z: q.z / l };
+};
+
+const qAxis = (axis, angle) => {
+  const s = Math.sin(angle / 2);
+  return { w: Math.cos(angle / 2), x: axis.x * s, y: axis.y * s, z: axis.z * s };
+};
+
+function turn(q, v) {                      // v rotated by q
+  const u = v3(q.x, q.y, q.z);
+  const t = mul(cross(u, v), 2);
+  return add(add(v, mul(t, q.w)), cross(u, t));
+}
+
+/* The shortest rotation taking one direction to another: used to tip a card
+   onto the face it rolled without spinning it any further than it has to. */
+function qBetween(a, b) {
+  const d = dot(a, b);
+  if (d > 0.999999) return { w: 1, x: 0, y: 0, z: 0 };
+  if (d < -0.999999) { const ax = perp(a); return { w: 0, x: ax.x, y: ax.y, z: ax.z }; }
+  const c = cross(a, b);
+  return qUnit({ w: 1 + d, x: c.x, y: c.y, z: c.z });
+}
+
+function qSlerp(a, b, t) {
+  let d = a.w * b.w + a.x * b.x + a.y * b.y + a.z * b.z;
+  let to = b;
+  if (d < 0) { to = { w: -b.w, x: -b.x, y: -b.y, z: -b.z }; d = -d; }
+  if (d > 0.9995) {
+    return qUnit({ w: a.w + (to.w - a.w) * t, x: a.x + (to.x - a.x) * t,
+                   y: a.y + (to.y - a.y) * t, z: a.z + (to.z - a.z) * t });
+  }
+  const th = Math.acos(d);
+  const s = Math.sin(th);
+  const k0 = Math.sin((1 - t) * th) / s;
+  const k1 = Math.sin(t * th) / s;
+  return { w: a.w * k0 + to.w * k1, x: a.x * k0 + to.x * k1,
+           y: a.y * k0 + to.y * k1, z: a.z * k0 + to.z * k1 };
+}
+
+/* Faces out of nothing but a pile of corners. For a convex solid a plane
+   through three of its vertices with every other vertex on one side of it is
+   a face — there is no other way for such a plane to touch the hull — so the
+   whole face list falls out of a triple loop. Slow in principle and nothing
+   at this size:
+   a card is eight corners and one shape, so it runs once and never again. */
+function hullFaces(pts) {
+  const EPS = 1e-6;
+  const found = new Map();
+  const n = pts.length;
+  for (let a = 0; a < n; a++) {
+    for (let b = a + 1; b < n; b++) {
+      for (let c = b + 1; c < n; c++) {
+        let nrm = cross(sub(pts[b], pts[a]), sub(pts[c], pts[a]));
+        const l = vlen(nrm);
+        if (l < 1e-9) continue;                       // three in a line
+        nrm = mul(nrm, 1 / l);
+        let d = dot(nrm, pts[a]);
+        let over = 0;
+        let under = 0;
+        for (let i = 0; i < n; i++) {
+          const side = dot(nrm, pts[i]) - d;
+          if (side > EPS) over++; else if (side < -EPS) under++;
+        }
+        if (over && under) continue;                  // a plane through the solid
+        if (over) { nrm = mul(nrm, -1); d = -d; }     // make the normal the outward one
+        const key = `${Math.round(nrm.x * 1e4)},${Math.round(nrm.y * 1e4)},${Math.round(nrm.z * 1e4)}`;
+        if (found.has(key)) continue;
+
+        const verts = [];
+        for (let i = 0; i < n; i++) if (Math.abs(dot(nrm, pts[i]) - d) < EPS) verts.push(i);
+        if (verts.length < 3) continue;
+
+        let mid = v3(0, 0, 0);
+        for (const i of verts) mid = add(mid, pts[i]);
+        mid = mul(mid, 1 / verts.length);
+
+        // Wound anticlockwise seen from outside, so the winding is consistent
+        // and a back face is the one whose normal points away from the eye.
+        const u = unit(sub(pts[verts[0]], mid));
+        const w = cross(nrm, u);
+        const around = (i) => {
+          const p = sub(pts[i], mid);
+          return Math.atan2(dot(p, w), dot(p, u));
+        };
+        verts.sort((i, j) => around(i) - around(j));
+
+        let area = 0;
+        for (let i = 1; i + 1 < verts.length; i++) {
+          area += vlen(cross(sub(pts[verts[i]], pts[verts[0]]),
+                             sub(pts[verts[i + 1]], pts[verts[0]]))) / 2;
+        }
+        found.set(key, { normal: nrm, verts, mid, area, read: -1 });
+      }
+    }
+  }
+  return [...found.values()];
+}
+
+/* ============================================================== the table = */
+
+/* The table is thirty-eight centimetres across — a world unit is a centimetre,
+   and a card is the real 6.3 by 8.8 — so the gravity below is the real figure
+   and the cards fall at the speed cards fall at. The clock is fixed rather
+   than tied to the frame, because the same throw has to come out the same way
+   twice: once run through before anything is drawn, to see where the cards
+   land and which way up, and once in front of you. */
+const TRAY = { w: 19, d: 11.5 };          // half-width and half-depth, in centimetres
+const CARD = { w: 6.3, h: 8.8, t: 0.16 };
+const EYE = v3(0, 23.5, 27);
+const AIM = v3(0, 0.4, 0);
+const LIGHT = unit(v3(-0.35, 1, 0.5));
+
+const G = 981;
+const STEP = 1 / 300;
+const LUMP = 0.3;              // moment of inertia, as a fraction of m·R²
+const BOUNCE = 0.28;           // card on wood barely bounces at all
+const RUB = 0.5;               // and slides less than a die
+const CALM = 0.95;             // when the table starts taking the energy out
+const LONGEST = 1.75;          // and when it has to be still regardless
+const FLAT = 0.14;             // the last settle onto the face it is lying on
+
+const FWD = unit(sub(AIM, EYE));
+const RIGHT = unit(cross(FWD, v3(0, 1, 0)));
+const UPC = cross(RIGHT, FWD);
+const toCam = (p) => {
+  const q = sub(p, EYE);
+  return v3(dot(q, RIGHT), dot(q, UPC), dot(q, FWD));
+};
+
+const cards = [];
+let view = { f: 1, ox: 0, oy: 0, w: 0, h: 0 };
+let dpr = 1;
+let hue = 288;
+let colour = 0;
+let faceFont = "sans-serif";
+let raf = 0;
+let dealSteps = 0;
+let began = 0;
+let played = 0;
+let settled = false;           // the throw is over and the cards are where they stop
+
+/* ------------------------------------------------------------ the chart -- */
+
+const PAD = { l: 54, r: 14, t: 22, b: 38 };
+const BY_DEFAULT = 1000000;
+const RUNS_CAP = 10000000;
+const AUTO_RUNS = 10000;       // what a draw of a new shape gets by itself
+
+const runsIn   = el("runs");
+const simSay   = el("simSay");
+const plotWrap = el("plotWrap");
+const plot     = el("plot");
+const pen      = plot.getContext("2d");
+const readout  = el("readout");
+const figures  = el("figures");
+const tableEl  = el("table");
+const stopBtn  = el("stopBtn");
+const simBtn   = el("simBtn");
+const tableBtn = el("tableBtn");
+
+let sim = null;                // the run that finished
+let charted = null;            // and the draw it was of
+let running = null;            // the run under way
+let hoverBin = -1;
+
+function simFail(why) {
+  simSay.textContent = why;
+  simSay.classList.add("error");
+}
+
+function howMany() {
+  const typed = runsIn.value.replace(/[\s,_]/g, "");
+  if (!typed) return BY_DEFAULT;
+  const n = Number(typed);
+  if (!Number.isFinite(n) || n < 1) return null;
+  return Math.min(RUNS_CAP, Math.floor(n));
+}
+
+/* The focal length is whatever makes the whole table fit the canvas, so the
+   view is right at any shape of window rather than at one of them. */
+function frameUp(w, h) {
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const x of [-TRAY.w, TRAY.w]) {
+    for (const y of [0, 2.6]) {
+      for (const z of [-TRAY.d, TRAY.d]) {
+        const c = toCam(v3(x, y, z));
+        if (c.z < 0.3) continue;
+        const sx = c.x / c.z;
+        const sy = -c.y / c.z;
+        if (sx < minX) minX = sx;
+        if (sx > maxX) maxX = sx;
+        if (sy < minY) minY = sy;
+        if (sy > maxY) maxY = sy;
+      }
+    }
+  }
+  const f = Math.min(w * 0.97 / (maxX - minX), h * 0.97 / (maxY - minY));
+  view = { f, ox: w / 2 - f * (minX + maxX) / 2, oy: h / 2 - f * (minY + maxY) / 2, w, h };
+}
+
+function project(p) {
+  const c = toCam(p);
+  if (c.z < 0.25) return null;
+  return { x: view.ox + view.f * c.x / c.z, y: view.oy - view.f * c.y / c.z, z: c.z };
+}
+
+function fitCanvas() {
+  dpr = Math.min(window.devicePixelRatio || 1, 3);
+  const w = Math.max(1, Math.round(canvas.clientWidth));
+  const h = Math.max(1, Math.round(canvas.clientHeight));
+  if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+  }
+  brush.setTransform(dpr, 0, 0, dpr, 0, 0);
+  if (view.w !== w || view.h !== h) frameUp(w, h);
+}
+
+// Every colour on the canvas comes off the two knobs in theme.css, so the
+// cards are whatever the rest of the page is rather than a palette of their own.
+function tone(l, alpha) {
+  const lit = Math.max(0, Math.min(100, l));
+  return `hsl(${hue} ${Math.round(colour * 62)}% ${lit.toFixed(1)}%`
+    + (alpha === undefined ? ")" : ` / ${alpha})`);
+}
+
+function readTheme() {
+  const style = getComputedStyle(document.documentElement);
+  hue = parseFloat(style.getPropertyValue("--h")) || 288;
+  colour = parseFloat(style.getPropertyValue("--sat")) || 0;
+  faceFont = getComputedStyle(document.body).fontFamily || "sans-serif";
+}
+
+// Every corner of the card in the world, through the rotation matrix rather
+// than one quaternion sandwich each: this runs for every card on every step of
+// the throw, twice over, and it is the only thing in here that is hot.
+function spinVerts(card) {
+  const { x, y, z, w } = card.quat;
+  const m0 = 1 - 2 * (y * y + z * z), m1 = 2 * (x * y - z * w), m2 = 2 * (x * z + y * w);
+  const m3 = 2 * (x * y + z * w), m4 = 1 - 2 * (x * x + z * z), m5 = 2 * (y * z - x * w);
+  const m6 = 2 * (x * z - y * w), m7 = 2 * (y * z + x * w), m8 = 1 - 2 * (x * x + y * y);
+  const pts = card.shape.pts;
+  const out = card.rot;
+  const r = card.r;
+  for (let i = 0; i < pts.length; i++) {
+    const p = pts[i];
+    out[i * 3] = (m0 * p.x + m1 * p.y + m2 * p.z) * r;
+    out[i * 3 + 1] = (m3 * p.x + m4 * p.y + m5 * p.z) * r;
+    out[i * 3 + 2] = (m6 * p.x + m7 * p.y + m8 * p.z) * r;
+  }
+}
+
+/* One contact, resolved as an impulse at the corner that is touching. This is
+   what makes a thrown card behave like one: the impulse is off-centre, so it
+   is also a torque, and a card that lands on a corner flips over it instead of
+   sliding. Friction along the surface does the same job the other way, turning
+   a skid into a roll. Nothing here is a fudge factor on the spin — the tumble
+   falls out of where the card is hit. */
+function bump(card, n, r) {
+  const vAt = add(card.vel, cross(card.omega, r));
+  const vn = dot(vAt, n);
+  if (vn >= 0) return;
+  const spin = LUMP * card.R2;
+  const rn = dot(r, n);
+  const kn = 1 + (dot(r, r) - rn * rn) / spin;
+  // A corner coming down slowly does not bounce at all. Without that cutoff a
+  // card at rest trades a hair of height for a hair of speed on every step and
+  // never actually stops, which is the usual reason a card in a game jitters.
+  const give = -vn < 7 ? 0 : BOUNCE;
+  const jn = -(1 + give) * vn / kn;
+  let push = mul(n, jn);
+
+  const vt = sub(vAt, mul(n, vn));
+  const slide = vlen(vt);
+  if (slide > 1e-6) {
+    const t = mul(vt, 1 / slide);
+    const rt = dot(r, t);
+    const kt = 1 + (dot(r, r) - rt * rt) / spin;
+    push = sub(push, mul(t, Math.min(RUB * jn, slide / kt)));
+  }
+  card.vel = add(card.vel, push);
+  card.omega = add(card.omega, mul(cross(r, push), 1 / spin));
+}
+
+// The table is every corner that is under it, not a ball around the middle,
+// so a card landing flat settles instead of rocking on one point.
+function meetTable(card) {
+  const rot = card.rot;
+  let deep = 0;
+  for (let i = 1; i < rot.length; i += 3) {
+    const under = -(card.pos.y + rot[i]);
+    if (under > deep) deep = under;
+  }
+  if (deep <= 0) return false;
+  card.pos.y += deep;
+
+  /* Lifted clear first, and only then asked which corners are touching: a
+     corner a hair above the table is still resting on it, and taking the
+     whole set at once is what keeps a card that has landed flat from rocking
+     from one corner to the next. Three passes over them, because an impulse
+     at one corner changes what the others need. */
+  const band = 0.02 * card.r;
+  const touching = [];
+  for (let i = 0; i < rot.length; i += 3) if (card.pos.y + rot[i + 1] < band) touching.push(i);
+  for (let pass = 0; pass < 3; pass++) {
+    for (const i of touching) bump(card, v3(0, 1, 0), v3(rot[i], rot[i + 1], rot[i + 2]));
+  }
+  return true;
+}
+
+function meetWalls(card) {
+  const rot = card.rot;
+  let hit = false;
+  for (const side of [-1, 1]) {
+    for (const axis of [0, 2]) {
+      const edge = side * (axis === 0 ? TRAY.w : TRAY.d);
+      const middle = axis === 0 ? card.pos.x : card.pos.z;
+      let deep = 0;
+      for (let i = 0; i < rot.length; i += 3) {
+        const over = side * (middle + rot[i + axis] - edge);
+        if (over > deep) deep = over;
+      }
+      if (deep <= 0) continue;
+      hit = true;
+      if (axis === 0) card.pos.x -= side * deep; else card.pos.z -= side * deep;
+      const now = axis === 0 ? card.pos.x : card.pos.z;
+      const band = 0.02 * card.r;
+      const touching = [];
+      for (let i = 0; i < rot.length; i += 3) {
+        if (side * (now + rot[i + axis] - edge) > -band) touching.push(i);
+      }
+      const n = axis === 0 ? v3(-side, 0, 0) : v3(0, 0, -side);
+      for (let pass = 0; pass < 2; pass++) {
+        for (const i of touching) bump(card, n, v3(rot[i], rot[i + 1], rot[i + 2]));
+      }
+    }
+  }
+  return hit;
+}
+
+// Dice against each other, as the balls they very nearly are. Knocking one
+// card into another is half of what a handful of cards looks like.
+function knock() {
+  for (let i = 0; i < cards.length; i++) {
+    for (let j = i + 1; j < cards.length; j++) {
+      const a = cards[i];
+      const b = cards[j];
+      const ra = a.shape.radius * a.r * 0.88;
+      const rb = b.shape.radius * b.r * 0.88;
+      const gap = sub(a.pos, b.pos);
+      const apart = vlen(gap);
+      if (apart >= ra + rb || apart < 1e-6) continue;
+      const n = mul(gap, 1 / apart);
+
+      /* They are eased apart along the table rather than along the line
+         between them, so that a card cannot come to rest held up in the air by
+         the one underneath it: everything reaches the table, which is what
+         lets it stop. Two cards lying against each other are only nudged —
+         waking a card every time it touches its neighbour is how a handful of
+         cards ends up never settling at all. */
+      if (Math.abs(a.pos.y - b.pos.y) < ra + rb) {
+        let fx = a.pos.x - b.pos.x;
+        let fz = a.pos.z - b.pos.z;
+        let flat = Math.hypot(fx, fz);
+        // Not Math.random: this runs once to find out where the cards land and
+        // again to show it, and the two have to come out the same.
+        if (flat < 1e-4) { fx = (i % 7) / 7 - 0.5 + 0.01; fz = (j % 5) / 5 - 0.5; flat = Math.hypot(fx, fz); }
+        const want = (ra + rb) * 0.95;
+        if (flat < want) {
+          const share = (want - flat) / 2 / flat * (a.asleep && b.asleep ? 0.25 : 1);
+          a.pos.x += fx * share; a.pos.z += fz * share;
+          b.pos.x -= fx * share; b.pos.z -= fz * share;
+        }
+      }
+
+      const rel = sub(a.vel, b.vel);
+      const vn = dot(rel, n);
+      if (vn > -3) continue;                // leaning together, not colliding
+      // Only a real knock wakes a card that has stopped. A card at rest still
+      // twitches by a hair, and letting that count as a collision is how a
+      // crowd of cards keeps nudging itself awake for ever.
+      if (vn < -8) {
+        if (a.asleep) { a.asleep = false; a.still = 0; }
+        if (b.asleep) { b.asleep = false; b.still = 0; }
+      }
+      const jn = -(1 + 0.35) * vn / 2;
+      a.vel = add(a.vel, mul(n, jn));
+      b.vel = sub(b.vel, mul(n, jn));
+
+      const vt = sub(rel, mul(n, vn));
+      const slide = vlen(vt);
+      if (slide < 1e-6) continue;
+      const t = mul(vt, 1 / slide);
+      const jt = Math.min(0.3 * jn, slide / 4);
+      a.vel = sub(a.vel, mul(t, jt));
+      b.vel = add(b.vel, mul(t, jt));
+      a.omega = add(a.omega, mul(cross(mul(n, -ra), mul(t, -jt)), 1 / (LUMP * a.R2)));
+      b.omega = add(b.omega, mul(cross(mul(n, rb), mul(t, jt)), 1 / (LUMP * b.R2)));
+    }
+  }
+}
+
+function oneStep(at) {
+  // Past a point the table quietly takes the energy out, so that a card that
+  // found a lucky bounce is still down before the throw outstays its welcome.
+  const taking = at > CALM ? 0.986 : 1;
+  for (const card of cards) {
+    if (card.asleep) continue;
+    card.vel.y -= G * STEP;
+    card.pos = add(card.pos, mul(card.vel, STEP));
+
+    const w = { w: 0, x: card.omega.x, y: card.omega.y, z: card.omega.z };
+    const dq = qMul(w, card.quat);
+    card.quat = qUnit({
+      w: card.quat.w + dq.w * STEP * 0.5, x: card.quat.x + dq.x * STEP * 0.5,
+      y: card.quat.y + dq.y * STEP * 0.5, z: card.quat.z + dq.z * STEP * 0.5,
+    });
+    spinVerts(card);
+
+    meetTable(card);
+    meetWalls(card);
+
+    // Down on the table rather than touching it to the millimetre: a card that
+    // has finished is often a hair clear of it, and treating that as flight
+    // leaves it hanging there with nothing taking its energy away.
+    let low = Infinity;
+    for (let i = 1; i < card.rot.length; i += 3) low = Math.min(low, card.pos.y + card.rot[i]);
+    const near = low < 0.05 * card.r;
+
+    if (near) {
+      // Rolling costs something, or a d20 would run like a marble — but only
+      // a little. Taking it out faster than this stops a thrown card dead on
+      // the spot it lands, because the roll is where the rest of its travel
+      // comes from once friction has had the slide.
+      card.omega = mul(card.omega, 0.998);
+      card.vel = mul(card.vel, 0.999);
+      const going = vlen(card.vel);
+      const spinning = vlen(card.omega);
+      // A card spinning on one corner has nothing sliding at the corner, so
+      // friction never sees it and it would spin like a top for ever. Real
+      // ones wind down in about a second, and so does this.
+      if (going < 4 && spinning > 4) card.omega = mul(card.omega, 0.95);
+      // And the last of it goes quickly: a contact worked out once a step
+      // leaves a card buzzing on the spot otherwise.
+      if (going < 7 && spinning < 7) {
+        card.vel = mul(card.vel, 0.86);
+        card.omega = mul(card.omega, 0.86);
+      }
+    }
+    if (taking !== 1) {
+      card.vel = mul(card.vel, taking);
+      card.omega = mul(card.omega, taking);
+    }
+
+    // Credit for being still, and only a little of it taken back for a
+    // twitch: in a crowd a card is forever being brushed by its neighbours,
+    // and starting its count again every time means it never finishes.
+    if (near && vlen(card.vel) < 2.5 && vlen(card.omega) < 2.5) card.still += STEP;
+    else card.still = Math.max(0, card.still - STEP * 2);
+    if (card.still > 0.1) {
+      card.asleep = true;
+      card.vel = v3(0, 0, 0);
+      card.omega = v3(0, 0, 0);
+    }
+  }
+  knock();
+}
+
+function backToStart(card) {
+  const from = card.start;
+  card.pos = { ...from.pos };
+  card.vel = { ...from.vel };
+  card.omega = { ...from.omega };
+  card.quat = { ...from.quat };
+  card.asleep = false;
+  card.still = 0;
+  spinVerts(card);
+}
+
+function paintTable() {
+  brush.strokeStyle = tone(26, 0.5);
+  brush.lineWidth = 1;
+  const corners = [v3(-TRAY.w, 0, -TRAY.d), v3(TRAY.w, 0, -TRAY.d),
+                   v3(TRAY.w, 0, TRAY.d), v3(-TRAY.w, 0, TRAY.d)].map(project);
+  if (corners.every(Boolean)) {
+    brush.beginPath();
+    corners.forEach((p, i) => (i ? brush.lineTo(p.x, p.y) : brush.moveTo(p.x, p.y)));
+    brush.closePath();
+    brush.stroke();
+  }
+  brush.strokeStyle = tone(18, 0.55);
+  for (let i = 1; i < 4; i++) {
+    const x = -TRAY.w + (i / 4) * TRAY.w * 2;
+    const a = project(v3(x, 0, -TRAY.d));
+    const b = project(v3(x, 0, TRAY.d));
+    if (!a || !b) continue;
+    brush.beginPath(); brush.moveTo(a.x, a.y); brush.lineTo(b.x, b.y); brush.stroke();
+  }
+  for (let i = 1; i < 3; i++) {
+    const z = -TRAY.d + (i / 3) * TRAY.d * 2;
+    const a = project(v3(-TRAY.w, 0, z));
+    const b = project(v3(TRAY.w, 0, z));
+    if (!a || !b) continue;
+    brush.beginPath(); brush.moveTo(a.x, a.y); brush.lineTo(b.x, b.y); brush.stroke();
+  }
+
+  // A smudge under each card, fading as it rises, which is most of what tells
+  // you a card is in the air rather than drawn slightly higher up.
+  for (const card of cards) {
+    const under = project(v3(card.pos.x, 0.004, card.pos.z));
+    const side = project(v3(card.pos.x + card.shape.radius * card.r * 1.15, 0.004, card.pos.z));
+    if (!under || !side) continue;
+    const wide = Math.abs(side.x - under.x);
+    const high = Math.max(0, card.pos.y - card.r * 0.6);
+    const dark = Math.max(0, 0.5 - high * 0.09);
+    if (wide < 0.5 || dark <= 0.01) continue;
+    brush.save();
+    brush.translate(under.x, under.y);
+    brush.scale(1, 0.42);
+    brush.beginPath();
+    brush.arc(0, 0, wide * (1 + high * 0.08), 0, Math.PI * 2);
+    brush.fillStyle = `rgba(0,0,0,${dark.toFixed(3)})`;
+    brush.fill();
+    brush.restore();
+  }
+}
+
+/* Text lying on the face and turning with it. The two directions it is drawn
+   along are the ones painted on the face in the solid's own frame, so a
+   number goes round with the card and comes up sideways or upside down exactly
+   as the numbers on a real card do. */
+function faceText(at, across, down, text, high, fill, glow) {
+  const s = 0.2;
+  const p0 = project(at);
+  const pa = project(add(at, mul(across, s)));
+  const pd = project(add(at, mul(down, s)));
+  if (!p0 || !pa || !pd) return;
+  const ax = pa.x - p0.x, ay = pa.y - p0.y;
+  const dx = pd.x - p0.x, dy = pd.y - p0.y;
+
+  const F = 40;
+  const k = high / F / s;
+  // A number seen almost edge-on is a smear; it is left off rather than drawn.
+  if (Math.hypot(ax, ay) * k * F < 7 || Math.hypot(dx, dy) * k * F < 5) return;
+
+  brush.save();
+  brush.setTransform(ax * k * dpr, ay * k * dpr, dx * k * dpr, dy * k * dpr, p0.x * dpr, p0.y * dpr);
+  brush.font = `500 ${F}px ${faceFont}`;
+  brush.textAlign = "center";
+  brush.textBaseline = "middle";
+  brush.fillStyle = fill;
+  if (glow) { brush.shadowColor = fill; brush.shadowBlur = 22; }
+  brush.fillText(text, 0, 0);
+  brush.restore();
+  brush.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+function tick(ms) {
+  if (!began) began = ms;
+  const over = (ms - began) / 1000;
+  const want = Math.min(dealSteps, Math.floor(over / STEP));
+  while (played < want) { oneStep(played * STEP); played++; }
+
+  if (played >= dealSteps) {
+    // The last of it: whatever corner it stopped on, rocked flat onto the
+    // face it is lying on. On a throw that finished by itself this is a
+    // degree or two and you would not catch it.
+    const through = Math.min(1, (over - dealSteps * STEP) / FLAT);
+    const ease = through * through * (3 - 2 * through);
+    for (const card of cards) {
+      if (!card.settling) {
+        card.settling = { quat: card.quat, y: card.pos.y, x: card.pos.x, z: card.pos.z };
+      }
+      card.quat = qSlerp(card.settling.quat, card.endQuat, ease);
+      card.pos.y = card.settling.y + (card.endY - card.settling.y) * ease;
+      card.pos.x = card.settling.x + (card.endX - card.settling.x) * ease;
+      card.pos.z = card.settling.z + (card.endZ - card.settling.z) * ease;
+      spinVerts(card);
+    }
+    // Settled before the last frame rather than after it: the places in a
+    // spread are written on the table once the cards have stopped, and that
+    // frame is the one they have to be on.
+    settled = through >= 1;
+    draw();
+    if (through < 1) { raf = requestAnimationFrame(tick); return; }
+    raf = 0;
+    return;
+  }
+
+  draw();
+  raf = requestAnimationFrame(tick);
+}
+
+function stopTick() {
+  if (raf) cancelAnimationFrame(raf);
+  raf = 0;
+  began = 0;
+  played = 0;
+  settled = false;
+  for (const card of cards) card.settling = null;
+}
+
+/* sfc32, seeded from the same place a single roll comes from. Not the
+   cryptographic generator itself for every draw: a million throws of a
+   hundred cards is a hundred million numbers, and asking the system for them
+   one at a time takes minutes to tell you what this tells you in a second.
+   The ragged tail is still thrown away, so each card is as even as a real one. */
+function makeRandom() {
+  const seed = crypto.getRandomValues(new Uint32Array(4));
+  let a = seed[0] | 0, b = seed[1] | 0, c = seed[2] | 0, d = (seed[3] | 0) || 1;
+  return function next() {
+    const t = ((a + b) | 0) + d | 0;
+    d = d + 1 | 0;
+    a = b ^ (b >>> 9);
+    b = c + (c << 3) | 0;
+    c = (c << 21) | (c >>> 11);
+    c = c + t | 0;
+    return t >>> 0;
+  };
+}
+
+function niceStep(top, want) {
+  const raw = top / want;
+  const power = Math.pow(10, Math.floor(Math.log10(raw)));
+  for (const k of [1, 2, 2.5, 5, 10]) if (raw <= k * power) return k * power;
+  return 10 * power;
+}
+
+function plotRoom() {
+  const w = Math.max(1, Math.round(plot.clientWidth));
+  const h = Math.max(1, Math.round(plot.clientHeight));
+  return { w, h, pw: w - PAD.l - PAD.r, ph: h - PAD.t - PAD.b };
+}
+
+/* The chart itself, drawn into whatever it is handed: the canvas on the page,
+   or a sheet twice the size with a heading on it for saving. Everything is in
+   plain pixels at the size asked for, so the caller owns the scaling. */
+function paintChart(ctx, w, h, bins, hover, heading) {
+  const top = (heading ? 74 : PAD.t);
+  const pw = w - PAD.l - PAD.r;
+  const ph = h - top - PAD.b;
+  if (pw < 60 || ph < 40) return;
+
+  const ink = getComputedStyle(document.body);
+  const text = ink.getPropertyValue("--text-faint") || "#777";
+  const pale = ink.getPropertyValue("--text-dim") || "#999";
+  const bright = ink.getPropertyValue("--neon") || "#fff";
+  const sans = faceFont;
+  // The labels grow with the sheet, so a saved graph is not a screen's worth
+  // of eleven-pixel type blown up to the size of a poster.
+  const small = Math.max(11, Math.round(w / 90));
+
+  if (heading) {
+    ctx.textAlign = "left";
+    ctx.textBaseline = "alphabetic";
+    ctx.fillStyle = bright;
+    ctx.font = `300 30px ${sans}`;
+    ctx.fillText(heading.title, PAD.l, 40);
+    ctx.fillStyle = pale;
+    ctx.font = `300 13px ${sans}`;
+    ctx.fillText(heading.note, PAD.l, 60);
+  }
+
+  let tallest = 0;
+  for (const b of bins) tallest = Math.max(tallest, b.n);
+  const topShare = tallest / sim.trials;
+  const step = niceStep(topShare, 4);
+  const ceiling = Math.max(step, Math.ceil(topShare / step) * step);
+  const yOf = (share) => top + ph - (share / ceiling) * ph;
+
+  // Hairline grid, one shade off the ground, with the share up the side.
+  const places = step >= 0.01 ? 1 : step >= 0.001 ? 2 : 3;
+  ctx.font = `400 ${small}px ${sans}`;
+  ctx.textAlign = "right";
+  ctx.textBaseline = "middle";
+  for (let v = 0; v <= ceiling + 1e-9; v += step) {
+    const y = yOf(v);
+    ctx.strokeStyle = tone(v === 0 ? 30 : 18, 0.85);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(PAD.l, Math.round(y) + 0.5);
+    ctx.lineTo(PAD.l + pw, Math.round(y) + 0.5);
+    ctx.stroke();
+    ctx.fillStyle = text;
+    ctx.fillText(v === 0 ? "0%" : `${(v * 100).toFixed(places)}%`, PAD.l - 8, y);
+  }
+
+  const slot = pw / bins.length;
+  const wide = Math.max(1, slot - 2);           // a 2px gap of ground between bars
+  const mine = lastDraw ? totalOf(lastDraw) : null;
+
+  bins.forEach((b, i) => {
+    const x = PAD.l + i * slot;
+    const y = yOf(b.n / sim.trials);
+    const tall = top + ph - y;
+    const holdsMine = mine !== null && mine >= b.lo && mine <= b.hi;
+    ctx.fillStyle = i === hover ? tone(84) : holdsMine ? tone(66) : tone(44);
+    ctx.fillRect(x, y, wide, Math.max(tall, b.n ? 1 : 0));
+  });
+
+  // The total on the table, marked where it falls, because the one thing you
+  // want from a distribution is where your own roll sits in it.
+  if (mine !== null && mine >= sim.first && mine <= sim.last) {
+    const at = PAD.l + ((mine - sim.first + 0.5) / (sim.last - sim.first + 1)) * pw;
+    ctx.strokeStyle = bright;
+    ctx.globalAlpha = 0.5;
+    ctx.setLineDash([]);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(Math.round(at) + 0.5, top - 6);
+    ctx.lineTo(Math.round(at) + 0.5, top + ph);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = bright;
+    ctx.textBaseline = "alphabetic";
+    ctx.textAlign = at > PAD.l + pw - 90 ? "right" : "left";
+    ctx.font = `400 ${small}px ${sans}`;
+    ctx.fillText(` you drew ${mine} `, at, top - 9);
+  }
+
+  // The totals along the bottom: the ends always, and a few in between.
+  ctx.fillStyle = text;
+  ctx.textBaseline = "top";
+  ctx.font = `400 ${small}px ${sans}`;
+  const marks = Math.max(2, Math.min(7, Math.floor(pw / 70)));
+  for (let m = 0; m <= marks; m++) {
+    const i = Math.round((m / marks) * (bins.length - 1));
+    const b = bins[i];
+    const x = PAD.l + i * slot + wide / 2;
+    ctx.textAlign = m === 0 ? "left" : m === marks ? "right" : "center";
+    ctx.fillText(String(b.lo), m === 0 ? PAD.l : m === marks ? PAD.l + pw : x, top + ph + 8);
+  }
+  ctx.textAlign = "center";
+  ctx.fillText(sim.binWidth > 1 ? `total drawn, ${sim.binWidth} to a bar` : "total drawn",
+    PAD.l + pw / 2, top + ph + 23);
+}
+
+function drawPlot() {
+  if (!sim) return;
+  readTheme();
+  const ratio = Math.min(window.devicePixelRatio || 1, 3);
+  const { w, h, pw } = plotRoom();
+  if (plot.width !== Math.round(w * ratio) || plot.height !== Math.round(h * ratio)) {
+    plot.width = Math.round(w * ratio);
+    plot.height = Math.round(h * ratio);
+  }
+  pen.setTransform(ratio, 0, 0, ratio, 0, 0);
+  pen.clearRect(0, 0, w, h);
+  const bins = binsFor(pw);
+  paintChart(pen, w, h, bins, hoverBin, null);
+  sayBin(hoverBin >= 0 ? hoverBin : null, bins);
+}
+
+/* The same chart, on a sheet of its own with the roll written across the top,
+   saved as a picture. JPEG, so the ground has to be painted in: the page is
+   black on purpose and a flattened transparency would come out white. */
+function saveGraph() {
+  if (!sim) { simFail("There is nothing charted to save yet."); return; }
+  readTheme();
+  const w = 1280;
+  const h = 760;
+  const sheet = document.createElement("canvas");
+  sheet.width = w * 2;
+  sheet.height = h * 2;
+  const ink = sheet.getContext("2d");
+  ink.setTransform(2, 0, 0, 2, 0, 0);
+  ink.fillStyle = getComputedStyle(document.body).backgroundColor || "#000";
+  ink.fillRect(0, 0, w, h);
+  paintChart(ink, w, h, binsFor(plotRoom().pw), -1,
+    { title: sim.expr, note: `${fmt(sim.trials)} draws` });
+
+  sheet.toBlob((blob) => {
+    if (!blob) { simFail("The picture would not save here."); return; }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${sim.expr.replace(/[^\w]+/g, "-").replace(/^-|-$/g, "")}.jpg`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    readout.textContent = `Saved ${a.download}, ${sheet.width} \u00d7 ${sheet.height}.`;
+  }, "image/jpeg", 0.92);
+}
+
+function sayBin(which, bins) {
+  if (!sim) return;
+  if (which === null) {
+    const share = sim.peak / sim.trials;
+    const mine = lastDraw ? totalOf(lastDraw) : null;
+    const yours = mine !== null && mine >= sim.first && mine <= sim.last
+      ? `  ·  ${mine} or better: ${pct(shareAtOrAbove(mine))}`
+      : "";
+    readout.textContent = `most often ${sim.peakAt}, on ${pct(share)} of draws${yours}`;
+    return;
+  }
+  const b = bins[which];
+  const label = b.lo === b.hi ? `${b.lo}` : `${b.lo} to ${b.hi}`;
+  readout.textContent = `${label}  ·  ${fmt(b.n)} draws  ·  ${pct(b.n / sim.trials)}`;
+}
+
+function paintFigures() {
+  figures.textContent = "";
+  const rows = [
+    ["draws", fmt(sim.trials)],
+    ["mean", sim.mean.toFixed(2)],
+    ["median", String(sim.median)],
+    ["spread", `±${sim.sd.toFixed(2)}`],
+    ["lowest", String(sim.first)],
+    ["highest", String(sim.last)],
+  ];
+  const mine = lastDraw ? totalOf(lastDraw) : null;
+  if (mine !== null) rows.push([`${mine} or better`, pct(shareAtOrAbove(mine), 2)]);
+  for (const [what, value] of rows) {
+    const cell = document.createElement("span");
+    cell.append(`${what} `);
+    const b = document.createElement("b");
+    b.textContent = value;
+    cell.append(b);
+    figures.append(cell);
+  }
+}
+
+/* The same numbers as the chart, in the same bins, for anyone the chart does
+   not reach — and for anyone who wants to paste them somewhere else. */
+function paintNumbers() {
+  const bins = binsFor(plotRoom().pw);
+  const mine = lastDraw ? totalOf(lastDraw) : null;
+  const table = document.createElement("table");
+  const head = document.createElement("tr");
+  for (const what of ["Total", "Draws", "Share"]) {
+    const th = document.createElement("th");
+    th.textContent = what;
+    head.append(th);
+  }
+  table.append(head);
+  for (const b of bins) {
+    const row = document.createElement("tr");
+    if (mine !== null && mine >= b.lo && mine <= b.hi) row.className = "mine";
+    for (const cell of [b.lo === b.hi ? `${b.lo}` : `${b.lo}–${b.hi}`,
+                        fmt(b.n), pct(b.n / sim.trials)]) {
+      const td = document.createElement("td");
+      td.textContent = cell;
+      row.append(td);
+    }
+    table.append(row);
+  }
+  tableEl.textContent = "";
+  tableEl.append(table);
+  plot.setAttribute("aria-label",
+    `How ${fmt(sim.trials)} draws of ${sim.expr} came out: `
+    + `${sim.first} at the lowest, ${sim.last} at the highest, `
+    + `most often ${sim.peakAt} on ${pct(sim.peak / sim.trials)} of draws. `
+    + "The same numbers are under Show the numbers.");
+}
+
+const countAt = (total) =>
+  (total < sim.lo || total > sim.hi ? 0 : sim.counts[total - sim.lo]);
+
+// How often the roll came out at least as high as the one on the table, which
+// is the question anybody looking at this chart is actually asking.
+function shareAtOrAbove(total) {
+  let n = 0;
+  for (let v = Math.max(sim.first, total); v <= sim.last; v++) n += countAt(v);
+  return n / sim.trials;
+}
+
+/* One bar per total while they fit, and bars of several totals each when they
+   do not — a deck of a hundred spans more columns than there are pixels. */
+function binsFor(width) {
+  const span = sim.last - sim.first + 1;
+  const room = Math.max(1, Math.floor(width / 4));
+  const per = Math.max(1, Math.ceil(span / room));
+  if (sim.bins && sim.binWidth === per) return sim.bins;
+  const bins = [];
+  for (let v = sim.first; v <= sim.last; v += per) {
+    const hi = Math.min(sim.last, v + per - 1);
+    let n = 0;
+    for (let k = v; k <= hi; k++) n += countAt(k);
+    bins.push({ lo: v, hi, n });
+  }
+  sim.bins = bins;
+  sim.binWidth = per;
+  return bins;
+}
+
+/* Everything the chart and the figures need, read off the tally in one pass.
+   The sums are taken about the middle of the range rather than about zero:
+   a hundred million throws of a total near a thousand squares up to a number
+   big enough to start losing its own low digits. */
+function summarise(r) {
+  const counts = r.counts;
+  const lo = r.lo;
+  const mid = Math.round((r.lo + r.hi) / 2);
+  let n = 0;
+  let s1 = 0;
+  let s2 = 0;
+  let first = null;
+  let last = lo;
+  let peak = 0;
+  let peakAt = lo;
+  for (let i = 0; i < counts.length; i++) {
+    const c = counts[i];
+    if (!c) continue;
+    const v = lo + i;
+    const off = v - mid;
+    n += c;
+    s1 += c * off;
+    s2 += c * off * off;
+    if (first === null) first = v;
+    last = v;
+    if (c > peak) { peak = c; peakAt = v; }
+  }
+  const mean = mid + s1 / n;
+  const sd = Math.sqrt(Math.max(0, s2 / n - (s1 / n) * (s1 / n)));
+  let run = 0;
+  let median = lo;
+  for (let i = 0; i < counts.length; i++) {
+    run += counts[i];
+    if (run >= n / 2) { median = lo + i; break; }
+  }
+  return {
+    counts, lo, hi: r.hi, trials: n, expr: r.expr,
+    first, last, peak, peakAt, mean, sd, median,
+    bins: null, binWidth: 0,
+  };
+}
+
+function stopSim() {
+  if (running && running.timer) clearTimeout(running.timer);
+  running = null;
+  simBtn.disabled = false;
+  stopBtn.disabled = true;
+}
+
+/* ------------------------------------------------------------ the cards -- */
+
+const randomQuat = () => qUnit({
+  w: Math.random() - 0.5, x: Math.random() - 0.5,
+  y: Math.random() - 0.5, z: Math.random() - 0.5,
+});
+
+/* One shape for every card: a flat box, with the two big faces the ones that
+   carry anything. The printing is laid out along the card in the card's own
+   frame, so it turns with it rather than staying upright for the camera. */
+let shapeHeld = null;
+function cardShape() {
+  if (shapeHeld) return shapeHeld;
+  const pts = [];
+  for (const x of [-CARD.w / 2, CARD.w / 2]) {
+    for (const y of [-CARD.t / 2, CARD.t / 2]) {
+      for (const z of [-CARD.h / 2, CARD.h / 2]) pts.push(v3(x, y, z));
+    }
+  }
+  const faces = hullFaces(pts);
+  faces.sort((a, b) => b.area - a.area);
+  const reads = faces.slice(0, 2);
+  reads.forEach((f, i) => { f.read = i; });
+  for (const f of faces) {
+    const across = Math.abs(f.normal.y) > 0.5 ? v3(1, 0, 0) : unit(cross(v3(0, 1, 0), f.normal));
+    f.across = across;
+    f.down = cross(across, f.normal);
+  }
+  let radius = 0;
+  for (const p of pts) radius = Math.max(radius, vlen(p));
+  shapeHeld = { pts, faces, reads, radius };
+  return shapeHeld;
+}
+
+// Ten cards fill the table at their real size; past that they shrink, because
+// a hand you cannot see is worse than one that is small.
+function cardSize(n) {
+  const room = TRAY.w * 2 * TRAY.d * 2;
+  return Math.max(0.34, Math.min(1, Math.sqrt(room / (n * 90))));
+}
+
+function makeCard(face, seat, r) {
+  const shape = cardShape();
+  return {
+    face, seat, r, shape,
+    up: 0,
+    R2: (shape.radius * r) * (shape.radius * r),
+    pos: v3(0, 0, 0),
+    vel: v3(0, 0, 0),
+    omega: v3(0, 0, 0),
+    quat: { w: 1, x: 0, y: 0, z: 0 },
+    rot: new Float64Array(shape.pts.length * 3),
+    world: [],
+    asleep: false,
+    still: 0,
+  };
+}
+
+/* Where it ends up once it is lying flat: the side that is nearest the table
+   turned flat against it, and the face printed on the other one. A card is
+   never face down on this table, which is the one liberty taken — the throw
+   decides which way up it lands, and the printing follows it. */
+function flatten(card) {
+  const reads = card.shape.reads;
+  const rest = turn(card.quat, reads[0].normal).y < turn(card.quat, reads[1].normal).y ? 0 : 1;
+  const quat = qMul(qBetween(turn(card.quat, reads[rest].normal), v3(0, -1, 0)), card.quat);
+
+  let bottom = Infinity;
+  let leftX = Infinity, rightX = -Infinity, backZ = Infinity, frontZ = -Infinity;
+  for (const p of card.shape.pts) {
+    const w = mul(turn(quat, p), card.r);
+    bottom = Math.min(bottom, w.y);
+    leftX = Math.min(leftX, w.x); rightX = Math.max(rightX, w.x);
+    backZ = Math.min(backZ, w.z); frontZ = Math.max(frontZ, w.z);
+  }
+  let x = card.pos.x;
+  let z = card.pos.z;
+  if (x + rightX > TRAY.w) x = TRAY.w - rightX;
+  if (x + leftX < -TRAY.w) x = -TRAY.w - leftX;
+  if (z + frontZ > TRAY.d) z = TRAY.d - frontZ;
+  if (z + backZ < -TRAY.d) z = -TRAY.d - backZ;
+  return { quat, y: -bottom, x, z, up: rest === 0 ? 1 : 0 };
+}
+
+function thrownFrom(card, i, n) {
+  // Along the back to start with, thrown across each other so they fan out
+  // and collide on the way rather than landing in the order they were dealt.
+  const across = n === 1 ? 0 : ((i + 0.5) / n - 0.5) * TRAY.w * 1.15;
+  return {
+    pos: v3(across + (Math.random() - 0.5) * 3,
+            3.5 + Math.random() * 4,
+            -TRAY.d + 2 + (Math.random() - 0.5) * 3),
+    vel: v3((Math.random() - 0.5) * 70 - across * 2.4, -8 + Math.random() * 18,
+            55 + Math.random() * 60),
+    // Mostly about the upright, the way a thrown card spins.
+    omega: mul(unit(v3((Math.random() - 0.5) * 0.7, Math.random() - 0.5, (Math.random() - 0.5) * 0.7)),
+               7 + Math.random() * 15),
+    quat: randomQuat(),
+  };
+}
+
+/* The throw, run through once with nothing drawn, so the page knows where
+   every card stops and which way up before the first frame. Nothing is
+   steered: the faces are painted on afterwards. */
+function throwThem() {
+  cards.forEach((card, i) => {
+    card.start = thrownFrom(card, i, cards.length);
+    backToStart(card);
+  });
+
+  const most = Math.ceil(LONGEST / STEP);
+  let steps = 0;
+  while (steps < most && cards.some((c) => !c.asleep)) { oneStep(steps * STEP); steps++; }
+  dealSteps = steps;
+
+  for (const card of cards) {
+    const done = flatten(card);
+    card.up = done.up;
+    card.endQuat = done.quat;
+    card.endY = done.y;
+    card.endX = done.x;
+    card.endZ = done.z;
+  }
+  for (const card of cards) backToStart(card);
+}
+
+/* How many across, how far apart, and how big they have to be to fit: a card
+   laid out needs its own width and a little more, and a row needs the height
+   of a card and the gap under it. */
+function layout(n) {
+  const cols = Math.max(1, Math.min(n, Math.ceil(Math.sqrt(n * (TRAY.w / TRAY.d)))));
+  const rows = Math.ceil(n / cols);
+  const cellW = TRAY.w * 2 / cols;
+  const cellH = TRAY.d * 2 / rows;
+  return { cols, rows, cellW, cellH, r: Math.min(1, cellW / (CARD.w * 1.12), cellH / (CARD.h * 1.2)) };
+}
+
+function setDown() {
+  const n = cards.length;
+  const { cols, rows, cellW, cellH } = layout(n);
+  cards.forEach((card, i) => {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    const inRow = Math.min(cols, n - row * cols);
+    card.pos = v3((col - (inRow - 1) / 2) * cellW, 0, (row - (rows - 1) / 2) * cellH);
+    // Square to the table, with only a little turn: a spread laid out is read
+    // left to right, and a card at an angle is a card you are tilting to see.
+    card.quat = qAxis(v3(0, 1, 0), (Math.random() - 0.5) * 0.18);
+    const done = flatten(card);
+    card.quat = done.quat;
+    card.pos.y = done.y;
+    card.pos.x = done.x;
+    card.pos.z = done.z;
+    card.up = done.up;
+    card.vel = v3(0, 0, 0);
+    card.omega = v3(0, 0, 0);
+    card.asleep = true;
+    spinVerts(card);
+  });
+}
+
+function paintFace(bit) {
+  const { card, face, nrm } = bit;
+  const flat = [];
+  for (const i of face.verts) {
+    const p = project(card.world[i]);
+    if (!p) return;
+    flat.push(p);
+  }
+
+  let twice = 0;
+  for (let i = 0; i < flat.length; i++) {
+    const a = flat[i];
+    const b = flat[(i + 1) % flat.length];
+    twice += a.x * b.y - b.x * a.y;
+  }
+  const area = Math.abs(twice) / 2;
+
+  const lit = 0.18 + 0.82 * Math.max(0, dot(nrm, LIGHT));
+  const up = nrm.y > 0.86;
+  // Kept well off white: a card is a big flat shape, and a page whose depth
+  // comes from hairlines does not want five of them glaring out of it. The
+  // printing is what is bright.
+  const shade = 5 + 30 * lit + (up ? 8 : 0);
+
+  brush.beginPath();
+  flat.forEach((p, i) => (i ? brush.lineTo(p.x, p.y) : brush.moveTo(p.x, p.y)));
+  brush.closePath();
+  brush.fillStyle = tone(shade);
+  brush.fill();
+  brush.strokeStyle = tone(shade + 30, 0.75);
+  brush.lineWidth = 1;
+  brush.stroke();
+
+  if (face.read < 0 || area < 140) return;          // the thin edges of it
+  const mid = add(card.pos, mul(turn(card.quat, face.mid), card.r));
+
+  if (face.read !== card.up) {
+    // The back: a frame inside the edge, which is all a back needs to be for
+    // you to know you are looking at one.
+    const inset = [];
+    for (const i of face.verts) {
+      const p = project(add(mul(card.world[i], 0.86), mul(mid, 0.14)));
+      if (!p) return;
+      inset.push(p);
+    }
+    brush.beginPath();
+    inset.forEach((p, i) => (i ? brush.lineTo(p.x, p.y) : brush.moveTo(p.x, p.y)));
+    brush.closePath();
+    brush.strokeStyle = tone(Math.min(96, shade + 18), 0.55);
+    brush.stroke();
+    return;
+  }
+
+  const across = turn(card.quat, face.across);
+  const down = turn(card.quat, face.down);
+  const ink = up ? tone(96) : tone(Math.min(96, shade + 44));
+  const label = card.face.label || "";
+  const big = Math.min(2.6, 9 / Math.max(2, label.length));
+  if (card.face.icon) {
+    faceText(add(mid, mul(down, -1.5 * card.r)), across, down, card.face.icon,
+      2.1 * card.r, ink, up);
+  }
+  faceText(add(mid, mul(down, (card.face.icon ? 1.1 : 0) * card.r)), across, down, label,
+    big * card.r, ink, up);
+
+  // The place in the spread is printed along the bottom of the card rather
+  // than on the table beside it: a name on the table is a name that collides
+  // with the next card along, and this one travels with the card it names.
+  if (card.seat) {
+    // Shortened to what the card is wide rather than shrunk to fit it: a name
+    // small enough to hold "What crosses it" is a name too small to read.
+    const seat = card.seat.length > 17 ? `${card.seat.slice(0, 16)}\u2026` : card.seat;
+    faceText(add(mid, mul(down, 3.35 * card.r)), across, down, seat, 0.64 * card.r,
+      up ? tone(66) : tone(Math.min(80, shade + 26)), false);
+  }
+}
+
+function draw() {
+  readTheme();
+  fitCanvas();
+  brush.clearRect(0, 0, view.w, view.h);
+  paintTable();
+
+  const bits = [];
+  for (const card of cards) {
+    card.world = [];
+    for (let i = 0; i < card.rot.length; i += 3) {
+      card.world.push(v3(card.pos.x + card.rot[i], card.pos.y + card.rot[i + 1],
+                         card.pos.z + card.rot[i + 2]));
+    }
+    for (const face of card.shape.faces) {
+      const nrm = turn(card.quat, face.normal);
+      const mid = add(card.pos, mul(turn(card.quat, face.mid), card.r));
+      if (dot(nrm, sub(EYE, mid)) <= 0) continue;          // facing away
+      const c = toCam(mid);
+      if (c.z < 0.3) continue;
+      bits.push({ card, face, nrm, depth: c.z });
+    }
+  }
+  bits.sort((a, b) => b.depth - a.depth);
+  for (const bit of bits) paintFace(bit);
+
+}
+
+function describe() {
+  if (!cards.length) return "The table is empty.";
+  const spread = seatsNow() ? `${spreadNow().name} · ` : "";
+  return `${spread}${cards.length} card${cards.length === 1 ? "" : "s"} from ${deckSay()}`;
+}
+
+function present(drawn, animate) {
+  stopTick();
+  cards.length = 0;
+  const seats = seatsNow();
+  const r = animate ? cardSize(Math.max(1, drawn.length)) : layout(Math.max(1, drawn.length)).r;
+  drawn.forEach((face, i) => cards.push(makeCard(face, seats ? seats[i] || "" : "", r)));
+
+  trayNote.textContent = describe();
+  againBtn.disabled = !cards.length;
+  canvas.setAttribute("aria-label", cards.length
+    ? `${cards.length} cards face up: ${drawn.map((c) => c.name).join(", ")}`
+    : "An empty table");
+
+  if (!cards.length) { settled = true; draw(); return; }
+  if (!animate) { setDown(); settled = true; draw(); return; }
+  throwThem();
+  raf = requestAnimationFrame(tick);
+}
+
+/* =========================================================== many draws == */
+
+/* The same deal, over and over: a partial shuffle of the values, the first
+   few added up, and then the shuffle undone so the next one starts from the
+   deck as it was. No card comes out twice in a draw, which is the whole
+   difference between this and rolling the same die a few times. */
+function chunk() {
+  if (!running) return;
+  const r = running;
+  const next = r.next;
+  const pool = r.pool;
+  const picks = r.picks;
+  const cut = r.cut;
+  const counts = r.counts;
+  const many = r.many;
+  const lo = r.lo;
+  const len = pool.length;
+  const until = performance.now() + 20;
+
+  while (r.done < r.trials) {
+    const slice = Math.min(4000, r.trials - r.done);
+    for (let t = 0; t < slice; t++) {
+      let total = 0;
+      for (let i = 0; i < many; i++) {
+        let u = next();
+        while (u >= cut[i]) u = next();
+        const j = i + (u % (len - i));
+        picks[i] = j;
+        const held = pool[i];
+        pool[i] = pool[j];
+        pool[j] = held;
+        total += pool[i];
+      }
+      for (let i = many - 1; i >= 0; i--) {
+        const j = picks[i];
+        const held = pool[i];
+        pool[i] = pool[j];
+        pool[j] = held;
+      }
+      counts[total - lo]++;
+    }
+    r.done += slice;
+    if (performance.now() >= until) break;
+  }
+
+  if (r.done < r.trials) {
+    simSay.textContent = `${fmt(r.done)} of ${fmt(r.trials)} draws…`;
+    r.timer = setTimeout(chunk, 0);
+    return;
+  }
+  finishSim(false);
+}
+
+const drawKey = () => `${howManyNow()}|${deckNow().map((c) => `${c.name}:${c.value}`).join(",")}`;
+
+function startSim(asked, auto) {
+  const deck = deckNow();
+  const many = howManyNow();
+  if (!deck.length) {
+    if (!auto) simFail(deckKind === "custom"
+      ? "Your own deck has no cards in it yet." : "That deck came out empty.");
+    return;
+  }
+  if (many < 1 || many > deck.length) {
+    if (!auto) simFail(`A draw of ${many} from ${deck.length} cards is not a draw.`);
+    return;
+  }
+  const trials = asked === undefined ? howMany() : asked;
+  if (trials === null) {
+    simFail(`“${runsIn.value.trim()}” is not a number of draws.`);
+    return;
+  }
+  simSay.classList.remove("error");
+
+  // The lowest and the highest the draw can come to: the cheapest few cards
+  // in the deck and the dearest few.
+  const values = deck.map((c) => Math.round(c.value));
+  const sorted = [...values].sort((a, b) => a - b);
+  let lo = 0;
+  let hi = 0;
+  for (let i = 0; i < many; i++) { lo += sorted[i]; hi += sorted[sorted.length - 1 - i]; }
+
+  const cut = new Float64Array(many);
+  for (let i = 0; i < many; i++) {
+    const span = values.length - i;
+    cut[i] = Math.floor(0x100000000 / span) * span;
+  }
+
+  stopSim();
+  running = {
+    trials, done: 0, lo, hi, many, auto,
+    key: drawKey(),
+    counts: new Uint32Array(hi - lo + 1),
+    pool: Int32Array.from(values),
+    picks: new Int32Array(many),
+    cut,
+    next: makeRandom(),
+    expr: drawName(),
+    began: performance.now(),
+  };
+  simBtn.disabled = true;
+  stopBtn.disabled = false;
+  running.capped = asked === undefined && trials < Number(runsIn.value.replace(/[\s,_]/g, ""));
+  chunk();
+}
+
+function finishSim(cut) {
+  const r = running;
+  if (!r) return;
+  const took = (performance.now() - r.began) / 1000;
+  stopSim();
+  if (!r.done) { simSay.textContent = "Stopped before anything was drawn."; return; }
+
+  sim = summarise(r);
+  charted = r.key;
+  hoverBin = -1;
+  plotWrap.classList.add("on");
+  drawPlot();
+  paintFigures();
+  paintNumbers();
+  simSay.classList.remove("error");
+  simSay.textContent = cut
+    ? `Stopped at ${fmt(sim.trials)} draws of ${sim.expr}.`
+    : r.auto
+    ? `${fmt(sim.trials)} draws of ${sim.expr}, run with the draw. `
+      + "Ask for more above and it will run that many."
+    : `${fmt(sim.trials)} draws of ${sim.expr}, in `
+      + `${took < 0.1 ? `${Math.max(1, Math.round(took * 1000))} ms` : `${took.toFixed(2)} s`}.`
+      + (r.capped ? ` ${fmt(RUNS_CAP)} is as many as this will run.` : "");
+}
+
+/* A draw of a shape this page has not charted gets a run of its own, so the
+   chart under the table is always of the draw on it. Changing the deck, the
+   count, or what a king is worth is a new shape. */
+function chartTheDraw() {
+  const key = drawKey();
+  if (key === charted) return;
+  if (running && (!running.auto || running.key === key)) return;
+  startSim(AUTO_RUNS, true);
+}
+
+/* ============================================================== wiring == */
+
+const calm = window.matchMedia("(prefers-reduced-motion: reduce)");
+const throwing = () => tumbleIn.checked && !calm.matches;
+
+function deal() {
+  const deck = deckNow();
+  if (!deck.length) {
+    fail(deckKind === "custom"
+      ? "Your own deck has no cards in it yet — write some below."
+      : "That deck came out empty.");
+    return null;
+  }
+  const many = howManyNow();
+  if (!Number.isFinite(many) || many < 1) { fail("Draw at least one card."); return null; }
+  if (many > MOST) { fail(`${MOST} cards is as many as this will deal at once.`); return null; }
+  if (many > deck.length) {
+    fail(`There are only ${deck.length} cards in ${deckSay()}, so ${many} cannot come out of it.`);
+    return null;
+  }
+  clearFail();
+
+  const drawn = dealFrom(deck, many);
+  lastDraw = drawn;
+  showDraw(drawn);
+
+  entries.unshift({
+    at: clock(),
+    cards: drawn.map(shortOf).join(" "),
+    total: totalOf(drawn),
+  });
+  if (entries.length > CAP) entries.length = CAP;
+  paintLog();
+  save();
+
+  present(drawn, throwing());
+  // The chart marks the draw on the table, so a new draw moves the mark
+  // rather than leaving the last one sitting there contradicting the total.
+  if (sim) { drawPlot(); paintFigures(); paintNumbers(); }
+  chartTheDraw();
+  return drawn;
+}
+
+function settings(changed) {
+  jokersIn.disabled = !DECKS[deckKind].jokers;
+  manyIn.disabled = spreadIn.value !== "";
+  save();
+  if (changed === "deck" || changed === "worth") { paintWorths(); refreshValues(); }
+  if (lastDraw || sim) chartTheDraw();
+}
+
+el("decks").addEventListener("click", (e) => {
+  const want = e.target instanceof HTMLElement && e.target.dataset.deck;
+  if (!want || !DECKS[want]) return;
+  deckKind = want;
+  for (const b of el("decks").querySelectorAll("button")) {
+    b.classList.toggle("on", b.dataset.deck === want);
+  }
+  clearFail();
+  settings("deck");
+});
+
+jokersIn.addEventListener("change", () => settings("worth"));
+spreadIn.addEventListener("change", () => settings());
+manyIn.addEventListener("input", () => { clearFail(); settings(); });
+manyIn.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter") return;
+  e.preventDefault();
+  deal();
+});
+
+el("drawBtn").addEventListener("click", deal);
+el("drawHere").addEventListener("click", deal);
+
+againBtn.addEventListener("click", () => { if (lastDraw) present(lastDraw, throwing()); });
+tumbleIn.addEventListener("change", () => {
+  save();
+  if (lastDraw) present(lastDraw, throwing());
+});
+
+worthsEl.addEventListener("input", (e) => {
+  const which = e.target instanceof HTMLElement && e.target.dataset.worth;
+  if (!which) return;
+  const n = Math.round(Number(e.target.value.replace(/\s/g, "")));
+  if (!Number.isFinite(n)) return;
+  worthSet[deckKind] = { ...(worthSet[deckKind] || {}), [which]: n };
+  settings("worth");
+});
+
+el("worthReset").addEventListener("click", () => {
+  delete worthSet[deckKind];
+  paintWorths();
+  settings("worth");
+});
+
+el("useOwn").addEventListener("click", () => {
+  const { cards: made, trouble } = ownDeckFrom(ownIn.value);
+  deckKind = "custom";
+  for (const b of el("decks").querySelectorAll("button")) {
+    b.classList.toggle("on", b.dataset.deck === "custom");
+  }
+  ownSay.textContent = made.length
+    ? `${made.length} card${made.length === 1 ? "" : "s"} in it`
+      + (trouble.length ? `, and ${trouble.length} line${trouble.length === 1 ? "" : "s"} it could not read` : "")
+    : "No cards in that yet.";
+  clearFail();
+  settings("deck");
+});
+
+ownIn.addEventListener("input", () => { if (deckKind === "custom") settings("deck"); else save(); });
+
+/* ------------------------------------------------------------- spreads -- */
+
+el("saveSpread").addEventListener("click", () => {
+  const name = el("spreadName").value.trim().slice(0, 60);
+  const seats = el("spreadSeats").value.split("\n")
+    .map((s) => s.trim().slice(0, 40)).filter(Boolean).slice(0, MOST);
+  if (!name) { spreadSay.textContent = "Give the spread a name first."; return; }
+  if (!seats.length) { spreadSay.textContent = "A spread needs at least one place in it."; return; }
+  const at = mySpreads.findIndex((s) => s.name === name);
+  if (at >= 0) mySpreads[at] = { name, seats }; else mySpreads.push({ name, seats });
+  paintSpreads(String(READY.length + (at >= 0 ? at : mySpreads.length - 1)));
+  spreadSay.textContent = `Saved ${name}, ${seats.length} place${seats.length === 1 ? "" : "s"}.`;
+  settings();
+});
+
+el("dropSpread").addEventListener("click", () => {
+  const at = Number(spreadIn.value);
+  if (spreadIn.value === "" || at < READY.length) {
+    spreadSay.textContent = "Pick one of your own to delete.";
+    return;
+  }
+  const [gone] = mySpreads.splice(at - READY.length, 1);
+  paintSpreads("");
+  spreadSay.textContent = `Deleted ${gone.name}.`;
+  settings();
+});
+
+el("copySpreads").addEventListener("click", async () => {
+  const text = JSON.stringify({ spreads: mySpreads.map((s) => ({ name: s.name, positions: s.seats })) }, null, 2);
+  try {
+    if (!navigator.clipboard || !window.isSecureContext) throw new Error("no clipboard here");
+    await navigator.clipboard.writeText(`${text}\n`);
+    spreadSay.textContent = `Copied ${mySpreads.length} of your own.`;
+  } catch (err) {
+    console.error(err);
+    spreadSay.textContent = "This browser would not let the page copy it.";
+  }
+});
+
+el("loadSpreads").addEventListener("change", async (e) => {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const found = spreadsFrom(JSON.parse(text));
+    if (!found.length) { spreadSay.textContent = "No spreads in that file."; return; }
+    for (const one of found) {
+      const at = mySpreads.findIndex((s) => s.name === one.name);
+      if (at >= 0) mySpreads[at] = one; else mySpreads.push(one);
+    }
+    mySpreads = mySpreads.slice(0, 60);
+    paintSpreads(String(READY.length + mySpreads.findIndex((s) => s.name === found[0].name)));
+    spreadSay.textContent = `Loaded ${found.length} spread${found.length === 1 ? "" : "s"} from ${file.name}.`;
+    settings();
+  } catch (err) {
+    console.error(err);
+    spreadSay.textContent = "That file is not JSON this page can read.";
+  }
+  e.target.value = "";
+});
+
+/* ------------------------------------------------------------ the rest -- */
+
+simBtn.addEventListener("click", () => startSim());
+stopBtn.addEventListener("click", () => finishSim(true));
+el("saveSim").addEventListener("click", saveGraph);
+runsIn.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter") return;
+  e.preventDefault();
+  startSim();
+});
+
+tableBtn.addEventListener("click", () => {
+  const open = tableEl.classList.toggle("on");
+  tableBtn.setAttribute("aria-expanded", String(open));
+  tableBtn.textContent = open ? "Hide the numbers" : "Show the numbers";
+});
+
+el("copySim").addEventListener("click", async () => {
+  if (!sim) return;
+  const bins = binsFor(plotRoom().pw);
+  const lines = ["total\tdraws\tshare",
+    ...bins.map((b) => `${b.lo === b.hi ? b.lo : `${b.lo}-${b.hi}`}\t${b.n}\t${(b.n / sim.trials * 100).toFixed(4)}`)];
+  try {
+    if (!navigator.clipboard || !window.isSecureContext) throw new Error("no clipboard here");
+    await navigator.clipboard.writeText(`${lines.join("\n")}\n`);
+    const was = readout.textContent;
+    readout.textContent = "Copied the numbers.";
+    setTimeout(() => { readout.textContent = was; }, 900);
+  } catch (err) {
+    console.error(err);
+  }
+});
+
+el("clearBtn").addEventListener("click", () => {
+  entries = [];
+  paintLog();
+  save();
+});
+
+el("copyBtn").addEventListener("click", async () => {
+  const text = entries.length
+    ? entries.map((e) => `${e.at}  ${e.cards}  = ${e.total}`).join("\n")
+    : "Nothing drawn yet.";
+  try {
+    if (!navigator.clipboard || !window.isSecureContext) throw new Error("no clipboard here");
+    await navigator.clipboard.writeText(`${text}\n`);
+    const was = sayEl.textContent;
+    sayEl.textContent = "Copied the log.";
+    setTimeout(() => { sayEl.textContent = was; }, 900);
+  } catch (err) {
+    console.error(err);
+  }
+});
+
+plot.addEventListener("pointermove", (e) => {
+  if (!sim) return;
+  const box = plot.getBoundingClientRect();
+  const { pw } = plotRoom();
+  const bins = binsFor(pw);
+  const i = Math.floor((e.clientX - box.left - PAD.l) / (pw / bins.length));
+  const was = hoverBin;
+  hoverBin = i >= 0 && i < bins.length ? i : -1;
+  if (hoverBin !== was) drawPlot();
+});
+plot.addEventListener("pointerleave", () => {
+  if (hoverBin === -1) return;
+  hoverBin = -1;
+  drawPlot();
+});
+plot.addEventListener("keydown", (e) => {
+  if (!sim) return;
+  const bins = binsFor(plotRoom().pw);
+  let to = hoverBin;
+  if (e.key === "ArrowRight") to = Math.min(bins.length - 1, (hoverBin < 0 ? -1 : hoverBin) + 1);
+  else if (e.key === "ArrowLeft") to = (hoverBin < 0 ? bins.length : hoverBin) - 1;
+  else if (e.key === "Home") to = 0;
+  else if (e.key === "End") to = bins.length - 1;
+  else if (e.key === "Escape") to = -1;
+  else return;
+  e.preventDefault();
+  hoverBin = Math.max(-1, to);
+  drawPlot();
+});
+
+if (window.ResizeObserver) {
+  new ResizeObserver(() => { if (!raf) draw(); }).observe(canvas);
+  new ResizeObserver(() => drawPlot()).observe(plot);
+} else {
+  window.addEventListener("resize", () => { if (!raf) draw(); drawPlot(); });
+}
+
+const keepSpread = load();
+for (const b of el("decks").querySelectorAll("button")) {
+  b.classList.toggle("on", b.dataset.deck === deckKind);
+}
+paintSpreads(keepSpread);
+paintWorths();
+paintLog();
+jokersIn.disabled = !DECKS[deckKind].jokers;
+manyIn.disabled = spreadIn.value !== "";
+againBtn.disabled = true;
+settled = true;
+draw();
+</script>
+</body>
+</html>

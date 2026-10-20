@@ -50,6 +50,14 @@ Suites are named for the page they exercise. The ones worth knowing about:
   Loop seams measured as a sample step against the signal's own typical step,
   isochronic envelopes against the formula they claim to implement, breath
   envelopes against the figures in the research the presets came from.
+- **`test-cards.mjs`** — the card drawer. Checks each deck is the size it
+  should be and that a whole deck deals every card once and none of them
+  twice, that a face card is worth what the boxes under the table say, that a
+  deck written by hand is read the way the page claims to read it, and that a
+  spread fills its places in order — including one loaded from a JSON file
+  with rubbish in it, which has to come back with the rubbish left out. The
+  same two checks the dice roller has about its throw are here too: a card is
+  left where it stops, and what is printed on it turns with it.
 - **`test-dice.mjs`** — the dice roller, where the claim worth checking is that
   the die on the table is showing what the page says was rolled. It reads each
   die's quaternion back out and works out which labelled face is pointing at
