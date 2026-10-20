@@ -442,7 +442,7 @@ let washNodes = null, airNodes = null;
 let banks = {};           // surface id -> input gain of a standing resonator bank
 let excitations = [];
 let running = false;
-let dropTimer = null, gustTimer = null, strikeTimer = null, weatherTimer = null;
+let rainPump = null, gustTimer = null, strikeTimer = null, weatherTimer = null;
 let lastStrike = null;
 let dropsHeard = 0;
 
@@ -566,7 +566,7 @@ function buildBanks(out) {
   }
 }
 
-function drop(surfaceId, size, strength) {
+function drop(surfaceId, size, strength, at) {
   // A two-sided surface has a bank on each side; which one this drop lands on
   // is the only thing chosen per drop.
   const home = banks[surfaceId] || banks[surfaceId + (Math.random() < 0.5 ? "L" : "R")];
@@ -578,7 +578,7 @@ function drop(surfaceId, size, strength) {
   const hit = ctx.createGain();
   hit.gain.value = strength;
   source.connect(hit).connect(home.input);
-  source.start(ctx.currentTime);
+  source.start(Math.max(ctx.currentTime, at));
   source.onended = () => { try { source.disconnect(); hit.disconnect(); } catch {} };
   dropsHeard++;
 }
@@ -587,32 +587,62 @@ function drop(surfaceId, size, strength) {
 // jittered gap is the thing that sounds mechanical.
 const nextGap = (rate) => -Math.log(1 - Math.random()) / Math.max(0.01, rate);
 
-function raining() {
-  if (!running) return;
+function dropRate() {
   const { over } = sky();
-  const wet = nowOf("rain");
-  const density = wet * (0.25 + over * 1.15) * place.rate;
+  const density = nowOf("rain") * (0.25 + over * 1.15) * place.rate;
   // Capped on purpose: past this the ear stops hearing separate drops anyway,
   // and the fine detail is the wash's job rather than another forty nodes a
   // second. Recognisable drops discrete, dense detail continuous.
-  const rate = Math.min(42, density * 55);
+  return Math.min(42, density * 55);
+}
 
-  if (rate > 0.01) {
-    // Small drops common, heavy ones rare, and size and strength together.
-    const roll = Math.random();
-    const size = Math.min(1, (0.1 + 0.9 * Math.pow(roll, 3)) * (0.45 + dropSize() * 1.5));
-    const strength = (0.02 + 0.5 * Math.pow(roll, 3)) * (0.5 + wet * 0.9);
+function fallOne(at) {
+  const wet = nowOf("rain");
+  // Small drops common, heavy ones rare, and size and strength together.
+  const roll = Math.random();
+  const size = Math.min(1, (0.1 + 0.9 * Math.pow(roll, 3)) * (0.45 + dropSize() * 1.5));
+  const strength = (0.02 + 0.5 * Math.pow(roll, 3)) * (0.5 + wet * 0.9);
 
-    const surfaces = Object.entries(place.mix);
-    let total = 0;
-    for (const [, weight] of surfaces) total += weight;
-    let pick = Math.random() * total;
-    for (const [id, weight] of surfaces) {
-      pick -= weight;
-      if (pick <= 0) { drop(id, size, strength * weight); break; }
-    }
+  const surfaces = Object.entries(place.mix);
+  let total = 0;
+  for (const [, weight] of surfaces) total += weight;
+  let pick = Math.random() * total;
+  for (const [id, weight] of surfaces) {
+    pick -= weight;
+    if (pick <= 0) { drop(id, size, strength * weight, at); break; }
   }
-  dropTimer = setTimeout(raining, Math.max(6, nextGap(rate) * 1000));
+}
+
+/* Drops are placed on the audio clock a third of a second ahead, not fired
+   by a timer when it happens to get a turn. A setTimeout chain shares the
+   main thread with the animation, so when a frame runs long the callbacks
+   arrive late and then all at once: the drops bunch into a burst with a gap
+   behind it, which is the skipping. Scheduling ahead means a frame that runs
+   long costs nothing at all, because the drops for the next third of a
+   second have already been handed to the audio thread. */
+function raining() {
+  rainPump = { timer: null, cancelled: false, next: ctx.currentTime + 0.06 };
+  const state = rainPump;
+
+  const pump = () => {
+    if (!running || state.cancelled || !ctx) return;
+    const horizon = ctx.currentTime + 0.3;
+    // A backgrounded tab wakes with the clock far ahead of the last drop.
+    if (state.next < ctx.currentTime - 0.3) state.next = ctx.currentTime + 0.05;
+
+    let guard = 0;
+    while (state.next < horizon && guard++ < 400) {
+      const rate = dropRate();
+      if (rate > 0.01) {
+        fallOne(state.next);
+        state.next += nextGap(rate);
+      } else {
+        state.next += 0.2;        // nothing falling; look again shortly
+      }
+    }
+    state.timer = setTimeout(pump, 60);
+  };
+  pump();
 }
 
 function shapeWeather(ramp = 0.3) {
@@ -660,6 +690,20 @@ function thunder(flashAt, metres) {
   const sent = [];
   let along = metres;
 
+  /* How many swells there will be, counted before any are made. They overlap,
+     so without this the loudness of a strike depends on how many segments the
+     channel happened to be given — which was summing past full scale. Sharing
+     the level out by the root of the count keeps a long roll and a short one
+     at the same strength. */
+  const plan = [];
+  let swellCount = 0;
+  for (let i = 0; i < segments; i++) {
+    const n = 2 + Math.floor(Math.random() * 3);
+    plan.push(n);
+    swellCount += n;
+  }
+  const share = 0.95 / Math.sqrt(swellCount);
+
   for (let i = 0; i < segments; i++) {
     // Accumulated, not multiplied by the index: a channel runs away from you,
     // so each segment must be further than the last rather than rolling its
@@ -684,15 +728,15 @@ function thunder(flashAt, metres) {
        rather than a roll. A rumble is overlapping swells — each slow to
        arrive, slow to go, and staggered so there is always another one
        coming up underneath the last. */
-    const swells = 2 + Math.floor(Math.random() * 3);
+    const swells = plan[i];
     let quietAt = at;
+    const bodyPeak = (0.1 + close * 0.5) * energy * share;
 
     for (let k = 0; k < swells; k++) {
       const begin = at + (k === 0 ? 0 : k * 0.3 + Math.random() * 1.6);
       const rise = 0.18 + Math.random() * 0.55 + (1 - close) * 0.5;
       const fall = 2.2 + Math.random() * 3.4 + (1 - close) * 3;
-      const peak = Math.max(0.0008,
-        (0.1 + close * 0.5) * energy * (k === 0 ? 1 : 0.5 + Math.random() * 0.5));
+      const peak = Math.max(0.0008, bodyPeak * (k === 0 ? 1 : 0.5 + Math.random() * 0.5));
 
       const source = looping(noise("brown"));
       const env = ctx.createGain();
@@ -721,7 +765,7 @@ function thunder(flashAt, metres) {
        map still cracked at a kilometre and a half. */
     if (i === 0 && along < CRACKS_TO) {
       const edge = 1 - along / CRACKS_TO;
-      const ticks = 2 + Math.floor(Math.random() * 3);
+      const ticks = 2 + Math.floor(Math.random() * 2);
       let tickAt = at;
       for (let t = 0; t < ticks; t++) {
         tickAt += t === 0 ? 0 : 0.012 + Math.random() * 0.05;
@@ -731,7 +775,12 @@ function thunder(flashAt, metres) {
         band.frequency.value = 700 + Math.random() * 1600;
         band.Q.value = 0.5 + Math.random() * 0.6;
         const cenv = ctx.createGain();
-        const sharp = edge * 0.85 * (t === 0 ? 1 : 0.4 + Math.random() * 0.5);
+        /* Set against the body rather than as a figure of its own, so the
+           two cannot drift apart. It needs to sit well under: it lives at
+           one to two kilohertz where the ear is far more sensitive than at
+           the hundred-odd hertz of the body, so equal amplitude there is
+           nowhere near equal loudness. */
+        const sharp = bodyPeak * 2.2 * edge * (t === 0 ? 1 : 0.4 + Math.random() * 0.4);
         cenv.gain.setValueAtTime(0.0001, tickAt);
         cenv.gain.exponentialRampToValueAtTime(Math.max(0.0005, sharp), tickAt + 0.004);
         cenv.gain.exponentialRampToValueAtTime(0.0001, tickAt + 0.12 + Math.random() * 0.3);
@@ -883,7 +932,8 @@ async function start() {
 
 function stop() {
   if (!running) return;
-  clearTimeout(dropTimer); clearTimeout(gustTimer); clearTimeout(strikeTimer);
+  if (rainPump) { rainPump.cancelled = true; clearTimeout(rainPump.timer); rainPump = null; }
+  clearTimeout(gustTimer); clearTimeout(strikeTimer);
   clearInterval(weatherTimer);
   const now = ctx.currentTime;
   master.gain.cancelScheduledValues(now);
@@ -925,7 +975,10 @@ function fitCanvas() {
   brush.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 
+let frameCount = 0;
+
 function draw() {
+  frameCount++;
   fitCanvas();
   brush.clearRect(0, 0, SIZE, SIZE);
 
@@ -973,13 +1026,16 @@ function draw() {
   const dy = Math.sin(windAngle) * (0.7 + wind * 4);
   brush.strokeStyle = ink;
   brush.lineWidth = 1;
-  for (const streak of streaks) {
+  const slice = frameCount & 3;
+  for (let n = 0; n < streaks.length; n++) {
+    const streak = streaks[n];
     streak.x += dx * streak.speed;
     streak.y += dy * streak.speed;
     if (streak.x > 310) streak.x -= 620; if (streak.x < -310) streak.x += 620;
     if (streak.y > 310) streak.y -= 620; if (streak.y < -310) streak.y += 620;
     if (streak.x * streak.x + streak.y * streak.y > REACH * REACH) continue;
-    const thick = cloudAt(streak.x, streak.y);
+    if ((n & 3) === slice || streak.thick === undefined) streak.thick = cloudAt(streak.x, streak.y);
+    const thick = streak.thick;
     if (thick < 0.08) continue;
     brush.globalAlpha = Math.min(0.55, thick * wet * 0.5);
     brush.beginPath();
@@ -1076,19 +1132,44 @@ function draw() {
 
 /* ---------------------------------------------------------------- the UI -- */
 
+/* The parts of each bar, found once. Reading clientWidth forces the browser
+   to lay the page out before it can answer, and doing that three times a
+   frame is a real cost on the one thread the audio scheduling also used to
+   share. The width only changes when the window does. */
+const PAD = 6;
+const bars = {};
+
+function measureBars() {
+  for (const key of ["rain", "wind", "storm"]) {
+    const box = el(`${key}Duo`);
+    bars[key] = {
+      span: box.querySelector(".span"),
+      now: box.querySelector(".now"),
+      width: Math.max(1, box.clientWidth - PAD * 2),
+    };
+  }
+}
+
+// Cheap enough to run every frame: two numbers and no layout.
+function markNow() {
+  for (const key of ["rain", "wind", "storm"]) {
+    const bar = bars[key];
+    if (bar) bar.now.style.left = `${PAD + nowOf(key) * bar.width}px`;
+  }
+}
+
 function duo(key) {
+  const bar = bars[key];
+  if (!bar) return;
   const band = BANDS[key];
   const lo = Math.min(Number(band.lo.value), Number(band.hi.value));
   const hi = Math.max(Number(band.lo.value), Number(band.hi.value));
-  const box = el(`${key}Duo`);
-  const span = box.querySelector(".span");
-  const now = box.querySelector(".now");
-  const pad = 6;
-  const width = box.clientWidth - pad * 2;
-  span.style.left = `${pad + (lo / 100) * width}px`;
-  span.style.width = `${Math.max(0, (hi - lo) / 100 * width)}px`;
-  now.style.left = `${pad + band.now * width}px`;
+  bar.span.style.left = `${PAD + (lo / 100) * bar.width}px`;
+  bar.span.style.width = `${Math.max(0, (hi - lo) / 100 * bar.width)}px`;
+  bar.now.style.left = `${PAD + nowOf(key) * bar.width}px`;
 }
+
+window.addEventListener("resize", () => { measureBars(); notes(); });
 
 function notes() {
   const words = (v, list) => list[Math.min(list.length - 1, Math.floor(v * list.length))];
@@ -1157,6 +1238,7 @@ function say() {
 }
 
 let lastFrame = performance.now();
+let lastWords = 0;
 
 function tick() {
   const nowMs = performance.now();
@@ -1167,7 +1249,8 @@ function tick() {
   moveClouds(step);
   windAngle += step * 0.012;
   draw();
-  notes();
+  markNow();
+  if (nowMs - lastWords > 180) { lastWords = nowMs; notes(); }
 
   const { over, far } = sky();
   const bits = [`<b>${place.name.toLowerCase()}</b>`];
@@ -1184,6 +1267,7 @@ function tick() {
   requestAnimationFrame(tick);
 }
 
+measureBars();
 notes();
 say();
 draw();
