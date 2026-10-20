@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rain Machine</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  /* Layout and sizing only. Colour and components live in theme.css. */
+
+  body { margin: 0; padding: 3rem 1.5rem 5rem; }
+  main { max-width: 980px; margin: 0 auto; }
+  p.lede { margin: 0 0 2.2rem; max-width: 60ch; }
+  .card { margin-bottom: 1.5rem; }
+
+  h2 { margin: 0 0 0.9rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--line-soft); }
+
+  .rank { display: flex; flex-wrap: wrap; gap: 1.2rem; align-items: flex-end; }
+  .field { display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; }
+  .field label { font-size: 0.8rem; }
+  .field .unit { font-size: 0.72rem; margin-top: 0.1rem; color: var(--text-faint); }
+  .field.grow { flex: 1 1 13rem; }
+  .field input[type="range"] { width: 100%; min-width: 8rem; }
+  .acts { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-left: auto; }
+
+  /* ------------------------------------------------------------- the map -- */
+
+  .world { display: flex; justify-content: center; }
+  #map {
+    width: 100%;
+    max-width: 540px;
+    height: auto;
+    aspect-ratio: 1;
+    display: block;
+    background: var(--sunken);
+    border: 1px solid var(--line-soft);
+    touch-action: none;
+  }
+
+  .where {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    justify-content: center;
+    margin-top: 1.1rem;
+  }
+  .where button { font-size: 0.78rem; padding: 0.4rem 0.9rem; }
+
+  .readout {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.4rem 1.4rem;
+    margin-top: 0.9rem;
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.75rem;
+    color: var(--text-faint);
+    min-height: 1.2em;
+  }
+  .readout b { color: var(--text-dim); font-weight: 400; }
+
+  .status { font-size: 0.85rem; margin-top: 0.9rem; min-height: 1.2em; }
+
+  .note { font-size: 0.78rem; margin-top: 1.2rem; max-width: 66ch; }
+  .note strong { color: var(--text-dim); font-weight: 400; }
+
+  @media (max-width: 620px) {
+    body { padding: 2rem 1rem 4rem; }
+    .acts { margin-left: 0; width: 100%; }
+    .acts button { flex: 1; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <a class="home" href="index.html">&larr; index</a>
+  <h1>Rain Machine</h1>
+  <p class="lede">Rain built from scratch in the page, with a map of the weather making it. You
+  are the dot in the middle; the cells drift past on the wind, gusts sweep through, and when
+  lightning strikes you see the flash where it landed and watch the sound travel to you at the
+  speed it really travels &mdash; about three seconds a kilometre &mdash; arriving when the ring
+  reaches the middle. Step inside a car, a house, or under the ground and the same storm reaches
+  you through what is in the way.</p>
+
+  <div class="card">
+    <div class="world">
+      <canvas id="map" width="540" height="540" aria-label="A map of the storm around you"></canvas>
+    </div>
+
+    <div class="where" id="where"></div>
+    <div class="readout" id="readout"></div>
+  </div>
+
+  <div class="card">
+    <div class="rank">
+      <div class="field grow">
+        <label for="rainIn">Rain <span id="rainOut"></span></label>
+        <input type="range" id="rainIn" min="0" max="100" step="1" value="55">
+        <span class="unit" id="rainNote"></span>
+      </div>
+      <div class="field grow">
+        <label for="windIn">Wind <span id="windOut"></span></label>
+        <input type="range" id="windIn" min="0" max="100" step="1" value="35">
+        <span class="unit" id="windNote"></span>
+      </div>
+      <div class="field grow">
+        <label for="stormIn">Thunder <span id="stormOut"></span></label>
+        <input type="range" id="stormIn" min="0" max="100" step="1" value="25">
+        <span class="unit" id="stormNote"></span>
+      </div>
+    </div>
+
+    <div class="rank" style="margin-top:1.3rem">
+      <div class="field">
+        <label for="master">Volume <span id="masterOut"></span></label>
+        <input type="range" id="master" min="0" max="100" step="1" value="60" style="width:12rem">
+      </div>
+      <div class="acts">
+        <button type="button" id="strikeBtn" class="ghost">Strike now</button>
+        <button type="button" id="playBtn">Start</button>
+      </div>
+    </div>
+
+    <div class="status" id="status">Nothing playing.</div>
+  </div>
+
+  <p class="note"><strong>The map is the sound, not a picture of it.</strong> Every mark on it is
+  something the audio engine is doing. The drifting speckle is the rain cells, and how thick it
+  is sets how hard the noise underneath is driven. A gust is drawn as an arc crossing the map and
+  heard as a swell through a resonant filter as it passes. A strike flashes where it lands, and
+  the ring leaving it travels at 343 metres a second against a map three kilometres across, so a
+  strike at the edge takes nearly nine seconds to reach you &mdash; which is exactly when the
+  sound is scheduled. Count the ring in and you are counting the real thing.</p>
+
+  <p class="note"><strong>Four places to stand, and the difference is what is in the way.</strong>
+  Outside is the storm unobstructed. A car is a small hard box: the exterior is cut above about
+  1.6&nbsp;kHz, there is a boom around 120&nbsp;Hz from the cabin, and the rain on the roof is
+  louder and sharper than anything outside, because it is a steel sheet a foot from your head. A
+  house takes more of the top off and adds the slower, softer patter of rain on glass. Underground
+  the storm is almost all gone &mdash; everything above a few hundred hertz with it &mdash; and
+  what is left is a rumble through earth and the drips of water that found a way in, with a long
+  tail on them, because a tunnel is a reverberant place. The reverberation is a tail generated in
+  the page rather than a recorded one: noise under an exponential decay, convolved.</p>
+
+  <p class="note"><strong>Nothing is a recording.</strong> The rain is filtered noise with
+  individual drops scheduled over it, the thunder is a shaped burst, and the room each one is
+  heard in is a filter chain. There is nothing to download and no loop, so it never repeats.</p>
+</main>
+
+<script>
+"use strict";
+
+const el = (id) => document.getElementById(id);
+
+const canvas = el("map");
+const brush = canvas.getContext("2d");
+const whereEl = el("where");
+const readoutEl = el("readout");
+const statusEl = el("status");
+const playBtn = el("playBtn");
+const masterIn = el("master");
+
+const rainIn = el("rainIn");
+const windIn = el("windIn");
+const stormIn = el("stormIn");
+
+/* The map is three kilometres across, which is what makes the ring honest:
+   sound covers 343 metres a second, so the far edge is nearly nine seconds
+   away and the flash beats its own thunder by exactly that. */
+const SPAN = 3000;
+const SOUND = 343;
+const SIZE = 540;                // the map's own coordinate space
+const MID = 270;                 // canvas centre, in those units
+const REACH = 250;               // the map's radius in canvas units
+const perMetre = REACH / SPAN;
+
+const PLACES = [
+  { id: "outside", name: "Outside",
+    cut: 18000, boom: 0, wet: 0, through: 1,
+    roof: 0, glass: 0, drips: 0,
+    says: "the storm with nothing in the way" },
+  { id: "car", name: "In a car",
+    cut: 1600, boom: 6, wet: 0.08, through: 0.55,
+    roof: 1, glass: 0.3, drips: 0,
+    says: "a steel sheet a foot above your head" },
+  { id: "house", name: "In a house",
+    cut: 800, boom: 3, wet: 0.12, through: 0.4,
+    roof: 0.25, glass: 1, drips: 0.15,
+    says: "walls, and rain finding the windows" },
+  { id: "underground", name: "Underground",
+    cut: 260, boom: 2, wet: 0.55, through: 0.22,
+    roof: 0, glass: 0, drips: 1,
+    says: "a rumble through earth, and what got in" },
+];
+
+let place = PLACES[0];
+
+let ctx = null;
+let master = null;
+let outdoors = null;      // everything that happens out there
+let shelter = null;       // the filter chain it reaches you through
+let inHere = null;        // roof, glass and drips, which happen on this side
+let wetBus = null;
+let running = false;
+
+let rainNodes = null;
+let gustTimer = null;
+let dropTimer = null;
+let strikeTimer = null;
+let lastStrike = null;
+
+const strikes = [];       // { x, y, at, dist, heard }
+const gusts = [];         // { from, t, life }
+const cells = [];         // the drifting speckle
+
+let windAngle = Math.random() * Math.PI * 2;
+
+const rainAt = () => Number(rainIn.value) / 100;
+const windAt = () => Number(windIn.value) / 100;
+const stormAt = () => Number(stormIn.value) / 100;
+
+/* --------------------------------------------------------------- sources -- */
+
+const SECONDS = 6;
+const FADE = 2400;
+
+// Generated past the end and folded back over the opening, so the loop has no
+// step in it to click on. Equal-power, because two runs of noise are
+// uncorrelated and a straight crossfade dips in the middle.
+function seamless(fill) {
+  const rate = ctx.sampleRate;
+  const length = Math.floor(rate * SECONDS);
+  const raw = new Float32Array(length + FADE);
+  fill(raw);
+  const buffer = ctx.createBuffer(1, length, rate);
+  const data = buffer.getChannelData(0);
+  data.set(raw.subarray(0, length));
+  for (let i = 0; i < FADE; i++) {
+    const t = i / FADE;
+    data[i] = raw[i] * Math.sqrt(t) + raw[length + i] * Math.sqrt(1 - t);
+  }
+  return buffer;
+}
+
+const fillWhite = (d) => { for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; };
+const fillBrown = (d) => {
+  let last = 0;
+  for (let i = 0; i < d.length; i++) {
+    last = last * 0.995 + (Math.random() * 2 - 1) * 0.06;
+    d[i] = last * 3.2;
+  }
+};
+
+const bank = new Map();
+function noise(kind) {
+  if (!bank.has(kind)) bank.set(kind, seamless(kind === "white" ? fillWhite : fillBrown));
+  return bank.get(kind);
+}
+
+function looping(buffer) {
+  const source = ctx.createBufferSource();
+  source.buffer = buffer;
+  source.loop = true;
+  return source;
+}
+
+// A tail rather than a recorded room: noise under an exponential decay is
+// what a reverberant space sounds like to within what this page needs.
+function tail(seconds, decay) {
+  const rate = ctx.sampleRate;
+  const length = Math.floor(rate * seconds);
+  const buffer = ctx.createBuffer(2, length, rate);
+  for (let c = 0; c < 2; c++) {
+    const data = buffer.getChannelData(c);
+    for (let i = 0; i < length; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, decay);
+    }
+  }
+  return buffer;
+}
+
+/* ----------------------------------------------------------- the weather -- */
+
+function buildRain() {
+  // The body of it: white through a wide band-pass whose corner wanders,
+  // which is the difference between rain and a hiss.
+  const body = looping(noise("white"));
+  const band = ctx.createBiquadFilter();
+  band.type = "bandpass";
+  band.Q.value = 0.4;
+  band.frequency.value = 1100;
+
+  const wobble = ctx.createOscillator();
+  wobble.type = "sine";
+  wobble.frequency.value = 1 / 23;
+  const sway = ctx.createGain();
+  sway.gain.value = 450;
+  wobble.connect(sway).connect(band.frequency);
+
+  const bodyGain = ctx.createGain();
+  bodyGain.gain.value = 0;
+  body.connect(band).connect(bodyGain).connect(outdoors);
+
+  // Under it, the weight of a lot of water falling at once.
+  const under = looping(noise("brown"));
+  const low = ctx.createBiquadFilter();
+  low.type = "lowpass";
+  low.frequency.value = 420;
+  const underGain = ctx.createGain();
+  underGain.gain.value = 0;
+  under.connect(low).connect(underGain).connect(outdoors);
+
+  // Wind, which is noise swelling through a filter that opens as it passes.
+  const air = looping(noise("brown"));
+  const airFilter = ctx.createBiquadFilter();
+  airFilter.type = "lowpass";
+  airFilter.frequency.value = 400;
+  airFilter.Q.value = 3;
+  const airGain = ctx.createGain();
+  airGain.gain.value = 0;
+  air.connect(airFilter).connect(airGain).connect(outdoors);
+
+  const at = ctx.currentTime + 0.1;
+  body.start(at); under.start(at); air.start(at); wobble.start(at);
+
+  return { body, band, bodyGain, under, low, underGain, air, airFilter, airGain, wobble, sway };
+}
+
+function shapeRain(ramp = 0.4) {
+  if (!running) return;
+  const now = ctx.currentTime;
+  const r = rainAt();
+  const set = (param, value) => {
+    param.cancelScheduledValues(now);
+    param.setValueAtTime(param.value, now);
+    param.linearRampToValueAtTime(value, now + ramp);
+  };
+  set(rainNodes.bodyGain.gain, r * r * 1.5);
+  set(rainNodes.underGain.gain, r * r * 0.55);
+  set(rainNodes.band.frequency, 700 + r * 1400);
+  set(rainNodes.airGain.gain, windAt() * 0.25);
+}
+
+// A single drop, close by. The part of rain an ear listens for, and the part
+// a filter alone will not give you.
+function drop(strength, bright) {
+  const now = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  osc.type = "sine";
+  osc.frequency.setValueAtTime((700 + Math.random() * 2400) * bright, now);
+  osc.frequency.exponentialRampToValueAtTime((260 + Math.random() * 360) * bright, now + 0.04);
+  const env = ctx.createGain();
+  env.gain.setValueAtTime(0.0001, now);
+  env.gain.exponentialRampToValueAtTime(Math.max(0.0005, strength), now + 0.004);
+  env.gain.exponentialRampToValueAtTime(0.0001, now + 0.06);
+  osc.connect(env).connect(inHere);
+  osc.start(now);
+  osc.stop(now + 0.08);
+}
+
+function dropping() {
+  if (!running) return;
+  const r = rainAt();
+  // Where you are decides what the drops are hitting, and so what they sound
+  // like: a car roof is loud and bright, a window softer, a tunnel a slow drip.
+  const roof = place.roof * r;
+  const glass = place.glass * r;
+  const drips = place.drips;
+
+  if (roof > 0.02) drop(0.02 + roof * 0.09, 1.25);
+  if (glass > 0.02 && Math.random() < 0.6) drop(0.012 + glass * 0.05, 0.8);
+  if (drips > 0 && Math.random() < 0.04 * drips) drop(0.03 + Math.random() * 0.04, 0.55);
+  if (place.id === "outside" && r > 0.1 && Math.random() < 0.5) drop(0.008 + r * 0.03, 1);
+
+  const gap = place.id === "underground" ? 180 + Math.random() * 700
+            : Math.max(18, 150 - r * 130) + Math.random() * 90;
+  dropTimer = setTimeout(dropping, gap);
+}
+
+function gust() {
+  if (!running) return;
+  const strength = windAt();
+  if (strength > 0.05) {
+    const now = ctx.currentTime;
+    const peak = strength * 0.5;
+    const over = 2.5 + Math.random() * 4;
+    const air = rainNodes.airGain.gain;
+    const filter = rainNodes.airFilter.frequency;
+    air.cancelScheduledValues(now);
+    air.setValueAtTime(air.value, now);
+    air.linearRampToValueAtTime(peak, now + over * 0.4);
+    air.linearRampToValueAtTime(strength * 0.25, now + over);
+    filter.cancelScheduledValues(now);
+    filter.setValueAtTime(filter.value, now);
+    filter.linearRampToValueAtTime(300 + strength * 900, now + over * 0.4);
+    filter.linearRampToValueAtTime(400, now + over);
+    gusts.push({ from: windAngle + (Math.random() - 0.5) * 0.8, t: 0, life: over });
+  }
+  gustTimer = setTimeout(gust, 4000 + Math.random() * 9000 * (1.2 - windAt()));
+}
+
+// The flash happens now; the sound is scheduled for when it would arrive.
+function strike(forced = false) {
+  if (!running) return;
+  const chance = stormAt();
+  if (forced || Math.random() < chance) {
+    const angle = Math.random() * Math.PI * 2;
+    const near = forced ? 0.15 + Math.random() * 0.35 : 0.1 + Math.random() * 0.9;
+    const metres = near * SPAN;
+    const delay = metres / SOUND;
+
+    strikes.push({ x: Math.cos(angle) * near * REACH, y: Math.sin(angle) * near * REACH,
+                   at: performance.now(), dist: metres, heard: false, delay });
+    lastStrike = { metres, delay };
+    thunder(ctx.currentTime + delay, 1 - near * 0.75);
+  }
+  const chanceNow = stormAt();
+  strikeTimer = setTimeout(strike, chanceNow > 0 ? 4000 + Math.random() * 26000 * (1.05 - chanceNow) : 6000);
+}
+
+// Near strikes crack; far ones have had the top rubbed off them by three
+// kilometres of air, and arrive as a roll.
+function thunder(at, close) {
+  const source = ctx.createBufferSource();
+  source.buffer = noise("brown");
+  source.loop = true;
+
+  const low = ctx.createBiquadFilter();
+  low.type = "lowpass";
+  low.frequency.setValueAtTime(90 + close * 900, at);
+  low.frequency.exponentialRampToValueAtTime(60 + close * 160, at + 2 + close * 2);
+
+  const env = ctx.createGain();
+  const peak = 0.25 + close * 0.85;
+  const over = 2.5 + (1 - close) * 5;
+  env.gain.setValueAtTime(0.0001, at);
+  env.gain.exponentialRampToValueAtTime(peak, at + 0.04 + (1 - close) * 0.5);
+  env.gain.exponentialRampToValueAtTime(0.0001, at + over);
+
+  source.connect(low).connect(env).connect(outdoors);
+  source.start(at);
+  source.stop(at + over + 0.2);
+
+  // The crack on top, which only a close strike still has.
+  if (close > 0.55) {
+    const crack = ctx.createBufferSource();
+    crack.buffer = noise("white");
+    crack.loop = true;
+    const band = ctx.createBiquadFilter();
+    band.type = "bandpass";
+    band.frequency.value = 900 + Math.random() * 1200;
+    band.Q.value = 0.7;
+    const cenv = ctx.createGain();
+    cenv.gain.setValueAtTime(0.0001, at);
+    cenv.gain.exponentialRampToValueAtTime((close - 0.55) * 0.9, at + 0.006);
+    cenv.gain.exponentialRampToValueAtTime(0.0001, at + 0.5);
+    crack.connect(band).connect(cenv).connect(outdoors);
+    crack.start(at);
+    crack.stop(at + 0.6);
+  }
+}
+
+/* ---------------------------------------------------------- where you are -- */
+
+function buildShelter() {
+  const cut = ctx.createBiquadFilter();
+  cut.type = "lowpass";
+  cut.frequency.value = place.cut;
+  cut.Q.value = 0.7;
+
+  const boom = ctx.createBiquadFilter();
+  boom.type = "peaking";
+  boom.frequency.value = 120;
+  boom.Q.value = 1.1;
+  boom.gain.value = place.boom;
+
+  const through = ctx.createGain();
+  through.gain.value = place.through;
+
+  const verb = ctx.createConvolver();
+  verb.buffer = tail(place.id === "underground" ? 2.6 : 0.5, place.id === "underground" ? 2.2 : 4);
+  wetBus = ctx.createGain();
+  wetBus.gain.value = place.wet;
+
+  cut.connect(boom).connect(through).connect(master);
+  through.connect(verb).connect(wetBus).connect(master);
+
+  return { cut, boom, through, verb };
+}
+
+function moveTo(next) {
+  place = next;
+  for (const button of whereEl.children) {
+    button.setAttribute("aria-pressed", String(button.dataset.place === place.id));
+  }
+  if (running) {
+    const now = ctx.currentTime;
+    const glide = (param, value) => {
+      param.cancelScheduledValues(now);
+      param.setValueAtTime(param.value, now);
+      param.linearRampToValueAtTime(value, now + 0.45);
+    };
+    glide(shelter.cut.frequency, place.cut);
+    glide(shelter.boom.gain, place.boom);
+    glide(shelter.through.gain, place.through);
+    glide(wetBus.gain, place.wet);
+    shelter.verb.buffer = tail(place.id === "underground" ? 2.6 : 0.5, place.id === "underground" ? 2.2 : 4);
+  }
+  draw();
+  say();
+}
+
+/* ------------------------------------------------------------- the mixer -- */
+
+async function start() {
+  if (running) return;
+  ctx = new (window.AudioContext || window.webkitAudioContext)();
+  bank.clear();
+  try { if (ctx.state !== "running") await ctx.resume(); } catch {}
+
+  master = ctx.createGain();
+  master.gain.value = 0;
+  master.connect(ctx.destination);
+
+  outdoors = ctx.createGain();
+  outdoors.gain.value = 1;
+  inHere = ctx.createGain();
+  inHere.gain.value = 1;
+  inHere.connect(master);
+
+  shelter = buildShelter();
+  outdoors.connect(shelter.cut);
+
+  rainNodes = buildRain();
+  running = true;
+  playBtn.textContent = "Stop";
+
+  shapeRain(0.01);
+  const now = ctx.currentTime;
+  master.gain.setValueAtTime(0.0001, now + 0.1);
+  master.gain.linearRampToValueAtTime(Math.pow(Number(masterIn.value) / 100, 2), now + 0.8);
+
+  dropping();
+  gust();
+  strikeTimer = setTimeout(strike, 2500 + Math.random() * 6000);
+  say();
+}
+
+function stop() {
+  if (!running) return;
+  clearTimeout(dropTimer); clearTimeout(gustTimer); clearTimeout(strikeTimer);
+  const now = ctx.currentTime;
+  master.gain.cancelScheduledValues(now);
+  master.gain.setValueAtTime(master.gain.value, now);
+  master.gain.linearRampToValueAtTime(0, now + 0.3);
+  const dying = ctx;
+  setTimeout(() => { try { dying.close(); } catch {} }, 450);
+
+  ctx = null; master = null; outdoors = null; inHere = null; shelter = null; rainNodes = null;
+  running = false;
+  strikes.length = 0;
+  gusts.length = 0;
+  playBtn.textContent = "Start";
+  say();
+}
+
+function applyMaster() {
+  if (!running) return;
+  const now = ctx.currentTime;
+  master.gain.cancelScheduledValues(now);
+  master.gain.setValueAtTime(master.gain.value, now);
+  master.gain.linearRampToValueAtTime(Math.pow(Number(masterIn.value) / 100, 2), now + 0.08);
+}
+
+/* --------------------------------------------------------------- the map -- */
+
+for (let i = 0; i < 260; i++) {
+  cells.push({ x: Math.random() * 560 - 280, y: Math.random() * 560 - 280,
+               len: 3 + Math.random() * 7, speed: 0.6 + Math.random() * 0.9 });
+}
+
+function fitCanvas() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 3);
+  if (canvas.width === Math.round(SIZE * dpr)) return;
+  canvas.width = Math.round(SIZE * dpr);
+  canvas.height = Math.round(SIZE * dpr);
+  brush.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+function draw() {
+  fitCanvas();
+  brush.clearRect(0, 0, SIZE, SIZE);
+
+  const ink = getComputedStyle(document.body).getPropertyValue("--text") || "#fff";
+  const faint = getComputedStyle(document.body).getPropertyValue("--text-faint") || "#777";
+  const neon = getComputedStyle(document.body).getPropertyValue("--neon") || "#9f9";
+
+  // The ground: rings at a kilometre each, so distance is readable.
+  brush.strokeStyle = faint;
+  brush.lineWidth = 1;
+  for (let km = 1; km <= 3; km++) {
+    brush.globalAlpha = km === 3 ? 0.5 : 0.32;
+    brush.beginPath();
+    brush.arc(MID, MID, (km * 1000) * perMetre, 0, Math.PI * 2);
+    brush.stroke();
+  }
+  brush.globalAlpha = 0.45;
+  brush.font = "9px ui-monospace, monospace";
+  brush.fillStyle = faint;
+  for (let km = 1; km <= 3; km++) brush.fillText(`${km} km`, MID + 3, MID - (km * 1000) * perMetre - 3);
+  brush.globalAlpha = 1;
+
+  // The rain, drifting on the wind.
+  const r = rainAt();
+  const wind = windAt();
+  const dx = Math.cos(windAngle) * (0.6 + wind * 3.4);
+  const dy = Math.sin(windAngle) * (0.6 + wind * 3.4);
+  const showing = Math.floor(cells.length * r);
+  brush.strokeStyle = ink;
+  brush.globalAlpha = 0.16 + r * 0.42;
+  brush.lineWidth = 1;
+  brush.beginPath();
+  for (let i = 0; i < showing; i++) {
+    const cell = cells[i];
+    cell.x += dx * cell.speed;
+    cell.y += dy * cell.speed;
+    if (cell.x > 280) cell.x -= 560; if (cell.x < -280) cell.x += 560;
+    if (cell.y > 280) cell.y -= 560; if (cell.y < -280) cell.y += 560;
+    const px = MID + cell.x, py = MID + cell.y;
+    if ((cell.x * cell.x + cell.y * cell.y) > REACH * REACH) continue;
+    brush.moveTo(px, py);
+    brush.lineTo(px - dx * cell.len, py - dy * cell.len);
+  }
+  brush.stroke();
+  brush.globalAlpha = 1;
+
+  // Gusts, as an arc crossing from where the wind is coming from.
+  for (let i = gusts.length - 1; i >= 0; i--) {
+    const g = gusts[i];
+    g.t += 1 / 60;
+    if (g.t > g.life) { gusts.splice(i, 1); continue; }
+    const through = g.t / g.life;
+    const along = (through - 0.5) * 2 * REACH * 1.6;
+    brush.save();
+    brush.translate(MID, MID);
+    brush.rotate(g.from);
+    brush.globalAlpha = Math.sin(through * Math.PI) * 0.7;
+    brush.strokeStyle = ink;
+    brush.lineWidth = 2;
+    brush.beginPath();
+    brush.arc(along, 0, REACH * 0.85, -0.7, 0.7);
+    brush.stroke();
+    brush.restore();
+    brush.globalAlpha = 1;
+  }
+
+  // Strikes: the flash, then the ring carrying the sound to the middle.
+  const nowMs = performance.now();
+  for (let i = strikes.length - 1; i >= 0; i--) {
+    const s = strikes[i];
+    const age = (nowMs - s.at) / 1000;
+    if (age > s.delay + 3) { strikes.splice(i, 1); continue; }
+    const px = MID + s.x, py = MID + s.y;
+
+    if (age < 0.18) {
+      brush.globalAlpha = 1 - age / 0.18;
+      brush.fillStyle = "#fff";
+      brush.beginPath();
+      brush.arc(px, py, 4 + (1 - age / 0.18) * 7, 0, Math.PI * 2);
+      brush.fill();
+    }
+
+    const travelled = age * SOUND * perMetre;
+    const toYou = s.dist * perMetre;
+    if (travelled < toYou + 20) {
+      brush.globalAlpha = Math.max(0, 0.85 * (1 - travelled / (toYou + 20)) + 0.15);
+      brush.strokeStyle = neon;
+      brush.lineWidth = 2;
+      brush.beginPath();
+      brush.arc(px, py, travelled, 0, Math.PI * 2);
+      brush.stroke();
+    } else if (!s.heard) {
+      s.heard = true;
+    }
+    brush.globalAlpha = Math.max(0.25, 1 - age / (s.delay + 3));
+    brush.fillStyle = neon;
+    brush.beginPath();
+    brush.arc(px, py, 2.2, 0, Math.PI * 2);
+    brush.fill();
+    brush.globalAlpha = 1;
+  }
+
+  // You, and what you are standing in.
+  brush.strokeStyle = neon;
+  brush.lineWidth = 1.5;
+  if (place.id === "car") {
+    brush.strokeRect(MID - 13, MID - 8, 26, 16);
+  } else if (place.id === "house") {
+    brush.strokeRect(MID - 17, MID - 13, 34, 26);
+    brush.beginPath(); brush.moveTo(MID - 20, MID - 13); brush.lineTo(MID, MID - 24);
+    brush.lineTo(MID + 20, MID - 13); brush.stroke();
+  } else if (place.id === "underground") {
+    brush.beginPath(); brush.moveTo(MID - 26, MID - 10); brush.lineTo(MID + 26, MID - 10); brush.stroke();
+    brush.globalAlpha = 0.35;
+    brush.fillStyle = neon;
+    brush.fillRect(MID - 26, MID - 10, 52, 3);
+    brush.globalAlpha = 1;
+  }
+  brush.fillStyle = neon;
+  brush.beginPath();
+  brush.arc(MID, MID, 3.5, 0, Math.PI * 2);
+  brush.fill();
+
+  // Which way the weather is coming from.
+  brush.strokeStyle = faint;
+  brush.globalAlpha = 0.6;
+  brush.lineWidth = 1;
+  brush.save();
+  brush.translate(MID, MID);
+  brush.rotate(windAngle);
+  brush.beginPath();
+  brush.moveTo(-REACH + 8, 0); brush.lineTo(-REACH + 26, 0);
+  brush.lineTo(-REACH + 21, -4); brush.moveTo(-REACH + 26, 0); brush.lineTo(-REACH + 21, 4);
+  brush.stroke();
+  brush.restore();
+  brush.globalAlpha = 1;
+}
+
+function tick() {
+  windAngle += 0.00018;
+  draw();
+  const bits = [`<b>${place.name.toLowerCase()}</b>`];
+  if (running) {
+    const coming = strikes.filter((s) => (performance.now() - s.at) / 1000 < s.delay).length;
+    if (lastStrike) {
+      bits.push(`last strike <b>${(lastStrike.metres / 1000).toFixed(1)} km</b>`
+        + ` · <b>${lastStrike.delay.toFixed(1)}s</b> for the sound`);
+    }
+    if (coming) bits.push(`<b>${coming}</b> on the way`);
+  } else {
+    bits.push("not playing");
+  }
+  readoutEl.innerHTML = bits.join(" · ");
+  requestAnimationFrame(tick);
+}
+
+/* ---------------------------------------------------------------- the UI -- */
+
+for (const spot of PLACES) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "ghost";
+  button.dataset.place = spot.id;
+  button.textContent = spot.name;
+  button.title = spot.says;
+  button.setAttribute("aria-pressed", String(spot.id === place.id));
+  button.addEventListener("click", () => moveTo(spot));
+  whereEl.append(button);
+}
+
+function notes() {
+  const r = rainAt(), w = windAt(), s = stormAt();
+  el("rainOut").textContent = `${Math.round(r * 100)}%`;
+  el("windOut").textContent = `${Math.round(w * 100)}%`;
+  el("stormOut").textContent = `${Math.round(s * 100)}%`;
+  el("rainNote").textContent = r < 0.05 ? "dry" : r < 0.3 ? "drizzle" : r < 0.6 ? "steady" : r < 0.85 ? "heavy" : "a downpour";
+  el("windNote").textContent = w < 0.05 ? "still" : w < 0.35 ? "a breeze" : w < 0.7 ? "gusting" : "a gale";
+  el("stormNote").textContent = s < 0.03 ? "none" : s < 0.3 ? "distant, now and then" : s < 0.7 ? "working its way over" : "overhead";
+  el("masterOut").textContent = `${masterIn.value}%`;
+}
+
+for (const input of [rainIn, windIn, stormIn]) {
+  input.addEventListener("input", () => { notes(); shapeRain(); });
+}
+masterIn.addEventListener("input", () => { notes(); applyMaster(); });
+
+el("strikeBtn").addEventListener("click", () => {
+  if (!running) { setStatus("Start it first."); return; }
+  strike(true);
+});
+
+playBtn.addEventListener("click", () => { if (running) stop(); else start(); });
+
+function setStatus(words) { statusEl.textContent = words; }
+
+function say() {
+  setStatus(running
+    ? `Playing — ${place.says}.`
+    : "Nothing playing. Browsers will not let a page make sound until you ask it to.");
+}
+
+notes();
+say();
+draw();
+requestAnimationFrame(tick);
+
+window.addEventListener("pagehide", stop);
+</script>
+</body>
+</html>
