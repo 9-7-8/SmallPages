@@ -853,14 +853,31 @@ function showRecipe(raw) {
 
 const FETCH_TIMEOUT = 20000;
 
-async function through(url) {
+// A relay of your own that answers at /fetch may also answer at /subs, where
+// it runs yt-dlp — the one route left now that YouTube wants a token for
+// caption files that no page can make.
+function subsRouteFor(video, lang) {
+  const mine = el("relayIn").value.trim();
+  if (!mine) return null;
+  let at;
+  try { at = new URL(mine.replace("{url}", "")); } catch { return null; }
+  if (!/\/fetch\/?$/.test(at.pathname)) return null;
+  at.pathname = at.pathname.replace(/\/fetch\/?$/, "/subs");
+  at.searchParams.delete("url");
+  at.searchParams.set("v", video);
+  at.searchParams.set("lang", lang);
+  return at.href;
+}
+
+async function through(url, wait = FETCH_TIMEOUT) {
   const stopper = new AbortController();
-  const bell = setTimeout(() => stopper.abort(), FETCH_TIMEOUT);
+  const bell = setTimeout(() => stopper.abort(), wait);
   try {
     const response = await fetch(url, { signal: stopper.signal, redirect: "follow" });
     if (!response.ok) {
       const err = new Error(`answered ${response.status}`);
       err.status = response.status;
+      try { err.body = (await response.text()).trim(); } catch { err.body = ""; }
       throw err;
     }
     const text = await response.text();
@@ -989,6 +1006,24 @@ el("fetchBtn").addEventListener("click", async () => {
   setStatus("Trying each route in turn…");
 
   try {
+    const lang = (el("langIn").value || "en").trim() || "en";
+    const viaSubs = subsRouteFor(what.video, lang);
+    if (viaSubs) {
+      const step = trailAdd("captions · your relay's yt-dlp", "trying… (it can take half a minute)", viaSubs);
+      try {
+        const vtt = await through(viaSubs, 200000);
+        if (!/-->/.test(vtt)) throw new Error("that was not a caption file");
+        trailSet(step, "ok", `worked — ${vtt.length.toLocaleString()} bytes`);
+        accept(vtt, `${what.video}.${lang}.vtt`);
+        el("recipe").hidden = true;
+        return;
+      } catch (err) {
+        trailSet(step, "no", (err.body && `answered ${err.status}: ${err.body.slice(0, 200)}`)
+          || whyFailed(err)
+          || (await localAccessHint()) || "could not be reached — is the relay running, and up to date?");
+      }
+    }
+
     const player = await fetchVia(
       `https://www.youtube.com/watch?v=${what.video}`,
       "watch page",
