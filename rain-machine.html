@@ -272,6 +272,7 @@ const MID = 280;
 const REACH = 258;
 const SPAN = 3000;                 // metres across the map's radius
 const SOUND = 343;
+const CRACKS_TO = 1500;            // past this, thunder is rumble and nothing else
 const perMetre = REACH / SPAN;
 
 /* ------------------------------------------------------------ surfaces -- */
@@ -655,52 +656,90 @@ function gust(forced = false) {
    had the top rubbed off it by kilometres of air and arrives as the roll
    behind. Each segment is scheduled at flash + its own distance / 343. */
 function thunder(flashAt, metres) {
-  const segments = 3 + Math.floor(Math.random() * 3);
+  const segments = 4 + Math.floor(Math.random() * 4);
   const sent = [];
   let along = metres;
+
   for (let i = 0; i < segments; i++) {
     // Accumulated, not multiplied by the index: a channel runs away from you,
     // so each segment must be further than the last rather than rolling its
     // own distance and sometimes landing nearer.
-    if (i > 0) along += metres * (0.2 + Math.random() * 0.5);
+    if (i > 0) along += metres * (0.15 + Math.random() * 0.45);
     const close = Math.max(0.03, 1 - along / (SPAN * 1.8));
     const at = flashAt + along / SOUND;
-    const energy = (i === 0 ? 1 : 0.75 / i) * (0.35 + Math.random() * 0.65);
+    const energy = (i === 0 ? 1 : 0.8 / Math.sqrt(i)) * (0.4 + Math.random() * 0.6);
     sent.push({ along, at, close, energy });
 
-    const source = looping(noise("brown"));
+    // One filter for the whole segment, opening low and closing lower. The
+    // further the segment came, the less of the top is left on it.
     const low = ctx.createBiquadFilter();
     low.type = "lowpass";
-    low.frequency.setValueAtTime(70 + close * 950, at);
-    low.frequency.exponentialRampToValueAtTime(50 + close * 150, at + 1.5 + close * 2.5);
+    low.frequency.setValueAtTime(90 + close * 680, at);
+    low.frequency.exponentialRampToValueAtTime(45 + close * 110, at + 4 + close * 4);
+    low.connect(outdoors);
 
-    const env = ctx.createGain();
-    const peak = (0.12 + close * 0.8) * energy;
-    const over = 1.8 + (1 - close) * 5 + Math.random() * 1.5;
-    env.gain.setValueAtTime(0.0001, at);
-    env.gain.exponentialRampToValueAtTime(Math.max(0.0005, peak), at + 0.03 + (1 - close) * 0.6);
-    env.gain.exponentialRampToValueAtTime(0.0001, at + over);
+    /* The body and the roll. One envelope a segment was the mistake: a fast
+       attack onto an exponential decay is the shape of something being hit,
+       and a few of those spread over seconds reads as separate punches
+       rather than a roll. A rumble is overlapping swells — each slow to
+       arrive, slow to go, and staggered so there is always another one
+       coming up underneath the last. */
+    const swells = 2 + Math.floor(Math.random() * 3);
+    let quietAt = at;
 
-    source.connect(low).connect(env).connect(outdoors);
-    source.start(at);
-    source.stop(at + over + 0.2);
-    source.onended = () => { try { source.disconnect(); low.disconnect(); env.disconnect(); } catch {} };
+    for (let k = 0; k < swells; k++) {
+      const begin = at + (k === 0 ? 0 : k * 0.3 + Math.random() * 1.6);
+      const rise = 0.18 + Math.random() * 0.55 + (1 - close) * 0.5;
+      const fall = 2.2 + Math.random() * 3.4 + (1 - close) * 3;
+      const peak = Math.max(0.0008,
+        (0.1 + close * 0.5) * energy * (k === 0 ? 1 : 0.5 + Math.random() * 0.5));
 
-    // Only the nearest part of the channel still has a crack in it.
-    if (i === 0 && close > 0.5) {
-      const crack = looping(noise("white"));
-      const band = ctx.createBiquadFilter();
-      band.type = "bandpass";
-      band.frequency.value = 800 + Math.random() * 1400;
-      band.Q.value = 0.6;
-      const cenv = ctx.createGain();
-      cenv.gain.setValueAtTime(0.0001, at);
-      cenv.gain.exponentialRampToValueAtTime((close - 0.5) * 0.85, at + 0.005);
-      cenv.gain.exponentialRampToValueAtTime(0.0001, at + 0.45);
-      crack.connect(band).connect(cenv).connect(outdoors);
-      crack.start(at);
-      crack.stop(at + 0.5);
-      crack.onended = () => { try { crack.disconnect(); band.disconnect(); cenv.disconnect(); } catch {} };
+      const source = looping(noise("brown"));
+      const env = ctx.createGain();
+      env.gain.setValueAtTime(0.0001, begin);
+      env.gain.exponentialRampToValueAtTime(peak, begin + rise);
+      // Two stages down rather than one: a single ramp to nothing loses
+      // twenty decibels in the first half second and the tail never lands.
+      env.gain.exponentialRampToValueAtTime(peak * 0.35, begin + rise + fall * 0.35);
+      env.gain.exponentialRampToValueAtTime(0.0001, begin + rise + fall);
+
+      source.connect(env).connect(low);
+      source.start(begin);
+      source.stop(begin + rise + fall + 0.1);
+      source.onended = () => { try { source.disconnect(); env.disconnect(); } catch {} };
+      quietAt = Math.max(quietAt, begin + rise + fall);
+    }
+
+    setTimeout(() => { try { low.disconnect(); } catch {} },
+      Math.max(0, (quietAt - ctx.currentTime + 0.5)) * 1000);
+
+    /* Only the nearest part of the channel still has a tearing onset on it,
+       and it is several transients close together rather than one bang. The
+       limit is in metres because that is what it means: past a mile and a
+       half the air has taken the top off and there is nothing left to tear.
+       Expressed as a fraction it read as 0.45, which on a three-kilometre
+       map still cracked at a kilometre and a half. */
+    if (i === 0 && along < CRACKS_TO) {
+      const edge = 1 - along / CRACKS_TO;
+      const ticks = 2 + Math.floor(Math.random() * 3);
+      let tickAt = at;
+      for (let t = 0; t < ticks; t++) {
+        tickAt += t === 0 ? 0 : 0.012 + Math.random() * 0.05;
+        const crack = looping(noise("white"));
+        const band = ctx.createBiquadFilter();
+        band.type = "bandpass";
+        band.frequency.value = 700 + Math.random() * 1600;
+        band.Q.value = 0.5 + Math.random() * 0.6;
+        const cenv = ctx.createGain();
+        const sharp = edge * 0.85 * (t === 0 ? 1 : 0.4 + Math.random() * 0.5);
+        cenv.gain.setValueAtTime(0.0001, tickAt);
+        cenv.gain.exponentialRampToValueAtTime(Math.max(0.0005, sharp), tickAt + 0.004);
+        cenv.gain.exponentialRampToValueAtTime(0.0001, tickAt + 0.12 + Math.random() * 0.3);
+        crack.connect(band).connect(cenv).connect(outdoors);
+        crack.start(tickAt);
+        crack.stop(tickAt + 0.5);
+        crack.onended = () => { try { crack.disconnect(); band.disconnect(); cenv.disconnect(); } catch {} };
+      }
       sent[0].cracked = true;
     }
   }
