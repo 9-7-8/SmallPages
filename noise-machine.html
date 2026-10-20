@@ -8,7 +8,32 @@
 <style>
   /* Layout and sizing only. Colour, type and component styling live in theme.css. */
 
-  body { margin: 0; padding: 3rem 1.5rem 5rem; }
+  body { margin: 0; padding: 4.8rem 1.5rem 5rem; }
+
+  /* Across the very top, because a thing meant to run all night should say
+     so before you start it rather than after you have gone looking. */
+  .sleeper {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    padding: 0.55rem 1.5rem;
+    background: var(--sunken);
+    border-bottom: 1px solid var(--line-soft);
+    font-size: 0.78rem;
+  }
+  .sleeper label { display: flex; align-items: center; gap: 0.45rem; color: var(--text-dim); }
+  .sleeper input[type="range"] { flex: 0 1 16rem; min-width: 7rem; }
+  .sleeper .read {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--neon);
+  }
+  .sleeper.off input[type="range"] { opacity: 0.3; }
+  .sleeper.off .read { color: var(--text-faint); }
   main { max-width: 820px; margin: 0 auto; }
   p.lede { margin: 0 0 2.2rem; max-width: 58ch; }
   .card { margin-bottom: 1.5rem; }
@@ -173,14 +198,22 @@
 </style>
 </head>
 <body>
+
+<div class="sleeper" id="sleeper">
+  <label><input type="checkbox" id="sleepOn" checked> Sleep timer</label>
+  <input type="range" id="sleepHrs" min="4" max="24" step="1" value="4"
+         aria-label="Hours before it stops">
+  <span class="read" id="sleepOut"></span>
+</div>
+
 <main>
   <a class="home" href="index.html">&larr; index</a>
   <h1>Noise Machine</h1>
-  <p class="lede">Five sounds to work, sleep or think through, built from scratch in the page by
-  the browser's own audio engine, and a sixth that is not noise at all: two tones a few hertz
-  apart, one to each ear. Nothing is downloaded and nothing loops, because there is no recording
-  to loop &mdash; the noise is generated as it plays, so it never repeats and never gives you
-  that four-second seam to listen for.</p>
+  <p class="lede">Five noises to work, sleep or think through, built from scratch in the page by
+  the browser's own audio engine, with a drum that can beat under them and a pair of tones that
+  are not noise at all: two sines a few hertz apart, one to each ear. Nothing is downloaded,
+  because there is no recording &mdash; it is all generated as it plays. A sleep timer runs
+  across the top, set to four hours unless you say otherwise.</p>
 
   <div class="card">
     <div class="deck" id="deck"></div>
@@ -194,26 +227,41 @@
         <input type="range" id="master" min="0" max="100" step="1" value="60" style="width:13rem;max-width:100%">
       </div>
 
-      <div class="field">
-        <label for="sleepSel">Sleep timer</label>
-        <select id="sleepSel">
-          <option value="0" selected>Off</option>
-          <option value="15">15 minutes</option>
-          <option value="30">30 minutes</option>
-          <option value="45">45 minutes</option>
-          <option value="60">1 hour</option>
-          <option value="90">1 hour 30</option>
-          <option value="480">8 hours</option>
-        </select>
-        <span class="unit">fades out over the last minute</span>
-      </div>
-
       <div class="acts">
         <button type="button" id="playBtn">Start</button>
       </div>
     </div>
 
     <div class="status" id="status">Nothing playing.</div>
+  </div>
+
+  <div class="card">
+    <h2>Drum</h2>
+
+    <div class="field">
+      <label for="bpmIn">Tempo</label>
+      <div class="pair">
+        <input type="range" id="bpmIn" min="20" max="160" step="1" value="60"
+               style="max-width:26rem" aria-label="Tempo">
+        <input type="number" id="bpmNum" min="20" max="160" step="1" value="60"
+               aria-label="Beats a minute">
+      </div>
+      <span class="unit" id="bpmNote"></span>
+    </div>
+
+    <div class="field" style="margin-top:1.5rem">
+      <label for="depthIn">Depth &mdash; how far down the drum sits, and how long it rings</label>
+      <div class="pair">
+        <input type="range" id="depthIn" min="0" max="100" step="1" value="80"
+               style="max-width:26rem" aria-label="Depth">
+        <input type="number" id="depthNum" min="0" max="100" step="1" value="80"
+               aria-label="Depth out of a hundred">
+      </div>
+      <span class="unit" id="depthNote"></span>
+    </div>
+
+    <div class="chips" id="drumChips"></div>
+    <div class="chips" id="shapeChips"></div>
   </div>
 
   <div class="card">
@@ -312,7 +360,10 @@ const meterFill = el("meterFill");
 const readoutEl = el("readout");
 const masterIn  = el("master");
 const masterOut = el("masterOut");
-const sleepSel  = el("sleepSel");
+const sleepOn   = el("sleepOn");
+const sleepHrs  = el("sleepHrs");
+const sleepOut  = el("sleepOut");
+const sleeper   = el("sleeper");
 const playBtn   = el("playBtn");
 const statusEl  = el("status");
 
@@ -326,9 +377,21 @@ const carrierNote  = el("carrierNote");
 const carrierChips = el("carrierChips");
 const earsOut      = el("earsOut");
 const swapBtn      = el("swapBtn");
+const bpmIn        = el("bpmIn");
+const bpmNum       = el("bpmNum");
+const bpmNote      = el("bpmNote");
+const depthIn      = el("depthIn");
+const depthNum     = el("depthNum");
+const depthNote    = el("depthNote");
+const drumChips    = el("drumChips");
+const shapeChips   = el("shapeChips");
 const saidBox      = el("saidBox");
 
 let swapped = false;   // which ear gets the higher of the two tones
+
+let drumBpm = 60;
+let drumDepth = 80;
+let drumShape = "heart";
 
 // trim is the ceiling a lane's fader reaches. Noise and a bare sine are not
 // the same loudness at the same amplitude, and a low sine is quieter again
@@ -339,6 +402,7 @@ const SOUNDS = [
   { id: "brown", name: "Brown",  what: "−6 dB an octave — nearly all bottom",  level: 0 },
   { id: "rain",  name: "Rain",   what: "filtered noise, with droplets over it",          level: 0 },
   { id: "fan",   name: "Fan",    what: "brown under a breathing low-pass",               level: 0 },
+  { id: "drum",     name: "Drum",     what: "a slow pulse under the rest",           level: 0, trim: 0.55 },
   { id: "binaural", name: "Binaural", what: "two tones, one an ear — headphones",   level: 0, trim: 0.40 },
 ];
 
@@ -356,6 +420,24 @@ const BANDS = [
 ];
 
 const bandAt = (hz) => BANDS.find((b) => hz >= b.from && hz < b.to) || BANDS[BANDS.length - 1];
+
+/* A bar is however many beats the figure says; a hit is where in the bar it
+   lands and how hard. Nothing swings and nothing is random: a pulse you are
+   meant to stop noticing should be the same every time round. */
+const SHAPES = {
+  pulse: { name: "Pulse", beats: 1, hits: [[0, 1]] },
+  heart: { name: "Heartbeat", beats: 2, hits: [[0, 1], [0.34, 0.62]] },
+  walk:  { name: "Walk", beats: 2, hits: [[0, 1], [1, 0.72]] },
+  tide:  { name: "Tide", beats: 4, hits: [[0, 1], [1.5, 0.45], [3, 0.66]] },
+};
+
+const DRUMS = [
+  { name: "Resting", bpm: 52, depth: 86, shape: "heart" },
+  { name: "Heartbeat", bpm: 64, depth: 92, shape: "heart" },
+  { name: "Walk", bpm: 96, depth: 54, shape: "walk" },
+  { name: "Tide", bpm: 38, depth: 96, shape: "tide" },
+  { name: "Clock", bpm: 60, depth: 26, shape: "pulse" },
+];
 
 /* Popular settings, and what is said about them. `said` is the claim as it is
    usually made. `holds` is what becomes of the claim when looked at, which is
@@ -410,8 +492,9 @@ let analyser = null;
 let lanes = {};          // id -> { gain, nodes[], stop() }
 let running = false;
 let meterTimer = null;
+let openAt = 0;          // nothing is allowed to sound before this
 let sleepAt = 0;         // performance.now() when the timer should finish
-let sleepTotal = 0;
+let sleepHours = 0;
 
 /* ----------------------------------------------------------- the sources -- */
 
@@ -420,19 +503,42 @@ let sleepTotal = 0;
 // filters downstream move continuously, so the seam never surfaces.
 const SECONDS = 8;
 
-function whiteBuffer(rate) {
-  const buffer = ctx.createBuffer(1, rate * SECONDS, rate);
+// Except that it did surface. Pink and brown both begin from a settled state
+// of nothing and end wherever their walk had got to, so played round the end
+// stepped straight back to zero — a click every eight seconds, which is what
+// the popping was. Brown's step was the worst of it: a walk that sits around
+// ±1.9 against a first sample of almost nothing.
+//
+// The cure is to generate past the end and lay the overrun over the opening,
+// so the last sample runs into the first. The fade is equal-power, since two
+// stretches of noise are uncorrelated and a straight crossfade would dip
+// audibly in the middle of it.
+const FADE = 2400;      // 50 ms at 48 kHz
+
+function seamless(fill) {
+  const rate = ctx.sampleRate;
+  const length = Math.floor(rate * SECONDS);
+  const raw = new Float32Array(length + FADE);
+  fill(raw);
+
+  const buffer = ctx.createBuffer(1, length, rate);
   const data = buffer.getChannelData(0);
-  for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+  data.set(raw.subarray(0, length));
+  for (let i = 0; i < FADE; i++) {
+    const t = i / FADE;
+    data[i] = raw[i] * Math.sqrt(t) + raw[length + i] * Math.sqrt(1 - t);
+  }
   return buffer;
+}
+
+function fillWhite(data) {
+  for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
 }
 
 // Voss-McCartney: a handful of random generators each updating half as often
 // as the last, summed. It is the cheap way to 1/f and it is accurate enough
 // across the band that matters.
-function pinkBuffer(rate) {
-  const buffer = ctx.createBuffer(1, rate * SECONDS, rate);
-  const data = buffer.getChannelData(0);
+function fillPink(data) {
   const rows = new Float32Array(16);
   let running = 0;
   for (let i = 0; i < data.length; i++) {
@@ -448,20 +554,29 @@ function pinkBuffer(rate) {
     }
     data[i] = (running + (Math.random() * 2 - 1)) / (rows.length + 1) * 3.5;
   }
-  return buffer;
 }
 
 // Brown is white integrated: each sample is the last one nudged. The leak
 // keeps it from wandering off the rails over eight seconds.
-function brownBuffer(rate) {
-  const buffer = ctx.createBuffer(1, rate * SECONDS, rate);
-  const data = buffer.getChannelData(0);
+function fillBrown(data) {
   let last = 0;
   for (let i = 0; i < data.length; i++) {
     last = (last * 0.995) + (Math.random() * 2 - 1) * 0.06;
     data[i] = last * 3.2;
   }
-  return buffer;
+}
+
+/* Each kind is generated once and shared. Six of these were being built at
+   every Start — rain and the fan each made their own white and brown — which
+   is some nine megabytes and fourteen million random numbers on the main
+   thread before a note sounded. That is the bang, and on a phone the static
+   after it. */
+const FILLS = { white: fillWhite, pink: fillPink, brown: fillBrown };
+let buffers = new Map();
+
+function noise(kind) {
+  if (!buffers.has(kind)) buffers.set(kind, seamless(FILLS[kind]));
+  return buffers.get(kind);
 }
 
 function looping(buffer) {
@@ -481,12 +596,12 @@ function drift(param, low, high, period) {
   depth.gain.value = (high - low) / 2;
   param.value = (high + low) / 2;
   lfo.connect(depth).connect(param);
-  lfo.start();
+  lfo.start(Math.max(ctx.currentTime, openAt));
   return [lfo, depth];
 }
 
 function build(id) {
-  const rate = ctx.sampleRate;
+  const at = Math.max(ctx.currentTime, openAt);
   const gain = ctx.createGain();
   gain.gain.value = 0;
   gain.connect(master);
@@ -494,21 +609,21 @@ function build(id) {
   let tune = null;      // only the tones have anything to retune
 
   if (id === "white") {
-    const s = looping(whiteBuffer(rate));
-    s.connect(gain); s.start(); nodes.push(s);
+    const s = looping(noise("white"));
+    s.connect(gain); s.start(at); nodes.push(s);
 
   } else if (id === "pink") {
-    const s = looping(pinkBuffer(rate));
+    const s = looping(noise("pink"));
     s.connect(gain); s.start(); nodes.push(s);
 
   } else if (id === "brown") {
-    const s = looping(brownBuffer(rate));
+    const s = looping(noise("brown"));
     s.connect(gain); s.start(); nodes.push(s);
 
   } else if (id === "rain") {
     // The body of it: white through a wide band-pass whose corner drifts,
     // which is the difference between rain and a hiss.
-    const body = looping(whiteBuffer(rate));
+    const body = looping(noise("white"));
     const band = ctx.createBiquadFilter();
     band.type = "bandpass";
     band.Q.value = 0.4;
@@ -516,17 +631,17 @@ function build(id) {
     const bodyGain = ctx.createGain();
     bodyGain.gain.value = 1.4;
     body.connect(band).connect(bodyGain).connect(gain);
-    body.start();
+    body.start(at);
 
     // Under it, the low rumble of rain on something solid.
-    const under = looping(brownBuffer(rate));
+    const under = looping(noise("brown"));
     const lp = ctx.createBiquadFilter();
     lp.type = "lowpass";
     lp.frequency.value = 420;
     const underGain = ctx.createGain();
     underGain.gain.value = 0.5;
     under.connect(lp).connect(underGain).connect(gain);
-    under.start();
+    under.start(at);
 
     nodes.push(body, band, bodyGain, under, lp, underGain, ...wobble);
     // And the droplets, scheduled rather than baked in, so they never land
@@ -534,7 +649,7 @@ function build(id) {
     nodes.push({ drops: dropper(gain) });
 
   } else if (id === "fan") {
-    const s = looping(brownBuffer(rate));
+    const s = looping(noise("brown"));
     const lp = ctx.createBiquadFilter();
     lp.type = "lowpass";
     lp.frequency.value = 900;
@@ -543,7 +658,7 @@ function build(id) {
     const body = ctx.createGain();
     body.gain.value = 1.6;
     s.connect(lp).connect(body).connect(gain);
-    s.start();
+    s.start(at);
 
     // The blade tone: a real fan has one, and leaving it out is what makes
     // filtered noise sound like filtered noise.
@@ -553,9 +668,12 @@ function build(id) {
     const humGain = ctx.createGain();
     humGain.gain.value = 0.014;
     hum.connect(humGain).connect(gain);
-    hum.start();
+    hum.start(at);
 
     nodes.push(s, lp, body, hum, humGain, ...breathe);
+
+  } else if (id === "drum") {
+    nodes.push({ beat: beater(gain) });
 
   } else if (id === "binaural") {
     // A merger rather than two panners, because panning is a mix: at any
@@ -570,8 +688,8 @@ function build(id) {
     left.connect(merger, 0, 0);
     right.connect(merger, 0, 1);
     merger.connect(gain);
-    left.start();
-    right.start();
+    left.start(at);
+    right.start(at);
     nodes.push(left, right, merger);
 
     // Split the difference either side of the carrier, so changing the beat
@@ -595,12 +713,91 @@ function build(id) {
     tune,
     stop() {
       for (const n of nodes) {
-        if (n && n.drops) { clearTimeout(n.drops.timer); n.drops.cancelled = true; continue; }
+        const ticking = n && (n.drops || n.beat);
+        if (ticking) { clearTimeout(ticking.timer); ticking.cancelled = true; continue; }
         try { n.stop && n.stop(); } catch {}
         try { n.disconnect && n.disconnect(); } catch {}
       }
     },
   };
+}
+
+// The beater: a scrap of noise, filtered, gone in a twentieth of a second.
+// Without it a kick is a sine blip, and the deeper the drum the less of it
+// there should be.
+function tapBuffer() {
+  if (!buffers.has("tap")) {
+    const n = Math.floor(ctx.sampleRate * 0.06);
+    const buffer = ctx.createBuffer(1, n, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < n; i++) data[i] = Math.random() * 2 - 1;
+    buffers.set("tap", buffer);
+  }
+  return buffers.get("tap");
+}
+
+// A kick is a sine falling fast in pitch under an envelope falling fast in
+// level. Depth moves where it falls to and how long it takes about it.
+function kick(at, strength, out) {
+  const deep = drumDepth / 100;
+  const base = 34 + (1 - deep) * 70;
+  const top = base * (3 + deep * 2);
+  const decay = 0.15 + deep * 0.55;
+
+  const osc = ctx.createOscillator();
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(top, at);
+  osc.frequency.exponentialRampToValueAtTime(base, at + 0.04 + deep * 0.06);
+
+  const env = ctx.createGain();
+  env.gain.setValueAtTime(0.0001, at);
+  env.gain.exponentialRampToValueAtTime(Math.max(0.0002, strength), at + 0.005);
+  env.gain.exponentialRampToValueAtTime(0.0001, at + decay);
+
+  osc.connect(env).connect(out);
+  osc.start(at);
+  osc.stop(at + decay + 0.05);
+
+  const smack = 0.09 * (1 - deep) * strength;
+  if (smack > 0.002) {
+    const tap = ctx.createBufferSource();
+    tap.buffer = tapBuffer();
+    const band = ctx.createBiquadFilter();
+    band.type = "bandpass";
+    band.frequency.value = 1400 + (1 - deep) * 1800;
+    band.Q.value = 0.8;
+    const tenv = ctx.createGain();
+    tenv.gain.setValueAtTime(smack, at);
+    tenv.gain.exponentialRampToValueAtTime(0.0001, at + 0.045);
+    tap.connect(band).connect(tenv).connect(out);
+    tap.start(at);
+    tap.stop(at + 0.06);
+  }
+}
+
+// Beats are scheduled on the audio clock a quarter second ahead, woken by a
+// timer that only has to be roughly on time. A timer firing each beat would
+// drift audibly within a minute, because setTimeout is not a metronome.
+const LOOKAHEAD = 0.25;
+
+function beater(out) {
+  const state = { timer: null, cancelled: false, next: 0 };
+  state.next = Math.max(ctx.currentTime, openAt) + 0.06;
+  const pump = () => {
+    if (state.cancelled || !ctx) return;
+    const shape = SHAPES[drumShape] || SHAPES.pulse;
+    const spb = 60 / drumBpm;
+    // A backgrounded tab wakes with the clock far ahead of the last beat.
+    // Playing every bar it missed all at once is not music.
+    if (state.next < ctx.currentTime - 0.5) state.next = ctx.currentTime + 0.06;
+    while (state.next < ctx.currentTime + LOOKAHEAD) {
+      for (const [offset, strength] of shape.hits) kick(state.next + offset * spb, strength, out);
+      state.next += shape.beats * spb;
+    }
+    state.timer = setTimeout(pump, 50);
+  };
+  pump();
+  return state;
 }
 
 // Short enveloped blips at irregular intervals — the part of rain your ear
@@ -629,9 +826,14 @@ function dropper(out) {
 
 /* ------------------------------------------------------------ the mixer -- */
 
-function start() {
+const LEAD = 0.12;
+
+async function start() {
   if (running) return;
   ctx = new (window.AudioContext || window.webkitAudioContext)();
+  buffers = new Map();
+  // A context may open suspended; its clock does not move until it is not.
+  try { if (ctx.state !== "running") await ctx.resume(); } catch {}
   master = ctx.createGain();
   master.gain.value = 0;
   analyser = ctx.createAnalyser();
@@ -639,12 +841,15 @@ function start() {
   master.connect(analyser).connect(ctx.destination);
 
   lanes = {};
-  for (const sound of SOUNDS) lanes[sound.id] = build(sound.id);
-
   running = true;
   playBtn.textContent = "Stop";
-  applyLevels(0.25);
-  applyMaster(0.25);
+  // A beat of grace before anything sounds. Scheduling the fade from
+  // currentTime meant that on a device slow to open its output the fade was
+  // already spent by the time the first sample left — full volume from
+  // nothing, which is the bang.
+  openAt = ctx.currentTime + LEAD;
+  applyLevels(LEAD + 0.3);
+  applyMaster(LEAD + 0.3);
   startTimer();
   meterTimer = setInterval(meter, 70);
   say();
@@ -665,11 +870,14 @@ function stop() {
   }, 300);
 
   ctx = null; master = null; analyser = null; lanes = {};
+  buffers = new Map();
   running = false;
+  openAt = 0;
   sleepAt = 0;
   playBtn.textContent = "Start";
   meterFill.style.width = "0";
   readoutEl.textContent = "";
+  drawSleep();
   say();
 }
 
@@ -680,9 +888,13 @@ const shape = (pct) => Math.pow(pct / 100, 2);
 
 function applyLevels(ramp = 0.08) {
   if (!running) return;
-  const now = ctx.currentTime;
+  const now = Math.max(ctx.currentTime, openAt);
   for (const sound of SOUNDS) {
     const pct = Number(el(`lvl-${sound.id}`).value);
+    if (!lanes[sound.id]) {
+      if (pct <= 0) continue;       // never built, and not wanted yet
+      lanes[sound.id] = build(sound.id);
+    }
     const lane = lanes[sound.id];
     lane.gain.gain.cancelScheduledValues(now);
     lane.gain.gain.setValueAtTime(lane.gain.gain.value, now);
@@ -780,7 +992,7 @@ function drawSaid(onCarrier, onBeat, band) {
 
 function applyMaster(ramp = 0.08) {
   if (!running) return;
-  const now = ctx.currentTime;
+  const now = Math.max(ctx.currentTime, openAt);
   master.gain.cancelScheduledValues(now);
   master.gain.setValueAtTime(master.gain.value, now);
   master.gain.linearRampToValueAtTime(shape(Number(masterIn.value)), now + ramp);
@@ -789,9 +1001,22 @@ function applyMaster(ramp = 0.08) {
 /* ------------------------------------------------------- timer and meter -- */
 
 function startTimer() {
-  const minutes = Number(sleepSel.value);
-  sleepTotal = minutes;
-  sleepAt = minutes ? performance.now() + minutes * 60000 : 0;
+  const hours = Number(sleepHrs.value);
+  sleepHours = sleepOn.checked ? hours : 0;
+  sleepAt = sleepHours ? performance.now() + sleepHours * 3600000 : 0;
+}
+
+const pad = (n) => String(n).padStart(2, "0");
+
+function drawSleep() {
+  const hours = Number(sleepHrs.value);
+  sleeper.classList.toggle("off", !sleepOn.checked);
+  if (!sleepOn.checked) {
+    sleepOut.textContent = "off — it plays until you stop it";
+    return;
+  }
+  if (running && sleepAt) return;    // the countdown owns the readout
+  sleepOut.textContent = `${hours} hours, then it fades out`;
 }
 
 function meter() {
@@ -809,15 +1034,22 @@ function meter() {
   bits.push(on.length ? on.map((s) => s.name.toLowerCase()).join(" + ") : "everything down");
   bits.push(`${(20 * Math.log10(Math.max(rms, 1e-5))).toFixed(0)} dB RMS`);
 
+  if (Number(el("lvl-drum").value) > 0) {
+    bits.push(`${drumBpm} bpm ${(SHAPES[drumShape] || SHAPES.pulse).name.toLowerCase()}`);
+  }
+
   if (Number(el("lvl-binaural").value) > 0) {
     bits.push(`${carrierHz.toFixed(1)} Hz, ${beatHz.toFixed(2)} Hz apart, ${bandAt(beatHz).name.toLowerCase()}`);
   }
 
   if (sleepAt) {
     const left = Math.max(0, sleepAt - performance.now());
-    const m = Math.floor(left / 60000);
-    const s = Math.floor((left % 60000) / 1000);
-    bits.push(`${m}:${String(s).padStart(2, "0")} left`);
+    const h = Math.floor(left / 3600000);
+    const m = Math.floor((left % 3600000) / 60000);
+    const sec = Math.floor((left % 60000) / 1000);
+    const clock = h ? `${h}:${pad(m)}:${pad(sec)}` : `${m}:${pad(sec)}`;
+    bits.push(`${clock} left`);
+    sleepOut.textContent = `${clock} left`;
 
     // The last minute fades rather than cutting, so it does not wake you up
     // on the way out.
@@ -835,8 +1067,8 @@ function meter() {
 
 function say() {
   if (!running) { statusEl.textContent = "Nothing playing."; return; }
-  statusEl.textContent = sleepTotal
-    ? `Playing, and stopping in ${sleepTotal} minutes.`
+  statusEl.textContent = sleepHours
+    ? `Playing, and stopping in ${sleepHours} hours.`
     : "Playing. It will keep going until you stop it.";
 }
 
@@ -879,7 +1111,7 @@ for (const sound of SOUNDS) {
   sync();
 }
 
-playBtn.addEventListener("click", () => (running ? stop() : start()));
+playBtn.addEventListener("click", () => { if (running) stop(); else start(); });
 
 masterIn.addEventListener("input", () => {
   masterOut.textContent = `${masterIn.value}%`;
@@ -921,7 +1153,72 @@ swapBtn.addEventListener("click", () => {
 
 setBinaural(carrierHz, beatHz);
 
-sleepSel.addEventListener("change", () => { startTimer(); say(); });
+/* ------------------------------------------------------------- the drum -- */
+
+function setDrum(bpm, depth, shape, origin) {
+  drumBpm = clamp(Math.round(bpm), 20, 160);
+  drumDepth = clamp(Math.round(depth), 0, 100);
+  if (shape && SHAPES[shape]) drumShape = shape;
+  if (origin !== "bpmIn") bpmIn.value = String(drumBpm);
+  if (origin !== "bpmNum") bpmNum.value = String(drumBpm);
+  if (origin !== "depthIn") depthIn.value = String(drumDepth);
+  if (origin !== "depthNum") depthNum.value = String(drumDepth);
+  drawDrum();
+}
+
+function drawDrum() {
+  const shape = SHAPES[drumShape] || SHAPES.pulse;
+  const bar = (shape.beats * 60) / drumBpm;
+  bpmNote.textContent = `${shape.hits.length === 1 ? "one beat" : `${shape.hits.length} beats`}`
+    + ` every ${bar.toFixed(1)}s — ${drumBpm} to the minute`;
+
+  const deep = drumDepth / 100;
+  const base = Math.round(34 + (1 - deep) * 70);
+  depthNote.textContent = `falls to ${base} Hz and rings for `
+    + `${(0.15 + deep * 0.55).toFixed(2)}s`
+    + (deep > 0.75 ? " — felt more than heard on small speakers" : "");
+
+  const named = DRUMS.find((d) => d.bpm === drumBpm && d.depth === drumDepth && d.shape === drumShape);
+  for (const button of drumChips.children) {
+    button.classList.toggle("on", !!named && button.dataset.drum === named.name);
+  }
+  for (const button of shapeChips.children) {
+    button.classList.toggle("on", button.dataset.shape === drumShape);
+  }
+}
+
+function plainChip(into, label, title, data, go) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "ghost";
+  Object.assign(button.dataset, data);
+  button.textContent = label;
+  button.title = title;
+  button.addEventListener("click", go);
+  into.append(button);
+  return button;
+}
+
+for (const preset of DRUMS) {
+  plainChip(drumChips, preset.name, `${preset.bpm} bpm, ${SHAPES[preset.shape].name.toLowerCase()}`,
+    { drum: preset.name }, () => setDrum(preset.bpm, preset.depth, preset.shape));
+}
+for (const [key, shape] of Object.entries(SHAPES)) {
+  plainChip(shapeChips, shape.name, `${shape.hits.length} in a bar of ${shape.beats}`,
+    { shape: key }, () => setDrum(drumBpm, drumDepth, key));
+}
+
+bpmIn.addEventListener("input", () => setDrum(num(bpmIn.value, drumBpm), drumDepth, null, "bpmIn"));
+bpmNum.addEventListener("input", () => setDrum(num(bpmNum.value, drumBpm), drumDepth, null, "bpmNum"));
+depthIn.addEventListener("input", () => setDrum(drumBpm, num(depthIn.value, drumDepth), null, "depthIn"));
+depthNum.addEventListener("input", () => setDrum(drumBpm, num(depthNum.value, drumDepth), null, "depthNum"));
+
+setDrum(drumBpm, drumDepth, drumShape);
+
+for (const control of [sleepOn, sleepHrs]) {
+  control.addEventListener("input", () => { startTimer(); drawSleep(); say(); });
+}
+drawSleep();
 
 // An audio context left running is a tab still making sound you have
 // forgotten about.
