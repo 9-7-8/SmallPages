@@ -120,6 +120,9 @@
   }
   .trayBar .what { color: var(--text-faint); flex: 1 1 16rem; min-width: 0; }
   .trayBar label { display: flex; align-items: center; gap: 0.4rem; font-size: 0.78rem; }
+  /* The same roll as the one at the top of the page, where your eyes already
+     are once there are dice on the table. */
+  #rollHere { padding: 0.42rem 1.3rem; font-size: 0.85rem; }
 
   /* -------------------------------------------------- the many throws -- */
 
@@ -231,10 +234,9 @@
   <a class="home" href="index.html">&larr; index</a>
   <h1>Dice Roller</h1>
   <p class="lede">Type the roll the way you would say it &mdash; <code>2d6</code>,
-  <code>5d6 + 2d3</code>, <code>d20 + 7</code> &mdash; and watch it land. Every die in the roll
-  is a solid of the right number of faces, thrown across the table and left showing the number
-  it rolled. Then throw the same roll a million times over and see the shape of what it can
-  do.</p>
+  <code>5d6 + 2d3</code>, <code>d20 + 7</code> &mdash; and watch it land. Every die is a real
+  solid, thrown across the table and left to stop where it stops. Underneath, the same roll
+  thrown ten thousand times over, so you can see where yours sits in it.</p>
 
   <div class="card">
     <div class="rank">
@@ -276,6 +278,7 @@
       <span class="what" id="trayNote">The table is empty.</span>
       <label><input type="checkbox" id="tumble" checked> Throw them</label>
       <button type="button" id="againBtn" class="ghost">Throw again</button>
+      <button type="button" id="rollHere">Roll</button>
     </div>
   </div>
 
@@ -297,6 +300,7 @@
       <div class="plotActs">
         <button type="button" id="tableBtn" class="ghost" aria-expanded="false">Show the numbers</button>
         <button type="button" id="copySim" class="ghost">Copy the numbers</button>
+        <button type="button" id="saveSim" class="ghost">Download this graph</button>
       </div>
       <div id="table"></div>
     </div>
@@ -313,28 +317,46 @@
     <div class="log" id="log"></div>
   </div>
 
-  <p class="note"><strong>The shapes are the real ones.</strong> Where a die of that many faces
-  exists, that is what you get: a tetrahedron for the d4, a cube, an octahedron, the ten-sided
-  trapezohedron with its kite faces, a dodecahedron, an icosahedron. An odd number of sides comes
-  out as a barrel &mdash; a prism with that many faces around it and a point at each end, which is
-  what a real d3, d5 or d7 is, because a prism with flat ends would stand up on one. Any other even
-  number is a bipyramid, two cones of triangles meeting at the equator, which is how a d14 or a d16
-  is made. The d4 is read at the top corner rather than the top face, the way a d4 with numbers at
-  its corners is.</p>
+  <p class="note"><strong>The shapes are the real ones.</strong> A die has to be able to land on
+  one face and show you another, which is a stronger thing to ask than having the right number of
+  faces. Where a solid does it, that is what you get: a cube, an octahedron, a dodecahedron, an
+  icosahedron, and the kite-faced trapezohedron that a d10 and a d14 actually are. Where half the
+  number of faces is even, a bipyramid instead &mdash; two cones of triangles meeting at the
+  equator &mdash; which is how a d8 and a d16 are made. The four is the exception that real ones
+  make too: it rests on a face and is read at the corner pointing up, so the number sits at the
+  corners rather than in the middle of a face.</p>
 
-  <p class="note"><strong>Past twenty-four faces it is shown on a twenty.</strong> There is no
-  honest solid with a hundred readable faces, so a d100 &mdash; or a d37, or anything else over
-  twenty-four &mdash; is rolled properly and landed on an icosahedron with the number it rolled
-  written on the face that came up. The other faces carry other numbers from the same range, which
-  is decoration; the one facing the ceiling is the result, and it is the same number as the one in
-  the breakdown above.</p>
+  <p class="note"><strong>An odd number of sides is twice as many faces.</strong> No solid with an
+  odd number of faces can be read at all &mdash; land a three-sided prism on a face and what is on
+  top of it is an edge. So a d3 is a cube carrying 1, 2, 3, 1, 2, 3, which is exactly what a d3 you
+  can buy is, and a d5 and a d7 are ten- and fourteen-sided solids with each number on two opposite
+  faces. Past twenty-four faces, and for odd numbers past eleven, there is nothing honest left to
+  build: those are rolled properly and landed on an icosahedron with the number they rolled written
+  on the face that came up, the other nineteen carrying numbers from the same range for company.</p>
 
-  <p class="note"><strong>The tumble is decoration over a result already decided.</strong> Every
-  die is rolled the moment you press the button, and the throw is then aimed so each one lands with
-  that face up. Said plainly because the alternative &mdash; letting the physics decide &mdash;
-  would make the fairness of the roll a property of the collision code, which is not a thing
-  anybody should have to audit. Turn <em>Throw them</em> off and the dice are simply set down
-  showing their numbers, which is also what happens if your system asks for reduced motion.</p>
+  <p class="note"><strong>The throw is not steered.</strong> The dice are dropped in, bounced off
+  the walls and each other and left to stop where they stop &mdash; every contact is an impulse at
+  the corner that is touching, which is why landing on a corner flips a die over it and a skid
+  turns into a roll. Nothing tips them onto a chosen face at the end. What is decided in advance is
+  the number: it is drawn before the throw starts, and the <em>painting</em> is what is fitted to
+  it, once the dice have stopped and it is known which face each one came up on. Which number sits
+  on which face is arbitrary on a real die too &mdash; it is settled in a factory, not by the
+  throw &mdash; and the arrangement is kept: opposite faces still add to one more than the number
+  of sides, or carry the same number where each number is on two faces.</p>
+
+  <p class="note"><strong>Two buttons by the table and one above it.</strong> <em>Roll</em> beside
+  the dice is the <em>Roll</em> at the top of the page again, for when the table is where you are
+  looking; <em>Throw again</em> throws the dice you have already rolled rather than rolling new
+  ones, which is the one way to see the same numbers land differently. Turn <em>Throw them</em>
+  off and the dice are set down showing their numbers with no throw at all &mdash; which is also
+  what happens, without asking, if your system is set to ask for reduced motion.</p>
+
+  <p class="note"><strong>The numbers are painted on, not stuck to your eye.</strong> Each face
+  carries its number at a fixed angle in the die's own frame, standing on one of that face's edges,
+  so it turns as the die turns and comes up sideways or upside down exactly as the numbers on a
+  real die do. The throw is run through once before anything is drawn, on a fixed clock, so the
+  page knows where every die stops; then the same throw is run again in front of you and comes out
+  the same way, because nothing in it is random after it starts.</p>
 
   <p class="note"><strong>The numbers come from the system's own randomness.</strong>
   <code>crypto.getRandomValues</code> rather than <code>Math.random</code>, and the remainder is
@@ -343,8 +365,15 @@
   gives the low faces a hair more often than the high ones, which is small enough never to be
   noticed and still a loaded die.</p>
 
-  <p class="note"><strong>A million throws is what you get for leaving the box empty.</strong>
-  Type a number for any other count, up to ten million. The chart is every total that came up and
+  <p class="note"><strong>Every new roll is thrown ten thousand times over.</strong> Roll
+  something this page has not simulated yet and it runs ten thousand of them while you look at the
+  dice, so the chart underneath is always of the roll on the table rather than of whatever was
+  charted last. Roll the same thing again and it leaves the chart alone, including a bigger run you
+  asked for yourself. <em>Download this graph</em> saves what you are looking at as a JPEG with the
+  roll written across the top.</p>
+
+  <p class="note"><strong>A million throws is what you get for pressing Simulate.</strong>
+  Leave the box empty for that, or type a number for any other count, up to ten million. The chart is every total that came up and
   how often, as a share of the throws rather than a count, so the shape is the same whether you
   ran a thousand or a million; the mark across it is the roll sitting on the table above. Where
   there are more totals than there are columns of pixels &mdash; a hundred dice have ninety
@@ -694,6 +723,12 @@ function ring(many, radius, y, twist = 0) {
   return out;
 }
 
+function cubePoints() {
+  const p = [];
+  for (const x of [-1, 1]) for (const y of [-1, 1]) for (const z of [-1, 1]) p.push(v3(x, y, z));
+  return p;
+}
+
 function icosaPoints() {
   const p = [];
   for (const a of [-1, 1]) for (const b of [-PHI, PHI]) p.push(v3(0, a, b), v3(a, b, 0), v3(b, 0, a));
@@ -701,61 +736,70 @@ function icosaPoints() {
 }
 
 function dodecaPoints() {
-  const p = [];
-  for (const x of [-1, 1]) for (const y of [-1, 1]) for (const z of [-1, 1]) p.push(v3(x, y, z));
+  const p = cubePoints();
   const i = 1 / PHI;
   for (const a of [-i, i]) for (const b of [-PHI, PHI]) p.push(v3(0, a, b), v3(a, b, 0), v3(b, 0, a));
   return p;
 }
 
-/* The d10. Two rings of five, a half-step out of phase, and a point at each
-   end: the kites are only flat for one height, which is the ratio below —
-   put the apex anywhere else and the ten faces become twenty triangles. */
+/* The d10's shape, and the one every other kite-faced die is. Two rings of k,
+   a half step out of phase, and a point at each end: the kites are only flat
+   for one height, which is the ratio below — put the apex anywhere else and
+   the 2k faces become 4k triangles. */
 function trapezohedron(k) {
   const beta = Math.PI / k;
   const c = (1 - Math.cos(beta)) / (1 + Math.cos(beta));
   return [v3(0, 1, 0), v3(0, -1, 0), ...ring(k, 1, c), ...ring(k, 1, -c, beta)];
 }
 
+const bipyramid = (k) => [v3(0, 1.12, 0), v3(0, -1.12, 0), ...ring(k, 1, 0)];
+
 const SHAPE_WORD = {
   coin: "a two-sided flip",
   tetra: "a tetrahedron",
   cube: "a cube",
   octa: "an octahedron",
-  trap: "a ten-sided trapezohedron",
   dodeca: "a dodecahedron",
   icosa: "an icosahedron",
+  trapezohedron: "a trapezohedron",
   bipyramid: "a bipyramid",
-  barrel: "a barrel",
   "stand-in": "a twenty, standing in",
 };
 
+/* A die has to be able to rest on one face and show you another, and that is
+   a stronger condition than having the right number of faces. A solid with an
+   odd number of faces cannot do it at all: land a three-sided prism on a face
+   and what is on top is an edge. So an odd number is a solid of twice as many
+   faces carrying each number twice, which is exactly what a real d3 is — a
+   cube numbered 1, 2, 3, 1, 2, 3. The even ones split the other way: half an
+   even number odd means a trapezohedron, like the d10 and the d14; half of it
+   even means a bipyramid, like the d8 and the d16. Either way opposite faces
+   are parallel, which is what puts one of them on top. */
+function evenSolid(n) {
+  if (n === 6) return { pts: cubePoints(), reads: 6, kind: "cube" };
+  if (n === 8) return { pts: bipyramid(4), reads: 8, kind: "octa" };
+  if (n === 12) return { pts: dodecaPoints(), reads: 12, kind: "dodeca" };
+  if (n === 20) return { pts: icosaPoints(), reads: 20, kind: "icosa" };
+  const k = n / 2;
+  return k % 2
+    ? { pts: trapezohedron(k), reads: n, kind: "trapezohedron" }
+    : { pts: bipyramid(k), reads: n, kind: "bipyramid" };
+}
+
+const standIn = () => ({ pts: icosaPoints(), reads: 20, kind: "stand-in" });
+
 function solidPoints(sides) {
   if (sides === 2) return { pts: [...ring(22, 1, 0.17), ...ring(22, 1, -0.17)], reads: 2, kind: "coin" };
-  if (sides === 4) return { pts: [v3(1, 1, 1), v3(1, -1, -1), v3(-1, 1, -1), v3(-1, -1, 1)], reads: 4, kind: "tetra" };
-  if (sides === 6) {
-    const p = [];
-    for (const x of [-1, 1]) for (const y of [-1, 1]) for (const z of [-1, 1]) p.push(v3(x, y, z));
-    return { pts: p, reads: 6, kind: "cube" };
+  if (sides === 4) {
+    return { pts: [v3(1, 1, 1), v3(1, -1, -1), v3(-1, 1, -1), v3(-1, -1, 1)], reads: 4, kind: "tetra" };
   }
-  if (sides === 8) return { pts: [v3(0, 1, 0), v3(0, -1, 0), ...ring(4, 1, 0)], reads: 8, kind: "octa" };
-  if (sides === 10) return { pts: trapezohedron(5), reads: 10, kind: "trap" };
-  if (sides === 12) return { pts: dodecaPoints(), reads: 12, kind: "dodeca" };
-  if (sides === 20) return { pts: icosaPoints(), reads: 20, kind: "icosa" };
-  // Nothing honest has this many readable faces, so the number is rolled
-  // properly and landed on a twenty with that number written on it.
-  if (sides > SOLID_CAP) return { pts: icosaPoints(), reads: 20, kind: "stand-in" };
-  // Any other even number: two cones of triangles meeting at the equator.
-  if (sides % 2 === 0) {
-    return { pts: [v3(0, 1.12, 0), v3(0, -1.12, 0), ...ring(sides / 2, 1, 0)], reads: sides, kind: "bipyramid" };
+  if (sides % 2 === 1) {
+    // Twice as many faces, each number on two of them.
+    if (sides * 2 > SOLID_CAP) return standIn();
+    return { ...evenSolid(sides * 2), doubled: true };
   }
-  // Odd: a barrel, numbered around the sides, pointed at both ends so that it
-  // cannot come to rest on one. Which is what a real d3, d5 or d7 is.
-  return {
-    pts: [v3(0, 1.6, 0), v3(0, -1.6, 0), ...ring(sides, 1, 0.72), ...ring(sides, 1, -0.72)],
-    reads: sides,
-    kind: "barrel",
-  };
+  if (sides > SOLID_CAP) return standIn();
+  return evenSolid(sides);
 }
 
 const shapes = new Map();
@@ -767,85 +811,146 @@ function shapeFor(sides) {
   const spec = solidPoints(sides);
   let pts = spec.pts;
   const faces = hullFaces(pts);
-  // The faces that carry numbers are the big ones: the sides of a barrel
-  // rather than the triangles of its caps, the two flats of a coin rather
-  // than its rim. On a solid where every face is the same they are all of them.
+  // The faces that carry numbers are the big ones: the two flats of a coin
+  // rather than its rim. On a solid where every face is the same they are all.
   faces.sort((a, b) => b.area - a.area);
   const reads = faces.slice(0, Math.min(spec.reads, faces.length));
   reads.forEach((f, i) => { f.read = i; });
 
   // Scaled on the average distance of a corner from the middle, so a die of
   // any shape is about as big as the next one in the tray. Not on the face
-  // distance, which makes a coin enormous, and not on the furthest corner,
-  // which makes a barrel a splinter.
+  // distance, which makes a coin enormous.
   let far = 0;
   for (const p of pts) far += vlen(p);
   const k = pts.length / far;
   pts = pts.map((p) => mul(p, k));
   for (const f of faces) { f.mid = mul(f.mid, k); f.area *= k * k; }
 
-  // How big a number will sit on each face: the room between the middle of
-  // the face and its nearest edge, so the long thin sides of a barrel carry a
-  // smaller figure than the flats of a coin rather than overrunning them.
   for (const f of faces) {
+    // How big a number will sit on the face: the room between the middle of
+    // it and the nearest edge.
     let room = Infinity;
+    let base = 0;
+    let lowest = Infinity;
     for (let i = 0; i < f.verts.length; i++) {
       const a = pts[f.verts[i]];
       const b = pts[f.verts[(i + 1) % f.verts.length]];
       const along = sub(b, a);
       const reach = vlen(along) || 1;
       room = Math.min(room, vlen(cross(along, sub(f.mid, a))) / reach);
+      if ((a.y + b.y) / 2 < lowest - 1e-9) { lowest = (a.y + b.y) / 2; base = i; }
     }
     f.fit = room;
+
+    /* Which way up the number is painted on this face — settled here, in the
+       solid's own frame, so it turns with the die. The number stands on the
+       face's lowest edge, the way the numbers on a real die stand on an edge
+       rather than on whichever way the person holding it happens to be. */
+    const a = pts[f.verts[base]];
+    const b = pts[f.verts[(base + 1) % f.verts.length]];
+    let across = unit(sub(b, a));
+    let down = cross(across, f.normal);
+    if (dot(down, sub(mul(add(a, b), 0.5), f.mid)) < 0) {
+      across = mul(across, -1);
+      down = mul(down, -1);
+    }
+    f.across = across;
+    f.down = down;
   }
 
   const opposite = reads.map((f) => reads.findIndex((g) => dot(f.normal, g.normal) < -0.999));
   let out = 0;
   for (const p of pts) out = Math.max(out, vlen(p));
 
-  const shape = { kind: spec.kind, sides, pts, faces, reads, opposite, radius: out };
+  const shape = { kind: spec.kind, sides, doubled: !!spec.doubled, pts, faces, reads, opposite, radius: out };
   shapes.set(sides, shape);
   return shape;
 }
 
-/* Opposite faces summing to one more than the number of sides, the way they
-   do on the real thing, wherever the solid has opposite faces at all. */
-function labelsFor(shape, sides, value) {
+/* The painting, worked out once the die has stopped: the face that came up
+   gets the number that was rolled, and the rest follow the arrangement that
+   kind of die has — opposite faces adding to one more than the number of
+   sides, or carrying the same number as each other where each number is on
+   two faces. Which number sits on which face is arbitrary on a real die too;
+   it is decided in a factory rather than by the throw. Doing it in this order
+   is what lets the throw itself be left alone. */
+function labelsFor(shape, sides, value, up, corner) {
   const n = shape.reads.length;
-  if (shape.kind === "tetra") return [1, 2, 3, 4];
-  if (sides === n) {
-    const out = new Array(n).fill(0);
-    const done = new Array(n).fill(false);
-    let low = 1;
-    let high = sides;
-    for (let i = 0; i < n; i++) {
-      if (done[i]) continue;
-      const j = shape.opposite[i];
-      if (j > i && !done[j]) { out[i] = low++; out[j] = high--; done[i] = done[j] = true; }
-      else { out[i] = low++; done[i] = true; }
+
+  if (shape.kind === "tetra") {
+    const rest = [];
+    for (let v = 1; v <= 4; v++) if (v !== value) rest.push(v);
+    return shape.pts.map((p, i) => (i === corner ? value : rest.shift()));
+  }
+
+  if (shape.kind === "stand-in") {
+    // No solid for this many faces: the rolled number, and others for company.
+    const pool = new Set([value]);
+    while (pool.size < n) pool.add(1 + Math.floor(Math.random() * sides));
+    const list = [...pool];
+    for (let i = list.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [list[i], list[j]] = [list[j], list[i]];
     }
-    return out;
+    const at = list.indexOf(value);
+    [list[at], list[up]] = [list[up], list[at]];
+    return list;
   }
-  // The stand-in twenty: the rolled number, and nineteen others for company.
-  const pool = new Set([value]);
-  while (pool.size < n) pool.add(1 + Math.floor(Math.random() * sides));
-  const list = [...pool];
-  for (let i = list.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [list[i], list[j]] = [list[j], list[i]];
+
+  // Every number as a pair: (v, sides + 1 - v) on a plain die, (v, v) where
+  // the solid carries twice as many faces as the die has numbers.
+  const pairs = [];
+  for (let v = 1; v <= sides; v++) {
+    if (shape.doubled) pairs.push([v, v]);
+    else if (v <= sides - v) pairs.push([v, sides + 1 - v]);
   }
-  return list;
+  const mine = pairs.findIndex((p) => p[0] === value || p[1] === value);
+  const [won] = pairs.splice(mine, 1);
+  if (won[1] === value && won[0] !== value) won.reverse();
+
+  const out = new Array(n).fill(0);
+  const places = [];
+  const taken = new Array(n).fill(false);
+  for (let i = 0; i < n; i++) {
+    if (taken[i]) continue;
+    const j = shape.opposite[i];
+    taken[i] = true;
+    if (j >= 0 && !taken[j]) { taken[j] = true; places.push([i, j]); }
+    else places.push([i, -1]);
+  }
+  const atUp = places.findIndex(([i, j]) => i === up || j === up);
+  const [spot] = places.splice(atUp, 1);
+  if (spot[1] === up) spot.reverse();
+
+  const give = (place, pair) => {
+    out[place[0]] = pair[0];
+    if (place[1] >= 0) out[place[1]] = pair[1];
+  };
+  give(spot, won);
+  places.forEach((place, i) => give(place, pairs[i] || [1, 1]));
+  return out;
 }
 
 /* ============================================================== the tray = */
 
-const TRAY = { w: 8.6, d: 5.2 };          // half-width and half-depth, in world units
-const EYE = v3(0, 9.2, 12.4);
+const TRAY = { w: 8.6, d: 5.2 };          // half-width and half-depth, in centimetres
+const EYE = v3(0, 10.6, 12.2);
 const AIM = v3(0, 0.2, 0);
 const LIGHT = unit(v3(-0.35, 1, 0.5));
-const GRAV = 30;
-const TUMBLE = 1.15;                      // seconds of throw
-const BLEND = 0.55;                       // seconds of coming to rest
+
+/* A world unit is a centimetre — a d20 of radius 1.1 is a 22 mm die — so
+   gravity is the real figure and the dice fall at the speed dice fall at.
+   The clock is fixed rather than tied to the frame, because the same throw
+   has to come out the same way twice: once run through before anything is
+   drawn, to see where it lands, and once in front of you. */
+const G = 981;
+const STEP = 1 / 300;
+const LUMP = 0.3;              // moment of inertia, as a fraction of m·R²
+const BOUNCE = 0.42;
+const RUB = 0.3;               // friction at a contact, plastic on wood
+const CALM = 0.95;             // when the table starts taking the energy out
+const LONGEST = 1.75;          // and when it has to be still regardless
+const FLAT = 0.14;             // the last rock onto the face it is resting on
 
 const FWD = unit(sub(AIM, EYE));
 const RIGHT = unit(cross(FWD, v3(0, 1, 0)));
@@ -918,7 +1023,7 @@ function readTheme() {
   faceFont = getComputedStyle(document.body).fontFamily || "sans-serif";
 }
 
-/* ----------------------------------------------------------- the throw -- */
+/* ---------------------------------------------------------------- dice -- */
 
 function dieSize(n) {
   const room = TRAY.w * 2 * TRAY.d * 2;
@@ -927,26 +1032,21 @@ function dieSize(n) {
 
 function makeDie(sides, value, r) {
   const shape = shapeFor(sides);
-  const labels = labelsFor(shape, sides, value);
-  const upRead = shape.kind === "tetra" ? -1 : labels.indexOf(value);
   return {
-    sides, value, shape, labels, r,
-    upRead: upRead < 0 ? 0 : upRead,
-    upVertex: shape.kind === "tetra" ? Math.max(0, labels.indexOf(value)) : -1,
+    sides, value, shape, r,
+    labels: [],
+    up: 0,
+    corner: -1,
+    R2: (shape.radius * r) * (shape.radius * r),
     pos: v3(0, 0, 0),
     vel: v3(0, 0, 0),
     omega: v3(0, 0, 0),
     quat: { w: 1, x: 0, y: 0, z: 0 },
+    rot: new Float64Array(shape.pts.length * 3),
     world: [],
+    asleep: false,
+    still: 0,
   };
-}
-
-// Which way is up on this die when it is lying still: the normal of the face
-// it rolled, or for a four, the corner that number sits at.
-function winningUp(die) {
-  return die.shape.kind === "tetra"
-    ? unit(die.shape.pts[die.upVertex])
-    : die.shape.reads[die.upRead].normal;
 }
 
 const randomQuat = () => qUnit({
@@ -954,55 +1054,348 @@ const randomQuat = () => qUnit({
   y: Math.random() - 0.5, z: Math.random() - 0.5,
 });
 
-function launch() {
-  const n = dice.length;
-  dice.forEach((die, i) => {
-    // Thrown from along the back edge, but with enough of a spread in how
-    // hard and how straight that they do not all pull up in the same row.
-    const across = n === 1 ? 0 : ((i + 0.5) / n - 0.5) * TRAY.w * 1.5;
-    die.pos = v3(across + (Math.random() - 0.5) * 1.6,
-                 2.8 + Math.random() * 3.4,
-                 -TRAY.d * 0.8 + (Math.random() - 0.5) * 1.6);
-    die.vel = v3((Math.random() - 0.5) * 7, 0.5 + Math.random() * 1.5,
-                 1.8 + Math.random() * 6.4);
-    die.omega = mul(unit(v3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5)),
-                    9 + Math.random() * 11);
-    die.quat = randomQuat();
-    die.resting = false;
-  });
-}
-
-const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
-const FACING = 0.38;        // radians off square: enough to show a second face
-
-/* A die that stops with an edge toward you is a die you cannot read, which is
-   a poor result for a page whose whole job is showing the number. So the
-   settle also turns it about the upright — the shortest turn that brings some
-   side face round to the camera — which changes nothing about what it rolled
-   and makes the difference between a readable die and a silhouette. */
-function faceTheRoom(die, q) {
-  let best = null;
-  for (const f of die.shape.reads) {
-    const n = turn(q, f.normal);
-    if (Math.hypot(n.x, n.z) < 0.3) continue;      // the top and the bottom
-    const ang = Math.atan2(n.x, n.z);              // 0 is straight at the eye
-    const off = Math.abs(wrap(ang - FACING));
-    if (!best || off < best.off) best = { off, ang };
+// Every corner of the die in the world, through the rotation matrix rather
+// than one quaternion sandwich each: this runs for every die on every step of
+// the throw, twice over, and it is the only thing in here that is hot.
+function spinVerts(die) {
+  const { x, y, z, w } = die.quat;
+  const m0 = 1 - 2 * (y * y + z * z), m1 = 2 * (x * y - z * w), m2 = 2 * (x * z + y * w);
+  const m3 = 2 * (x * y + z * w), m4 = 1 - 2 * (x * x + z * z), m5 = 2 * (y * z - x * w);
+  const m6 = 2 * (x * z - y * w), m7 = 2 * (y * z + x * w), m8 = 1 - 2 * (x * x + y * y);
+  const pts = die.shape.pts;
+  const out = die.rot;
+  const r = die.r;
+  for (let i = 0; i < pts.length; i++) {
+    const p = pts[i];
+    out[i * 3] = (m0 * p.x + m1 * p.y + m2 * p.z) * r;
+    out[i * 3 + 1] = (m3 * p.x + m4 * p.y + m5 * p.z) * r;
+    out[i * 3 + 2] = (m6 * p.x + m7 * p.y + m8 * p.z) * r;
   }
-  if (!best) return q;
-  return qMul(qAxis(v3(0, 1, 0), FACING - best.ang), q);
 }
 
-// Where a die ends up: tipped onto the face it rolled, sitting on the table,
-// turned far enough round to be read, and no further.
-function aimToRest(die) {
-  const now = turn(die.quat, winningUp(die));
-  die.restQuat = faceTheRoom(die, qMul(qBetween(now, v3(0, 1, 0)), die.quat));
-  let low = Infinity;
-  for (const p of die.shape.pts) low = Math.min(low, turn(die.restQuat, p).y * die.r);
-  die.restY = -low;
-  die.fromQuat = die.quat;
-  die.fromY = die.pos.y;
+/* ------------------------------------------------------------- physics -- */
+
+/* One contact, resolved as an impulse at the corner that is touching. This is
+   what makes a thrown die behave like one: the impulse is off-centre, so it
+   is also a torque, and a die that lands on a corner flips over it instead of
+   sliding. Friction along the surface does the same job the other way, turning
+   a skid into a roll. Nothing here is a fudge factor on the spin — the tumble
+   falls out of where the die is hit. */
+function bump(die, n, r) {
+  const vAt = add(die.vel, cross(die.omega, r));
+  const vn = dot(vAt, n);
+  if (vn >= 0) return;
+  const spin = LUMP * die.R2;
+  const rn = dot(r, n);
+  const kn = 1 + (dot(r, r) - rn * rn) / spin;
+  // A corner coming down slowly does not bounce at all. Without that cutoff a
+  // die at rest trades a hair of height for a hair of speed on every step and
+  // never actually stops, which is the usual reason a die in a game jitters.
+  const give = -vn < 7 ? 0 : BOUNCE;
+  const jn = -(1 + give) * vn / kn;
+  let push = mul(n, jn);
+
+  const vt = sub(vAt, mul(n, vn));
+  const slide = vlen(vt);
+  if (slide > 1e-6) {
+    const t = mul(vt, 1 / slide);
+    const rt = dot(r, t);
+    const kt = 1 + (dot(r, r) - rt * rt) / spin;
+    push = sub(push, mul(t, Math.min(RUB * jn, slide / kt)));
+  }
+  die.vel = add(die.vel, push);
+  die.omega = add(die.omega, mul(cross(r, push), 1 / spin));
+}
+
+// The table is every corner that is under it, not a ball around the middle,
+// so a die landing flat settles instead of rocking on one point.
+function meetTable(die) {
+  const rot = die.rot;
+  let deep = 0;
+  for (let i = 1; i < rot.length; i += 3) {
+    const under = -(die.pos.y + rot[i]);
+    if (under > deep) deep = under;
+  }
+  if (deep <= 0) return false;
+  die.pos.y += deep;
+
+  /* Lifted clear first, and only then asked which corners are touching: a
+     corner a hair above the table is still resting on it, and taking the
+     whole set at once is what keeps a die that has landed flat from rocking
+     from one corner to the next. Three passes over them, because an impulse
+     at one corner changes what the others need. */
+  const band = 0.02 * die.r;
+  const touching = [];
+  for (let i = 0; i < rot.length; i += 3) if (die.pos.y + rot[i + 1] < band) touching.push(i);
+  for (let pass = 0; pass < 3; pass++) {
+    for (const i of touching) bump(die, v3(0, 1, 0), v3(rot[i], rot[i + 1], rot[i + 2]));
+  }
+  return true;
+}
+
+function meetWalls(die) {
+  const rot = die.rot;
+  let hit = false;
+  for (const side of [-1, 1]) {
+    for (const axis of [0, 2]) {
+      const edge = side * (axis === 0 ? TRAY.w : TRAY.d);
+      const middle = axis === 0 ? die.pos.x : die.pos.z;
+      let deep = 0;
+      for (let i = 0; i < rot.length; i += 3) {
+        const over = side * (middle + rot[i + axis] - edge);
+        if (over > deep) deep = over;
+      }
+      if (deep <= 0) continue;
+      hit = true;
+      if (axis === 0) die.pos.x -= side * deep; else die.pos.z -= side * deep;
+      const now = axis === 0 ? die.pos.x : die.pos.z;
+      const band = 0.02 * die.r;
+      const touching = [];
+      for (let i = 0; i < rot.length; i += 3) {
+        if (side * (now + rot[i + axis] - edge) > -band) touching.push(i);
+      }
+      const n = axis === 0 ? v3(-side, 0, 0) : v3(0, 0, -side);
+      for (let pass = 0; pass < 2; pass++) {
+        for (const i of touching) bump(die, n, v3(rot[i], rot[i + 1], rot[i + 2]));
+      }
+    }
+  }
+  return hit;
+}
+
+// Dice against each other, as the balls they very nearly are. Knocking one
+// die into another is half of what a handful of dice looks like.
+function knock() {
+  for (let i = 0; i < dice.length; i++) {
+    for (let j = i + 1; j < dice.length; j++) {
+      const a = dice[i];
+      const b = dice[j];
+      const ra = a.shape.radius * a.r * 0.88;
+      const rb = b.shape.radius * b.r * 0.88;
+      const gap = sub(a.pos, b.pos);
+      const apart = vlen(gap);
+      if (apart >= ra + rb || apart < 1e-6) continue;
+      const n = mul(gap, 1 / apart);
+
+      /* They are eased apart along the table rather than along the line
+         between them, so that a die cannot come to rest held up in the air by
+         the one underneath it: everything reaches the table, which is what
+         lets it stop. Two dice lying against each other are only nudged —
+         waking a die every time it touches its neighbour is how a handful of
+         dice ends up never settling at all. */
+      if (Math.abs(a.pos.y - b.pos.y) < ra + rb) {
+        let fx = a.pos.x - b.pos.x;
+        let fz = a.pos.z - b.pos.z;
+        let flat = Math.hypot(fx, fz);
+        // Not Math.random: this runs once to find out where the dice land and
+        // again to show it, and the two have to come out the same.
+        if (flat < 1e-4) { fx = (i % 7) / 7 - 0.5 + 0.01; fz = (j % 5) / 5 - 0.5; flat = Math.hypot(fx, fz); }
+        const want = (ra + rb) * 0.95;
+        if (flat < want) {
+          const share = (want - flat) / 2 / flat * (a.asleep && b.asleep ? 0.25 : 1);
+          a.pos.x += fx * share; a.pos.z += fz * share;
+          b.pos.x -= fx * share; b.pos.z -= fz * share;
+        }
+      }
+
+      const rel = sub(a.vel, b.vel);
+      const vn = dot(rel, n);
+      if (vn > -3) continue;                // leaning together, not colliding
+      // Only a real knock wakes a die that has stopped. A die at rest still
+      // twitches by a hair, and letting that count as a collision is how a
+      // crowd of dice keeps nudging itself awake for ever.
+      if (vn < -8) {
+        if (a.asleep) { a.asleep = false; a.still = 0; }
+        if (b.asleep) { b.asleep = false; b.still = 0; }
+      }
+      const jn = -(1 + 0.35) * vn / 2;
+      a.vel = add(a.vel, mul(n, jn));
+      b.vel = sub(b.vel, mul(n, jn));
+
+      const vt = sub(rel, mul(n, vn));
+      const slide = vlen(vt);
+      if (slide < 1e-6) continue;
+      const t = mul(vt, 1 / slide);
+      const jt = Math.min(0.3 * jn, slide / 4);
+      a.vel = sub(a.vel, mul(t, jt));
+      b.vel = add(b.vel, mul(t, jt));
+      a.omega = add(a.omega, mul(cross(mul(n, -ra), mul(t, -jt)), 1 / (LUMP * a.R2)));
+      b.omega = add(b.omega, mul(cross(mul(n, rb), mul(t, jt)), 1 / (LUMP * b.R2)));
+    }
+  }
+}
+
+function oneStep(at) {
+  // Past a point the table quietly takes the energy out, so that a die that
+  // found a lucky bounce is still down before the throw outstays its welcome.
+  const taking = at > CALM ? 0.986 : 1;
+  for (const die of dice) {
+    if (die.asleep) continue;
+    die.vel.y -= G * STEP;
+    die.pos = add(die.pos, mul(die.vel, STEP));
+
+    const w = { w: 0, x: die.omega.x, y: die.omega.y, z: die.omega.z };
+    const dq = qMul(w, die.quat);
+    die.quat = qUnit({
+      w: die.quat.w + dq.w * STEP * 0.5, x: die.quat.x + dq.x * STEP * 0.5,
+      y: die.quat.y + dq.y * STEP * 0.5, z: die.quat.z + dq.z * STEP * 0.5,
+    });
+    spinVerts(die);
+
+    meetTable(die);
+    meetWalls(die);
+
+    // Down on the table rather than touching it to the millimetre: a die that
+    // has finished is often a hair clear of it, and treating that as flight
+    // leaves it hanging there with nothing taking its energy away.
+    let low = Infinity;
+    for (let i = 1; i < die.rot.length; i += 3) low = Math.min(low, die.pos.y + die.rot[i]);
+    const near = low < 0.05 * die.r;
+
+    if (near) {
+      // Rolling costs something, or a d20 would run like a marble — but only
+      // a little. Taking it out faster than this stops a thrown die dead on
+      // the spot it lands, because the roll is where the rest of its travel
+      // comes from once friction has had the slide.
+      die.omega = mul(die.omega, 0.998);
+      die.vel = mul(die.vel, 0.999);
+      const going = vlen(die.vel);
+      const spinning = vlen(die.omega);
+      // A die spinning on one corner has nothing sliding at the corner, so
+      // friction never sees it and it would spin like a top for ever. Real
+      // ones wind down in about a second, and so does this.
+      if (going < 4 && spinning > 4) die.omega = mul(die.omega, 0.95);
+      // And the last of it goes quickly: a contact worked out once a step
+      // leaves a die buzzing on the spot otherwise.
+      if (going < 7 && spinning < 7) {
+        die.vel = mul(die.vel, 0.86);
+        die.omega = mul(die.omega, 0.86);
+      }
+    }
+    if (taking !== 1) {
+      die.vel = mul(die.vel, taking);
+      die.omega = mul(die.omega, taking);
+    }
+
+    // Credit for being still, and only a little of it taken back for a
+    // twitch: in a crowd a die is forever being brushed by its neighbours,
+    // and starting its count again every time means it never finishes.
+    if (near && vlen(die.vel) < 2.5 && vlen(die.omega) < 2.5) die.still += STEP;
+    else die.still = Math.max(0, die.still - STEP * 2);
+    if (die.still > 0.1) {
+      die.asleep = true;
+      die.vel = v3(0, 0, 0);
+      die.omega = v3(0, 0, 0);
+    }
+  }
+  knock();
+}
+
+/* Where the die has come to rest, tidied: the face it is lying on turned flat
+   against the table, which is a hair's turn when the throw has finished
+   properly and a rock onto its side when it has stopped against a wall. */
+function flatten(die) {
+  let rest = 0;
+  let lowest = Infinity;
+  die.shape.reads.forEach((f, i) => {
+    const y = turn(die.quat, f.normal).y;
+    if (y < lowest) { lowest = y; rest = i; }
+  });
+  const quat = qMul(qBetween(turn(die.quat, die.shape.reads[rest].normal), v3(0, -1, 0)), die.quat);
+
+  let up = 0;
+  let highest = -Infinity;
+  die.shape.reads.forEach((f, i) => {
+    const y = turn(quat, f.normal).y;
+    if (y > highest) { highest = y; up = i; }
+  });
+  let corner = -1;
+  if (die.shape.kind === "tetra") {
+    let best = -Infinity;
+    die.shape.pts.forEach((p, i) => {
+      const y = turn(quat, unit(p)).y;
+      if (y > best) { best = y; corner = i; }
+    });
+  }
+  // Where it ends up once it is lying flat: on the table, and tucked inside
+  // the walls, since rocking a die flat against one can put a corner through
+  // it by a hair.
+  let bottom = Infinity;
+  let leftX = Infinity, rightX = -Infinity, backZ = Infinity, frontZ = -Infinity;
+  for (const p of die.shape.pts) {
+    const w = mul(turn(quat, p), die.r);
+    bottom = Math.min(bottom, w.y);
+    leftX = Math.min(leftX, w.x); rightX = Math.max(rightX, w.x);
+    backZ = Math.min(backZ, w.z); frontZ = Math.max(frontZ, w.z);
+  }
+  let x = die.pos.x;
+  let z = die.pos.z;
+  if (x + rightX > TRAY.w) x = TRAY.w - rightX;
+  if (x + leftX < -TRAY.w) x = -TRAY.w - leftX;
+  if (z + frontZ > TRAY.d) z = TRAY.d - frontZ;
+  if (z + backZ < -TRAY.d) z = -TRAY.d - backZ;
+  return { quat, y: -bottom, x, z, up, corner };
+}
+
+function thrownFrom(die, i, n) {
+  // Spread along the back to start with, because a dozen dice cannot be in
+  // the same place at once, but thrown across each other hard enough that
+  // they fan out and collide on the way rather than travelling as a rank.
+  const across = n === 1 ? 0 : ((i + 0.5) / n - 0.5) * TRAY.w * 1.25;
+  return {
+    // Thrown in low and hard from the back of the tray, the way dice are
+    // actually thrown: most of them reach the far wall and come back off it,
+    // which is what scatters a handful rather than leaving it in a heap
+    // wherever it was let go of.
+    pos: v3(across + (Math.random() - 0.5) * 1.5,
+            2.2 + Math.random() * 1.8,
+            -TRAY.d + 0.9 + (Math.random() - 0.5) * 2),
+    vel: v3((Math.random() - 0.5) * 80 - across * 3.4, -6 + Math.random() * 14,
+            70 + Math.random() * 85),
+    omega: mul(unit(v3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5)),
+               16 + Math.random() * 26),
+    quat: randomQuat(),
+  };
+}
+
+function backToStart(die) {
+  const from = die.start;
+  die.pos = { ...from.pos };
+  die.vel = { ...from.vel };
+  die.omega = { ...from.omega };
+  die.quat = { ...from.quat };
+  die.asleep = false;
+  die.still = 0;
+  spinVerts(die);
+}
+
+/* The throw, run through once with nothing drawn, so the page knows where
+   every die stops before the first frame. Nothing is steered: the numbers are
+   painted on afterwards, which is why there is no snap at the end of it. */
+let throwSteps = 0;
+
+function throwThem() {
+  dice.forEach((die, i) => {
+    die.start = thrownFrom(die, i, dice.length);
+    backToStart(die);
+  });
+
+  const most = Math.ceil(LONGEST / STEP);
+  let steps = 0;
+  while (steps < most && dice.some((d) => !d.asleep)) { oneStep(steps * STEP); steps++; }
+  throwSteps = steps;
+
+  for (const die of dice) {
+    const done = flatten(die);
+    die.up = done.up;
+    die.corner = done.corner;
+    die.endQuat = done.quat;
+    die.endY = done.y;
+    die.endX = done.x;
+    die.endZ = done.z;
+    die.labels = labelsFor(die.shape, die.sides, die.value, done.up, done.corner);
+  }
+  for (const die of dice) backToStart(die);
 }
 
 function setDown() {
@@ -1017,79 +1410,20 @@ function setDown() {
     // rather than hanging off the left of a grid.
     const inRow = Math.min(cols, n - row * cols);
     die.pos = v3((col - (inRow - 1) / 2) * wide, 0, (row - (rows - 1) / 2) * wide);
-    // A turn of its own before it is aimed, so a row of dice is not a row of
-    // identical dice; the aim then brings a face round to be read anyway.
-    die.quat = qAxis(v3(0, 1, 0), Math.random() * Math.PI * 2);
-    aimToRest(die);
-    die.quat = die.restQuat;
-    die.pos.y = die.restY;
-    die.resting = true;
+    die.quat = randomQuat();
+    const done = flatten(die);
+    die.quat = done.quat;
+    die.pos.y = done.y;
+    die.pos.x = done.x;
+    die.pos.z = done.z;
+    die.up = done.up;
+    die.corner = done.corner;
+    die.labels = labelsFor(die.shape, die.sides, die.value, done.up, done.corner);
+    die.vel = v3(0, 0, 0);
+    die.omega = v3(0, 0, 0);
+    die.asleep = true;
+    spinVerts(die);
   });
-}
-
-function separate() {
-  for (let pass = 0; pass < 2; pass++) {
-    for (let i = 0; i < dice.length; i++) {
-      for (let j = i + 1; j < dice.length; j++) {
-        const a = dice[i];
-        const b = dice[j];
-        const ra = a.shape.radius * a.r;
-        const rb = b.shape.radius * b.r;
-        if (Math.abs(a.pos.y - b.pos.y) > ra + rb) continue;   // one is over the other
-        let dx = a.pos.x - b.pos.x;
-        let dz = a.pos.z - b.pos.z;
-        const want = (ra + rb) * 0.92;
-        let d = Math.hypot(dx, dz);
-        if (d >= want) continue;
-        if (d < 1e-4) { dx = Math.random() - 0.5; dz = Math.random() - 0.5; d = Math.hypot(dx, dz); }
-        const push = (want - d) / 2 / d;
-        a.pos.x += dx * push; a.pos.z += dz * push;
-        b.pos.x -= dx * push; b.pos.z -= dz * push;
-      }
-    }
-  }
-}
-
-function hemIn(die) {
-  const room = die.shape.radius * die.r;
-  die.pos.x = Math.max(-TRAY.w + room, Math.min(TRAY.w - room, die.pos.x));
-  die.pos.z = Math.max(-TRAY.d + room, Math.min(TRAY.d - room, die.pos.z));
-}
-
-function step(dt) {
-  for (const die of dice) {
-    die.vel.y -= GRAV * dt;
-    die.pos = add(die.pos, mul(die.vel, dt));
-
-    const w = { w: 0, x: die.omega.x, y: die.omega.y, z: die.omega.z };
-    const dq = qMul(w, die.quat);
-    die.quat = qUnit({
-      w: die.quat.w + dq.w * dt * 0.5, x: die.quat.x + dq.x * dt * 0.5,
-      y: die.quat.y + dq.y * dt * 0.5, z: die.quat.z + dq.z * dt * 0.5,
-    });
-
-    // The table is the lowest corner, not a sphere around the middle, so a
-    // die landing on a point rides up on it the way it should.
-    let low = Infinity;
-    for (const p of die.shape.pts) low = Math.min(low, turn(die.quat, p).y * die.r);
-    if (die.pos.y + low < 0) {
-      die.pos.y = -low;
-      if (die.vel.y < 0) {
-        die.vel.y = -die.vel.y * 0.42;
-        die.vel.x *= 0.76;
-        die.vel.z *= 0.76;
-        die.omega = add(mul(die.omega, 0.7),
-          v3((Math.random() - 0.5) * 5, (Math.random() - 0.5) * 3, (Math.random() - 0.5) * 5));
-      }
-    }
-
-    const room = die.shape.radius * die.r;
-    if (die.pos.x > TRAY.w - room) { die.pos.x = TRAY.w - room; die.vel.x = -Math.abs(die.vel.x) * 0.5; }
-    if (die.pos.x < -TRAY.w + room) { die.pos.x = -TRAY.w + room; die.vel.x = Math.abs(die.vel.x) * 0.5; }
-    if (die.pos.z > TRAY.d - room) { die.pos.z = TRAY.d - room; die.vel.z = -Math.abs(die.vel.z) * 0.5; }
-    if (die.pos.z < -TRAY.d + room) { die.pos.z = -TRAY.d + room; die.vel.z = Math.abs(die.vel.z) * 0.5; }
-  }
-  separate();
 }
 
 /* ---------------------------------------------------------- the drawing -- */
@@ -1142,46 +1476,31 @@ function paintTable() {
   }
 }
 
-/* Text lying on the face rather than floating over it: the two in-plane
-   directions are projected alongside the middle of the face and the pair of
-   screen offsets becomes the transform the glyphs are drawn through. The one
-   chosen as the across direction is whichever comes out level on screen, so a
-   number is never upside down on the face you are reading. */
-function faceText(nrm, at, text, high, fill, glow) {
+/* Text lying on the face and turning with it. The two directions it is drawn
+   along are the ones painted on the face in the solid's own frame, so a
+   number goes round with the die and comes up sideways or upside down exactly
+   as the numbers on a real die do. */
+function faceText(at, across, down, text, high, fill, glow) {
   const s = 0.2;
-  const e1 = perp(nrm);
-  const e2 = cross(nrm, e1);
   const p0 = project(at);
-  const p1 = project(add(at, mul(e1, s)));
-  const p2 = project(add(at, mul(e2, s)));
-  if (!p0 || !p1 || !p2) return;
-  const d1 = { x: p1.x - p0.x, y: p1.y - p0.y };
-  const d2 = { x: p2.x - p0.x, y: p2.y - p0.y };
-  const th = Math.atan2(-d1.y, d2.y);
-  let cu = Math.cos(th);
-  let su = Math.sin(th);
-  let ux = cu * d1.x + su * d2.x;
-  let uy = cu * d1.y + su * d2.y;
-  if (ux < 0) { ux = -ux; uy = -uy; cu = -cu; su = -su; }
-  const across = add(mul(e1, cu), mul(e2, su));
-  const down = cross(nrm, across);
-  const p3 = project(add(at, mul(down, s)));
-  if (!p3) return;
-  let vx = p3.x - p0.x;
-  let vy = p3.y - p0.y;
-  if (vy < 0) { vx = -vx; vy = -vy; }          // local down must read down the screen
+  const pa = project(add(at, mul(across, s)));
+  const pd = project(add(at, mul(down, s)));
+  if (!p0 || !pa || !pd) return;
+  const ax = pa.x - p0.x, ay = pa.y - p0.y;
+  const dx = pd.x - p0.x, dy = pd.y - p0.y;
 
   const F = 40;
   const k = high / F / s;
-  if (Math.hypot(ux, uy) * k * F < 7) return;  // too small on screen to bother
+  // A number seen almost edge-on is a smear; it is left off rather than drawn.
+  if (Math.hypot(ax, ay) * k * F < 7 || Math.hypot(dx, dy) * k * F < 5) return;
 
   brush.save();
-  brush.setTransform(ux * k * dpr, uy * k * dpr, vx * k * dpr, vy * k * dpr, p0.x * dpr, p0.y * dpr);
+  brush.setTransform(ax * k * dpr, ay * k * dpr, dx * k * dpr, dy * k * dpr, p0.x * dpr, p0.y * dpr);
   brush.font = `500 ${F}px ${faceFont}`;
   brush.textAlign = "center";
   brush.textBaseline = "middle";
   brush.fillStyle = fill;
-  if (glow) { brush.shadowColor = fill; brush.shadowBlur = 14; }
+  if (glow) { brush.shadowColor = fill; brush.shadowBlur = 22; }
   brush.fillText(text, 0, 0);
   brush.restore();
   brush.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -1205,8 +1524,11 @@ function paintFace(bit) {
   const area = Math.abs(twice) / 2;
 
   const lit = 0.18 + 0.82 * Math.max(0, dot(nrm, LIGHT));
+  // The face looking at the ceiling is the result, and on a twenty it is a
+  // small flattened triangle competing with five big ones facing you, so it
+  // is lit well clear of them rather than by a shade or two.
   const up = nrm.y > 0.86;
-  const shade = 6 + 40 * lit + (up ? 9 : 0);
+  const shade = 6 + 40 * lit + (up ? 17 : 0);
 
   brush.beginPath();
   flat.forEach((p, i) => (i ? brush.lineTo(p.x, p.y) : brush.moveTo(p.x, p.y)));
@@ -1217,24 +1539,26 @@ function paintFace(bit) {
   brush.lineWidth = 1;
   brush.stroke();
 
-  if (area < 190) return;
+  if (area < 150 || !die.labels.length) return;
+  const mid = add(die.pos, mul(turn(die.quat, face.mid), die.r));
 
   if (die.shape.kind === "tetra") {
-    // Numbers at the corners, as a four has them, and the one at the top
-    // corner — the same number on all three faces you can see — is the roll.
+    // Numbers at the corners, as a four has them, each one standing on the
+    // edge opposite its own corner so it reads when that corner is up.
     for (const i of face.verts) {
-      const at = add(mul(die.world[i], 0.62), mul(add(die.pos, mul(turn(die.quat, face.mid), die.r)), 0.38));
-      const won = i === die.upVertex && turn(die.quat, unit(die.shape.pts[i])).y > 0.86;
-      faceText(nrm, at, String(die.labels[i]), Math.min(0.3, face.fit * 0.6) * die.r,
+      const at = add(mul(die.world[i], 0.6), mul(mid, 0.4));
+      const down = unit(sub(mid, die.world[i]));
+      const won = i === die.corner && turn(die.quat, unit(die.shape.pts[i])).y > 0.86;
+      faceText(at, cross(nrm, down), down, String(die.labels[i]),
+        Math.min(0.3, face.fit * 0.6) * die.r,
         won ? tone(96) : tone(Math.min(96, shade + 46)), won);
     }
     return;
   }
 
   if (face.read < 0) return;
-  const at = add(die.pos, mul(turn(die.quat, face.mid), die.r));
-  const high = Math.min(0.62, face.fit * 1.5) * die.r;
-  faceText(nrm, at, String(die.labels[face.read]), high,
+  faceText(mid, turn(die.quat, face.across), turn(die.quat, face.down),
+    String(die.labels[face.read]), Math.min(0.62, face.fit * 1.5) * die.r,
     up ? tone(96) : tone(Math.min(96, shade + 44)), up);
 }
 
@@ -1246,7 +1570,10 @@ function draw() {
 
   const bits = [];
   for (const die of dice) {
-    die.world = die.shape.pts.map((p) => add(die.pos, mul(turn(die.quat, p), die.r)));
+    die.world = [];
+    for (let i = 0; i < die.rot.length; i += 3) {
+      die.world.push(v3(die.pos.x + die.rot[i], die.pos.y + die.rot[i + 1], die.pos.z + die.rot[i + 2]));
+    }
     for (const face of die.shape.faces) {
       const nrm = turn(die.quat, face.normal);
       const mid = add(die.pos, mul(turn(die.quat, face.mid), die.r));
@@ -1264,48 +1591,49 @@ function draw() {
 }
 
 let began = 0;
-let last = 0;
-let blending = false;
+let played = 0;
+let settled = false;        // the throw is over and the dice are where they stop
 
 function tick(ms) {
-  if (!began) { began = ms; last = ms; }
-  const t = (ms - began) / 1000;
-  const dt = Math.min(0.034, Math.max(0.001, (ms - last) / 1000));
-  last = ms;
+  if (!began) began = ms;
+  const over = (ms - began) / 1000;
+  const want = Math.min(throwSteps, Math.floor(over / STEP));
+  while (played < want) { oneStep(played * STEP); played++; }
 
-  if (t < TUMBLE) {
-    step(dt / 2);
-    step(dt / 2);
-  } else {
-    if (!blending) { blending = true; for (const die of dice) aimToRest(die); }
-    const through = Math.min(1, (t - TUMBLE) / BLEND);
+  if (played >= throwSteps) {
+    // The last of it: whatever corner it stopped on, rocked flat onto the
+    // face it is lying on. On a throw that finished by itself this is a
+    // degree or two and you would not catch it.
+    const through = Math.min(1, (over - throwSteps * STEP) / FLAT);
     const ease = through * through * (3 - 2 * through);
     for (const die of dice) {
-      die.quat = qSlerp(die.fromQuat, die.restQuat, ease);
-      die.pos.y = die.fromY + (die.restY - die.fromY) * ease;
-      hemIn(die);
+      if (!die.settling) {
+        die.settling = { quat: die.quat, y: die.pos.y, x: die.pos.x, z: die.pos.z };
+      }
+      die.quat = qSlerp(die.settling.quat, die.endQuat, ease);
+      die.pos.y = die.settling.y + (die.endY - die.settling.y) * ease;
+      die.pos.x = die.settling.x + (die.endX - die.settling.x) * ease;
+      die.pos.z = die.settling.z + (die.endZ - die.settling.z) * ease;
+      spinVerts(die);
     }
-    separate();
-    for (const die of dice) hemIn(die);
+    draw();
+    if (through < 1) { raf = requestAnimationFrame(tick); return; }
+    raf = 0;
+    settled = true;
+    return;
   }
 
   draw();
-  if (t < TUMBLE + BLEND) { raf = requestAnimationFrame(tick); return; }
-
-  raf = 0;
-  for (const die of dice) {
-    die.quat = die.restQuat;
-    die.pos.y = die.restY;
-    die.resting = true;
-  }
-  draw();
+  raf = requestAnimationFrame(tick);
 }
 
 function stopTick() {
   if (raf) cancelAnimationFrame(raf);
   raf = 0;
   began = 0;
-  blending = false;
+  played = 0;
+  settled = false;
+  for (const die of dice) die.settling = null;
 }
 
 function describe() {
@@ -1315,8 +1643,8 @@ function describe() {
   const bits = [];
   for (const [sides, many] of seen) {
     const shape = shapeFor(sides);
-    let word = SHAPE_WORD[shape.kind];
-    if (shape.kind === "bipyramid" || shape.kind === "barrel") word = `a ${sides}-sided ${shape.kind}`;
+    const word = SHAPE_WORD[shape.kind]
+      + (shape.doubled ? `, each number on two of its ${shape.reads.length} faces` : "");
     bits.push(`${many} × d${sides} on ${word}`);
   }
   return bits.join(" · ");
@@ -1339,9 +1667,10 @@ function present(rolled, animate) {
     ? `${dice.length} dice at rest, showing ${dice.map((d) => d.value).join(", ")}`
     : "An empty table");
 
-  if (!dice.length) { draw(); return; }
-  if (animate) { launch(); raf = requestAnimationFrame(tick); }
-  else { setDown(); draw(); }
+  if (!dice.length) { settled = true; draw(); return; }
+  if (!animate) { setDown(); settled = true; draw(); return; }
+  throwThem();
+  raf = requestAnimationFrame(tick);
 }
 
 /* ============================================================== wiring == */
@@ -1389,6 +1718,7 @@ function roll() {
   // The chart marks the roll on the table, so a new roll moves the mark
   // rather than leaving the last one sitting there contradicting the total.
   if (sim) { drawPlot(); paintFigures(); paintNumbers(); }
+  chartTheRoll(parsed.terms);
 
   entries.unshift({ at: clock(), expr: tidy(parsed.terms), total });
   if (entries.length > CAP) entries.length = CAP;
@@ -1400,6 +1730,7 @@ function roll() {
 }
 
 el("rollBtn").addEventListener("click", roll);
+el("rollHere").addEventListener("click", roll);
 
 exprIn.addEventListener("keydown", (e) => {
   if (e.key !== "Enter") return;
@@ -1478,8 +1809,10 @@ const tableBtn = el("tableBtn");
 
 const BY_DEFAULT = 1000000;
 const RUNS_CAP = 10000000;
+const AUTO_RUNS = 10000;       // what a roll of a new shape gets by itself
 
 let sim = null;            // the run that finished
+let charted = null;        // and the roll it was of
 let running = null;        // the run under way
 let hoverBin = -1;
 
@@ -1532,10 +1865,10 @@ function simFail(why) {
   simSay.classList.add("error");
 }
 
-function startSim() {
+function startSim(asked, auto) {
   const parsed = parseRoll(exprIn.value);
-  if (parsed.error) { simFail(parsed.error); return; }
-  const trials = howMany();
+  if (parsed.error) { if (!auto) simFail(parsed.error); return; }
+  const trials = asked === undefined ? howMany() : asked;
   if (trials === null) { simFail(`“${runsIn.value.trim()}” is not a number of throws.`); return; }
   simSay.classList.remove("error");
 
@@ -1547,15 +1880,16 @@ function startSim() {
 
   if (!kinds.length) {
     sim = null;
+    charted = tidy(parsed.terms);
     plotWrap.classList.remove("on");
-    simSay.textContent = `${tidy(parsed.terms)} has no dice in it — every throw of it is ${flat}.`;
+    simSay.textContent = `${charted} has no dice in it — every throw of it is ${flat}.`;
     return;
   }
 
   const { lo, hi } = spread(parsed.terms);
   stopSim();
   running = {
-    trials, done: 0, lo, hi, flat, kinds,
+    trials, done: 0, lo, hi, flat, kinds, auto,
     counts: new Uint32Array(hi - lo + 1),
     next: makeRandom(),
     expr: tidy(parsed.terms),
@@ -1563,8 +1897,19 @@ function startSim() {
   };
   simBtn.disabled = true;
   stopBtn.disabled = false;
-  running.capped = trials < Number(runsIn.value.replace(/[\s,_]/g, ""));
+  running.capped = asked === undefined && trials < Number(runsIn.value.replace(/[\s,_]/g, ""));
   chunk();
+}
+
+/* A new roll gets a run of its own without being asked, so the chart under
+   the dice is always of the roll on the table rather than of whatever was
+   last typed. Ten thousand throws is enough to draw the shape and quick
+   enough not to be noticed; the button above is there for more. */
+function chartTheRoll(terms) {
+  const key = tidy(terms);
+  if (key === charted) return;
+  if (running && (!running.auto || running.expr === key)) return;
+  startSim(AUTO_RUNS, true);
 }
 
 /* Worked in slices of about twenty milliseconds so the page stays answering
@@ -1624,6 +1969,7 @@ function finishSim(cut) {
   if (!r.done) { simSay.textContent = "Stopped before anything was thrown."; return; }
 
   sim = summarise(r);
+  charted = sim.expr;
   hoverBin = -1;
   plotWrap.classList.add("on");
   drawPlot();
@@ -1632,6 +1978,9 @@ function finishSim(cut) {
   simSay.classList.remove("error");
   simSay.textContent = cut
     ? `Stopped at ${fmt(sim.trials)} throws of ${sim.expr}.`
+    : r.auto
+    ? `${fmt(sim.trials)} throws of ${sim.expr}, run with the roll. `
+      + "Ask for more above and it will run that many."
     : `${fmt(sim.trials)} throws of ${sim.expr}, in `
       + `${took < 0.1 ? `${Math.max(1, Math.round(took * 1000))} ms` : `${took.toFixed(2)} s`}.`
       + (r.capped ? ` ${fmt(RUNS_CAP)} is as many as this will run.` : "");
@@ -1724,47 +2073,57 @@ function plotRoom() {
   return { w, h, pw: w - PAD.l - PAD.r, ph: h - PAD.t - PAD.b };
 }
 
-function drawPlot() {
-  if (!sim) return;
-  readTheme();
-  const ratio = Math.min(window.devicePixelRatio || 1, 3);
-  const { w, h, pw, ph } = plotRoom();
-  if (plot.width !== Math.round(w * ratio) || plot.height !== Math.round(h * ratio)) {
-    plot.width = Math.round(w * ratio);
-    plot.height = Math.round(h * ratio);
-  }
-  pen.setTransform(ratio, 0, 0, ratio, 0, 0);
-  pen.clearRect(0, 0, w, h);
+/* The chart itself, drawn into whatever it is handed: the canvas on the page,
+   or a sheet twice the size with a heading on it for saving. Everything is in
+   plain pixels at the size asked for, so the caller owns the scaling. */
+function paintChart(ctx, w, h, bins, hover, heading) {
+  const top = (heading ? 74 : PAD.t);
+  const pw = w - PAD.l - PAD.r;
+  const ph = h - top - PAD.b;
   if (pw < 60 || ph < 40) return;
 
-  const bins = binsFor(pw);
   const ink = getComputedStyle(document.body);
   const text = ink.getPropertyValue("--text-faint") || "#777";
+  const pale = ink.getPropertyValue("--text-dim") || "#999";
   const bright = ink.getPropertyValue("--neon") || "#fff";
   const sans = faceFont;
+  // The labels grow with the sheet, so a saved graph is not a screen's worth
+  // of eleven-pixel type blown up to the size of a poster.
+  const small = Math.max(11, Math.round(w / 90));
 
-  let top = 0;
-  for (const b of bins) top = Math.max(top, b.n);
-  const topShare = top / sim.trials;
+  if (heading) {
+    ctx.textAlign = "left";
+    ctx.textBaseline = "alphabetic";
+    ctx.fillStyle = bright;
+    ctx.font = `300 30px ${sans}`;
+    ctx.fillText(heading.title, PAD.l, 40);
+    ctx.fillStyle = pale;
+    ctx.font = `300 13px ${sans}`;
+    ctx.fillText(heading.note, PAD.l, 60);
+  }
+
+  let tallest = 0;
+  for (const b of bins) tallest = Math.max(tallest, b.n);
+  const topShare = tallest / sim.trials;
   const step = niceStep(topShare, 4);
   const ceiling = Math.max(step, Math.ceil(topShare / step) * step);
-  const yOf = (share) => PAD.t + ph - (share / ceiling) * ph;
+  const yOf = (share) => top + ph - (share / ceiling) * ph;
 
   // Hairline grid, one shade off the ground, with the share up the side.
   const places = step >= 0.01 ? 1 : step >= 0.001 ? 2 : 3;
-  pen.font = `400 11px ${sans}`;
-  pen.textAlign = "right";
-  pen.textBaseline = "middle";
+  ctx.font = `400 ${small}px ${sans}`;
+  ctx.textAlign = "right";
+  ctx.textBaseline = "middle";
   for (let v = 0; v <= ceiling + 1e-9; v += step) {
     const y = yOf(v);
-    pen.strokeStyle = tone(v === 0 ? 30 : 18, 0.85);
-    pen.lineWidth = 1;
-    pen.beginPath();
-    pen.moveTo(PAD.l, Math.round(y) + 0.5);
-    pen.lineTo(PAD.l + pw, Math.round(y) + 0.5);
-    pen.stroke();
-    pen.fillStyle = text;
-    pen.fillText(v === 0 ? "0%" : `${(v * 100).toFixed(places)}%`, PAD.l - 8, y);
+    ctx.strokeStyle = tone(v === 0 ? 30 : 18, 0.85);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(PAD.l, Math.round(y) + 0.5);
+    ctx.lineTo(PAD.l + pw, Math.round(y) + 0.5);
+    ctx.stroke();
+    ctx.fillStyle = text;
+    ctx.fillText(v === 0 ? "0%" : `${(v * 100).toFixed(places)}%`, PAD.l - 8, y);
   }
 
   const slot = pw / bins.length;
@@ -1774,50 +2133,93 @@ function drawPlot() {
   bins.forEach((b, i) => {
     const x = PAD.l + i * slot;
     const y = yOf(b.n / sim.trials);
-    const tall = PAD.t + ph - y;
+    const tall = top + ph - y;
     const holdsMine = mine !== null && mine >= b.lo && mine <= b.hi;
-    const under = i === hoverBin;
-    pen.fillStyle = under ? tone(84) : holdsMine ? tone(66) : tone(44);
-    pen.fillRect(x, y, wide, Math.max(tall, b.n ? 1 : 0));
+    ctx.fillStyle = i === hover ? tone(84) : holdsMine ? tone(66) : tone(44);
+    ctx.fillRect(x, y, wide, Math.max(tall, b.n ? 1 : 0));
   });
 
   // The total on the table, marked where it falls, because the one thing you
   // want from a distribution is where your own roll sits in it.
   if (mine !== null && mine >= sim.first && mine <= sim.last) {
     const at = PAD.l + ((mine - sim.first + 0.5) / (sim.last - sim.first + 1)) * pw;
-    pen.strokeStyle = bright;
-    pen.globalAlpha = 0.5;
-    pen.setLineDash([]);
-    pen.lineWidth = 1;
-    pen.beginPath();
-    pen.moveTo(Math.round(at) + 0.5, PAD.t - 6);
-    pen.lineTo(Math.round(at) + 0.5, PAD.t + ph);
-    pen.stroke();
-    pen.globalAlpha = 1;
-    pen.fillStyle = bright;
-    pen.textBaseline = "alphabetic";
-    pen.textAlign = at > PAD.l + pw - 90 ? "right" : "left";
-    pen.font = `400 11px ${sans}`;
-    pen.fillText(` you rolled ${mine} `, at, PAD.t - 9);
+    ctx.strokeStyle = bright;
+    ctx.globalAlpha = 0.5;
+    ctx.setLineDash([]);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(Math.round(at) + 0.5, top - 6);
+    ctx.lineTo(Math.round(at) + 0.5, top + ph);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = bright;
+    ctx.textBaseline = "alphabetic";
+    ctx.textAlign = at > PAD.l + pw - 90 ? "right" : "left";
+    ctx.font = `400 ${small}px ${sans}`;
+    ctx.fillText(` you rolled ${mine} `, at, top - 9);
   }
 
   // The totals along the bottom: the ends always, and a few in between.
-  pen.fillStyle = text;
-  pen.textBaseline = "top";
-  pen.font = `400 11px ${sans}`;
+  ctx.fillStyle = text;
+  ctx.textBaseline = "top";
+  ctx.font = `400 ${small}px ${sans}`;
   const marks = Math.max(2, Math.min(7, Math.floor(pw / 70)));
   for (let m = 0; m <= marks; m++) {
     const i = Math.round((m / marks) * (bins.length - 1));
     const b = bins[i];
     const x = PAD.l + i * slot + wide / 2;
-    pen.textAlign = m === 0 ? "left" : m === marks ? "right" : "center";
-    pen.fillText(String(b.lo), m === 0 ? PAD.l : m === marks ? PAD.l + pw : x, PAD.t + ph + 8);
+    ctx.textAlign = m === 0 ? "left" : m === marks ? "right" : "center";
+    ctx.fillText(String(b.lo), m === 0 ? PAD.l : m === marks ? PAD.l + pw : x, top + ph + 8);
   }
-  pen.textAlign = "center";
-  pen.fillText(sim.binWidth > 1 ? `total rolled, ${sim.binWidth} to a bar` : "total rolled",
-    PAD.l + pw / 2, PAD.t + ph + 23);
+  ctx.textAlign = "center";
+  ctx.fillText(sim.binWidth > 1 ? `total rolled, ${sim.binWidth} to a bar` : "total rolled",
+    PAD.l + pw / 2, top + ph + 23);
+}
 
+function drawPlot() {
+  if (!sim) return;
+  readTheme();
+  const ratio = Math.min(window.devicePixelRatio || 1, 3);
+  const { w, h, pw } = plotRoom();
+  if (plot.width !== Math.round(w * ratio) || plot.height !== Math.round(h * ratio)) {
+    plot.width = Math.round(w * ratio);
+    plot.height = Math.round(h * ratio);
+  }
+  pen.setTransform(ratio, 0, 0, ratio, 0, 0);
+  pen.clearRect(0, 0, w, h);
+  const bins = binsFor(pw);
+  paintChart(pen, w, h, bins, hoverBin, null);
   sayBin(hoverBin >= 0 ? hoverBin : null, bins);
+}
+
+/* The same chart, on a sheet of its own with the roll written across the top,
+   saved as a picture. JPEG, so the ground has to be painted in: the page is
+   black on purpose and a flattened transparency would come out white. */
+function saveGraph() {
+  if (!sim) { simFail("There is nothing charted to save yet."); return; }
+  readTheme();
+  const w = 1280;
+  const h = 760;
+  const sheet = document.createElement("canvas");
+  sheet.width = w * 2;
+  sheet.height = h * 2;
+  const ink = sheet.getContext("2d");
+  ink.setTransform(2, 0, 0, 2, 0, 0);
+  ink.fillStyle = getComputedStyle(document.body).backgroundColor || "#000";
+  ink.fillRect(0, 0, w, h);
+  paintChart(ink, w, h, binsFor(plotRoom().pw), -1,
+    { title: sim.expr, note: `${fmt(sim.trials)} throws` });
+
+  sheet.toBlob((blob) => {
+    if (!blob) { simFail("The picture would not save here."); return; }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${sim.expr.replace(/\s+/g, "")}.jpg`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    readout.textContent = `Saved ${a.download}, ${sheet.width} \u00d7 ${sheet.height}.`;
+  }, "image/jpeg", 0.92);
 }
 
 function sayBin(which, bins) {
@@ -1928,7 +2330,8 @@ plot.addEventListener("keydown", (e) => {
   drawPlot();
 });
 
-simBtn.addEventListener("click", startSim);
+simBtn.addEventListener("click", () => startSim());
+el("saveSim").addEventListener("click", saveGraph);
 stopBtn.addEventListener("click", () => finishSim(true));
 runsIn.addEventListener("keydown", (e) => {
   if (e.key !== "Enter") return;

@@ -1,8 +1,10 @@
 import { chromium, CHROMIUM_BIN, WORK } from './lib/env.mjs';
+import fs from 'node:fs';
 
 const URL = 'http://127.0.0.1:8099/dice-roller.html';
 const browser = await chromium.launch({ executablePath: CHROMIUM_BIN });
-const page = await browser.newPage({ viewport: { width: 1180, height: 1400 } });
+const ctx = await browser.newContext({ viewport: { width: 1180, height: 1400 }, acceptDownloads: true });
+const page = await ctx.newPage();
 const errs = [];
 page.on('console', m => { if (m.type() === 'error' && !/favicon/.test(m.text())) errs.push(m.text()); });
 page.on('pageerror', e => errs.push('pageerror: ' + e.message));
@@ -11,8 +13,8 @@ const ok = (n, c, x = '') => console.log((c ? 'PASS' : 'FAIL') + '  ' + n + (c ?
 await page.goto(URL);
 await page.waitForTimeout(200);
 
-const settle = async () => page.waitForFunction(() => dice.length > 0 && dice.every(d => d.resting),
-  null, { timeout: 8000 });
+const settle = async () => page.waitForFunction(() => settled && dice.length > 0,
+  null, { timeout: 15000 });
 
 const breakdown = () => page.evaluate(() => ({
   total: Number(document.getElementById('total').textContent),
@@ -92,17 +94,71 @@ ok('every die shows the number it rolled',
   `${JSON.stringify(up.map(u => u.label))} vs ${JSON.stringify(want)}`);
 ok('every die is square with the table', up.every(u => u.upright > 0.999), JSON.stringify(up.map(u => +u.upright.toFixed(4))));
 
+/* The dice are not steered onto their faces: the throw is run honestly and
+   the numbers are painted on afterwards. What is left at the end is a rock
+   flat onto whatever face the die is lying on, and that is a degree or two.
+   This is the check that the old behaviour — a die snapping round to the
+   right face once it had stopped — cannot pass. */
+const tidying = await page.evaluate(() => {
+  const out = [];
+  document.getElementById('expr').value = '4d6 + 1d20 + 1d4';
+  for (let k = 0; k < 10; k++) {
+    document.getElementById('rollBtn').click();
+    for (const d of dice) backToStart(d);
+    for (let s = 0; s < throwSteps; s++) oneStep(s * (1 / 300));
+    for (const d of dice) {
+      const q = d.quat, t = d.endQuat;
+      const near = Math.min(1, Math.abs(q.w * t.w + q.x * t.x + q.y * t.y + q.z * t.z));
+      out.push(2 * Math.acos(near) * 180 / Math.PI);
+    }
+  }
+  return out.sort((a, b) => a - b);
+});
+const middle = tidying[Math.floor(tidying.length / 2)];
+const nineTenths = tidying[Math.floor(tidying.length * 0.9)];
+ok('a die is left where it stops, not turned onto its face', middle < 5,
+  `the middle die turns ${middle.toFixed(1)} degrees at the end`);
+ok('and nine in ten of them likewise', nineTenths < 20, `${nineTenths.toFixed(1)} degrees`);
+
+/* The numbers are painted on the die rather than kept upright for the camera:
+   turn the die half a turn about the upright and the number has to come round
+   with it. Under the old behaviour the text was re-levelled every frame and
+   this would not move at all. */
+await page.fill('#expr', '1d20');
+await page.click('#rollBtn');
+await settle();
+const painted = await page.evaluate(() => {
+  const d = dice[0];
+  const face = d.shape.reads[d.up];
+  const angle = () => {
+    const mid = add(d.pos, mul(turn(d.quat, face.mid), d.r));
+    const a = project(mid);
+    const b = project(add(mid, mul(turn(d.quat, face.across), 0.3)));
+    return Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI;
+  };
+  const before = angle();
+  d.quat = qMul(qAxis(v3(0, 1, 0), Math.PI), d.quat);
+  spinVerts(d);
+  const after = angle();
+  const square = Math.abs(dot(face.across, face.normal)) + Math.abs(dot(face.down, face.normal));
+  return { moved: Math.abs(((after - before + 540) % 360) - 180), square };
+});
+ok('a number turns with the die', painted.moved > 170,
+  `half a turn moved the number by ${painted.moved.toFixed(1)} degrees`);
+ok('and lies flat on its face', painted.square < 1e-9, painted.square);
+
 let rest = await page.evaluate(() => dice.map(d => {
   let low = Infinity;
-  for (const p of d.shape.pts) low = Math.min(low, turn(d.quat, p).y * d.r);
-  const room = d.shape.radius * d.r;
-  return {
-    sits: +(d.pos.y + low).toFixed(4),
-    inside: Math.abs(d.pos.x) <= TRAY.w - room + 1e-6 && Math.abs(d.pos.z) <= TRAY.d - room + 1e-6,
-  };
+  let out = 0;
+  for (const p of d.shape.pts) {
+    const w = mul(turn(d.quat, p), d.r);
+    low = Math.min(low, w.y);
+    out = Math.max(out, Math.abs(d.pos.x + w.x) - TRAY.w, Math.abs(d.pos.z + w.z) - TRAY.d);
+  }
+  return { sits: +(d.pos.y + low).toFixed(4), inside: out <= 1e-6, out: +out.toFixed(4) };
 }));
 ok('every die sits on the table', rest.every(r => Math.abs(r.sits) < 1e-3), JSON.stringify(rest.map(r => r.sits)));
-ok('no die hangs off the edge', rest.every(r => r.inside), JSON.stringify(rest));
+ok('no corner of a die hangs off the edge', rest.every(r => r.inside), JSON.stringify(rest));
 
 const onScreen = await page.evaluate(() => {
   const w = document.getElementById('tray').clientWidth;
@@ -127,48 +183,75 @@ ok('the tray is not a blank canvas', litUp > 0.02, `only ${(litUp * 100).toFixed
 
 const solids = await page.evaluate(() => {
   const out = {};
-  for (const n of [2, 3, 4, 5, 6, 7, 8, 10, 12, 14, 16, 20, 23, 24, 25, 100]) {
+  for (const n of [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 16, 20, 22, 24, 25, 100]) {
     const s = shapeFor(n);
-    out[n] = { kind: s.kind, reads: s.reads.length, faces: s.faces.length,
-               corners: s.pts.length, sides: s.reads.map(f => f.verts.length) };
+    out[n] = { kind: s.kind, doubled: s.doubled, reads: s.reads.length, faces: s.faces.length,
+               corners: s.pts.length, sides: s.reads.map(f => f.verts.length),
+               paired: s.opposite.every(j => j >= 0) };
   }
   return out;
 });
-const sameShape = (n, kind, reads) => ok(`a d${n} is ${kind} with ${reads} faces to read`,
-  solids[n].kind === kind && solids[n].reads === reads, JSON.stringify(solids[n]));
+const sameShape = (n, kind, reads, doubled = false) =>
+  ok(`a d${n} is ${kind} with ${reads} faces to read${doubled ? ', each number twice' : ''}`,
+    solids[n].kind === kind && solids[n].reads === reads && solids[n].doubled === doubled,
+    JSON.stringify(solids[n]));
 sameShape(2, 'coin', 2);
 sameShape(4, 'tetra', 4);
 sameShape(6, 'cube', 6);
 sameShape(8, 'octa', 8);
-sameShape(10, 'trap', 10);
+sameShape(10, 'trapezohedron', 10);
 sameShape(12, 'dodeca', 12);
 sameShape(20, 'icosa', 20);
-sameShape(3, 'barrel', 3);
-sameShape(7, 'barrel', 7);
-sameShape(23, 'barrel', 23);
-sameShape(14, 'bipyramid', 14);
+sameShape(14, 'trapezohedron', 14);
+sameShape(22, 'trapezohedron', 22);
+sameShape(16, 'bipyramid', 16);
 sameShape(24, 'bipyramid', 24);
+// An odd number of sides is a solid of twice as many faces, each number twice.
+sameShape(3, 'cube', 6, true);
+sameShape(5, 'trapezohedron', 10, true);
+sameShape(7, 'trapezohedron', 14, true);
+sameShape(9, 'trapezohedron', 18, true);
+sameShape(11, 'trapezohedron', 22, true);
+// And past what a solid can carry, the stand-in twenty.
+sameShape(13, 'stand-in', 20);
 sameShape(25, 'stand-in', 20);
 sameShape(100, 'stand-in', 20);
+
 ok('the cube is six squares', solids[6].sides.every(n => n === 4), JSON.stringify(solids[6].sides));
 ok('the dodecahedron is twelve pentagons', solids[12].sides.every(n => n === 5), JSON.stringify(solids[12].sides));
 ok('the icosahedron is twenty triangles', solids[20].sides.every(n => n === 3), JSON.stringify(solids[20].sides));
 ok('the d10 is ten kites', solids[10].sides.every(n => n === 4), JSON.stringify(solids[10].sides));
-ok('a barrel reads its sides, not its points', solids[7].sides.every(n => n === 4) && solids[7].faces === 21,
-  JSON.stringify(solids[7]));
+ok('a bipyramid is triangles', solids[16].sides.every(n => n === 3), JSON.stringify(solids[16].sides));
 ok('a coin reads its two flats', solids[2].sides.every(n => n > 4), JSON.stringify(solids[2].sides));
+// Every face must have one opposite it, or there is nothing on top when the
+// die lands — which is the whole reason the odd numbers are doubled.
+for (const n of [2, 6, 8, 10, 12, 14, 16, 20, 22, 24, 3, 5, 7, 9, 11]) {
+  ok(`every face of a d${n} has one opposite it`, solids[n].paired, JSON.stringify(solids[n]));
+}
 
 const paired = await page.evaluate(() => {
   const out = {};
-  for (const n of [6, 8, 12, 20]) {
+  for (const n of [6, 8, 10, 12, 20, 16, 3, 5, 7]) {
     const shape = shapeFor(n);
-    const labels = labelsFor(shape, n, 1);
-    out[n] = shape.opposite.map((j, i) => (j < 0 ? n + 1 : labels[i] + labels[j]));
+    const labels = labelsFor(shape, n, 1, 0, -1);
+    out[n] = {
+      sums: shape.opposite.map((j, i) => labels[i] + labels[j]),
+      same: shape.opposite.every((j, i) => labels[i] === labels[j]),
+      all: [...new Set(labels)].sort((a, b) => a - b),
+    };
   }
   return out;
 });
-for (const n of [6, 8, 12, 20]) {
-  ok(`opposite faces of a d${n} add to ${n + 1}`, paired[n].every(v => v === n + 1), JSON.stringify(paired[n]));
+for (const n of [6, 8, 10, 12, 20, 16]) {
+  ok(`opposite faces of a d${n} add to ${n + 1}`, paired[n].sums.every(v => v === n + 1),
+    JSON.stringify(paired[n].sums));
+  ok(`a d${n} carries 1 to ${n}`, paired[n].all.length === n && paired[n].all[n - 1] === n,
+    JSON.stringify(paired[n].all));
+}
+for (const n of [3, 5, 7]) {
+  ok(`a doubled d${n} has the same number on opposite faces`, paired[n].same, JSON.stringify(paired[n]));
+  ok(`and carries 1 to ${n}, twice each`,
+    paired[n].all.length === n && paired[n].all[n - 1] === n, JSON.stringify(paired[n].all));
 }
 
 /* ------------------------------------------------- the odd ones out --- */
@@ -253,12 +336,39 @@ ok('a natural twenty is called the top of it', /the top of it$/.test(edges.top |
 ok('a one is called the bottom of it', /the bottom of it$/.test(edges.bottom || ''), edges.bottom);
 ok('everything between is just said plainly', edges.middle === '1d20, out of 1 to 20', edges.middle);
 
+/* The roll beside the table rolls; the throw beside it only throws again. */
+await page.click('#clearBtn');            // the log is at its cap by now
+await page.fill('#expr', '3d6');
+await page.click('#rollBtn');
+await settle();
+const once = await page.evaluate(() => ({
+  values: dice.map(d => d.value).join(','),
+  logged: document.querySelectorAll('.entry').length,
+}));
+await page.click('#rollHere');
+await settle();
+const twice = await page.evaluate(() => ({
+  values: dice.map(d => d.value).join(','),
+  logged: document.querySelectorAll('.entry').length,
+}));
+ok('the roll beside the table is a roll', twice.logged === once.logged + 1,
+  `${once.logged} then ${twice.logged} in the log`);
+await page.click('#againBtn');
+await settle();
+const thrice = await page.evaluate(() => ({
+  values: dice.map(d => d.value).join(','),
+  logged: document.querySelectorAll('.entry').length,
+}));
+ok('throwing again keeps the numbers it had',
+  thrice.values === twice.values && thrice.logged === twice.logged,
+  `${twice.values} then ${thrice.values}`);
+
 /* --------------------------------------------------- setting them down -- */
 
 await page.uncheck('#tumble');
 await page.fill('#expr', '6d20');
 await page.click('#rollBtn');
-const stillRest = await page.evaluate(() => dice.every(d => d.resting));
+const stillRest = await page.evaluate(() => settled && dice.every(d => d.asleep));
 ok('with the throw off the dice are already down', stillRest, 'still moving');
 b = await breakdown();
 up = await showing();
@@ -323,6 +433,53 @@ const point = await page.evaluate(() => {
 });
 ok('pointing at a bar reads that bar', point.under.startsWith(`${point.want}  `), point.under);
 ok('the arrow keys walk to the next one', point.after.startsWith(`${point.want + 1}  `), point.after);
+
+/* A roll of a shape this page has not charted yet runs ten thousand of them
+   by itself, so the chart is never of a different roll than the dice. */
+await page.evaluate(() => { localStorage.clear(); });
+await page.reload();
+await page.fill('#expr', '2d6 + 1');
+await page.click('#rollBtn');
+await page.waitForFunction(() => sim && sim.expr === '2d6 + 1', null, { timeout: 30000 });
+run = await page.evaluate(() => ({
+  trials: sim.trials, expr: sim.expr, say: document.getElementById('simSay').textContent,
+  box: document.getElementById('runs').value,
+  shown: document.getElementById('plotWrap').classList.contains('on'),
+}));
+ok('a new roll charts itself', run.trials === 10000 && run.expr === '2d6 + 1', JSON.stringify(run));
+ok('and says it ran with the roll', /run with the roll/.test(run.say), run.say);
+ok('without touching what you typed', run.box === '', JSON.stringify(run.box));
+ok('and the chart is up', run.shown, 'the plot stayed hidden');
+
+await page.click('#rollBtn');
+await page.waitForTimeout(400);
+ok('rolling the same thing again leaves it alone',
+  await page.evaluate(() => sim.trials) === 10000, await page.evaluate(() => sim.trials));
+
+await page.fill('#runs', '50000');
+await page.click('#simBtn');
+await page.waitForFunction(() => !document.getElementById('simBtn').disabled, null, { timeout: 60000 });
+await page.fill('#runs', '');
+await page.click('#rollBtn');
+await page.waitForTimeout(400);
+ok('and a run you asked for is not thrown away by one',
+  await page.evaluate(() => sim.trials) === 50000, await page.evaluate(() => sim.trials));
+
+// Saving the chart as a picture, titled with the roll.
+const saved = await Promise.all([
+  page.waitForEvent('download', { timeout: 30000 }),
+  page.click('#saveSim'),
+]).then(([d]) => d);
+const landed = WORK + '/dice-graph.jpg';
+await saved.saveAs(landed);
+const bytes = fs.readFileSync(landed);
+ok('the graph saves as a jpeg named after the roll', saved.suggestedFilename() === '2d6+1.jpg',
+  saved.suggestedFilename());
+ok('and it is really a jpeg', bytes[0] === 0xFF && bytes[1] === 0xD8 && bytes[2] === 0xFF,
+  [...bytes.subarray(0, 3)].join(','));
+ok('with something on it', bytes.length > 20000, bytes.length);
+ok('the page says where it went', /Saved 2d6\+1\.jpg/.test(await page.textContent('#readout')),
+  await page.textContent('#readout'));
 
 // The default, which is the whole of what an empty box means.
 await page.fill('#expr', '1d6');

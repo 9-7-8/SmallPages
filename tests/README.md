@@ -54,10 +54,14 @@ Suites are named for the page they exercise. The ones worth knowing about:
   the die on the table is showing what the page says was rolled. It reads each
   die's quaternion back out and works out which labelled face is pointing at
   the ceiling, for every solid the page builds: the Platonic ones, the
-  ten-sided trapezohedron, the barrels for odd numbers, the bipyramids, and the
-  twenty that stands in for a d100. Then the arithmetic — three hundred rolls
-  of a d6 against the range and every face of it, a simulated twenty thousand
-  against the mean and the sixths it should land on.
+  trapezohedra, the bipyramids, the doubled solids an odd number of sides gets,
+  and the twenty that stands in for a d100. Two checks are there because the
+  throw used to be steered: that the last turn a die makes is a degree or two
+  rather than a snap onto the face it was told to show, and that a number
+  painted on a face comes round with the die when it turns rather than staying
+  upright for the camera. Then the arithmetic — three hundred rolls of a d6
+  against the range and every face of it, a simulated twenty thousand against
+  the mean and the sixths it should land on.
 - **`test-pdfb.mjs`** — saves a PDF, reloads it through pdf.js, and reads the
   text back out, which is the only way to prove a copied page stayed a page
   rather than becoming a picture of one.
