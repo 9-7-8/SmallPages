@@ -716,20 +716,40 @@ function whyFailed(err) {
   return err.message || "failed";
 }
 
+const PROBE_TIMEOUT = 8000;
+
 // A no-cors request is sent and its reply thrown away unread, so it succeeds
 // whenever the host answered at all. That is exactly the question a bare
-// "Failed to fetch" leaves open.
+// "Failed to fetch" leaves open — but the probe can itself run out of time,
+// and a slow host is not an absent one. Three answers, not two.
 async function answersAtAll(url) {
   const stopper = new AbortController();
-  const bell = setTimeout(() => stopper.abort(), 8000);
+  const bell = setTimeout(() => stopper.abort(), PROBE_TIMEOUT);
   try {
     await fetch(url, { mode: "no-cors", signal: stopper.signal });
-    return true;
-  } catch {
-    return false;
+    return "yes";
+  } catch (err) {
+    return err.name === "AbortError" ? "slow" : "no";
   } finally {
     clearTimeout(bell);
   }
+}
+
+// Every relay unreachable at once, and a relay answering without the header,
+// are opposite diagnoses: the first points at this end, the second at theirs.
+function hintFor(relays) {
+  if (relays.length > 1 && relays.every((s) => s.kind === "unreachable")) {
+    return " Every relay unreachable at once usually means something at this end is blocking them"
+      + " — an ad blocker, a DNS filter, or no connection — rather than all of them being down"
+      + " together. Open one of the links above in a tab to see which.";
+  }
+  if (relays.some((s) => s.kind === "cors" || s.kind === "slow" || /gave up waiting/.test(s.detail))) {
+    return " A relay that answers without the header, or takes too long to answer at all, is"
+      + " usually rate-limiting you rather than broken — these are free services carrying"
+      + " everybody's traffic. A few minutes sometimes clears it; a relay of your own never has"
+      + " the problem.";
+  }
+  return "";
 }
 
 function logText() {
@@ -839,9 +859,13 @@ async function fetchVia(target, what, check) {
       let said = whyFailed(err);
       if (said === null) {
         trailSet(step, "going", "no answer — checking whether it is there at all…");
-        if (await answersAtAll(route.url)) {
+        const answer = await answersAtAll(route.url);
+        if (answer === "yes") {
           said = "answered, but refused the browser the right to read it";
           step.kind = "cors";
+        } else if (answer === "slow") {
+          said = `still nothing after a further ${PROBE_TIMEOUT / 1000}s — too slow to say which`;
+          step.kind = "slow";
         } else {
           said = "could not be reached — blocked here, offline, or gone";
           step.kind = "unreachable";
@@ -944,14 +968,8 @@ el("fetchBtn").addEventListener("click", async () => {
     console.error(err);
     const failed = trail.filter((s) => s.state === "no");
     const relays = failed.filter((s) => !/· direct$/.test(s.via));
-    // Every relay unreachable is a different diagnosis from every relay
-    // refusing: the first points at this browser or this network, not at them.
-    const allGone = relays.length > 1 && relays.every((s) => s.kind === "unreachable");
     setStatus(`Couldn't fetch them — ${failed.length} route${failed.length === 1 ? "" : "s"} tried, `
-      + `each failing for the reason beside it. The command below will.`
-      + (allGone ? " Every relay unreachable usually means something here is blocking them — "
-        + "an ad blocker, a DNS filter, or no connection — rather than all of them being down at once. "
-        + "Opening one of the links below in a tab will tell you which." : ""), true);
+      + `each failing for the reason beside it. The command below will.${hintFor(relays)}`, true);
   } finally {
     el("fetchBtn").disabled = false;
   }
