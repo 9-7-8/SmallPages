@@ -140,8 +140,8 @@
     <div class="rank">
       <div class="field grow">
         <label for="relayIn">A relay of your own</label>
-        <input type="text" id="relayIn" placeholder="https://your-proxy.example/?url={url} — optional, tried first">
-        <span class="unit">the public ones come and go; one of yours is tried before them</span>
+        <input type="text" id="relayIn" placeholder="http://127.0.0.1:8787/fetch?key=…&url={url} — optional, tried first">
+        <span class="unit" id="relayNote">the public ones come and go; one of yours is tried before them</span>
       </div>
     </div>
 
@@ -643,6 +643,38 @@ for (const id of ["groupSel", "gapIn", "stampSel", "dedupe", "dropSounds", "sent
   el(id).addEventListener("change", render);
   el(id).addEventListener("input", render);
 }
+
+/* ------------------------------------------------- the relay you keep -- */
+
+/* The URL lives in this browser and nowhere else — not in this file, not in
+   the repository, and nowhere this page can send it. Every one of these
+   calls throws in a private window or with site data blocked, so none of
+   them is trusted: a browser that will not store it still works, forgetfully. */
+const RELAY_STORE = "captions-to-transcript.relay";
+const RELAY_HINT = "the public ones come and go; one of yours is tried before them";
+const RELAY_KEPT = "kept in this browser only — empty the box to forget it";
+
+function rememberRelay(value) {
+  try {
+    if (value) localStorage.setItem(RELAY_STORE, value);
+    else localStorage.removeItem(RELAY_STORE);
+  } catch { /* nothing to be done, and nothing that needs doing */ }
+}
+
+function recallRelay() {
+  try { return localStorage.getItem(RELAY_STORE) || ""; } catch { return ""; }
+}
+
+(function keepTheRelay() {
+  const kept = recallRelay();
+  if (kept) el("relayIn").value = kept;
+  el("relayNote").textContent = kept ? RELAY_KEPT : RELAY_HINT;
+  el("relayIn").addEventListener("input", () => {
+    const value = el("relayIn").value.trim();
+    rememberRelay(value);
+    el("relayNote").textContent = value ? RELAY_KEPT : RELAY_HINT;
+  });
+})();
 
 /* ----------------------------------------------------------- the fetching -- */
 
