@@ -160,7 +160,12 @@
 
     <div class="status" id="status">Nothing loaded yet.</div>
 
-    <div class="trail" id="trail" hidden><ol id="trailList"></ol></div>
+    <div class="trail" id="trail" hidden>
+      <ol id="trailList"></ol>
+      <div class="acts" style="margin-top:0.7rem">
+        <button type="button" id="copyLog" class="ghost">Copy this log</button>
+      </div>
+    </div>
 
     <div class="recipe" id="recipe" hidden>
       <h2 style="margin-top:1.4rem">Fetch it yourself</h2>
@@ -675,14 +680,17 @@ function drawTrail() {
     const said = document.createElement("span");
     said.className = "said";
     said.textContent = step.detail;
-    li.append(via, said);
+    if (step.url) li.title = step.url;
+    // A whitespace node between the two: flex does not render it, and it
+    // keeps the columns from running together when the log is copied out.
+    li.append(via, document.createTextNode(" "), said);
     list.append(li);
   }
   el("trail").hidden = !trail.length;
 }
 
-function trailAdd(via, detail) {
-  const step = { via, state: "going", detail };
+function trailAdd(via, detail, url) {
+  const step = { via, state: "going", detail, url };
   trail.push(step);
   drawTrail();
   return step;
@@ -694,17 +702,42 @@ function trailSet(step, state, detail) {
   drawTrail();
 }
 
-// The browser reports a blocked cross-origin read and an unreachable host
-// identically, so the difference has to come from which route it was.
-function whyFailed(err, via) {
+// "Failed to fetch" covers two completely different things: the host was
+// never reached, or it answered perfectly well and would not let the browser
+// read what it said. Reporting both as one message is how the last version
+// misled — so anything that lands here is returned as null and settled by a
+// probe instead of guessed at.
+function whyFailed(err) {
   if (err.name === "AbortError") return `gave up waiting after ${FETCH_TIMEOUT / 1000}s`;
   if (err.status) return `answered ${err.status}`;
   if (err instanceof TypeError || /failed to fetch|networkerror|load failed/i.test(err.message || "")) {
-    return via === "direct"
-      ? "refused the browser the right to read it, as it always will"
-      : "could not be reached at all";
+    return null;
   }
   return err.message || "failed";
+}
+
+// A no-cors request is sent and its reply thrown away unread, so it succeeds
+// whenever the host answered at all. That is exactly the question a bare
+// "Failed to fetch" leaves open.
+async function answersAtAll(url) {
+  const stopper = new AbortController();
+  const bell = setTimeout(() => stopper.abort(), 8000);
+  try {
+    await fetch(url, { mode: "no-cors", signal: stopper.signal });
+    return true;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(bell);
+  }
+}
+
+function logText() {
+  const width = Math.max(...trail.map((s) => s.via.length));
+  return trail.map((s) => {
+    const head = `${s.via.padEnd(width)}  ${s.detail}`;
+    return s.url ? `${head}\n${" ".repeat(width + 2)}${s.url}` : head;
+  }).join("\n");
 }
 
 function videoIdOf(raw) {
@@ -795,7 +828,7 @@ function routesTo(target) {
 // deserves its turn rather than the whole attempt ending there.
 async function fetchVia(target, what, check) {
   for (const route of routesTo(target)) {
-    const step = trailAdd(`${what} · ${route.via}`, "trying…");
+    const step = trailAdd(`${what} · ${route.via}`, "trying…", route.url);
     try {
       let text = await through(route.url);
       if (route.unwrap) text = route.unwrap(text);
@@ -803,7 +836,18 @@ async function fetchVia(target, what, check) {
       trailSet(step, "ok", `worked — ${text.length.toLocaleString()} bytes`);
       return value;
     } catch (err) {
-      trailSet(step, "no", whyFailed(err, route.via));
+      let said = whyFailed(err);
+      if (said === null) {
+        trailSet(step, "going", "no answer — checking whether it is there at all…");
+        if (await answersAtAll(route.url)) {
+          said = "answered, but refused the browser the right to read it";
+          step.kind = "cors";
+        } else {
+          said = "could not be reached — blocked here, offline, or gone";
+          step.kind = "unreachable";
+        }
+      }
+      trailSet(step, "no", said);
     }
   }
   throw new Error(`nothing could fetch ${what}`);
@@ -898,12 +942,26 @@ el("fetchBtn").addEventListener("click", async () => {
     el("recipe").hidden = true;
   } catch (err) {
     console.error(err);
-    const tried = trail.filter((s) => s.state === "no").length;
-    setStatus(`Couldn't fetch them — ${tried} route${tried === 1 ? "" : "s"} tried, `
-      + `every one failed for its own reason above. The command below will.`, true);
+    const failed = trail.filter((s) => s.state === "no");
+    const relays = failed.filter((s) => !/· direct$/.test(s.via));
+    // Every relay unreachable is a different diagnosis from every relay
+    // refusing: the first points at this browser or this network, not at them.
+    const allGone = relays.length > 1 && relays.every((s) => s.kind === "unreachable");
+    setStatus(`Couldn't fetch them — ${failed.length} route${failed.length === 1 ? "" : "s"} tried, `
+      + `each failing for the reason beside it. The command below will.`
+      + (allGone ? " Every relay unreachable usually means something here is blocking them — "
+        + "an ad blocker, a DNS filter, or no connection — rather than all of them being down at once. "
+        + "Opening one of the links below in a tab will tell you which." : ""), true);
   } finally {
     el("fetchBtn").disabled = false;
   }
+});
+
+el("copyLog").addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText(logText());
+    setStatus("Log copied — the link each route was given is in it.");
+  } catch { setStatus("This browser would not let the page copy.", true); }
 });
 
 el("copyCmd").addEventListener("click", async () => {
