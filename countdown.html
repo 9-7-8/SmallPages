@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Countdown</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  /* Layout and sizing only. Colour, type and component styling live in theme.css. */
+
+  body {
+    margin: 0;
+    padding: 2.2rem 1.5rem 4rem;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+  main { max-width: 1020px; margin: 0 auto; }
+
+  p.lede { margin: 0 0 1.6rem; max-width: 62ch; }
+
+  /* ------------------------------------------------------------- the face -- */
+
+  /* The whole point of the page, so it gets the whole width of it and as much
+     height as the digits ask for. Everything under here is settings. */
+  .face {
+    position: relative;
+    width: 100%;
+    background: var(--raised);
+    border: 1px solid var(--line-soft);
+    padding: clamp(1.6rem, 6vw, 3.4rem) 1rem clamp(1.3rem, 4vw, 2.4rem);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.9rem;
+    overflow: hidden;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  .face.live {
+    border-color: var(--neon-deep);
+    box-shadow: inset 0 0 60px hsl(var(--tint) / 0.07);
+  }
+  /* Past zero the box stops being a countdown and starts being a notice, so
+     it takes the whole accent rather than a hairline of it. */
+  .face.over { border-color: var(--neon); box-shadow: inset 0 0 70px hsl(var(--tint) / 0.16); }
+
+  /* How much of the wait is gone, along the bottom edge of the box. It is the
+     edge rather than a bar of its own because a countdown already has one big
+     figure in it and does not need a second thing to read. */
+  .bar {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    height: 2px;
+    width: 0;
+    background: var(--neon);
+    box-shadow: var(--glow-soft);
+    transition: width 0.25s linear;
+  }
+
+  .read {
+    font-weight: 200;
+    /* Sized to the figure rather than to the page: --em is how wide the
+       reading is in its own em, written from the script whenever the shape of
+       it changes, so days appearing does not push the seconds off the edge. */
+    font-size: min(10rem, calc((100vw - 4.5rem) / var(--em, 5.2)));
+    line-height: 0.95;
+    color: var(--text);
+    white-space: nowrap;
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    max-width: 100%;
+  }
+  .face.live .read { color: var(--neon); text-shadow: var(--text-glow); }
+  .face.over .read { color: var(--neon-hot); text-shadow: var(--text-glow); }
+
+  /* Lexend Deca has no tabular figures and no tnum feature to ask for: its 1
+     is two thirds the width of its 0, so a clock set in it re-centres itself
+     every time a digit ticks over. Each glyph gets its own box instead. */
+  .read i {
+    font-style: normal;
+    display: inline-block;
+    width: 0.62em;
+    text-align: center;
+  }
+  .read i.sep { width: 0.3em; opacity: 0.32; }
+  .read i.unit { width: 0.52em; font-size: 0.5em; opacity: 0.55; letter-spacing: 0.02em; }
+  .read i.sign { width: 0.46em; opacity: 0.5; }
+
+  .where {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.76rem;
+    color: var(--text-faint);
+    text-align: center;
+    min-height: 1.2em;
+    padding: 0 0.6rem;
+  }
+
+  /* --------------------------------------------------------- the controls -- */
+
+  .acts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    justify-content: center;
+    margin: 1.3rem 0 0.5rem;
+  }
+  .acts button { min-width: 8rem; }
+  .acts button.ghost { min-width: 0; }
+
+  .status { font-size: 0.85rem; min-height: 1.2em; text-align: center; }
+  .keys { font-family: var(--mono); font-size: 0.72rem; color: var(--text-faint); text-align: center; margin: 0.4rem 0 0; }
+  .keys b { color: var(--text-dim); font-weight: 400; }
+
+  /* --------------------------------------------------------- the settings -- */
+
+  .card { margin-top: 2rem; }
+  h2 { margin: 0 0 1.1rem; }
+
+  .rank { display: flex; flex-wrap: wrap; gap: 1.2rem; align-items: flex-end; }
+  .rank + .rank { margin-top: 1.3rem; padding-top: 1.3rem; border-top: 1px solid var(--line-soft); }
+  .field { display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; }
+  .field label { font-size: 0.8rem; }
+  .field .unit { font-size: 0.72rem; margin-top: 0.1rem; color: var(--text-faint); }
+  .field input[type="number"] { width: 5.5rem; }
+  .field input[type="datetime-local"] {
+    font-family: var(--sans);
+    font-weight: 300;
+    background: var(--sunken);
+    color: var(--text);
+    border: 1px solid var(--line);
+    border-radius: 0;
+    padding: 0.4rem 0.5rem;
+  }
+  .field input[type="datetime-local"]:focus { border-color: var(--neon); box-shadow: var(--glow-soft); outline: none; }
+  .field input[type="range"] { width: 11rem; max-width: 100%; }
+  .pushed { margin-left: auto; }
+
+  .seg button { font-size: 0.8rem; padding: 0.35rem 0.8rem; }
+  .check { display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; color: var(--text-dim); }
+  .check input { margin: 0; }
+
+  .off { display: none; }
+
+  .note { font-size: 0.78rem; margin-top: 1.2rem; max-width: 66ch; }
+  .note strong { color: var(--text-dim); font-weight: 400; }
+  .note code { font-family: var(--mono); font-size: 0.92em; color: var(--text-dim); }
+
+  /* Fullscreen is for leaving it on a spare monitor or a projector, so
+     everything that is not the face steps out of the way. */
+  body.zen { padding: 1.2rem; display: flex; flex-direction: column; justify-content: center; }
+  body.zen main { max-width: none; width: 100%; }
+  body.zen .home, body.zen h1, body.zen p.lede, body.zen .card,
+  body.zen .note, body.zen .keys { display: none; }
+  body.zen .face { padding: clamp(2rem, 9vw, 5rem) 1rem; }
+  body.zen .read { font-size: min(15rem, calc((100vw - 3rem) / var(--em, 5.2))); }
+  body.zen .acts, body.zen .status { transition: opacity 0.6s ease; }
+  body.zen.idle .acts, body.zen.idle .status { opacity: 0; }
+
+  @media (max-width: 620px) {
+    body { padding: 1.6rem 1rem 3.5rem; }
+    .acts { width: 100%; }
+    .acts button { flex: 1 1 40%; min-width: 0; }
+    .pushed { margin-left: 0; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <a class="home" href="index.html">&larr; index</a>
+  <h1>Countdown</h1>
+  <p class="lede">A set number of minutes, or a date to reach &mdash; in figures that take the
+  whole page, with a chime at the end and the clock still right when the tab wakes up.</p>
+
+  <div class="face" id="face">
+    <div class="read" id="read" role="timer" aria-live="off"></div>
+    <div class="where" id="where"></div>
+    <div class="bar" id="bar"></div>
+  </div>
+
+  <div class="acts">
+    <button type="button" id="goBtn">Start</button>
+    <button type="button" id="resetBtn" class="ghost">Reset</button>
+    <button type="button" id="fullBtn" class="ghost">Fullscreen</button>
+  </div>
+
+  <div class="status" id="status"></div>
+  <p class="keys" id="keys"><b>space</b> start and pause &middot; <b>r</b> reset</p>
+
+  <div class="card">
+    <h2>What to count to</h2>
+
+    <div class="rank">
+      <div class="field">
+        <label>Count</label>
+        <div class="seg" id="modeSeg">
+          <button type="button" data-mode="length" class="on">A length</button>
+          <button type="button" data-mode="date">To a date</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="rank" id="lengthRow">
+      <div class="field">
+        <label for="hoursIn">Hours</label>
+        <input type="number" id="hoursIn" min="0" max="999" step="1" value="0">
+      </div>
+      <div class="field">
+        <label for="minsIn">Minutes</label>
+        <input type="number" id="minsIn" min="0" max="59" step="1" value="10">
+      </div>
+      <div class="field">
+        <label for="secsIn">Seconds</label>
+        <input type="number" id="secsIn" min="0" max="59" step="1" value="0">
+      </div>
+      <div class="field pushed">
+        <label>Presets</label>
+        <div class="seg" id="lengthSeg">
+          <button type="button" data-secs="60">1m</button>
+          <button type="button" data-secs="300">5m</button>
+          <button type="button" data-secs="600">10m</button>
+          <button type="button" data-secs="1500">25m</button>
+          <button type="button" data-secs="2700">45m</button>
+          <button type="button" data-secs="3600">1h</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="rank off" id="dateRow">
+      <div class="field">
+        <label for="dateIn">The moment to reach</label>
+        <input type="datetime-local" id="dateIn" step="1">
+        <span class="unit">your own clock, this browser's time zone</span>
+      </div>
+      <div class="field pushed">
+        <label>Presets</label>
+        <div class="seg" id="dateSeg">
+          <button type="button" data-when="midnight">End of today</button>
+          <button type="button" data-when="tomorrow">This time tomorrow</button>
+          <button type="button" data-when="monday">Monday, 9am</button>
+          <button type="button" data-when="year">New year</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="rank">
+      <div class="field">
+        <label for="volIn">Chime <span id="volOut"></span></label>
+        <input type="range" id="volIn" min="0" max="100" step="1" value="55">
+        <span class="unit">when it reaches zero &mdash; 0 is silent</span>
+      </div>
+      <div class="field">
+        <label class="check"><input type="checkbox" id="pastIn" checked> Keep counting past zero</label>
+        <span class="unit">off stops dead on nought</span>
+      </div>
+    </div>
+  </div>
+
+  <p class="note"><strong>Two different things, one page.</strong> <em>A length</em> is a timer:
+  it starts when you start it, pauses, resumes and resets, and the figure is how much of the
+  stretch is left. <em>To a date</em> is a date in the diary: there is nothing to start, because
+  the moment arrives whether anyone is watching or not, so the count runs as soon as there is a
+  date in the box and the only control that means anything is clearing it. The line under the
+  digits says which moment is being counted to, in full.</p>
+
+  <p class="note"><strong>It counts from the clock, not from its own ticks.</strong> What is left
+  is the difference between now and the moment it is due, worked out fresh every frame, rather
+  than a thousand subtractions that each lose a little. Browsers throttle a tab you are not
+  looking at and a locked phone stops it altogether; come back and the figure is already right,
+  because nothing was being counted while you were away. A length that was running when the tab
+  closed is still running when the page opens again.</p>
+
+  <p class="note"><strong>Past zero it keeps going.</strong> The box turns and the figure counts
+  up with a <code>+</code> in front of it, because the useful question after a deadline is
+  usually how far past it you are. Turn <em>keep counting past zero</em> off and it stops dead on
+  nought instead. A date that is already behind you shows as overtime straight away, which is how
+  <em>Monday, 9am</em> on a Monday afternoon reads.</p>
+
+  <p class="note"><strong>The chime is made here, not played from a file.</strong> Struck tones
+  from the browser's own audio engine, a fall of four. Browsers will not let a page make sound
+  until you have asked it to, which is why the first start is also what builds it &mdash; and why
+  a date countdown you only watched rather than started may reach zero silently. A chime that
+  falls due while the tab is asleep arrives late or not at all; the figure is the signal to
+  trust.</p>
+
+  <p class="note"><strong>It remembers.</strong> Which of the two you were counting, the length,
+  the date, the chime volume and whether a length was running are kept in this browser, on this
+  page. Nothing is sent anywhere.</p>
+</main>
+
+<script>
+"use strict";
+
+const el = (id) => document.getElementById(id);
+
+const faceEl   = el("face");
+const readEl   = el("read");
+const whereEl  = el("where");
+const barEl    = el("bar");
+const goBtn    = el("goBtn");
+const resetBtn = el("resetBtn");
+const fullBtn  = el("fullBtn");
+const statusEl = el("status");
+
+const hoursIn = el("hoursIn");
+const minsIn  = el("minsIn");
+const secsIn  = el("secsIn");
+const dateIn  = el("dateIn");
+const volIn   = el("volIn");
+const volOut  = el("volOut");
+const pastIn  = el("pastIn");
+
+const KEY = "smallpages.countdown";
+const DASH = "—";
+
+/* ---------------------------------------------------------------- state -- */
+
+let mode = "length";       // length · date
+let running = false;
+let left = 0;              // what is left, in ms, while a length is paused
+let endAt = 0;             // when it is due, epoch ms
+let armed = 0;             // when the current count started, for the bar
+let rang = false;          // the chime for this count has been struck
+let frame = 0;
+let shownTime = "";
+let shownRest = "";
+
+const now = () => Date.now();
+
+const clamp = (n, lo, hi, fallback) =>
+  Number.isFinite(n) ? Math.min(hi, Math.max(lo, Math.round(n))) : fallback;
+
+const box = (input, lo, hi, fallback) =>
+  clamp(input.value === "" ? NaN : Number(input.value), lo, hi, fallback);
+
+const lengthMs = () =>
+  (box(hoursIn, 0, 999, 0) * 3600 + box(minsIn, 0, 59, 10) * 60 + box(secsIn, 0, 59, 0)) * 1000;
+
+// The moment in the date box, or null when there is nothing readable in it.
+function dateMs() {
+  const raw = dateIn.value;
+  if (!raw) return null;
+  const at = new Date(raw).getTime();
+  return Number.isFinite(at) ? at : null;
+}
+
+/* How much is left, in ms. Negative once the moment is behind us, which is
+   what the overtime reading is drawn from. */
+function remaining() {
+  if (mode === "date") {
+    const at = dateMs();
+    return at === null ? null : at - now();
+  }
+  return running ? endAt - now() : left;
+}
+
+/* --------------------------------------------------------------- saving -- */
+
+function save() {
+  const kept = {
+    mode, running, left, endAt, armed,
+    hours: hoursIn.value, mins: minsIn.value, secs: secsIn.value,
+    date: dateIn.value, vol: volIn.value, past: pastIn.checked,
+  };
+  try { localStorage.setItem(KEY, JSON.stringify(kept)); } catch { /* private mode, fine */ }
+}
+
+function load() {
+  let kept = null;
+  try { kept = JSON.parse(localStorage.getItem(KEY) || "null"); } catch { /* nothing kept */ }
+  if (!kept || typeof kept !== "object") return;
+  // Whatever is in storage goes through the input's own bounds on the way in,
+  // so a hand-edited key shows a number the page would have allowed. Every
+  // read is clamped again anyway, which is what actually keeps it honest.
+  for (const [field, input, lo, hi, fallback] of [["hours", hoursIn, 0, 999, 0],
+                                                  ["mins", minsIn, 0, 59, 10],
+                                                  ["secs", secsIn, 0, 59, 0],
+                                                  ["vol", volIn, 0, 100, 55]]) {
+    if (kept[field] === undefined || kept[field] === null) continue;
+    input.value = String(clamp(Number(kept[field]), lo, hi, fallback));
+  }
+  if (typeof kept.date === "string") dateIn.value = kept.date.slice(0, 19);
+  if (typeof kept.past === "boolean") pastIn.checked = kept.past;
+  if (kept.mode === "date") mode = "date";
+  if (Number.isFinite(kept.left)) left = Math.max(0, kept.left);
+  if (Number.isFinite(kept.armed)) armed = kept.armed;
+  if (kept.running && Number.isFinite(kept.endAt)) {
+    running = true;
+    endAt = kept.endAt;
+    // A length that ran out while the page was closed has already rung as far
+    // as anyone is concerned; it comes back in overtime rather than chiming.
+    rang = endAt <= now();
+  }
+}
+
+/* ---------------------------------------------------------------- chime -- */
+
+let ctx = null;
+
+function wakeAudio() {
+  try {
+    if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state === "suspended") ctx.resume();
+  } catch (err) {
+    console.error(err);
+    ctx = null;
+  }
+}
+
+// A struck tone: the fundamental with two quieter partials over it, each
+// decaying on its own exponential, which is as near a bell as three
+// oscillators get for nothing.
+function strike(freq, at, hold, level) {
+  for (const [mult, share] of [[1, 1], [2, 0.3], [3, 0.09]]) {
+    const osc = ctx.createOscillator();
+    const env = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.value = freq * mult;
+    env.gain.setValueAtTime(0.0001, at);
+    env.gain.exponentialRampToValueAtTime(level * share, at + 0.012);
+    env.gain.exponentialRampToValueAtTime(0.0001, at + hold);
+    osc.connect(env).connect(ctx.destination);
+    osc.start(at);
+    osc.stop(at + hold + 0.05);
+  }
+}
+
+// Loudness is nearer the square of a fader's travel than its travel.
+const shape = (pct) => (pct / 100) ** 2;
+
+const FALL = [[880, 0], [698.46, 0.2], [587.33, 0.4], [440, 0.62]];
+
+function chime() {
+  const level = shape(Number(volIn.value) || 0) * 0.5;
+  if (!ctx || level <= 0) return;
+  const at = ctx.currentTime + 0.02;
+  for (const [freq, offset] of FALL) strike(freq, at + offset, 1.7, level);
+}
+
+/* ------------------------------------------------------------ the clock -- */
+
+const pad = (n, wide = 2) => String(n).padStart(wide, "0");
+
+/* Rounded up, not down, which is what a countdown does: 00:01 stands until
+   the second is actually gone, and 00:00 means nought. Overtime rounds the
+   other way for the same reason — +00:01 means a second has passed. */
+function clockOf(ms) {
+  const over = ms < 0;
+  const total = over ? Math.floor(-ms / 1000) : Math.ceil(ms / 1000);
+  const days = Math.floor(total / 86400);
+  const hours = Math.floor(total / 3600) % 24;
+  const mins = Math.floor(total / 60) % 60;
+  const secs = total % 60;
+  const body = days ? `${days}d ${pad(hours)}:${pad(mins)}:${pad(secs)}`
+    : total >= 3600 ? `${hours}:${pad(mins)}:${pad(secs)}`
+    : `${pad(mins)}:${pad(secs)}`;
+  return (over ? "+" : "") + body;
+}
+
+// How wide each kind of glyph's box is, in em, and so how wide the whole
+// reading is: the one number the font size is worked out from.
+const BOX = { digit: 0.62, sep: 0.3, unit: 0.52, sign: 0.46, space: 0.26 };
+
+// Each glyph has its own box, so the row is rebuilt only when the number of
+// them changes and is otherwise written over a character at a time.
+function writeTime(str) {
+  if (str === shownTime) return;
+  if (str.length !== shownTime.length) {
+    readEl.textContent = "";
+    let wide = 0;
+    for (const ch of str) {
+      const cell = document.createElement("i");
+      if (ch === ":") { cell.className = "sep"; wide += BOX.sep; }
+      else if (ch === "d") { cell.className = "unit"; wide += BOX.unit; }
+      else if (ch === "+") { cell.className = "sign"; wide += BOX.sign; }
+      else if (ch === " ") { cell.className = "unit"; wide += BOX.space; }
+      else wide += BOX.digit;
+      cell.textContent = ch === " " ? " " : ch;
+      readEl.append(cell);
+    }
+    readEl.style.setProperty("--em", wide.toFixed(2));
+  } else {
+    for (let i = 0; i < str.length; i++) {
+      const want = str[i] === " " ? " " : str[i];
+      if (readEl.children[i].textContent !== want) readEl.children[i].textContent = want;
+    }
+  }
+  shownTime = str;
+}
+
+const WHEN = { weekday: "short", day: "numeric", month: "short", year: "numeric",
+               hour: "2-digit", minute: "2-digit", hour12: false };
+
+function inWords(ms) {
+  const s = Math.max(0, Math.round(ms / 1000));
+  const bits = [];
+  const days = Math.floor(s / 86400);
+  const hours = Math.floor(s / 3600) % 24;
+  const mins = Math.floor(s / 60) % 60;
+  if (days) bits.push(`${days} day${days === 1 ? "" : "s"}`);
+  if (hours) bits.push(`${hours} hour${hours === 1 ? "" : "s"}`);
+  if (mins && !days) bits.push(`${mins} minute${mins === 1 ? "" : "s"}`);
+  if (!bits.length) bits.push(`${s} second${s === 1 ? "" : "s"}`);
+  return bits.join(", ");
+}
+
+function say(text) { statusEl.textContent = text; }
+
+/* ------------------------------------------------------------- the paint -- */
+
+function paint() {
+  const ms = remaining();
+
+  // Which of the two is being counted is the one thing on this page that has
+  // to be right before anything else is, so it is set every time rather than
+  // behind the comparison that keeps the rest of this cheap: with no date in
+  // the box there is no figure to compare, and a Start button that does
+  // nothing would sit there until one was typed.
+  goBtn.hidden = mode === "date";
+  resetBtn.textContent = mode === "date" ? "Clear the date" : "Reset";
+  el("keys").innerHTML = mode === "date"
+    ? "<b>r</b> clear the date"
+    : "<b>space</b> start and pause &middot; <b>r</b> reset";
+
+  if (ms === null) {
+    writeTime("00:00");
+    faceEl.classList.remove("live", "over");
+    barEl.style.width = "0";
+    whereEl.textContent = "No date set yet.";
+    document.title = "Countdown";
+    readEl.setAttribute("aria-label", "No date set yet");
+    return;
+  }
+
+  const held = !pastIn.checked && ms <= 0;
+  const show = held ? 0 : ms;
+  writeTime(clockOf(show));
+
+  const over = show < 0;
+  const live = mode === "date" ? !over : running;
+  const span = Math.max(1, endAt - armed);
+  const gone = Math.min(1, Math.max(0, (now() - armed) / span));
+
+  const key = [clockOf(show), live, over, mode, held].join("|");
+  if (key === shownRest) return;
+  shownRest = key;
+
+  faceEl.classList.toggle("live", live && !over);
+  faceEl.classList.toggle("over", over);
+  barEl.style.width = armed && !over ? `${(gone * 100).toFixed(2)}%` : over ? "100%" : "0";
+
+  const at = new Date(mode === "date" ? (dateMs() ?? 0) : endAt);
+  if (mode === "date") {
+    whereEl.textContent = over
+      ? `${at.toLocaleString("en-GB", WHEN)} ${DASH} ${inWords(-ms)} ago`
+      : `${at.toLocaleString("en-GB", WHEN)} ${DASH} ${inWords(ms)} to go`;
+  } else if (running) {
+    whereEl.textContent = over
+      ? `was due at ${at.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`
+      : `ends at ${at.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`;
+  } else {
+    whereEl.textContent = left > 0 && left < lengthMs() ? "paused" : "ready";
+  }
+
+  goBtn.textContent = running ? "Pause" : (left > 0 && left < lengthMs() ? "Resume" : "Start");
+
+  document.title = mode === "date" && dateMs() === null
+    ? "Countdown"
+    : `${clockOf(show)} · Countdown`;
+  readEl.setAttribute("aria-label",
+    over ? `${inWords(-ms)} past` : `${inWords(ms)} left`);
+}
+
+function loop() {
+  const ms = remaining();
+
+  if (ms !== null && ms <= 0 && !rang) {
+    rang = true;
+    chime();
+    say(mode === "date" ? "The moment has come." : "Time.");
+    if (!pastIn.checked) {
+      running = false;
+      left = 0;
+      save();
+    }
+  }
+
+  paint();
+  // A length that has been stopped dead on nought has nothing left to draw;
+  // a date, and anything still counting, keeps the frame.
+  const moving = mode === "date" ? dateMs() !== null : running;
+  frame = moving && (pastIn.checked || (ms !== null && ms > 0))
+    ? requestAnimationFrame(loop) : 0;
+}
+
+function restart() {
+  cancelAnimationFrame(frame);
+  frame = 0;
+  shownRest = "";
+  loop();
+}
+
+/* ------------------------------------------------------------- the deeds -- */
+
+function start() {
+  if (mode === "date" || running) return;
+  wakeAudio();
+  const span = left > 0 && left < lengthMs() ? left : lengthMs();
+  if (span <= 0) { say("Set a length first."); return; }
+  running = true;
+  rang = false;
+  armed = now();
+  endAt = armed + span;
+  left = span;
+  say(`${clockOf(span)} ${DASH} running.`);
+  save();
+  restart();
+}
+
+function pause() {
+  if (!running) return;
+  left = Math.max(0, endAt - now());
+  running = false;
+  say(`Paused with ${clockOf(left)} left.`);
+  save();
+  restart();
+}
+
+function reset() {
+  if (mode === "date") {
+    dateIn.value = "";
+    armed = 0;
+    rang = false;
+    say("Date cleared.");
+    save();
+    restart();
+    return;
+  }
+  running = false;
+  rang = false;
+  armed = 0;
+  left = lengthMs();
+  endAt = 0;
+  say(`Back to ${clockOf(left)}.`);
+  save();
+  restart();
+}
+
+/* The date box arms the count by itself: there is nothing to press, because
+   the moment arrives whether anyone pressed anything or not. Arming from now
+   is what gives the bar along the bottom something to measure against. */
+function armDate() {
+  const at = dateMs();
+  rang = at !== null && at <= now();
+  if (at === null) { armed = 0; endAt = 0; }
+  else {
+    armed = Math.min(now(), armed || now());
+    endAt = at;
+    wakeAudio();
+    say(`Counting to ${new Date(at).toLocaleString("en-GB", WHEN)}.`);
+  }
+  save();
+  restart();
+}
+
+function setMode(want) {
+  if (want === mode) return;
+  mode = want;
+  for (const b of el("modeSeg").querySelectorAll("button")) {
+    b.classList.toggle("on", b.dataset.mode === want);
+  }
+  el("lengthRow").classList.toggle("off", want !== "length");
+  el("dateRow").classList.toggle("off", want !== "date");
+  if (want === "date") {
+    running = false;
+    armed = 0;
+    armDate();
+    return;
+  }
+  rang = false;
+  left = lengthMs();
+  armed = 0;
+  say(`Ready for ${clockOf(left)}.`);
+  save();
+  restart();
+}
+
+goBtn.addEventListener("click", () => (running ? pause() : start()));
+resetBtn.addEventListener("click", reset);
+
+el("modeSeg").addEventListener("click", (e) => {
+  const want = e.target instanceof HTMLElement && e.target.dataset.mode;
+  if (want) setMode(want);
+});
+
+el("lengthSeg").addEventListener("click", (e) => {
+  const secs = e.target instanceof HTMLElement && Number(e.target.dataset.secs);
+  if (!secs) return;
+  hoursIn.value = String(Math.floor(secs / 3600));
+  minsIn.value = String(Math.floor(secs / 60) % 60);
+  secsIn.value = String(secs % 60);
+  running = false;
+  rang = false;
+  left = lengthMs();
+  say(`Ready for ${clockOf(left)}.`);
+  save();
+  restart();
+});
+
+for (const input of [hoursIn, minsIn, secsIn]) {
+  input.addEventListener("input", () => {
+    if (running) return;                      // changing it mid-run is the next run's business
+    left = lengthMs();
+    rang = false;
+    save();
+    restart();
+  });
+}
+
+dateIn.addEventListener("input", () => { armed = 0; armDate(); });
+
+el("dateSeg").addEventListener("click", (e) => {
+  const want = e.target instanceof HTMLElement && e.target.dataset.when;
+  if (!want) return;
+  const at = new Date();
+  at.setSeconds(0, 0);
+  if (want === "midnight") { at.setHours(24, 0, 0, 0); }
+  if (want === "tomorrow") { at.setDate(at.getDate() + 1); }
+  if (want === "monday") {
+    at.setHours(9, 0, 0, 0);
+    // Monday of next week, and today only if it is a Monday with the hour
+    // still ahead: "Monday, 9am" on Monday at ten means the one after.
+    const ahead = (8 - at.getDay()) % 7;
+    at.setDate(at.getDate() + (at.getDay() === 1 && at.getTime() > Date.now() ? 0 : ahead || 7));
+  }
+  if (want === "year") { at.setFullYear(at.getFullYear() + 1, 0, 1); at.setHours(0, 0, 0, 0); }
+  // A datetime-local box wants local time written out, not an ISO instant.
+  const put = (n, wide = 2) => String(n).padStart(wide, "0");
+  dateIn.value = `${at.getFullYear()}-${put(at.getMonth() + 1)}-${put(at.getDate())}`
+    + `T${put(at.getHours())}:${put(at.getMinutes())}:${put(at.getSeconds())}`;
+  armed = 0;
+  armDate();
+});
+
+volIn.addEventListener("input", () => {
+  volOut.textContent = Number(volIn.value) === 0 ? "(silent)" : `${volIn.value}%`;
+  save();
+});
+
+pastIn.addEventListener("change", () => { save(); restart(); });
+
+/* --------------------------------------------------------- the fullscreen -- */
+
+let stillFor = 0;
+
+fullBtn.addEventListener("click", () => {
+  if (document.fullscreenElement) document.exitFullscreen();
+  else document.documentElement.requestFullscreen?.().catch(() => {
+    // No fullscreen on offer: the layout is the useful half of it anyway.
+    document.body.classList.toggle("zen");
+  });
+});
+
+document.addEventListener("fullscreenchange", () => {
+  const on = Boolean(document.fullscreenElement);
+  document.body.classList.toggle("zen", on);
+  fullBtn.textContent = on ? "Leave fullscreen" : "Fullscreen";
+  if (!on) document.body.classList.remove("idle");
+});
+
+for (const kind of ["pointermove", "keydown", "focusin"]) {
+  window.addEventListener(kind, () => {
+    stillFor = 0;
+    document.body.classList.remove("idle");
+  });
+}
+setInterval(() => {
+  if (!document.body.classList.contains("zen")) return;
+  stillFor += 1;
+  if (stillFor >= 4) document.body.classList.add("idle");
+}, 1000);
+
+/* -------------------------------------------------------------- the keys -- */
+
+window.addEventListener("keydown", (e) => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const at = e.target;
+  if (at instanceof HTMLElement && /^(INPUT|TEXTAREA|SELECT)$/.test(at.tagName)) return;
+  if (e.key === " " || e.code === "Space") {
+    e.preventDefault();
+    if (mode === "date") return;
+    if (running) pause(); else start();
+    return;
+  }
+  if (e.key === "r" || e.key === "R") { e.preventDefault(); reset(); }
+});
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState !== "visible") return;
+  restart();
+});
+
+/* --------------------------------------------------------------- opening -- */
+
+load();
+volOut.textContent = Number(volIn.value) === 0 ? "(silent)" : `${volIn.value}%`;
+for (const b of el("modeSeg").querySelectorAll("button")) {
+  b.classList.toggle("on", b.dataset.mode === mode);
+}
+el("lengthRow").classList.toggle("off", mode !== "length");
+el("dateRow").classList.toggle("off", mode !== "date");
+if (mode === "length" && !running && left <= 0) left = lengthMs();
+say(mode === "date"
+  ? (dateMs() === null ? "Pick a moment to count to." : "Counting.")
+  : running ? "Still running from before." : `Ready for ${clockOf(left)}.`);
+restart();
+</script>
+</body>
+</html>

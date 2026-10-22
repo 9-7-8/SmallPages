@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stopwatch</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  /* Layout and sizing only. Colour, type and component styling live in theme.css. */
+
+  body {
+    margin: 0;
+    padding: 2.2rem 1.5rem 4rem;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+  main { max-width: 1020px; margin: 0 auto; }
+
+  p.lede { margin: 0 0 1.6rem; max-width: 60ch; }
+
+  /* ------------------------------------------------------------- the face -- */
+
+  /* The whole point of the page, so it gets the whole width of it and as much
+     height as the digits ask for. Everything else on the page is a footnote to
+     this box. */
+  .face {
+    position: relative;
+    width: 100%;
+    background: var(--raised);
+    border: 1px solid var(--line-soft);
+    padding: clamp(1.6rem, 6vw, 3.4rem) 1rem clamp(1.3rem, 4vw, 2.4rem);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.9rem;
+    overflow: hidden;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  /* Running is a state worth seeing from across a room, so the box itself
+     lights rather than a word somewhere saying so. */
+  .face.live {
+    border-color: var(--neon-deep);
+    box-shadow: inset 0 0 60px hsl(var(--tint) / 0.07);
+  }
+
+  .read {
+    font-weight: 200;
+    /* Sized to the figure rather than to the page: --em is how wide the
+       reading is in its own em, written from the script every time the shape
+       of it changes, so an hour appearing does not push the hundredths off
+       the edge and a phone gets a reading that fits it. */
+    font-size: min(10rem, calc((100vw - 4.5rem) / var(--em, 3.9)));
+    line-height: 0.95;
+    color: var(--text);
+    white-space: nowrap;
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    max-width: 100%;
+  }
+  .face.live .read { color: var(--neon); text-shadow: var(--text-glow); }
+
+  /* Lexend Deca has no tabular figures and no tnum feature to ask for: its 1
+     is two thirds the width of its 0, so a clock set in it re-centres itself
+     every time a digit ticks over. Each glyph gets its own box instead. */
+  .read i {
+    font-style: normal;
+    display: inline-block;
+    width: 0.62em;
+    text-align: center;
+  }
+  .read i.sep { width: 0.3em; opacity: 0.32; }
+  /* The hundredths are there to be watched, not read: they sit a size down and
+     a shade back so the seconds stay the figure your eye lands on. */
+  .read i.cs { width: 0.44em; font-size: 0.56em; opacity: 0.6; }
+  .read i.dot { width: 0.22em; font-size: 0.56em; opacity: 0.4; }
+
+  .since {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.76rem;
+    color: var(--text-faint);
+    text-align: center;
+    min-height: 1.2em;
+  }
+
+  /* --------------------------------------------------------- the controls -- */
+
+  .acts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    justify-content: center;
+    margin: 1.3rem 0 0.5rem;
+  }
+  .acts button { min-width: 8rem; }
+  .acts button.ghost { min-width: 0; }
+
+  .status { font-size: 0.85rem; min-height: 1.2em; text-align: center; }
+  .keys { font-family: var(--mono); font-size: 0.72rem; color: var(--text-faint); text-align: center; margin: 0.4rem 0 0; }
+  .keys b { color: var(--text-dim); font-weight: 400; }
+
+  /* ------------------------------------------------------------- the laps -- */
+
+  .card { margin-top: 2rem; }
+  .cardTop { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; margin-bottom: 0.8rem; }
+  .cardTop .label { font-size: 0.8rem; color: var(--text-dim); letter-spacing: 0.02em; }
+  .cardTop .acts { margin: 0 0 0 auto; }
+
+  .laps { max-height: 22rem; overflow: auto; }
+  .laps table { border-collapse: collapse; width: 100%; font-size: 0.84rem; }
+  .laps th, .laps td {
+    border-bottom: 1px solid var(--line-soft);
+    padding: 0.42rem 0.5rem;
+    text-align: right;
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+  }
+  .laps th {
+    position: sticky;
+    top: 0;
+    background: var(--raised);
+    color: var(--text-faint);
+    font-weight: 400;
+    font-family: var(--sans);
+    font-size: 0.74rem;
+    letter-spacing: 0.04em;
+  }
+  .laps td:first-child, .laps th:first-child { text-align: left; color: var(--text-faint); }
+  .laps td.now { color: var(--neon); }
+  .laps tr.best td.lap { color: var(--neon-hot); text-shadow: var(--text-glow); }
+  .laps tr.worst td.lap { color: var(--text-faint); }
+  .laps .mark { font-family: var(--sans); font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; }
+
+  .empty { font-size: 0.85rem; color: var(--text-faint); padding: 0.6rem 0.2rem; }
+
+  /* The spread of the laps, drawn as one bar each: the shape of a set of laps
+     says more at a glance than the figures do. */
+  .bars { display: flex; flex-direction: column; gap: 2px; margin-top: 1rem; }
+  .bars .row { display: flex; align-items: center; gap: 0.5rem; }
+  .bars .no { font-family: var(--mono); font-size: 0.68rem; color: var(--text-faint); flex: 0 0 2.2ch; text-align: right; }
+  .bars .bar { height: 7px; background: var(--neon-deep); flex: none; min-width: 1px; }
+  .bars .row.best .bar { background: var(--neon); box-shadow: var(--glow-soft); }
+  .bars .at { font-family: var(--mono); font-size: 0.68rem; color: var(--text-faint); }
+
+  .figures {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 1.6rem;
+    margin-top: 1rem;
+    font-size: 0.78rem;
+    color: var(--text-faint);
+  }
+  .figures b {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-weight: 400;
+    color: var(--text);
+  }
+
+  .note { font-size: 0.78rem; margin-top: 1.2rem; max-width: 66ch; }
+  .note strong { color: var(--text-dim); font-weight: 400; }
+  .note code { font-family: var(--mono); font-size: 0.92em; color: var(--text-dim); }
+
+  /* Fullscreen is for leaving it on a spare monitor or pointing a camera at
+     it, so everything that is not the face steps out of the way. */
+  body.zen { padding: 1.2rem; display: flex; flex-direction: column; justify-content: center; }
+  body.zen main { max-width: none; width: 100%; }
+  body.zen .home, body.zen h1, body.zen p.lede, body.zen .card,
+  body.zen .note, body.zen .keys { display: none; }
+  body.zen .face { padding: clamp(2rem, 9vw, 5rem) 1rem; }
+  body.zen .read { font-size: min(15rem, calc((100vw - 3rem) / var(--em, 3.9))); }
+  body.zen .acts, body.zen .status { transition: opacity 0.6s ease; }
+  body.zen.idle .acts, body.zen.idle .status { opacity: 0; }
+
+  @media (max-width: 620px) {
+    body { padding: 1.6rem 1rem 3.5rem; }
+    .acts { width: 100%; }
+    .acts button { flex: 1 1 40%; min-width: 0; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <a class="home" href="index.html">&larr; index</a>
+  <h1>Stopwatch</h1>
+  <p class="lede">Start it, take laps, stop it &mdash; to the hundredth of a second, in figures
+  big enough to read from the other side of a room.</p>
+
+  <div class="face" id="face">
+    <div class="read" id="read" role="timer" aria-live="off"></div>
+    <div class="since" id="since"></div>
+  </div>
+
+  <div class="acts">
+    <button type="button" id="goBtn">Start</button>
+    <button type="button" id="lapBtn" disabled>Lap</button>
+    <button type="button" id="resetBtn" class="ghost" disabled>Reset</button>
+    <button type="button" id="fullBtn" class="ghost">Fullscreen</button>
+  </div>
+
+  <div class="status" id="status">Nothing timed yet.</div>
+  <p class="keys"><b>space</b> start and stop &middot; <b>l</b> lap &middot; <b>r</b> reset</p>
+
+  <div class="card">
+    <div class="cardTop">
+      <span class="label">Laps</span>
+      <div class="acts">
+        <button type="button" id="copyBtn" class="ghost" disabled>Copy</button>
+        <button type="button" id="clearBtn" class="ghost" disabled>Clear the laps</button>
+      </div>
+    </div>
+    <div class="laps" id="laps"></div>
+    <div class="bars" id="bars"></div>
+    <div class="figures" id="figures"></div>
+  </div>
+
+  <p class="note"><strong>It counts from the clock, not from its own ticks.</strong> The running
+  stretch is the difference between two timestamps rather than a count of frames, so a tab the
+  browser throttles, a phone that locks, or a window left behind another one for an hour all come
+  back showing the right number. The reading is redrawn as often as the screen refreshes while it
+  is going, and not at all while it is stopped.</p>
+
+  <p class="note"><strong>A reload does not stop it.</strong> Whether it is running, how long it
+  had already run, and when the current stretch started are kept in this browser, so closing the
+  tab and opening the page again finds the stopwatch where you left it &mdash; still going, if it
+  was going. The laps come back with it. <em>Reset</em> is the only thing that clears it, and it
+  asks for nothing: press it twice if you meant it, because the first press stops the watch.</p>
+
+  <p class="note"><strong>A lap is both figures.</strong> Every lap carries the time since the
+  previous lap and the time since the start, because the two answer different questions and a
+  list of only one of them is half a list. Once there are three laps the quickest and the slowest
+  are marked, and the bars underneath draw each lap against the longest one, which is where the
+  shape of a set of laps actually shows &mdash; a run that is drifting slower looks like a
+  staircase long before the numbers say so.</p>
+
+  <p class="note"><strong>Hundredths, and no further.</strong> A browser hands out time in
+  milliseconds and rounds what it gives a page on purpose, to make it harder to fingerprint, so a
+  figure past the hundredth would be inventing precision the clock does not have. <em>Copy</em>
+  writes the laps out as tab-separated columns &mdash; lap number, lap time, split, and both in
+  milliseconds &mdash; which pastes straight into a spreadsheet.</p>
+</main>
+
+<script>
+"use strict";
+
+const el = (id) => document.getElementById(id);
+
+const faceEl   = el("face");
+const readEl   = el("read");
+const sinceEl  = el("since");
+const goBtn    = el("goBtn");
+const lapBtn   = el("lapBtn");
+const resetBtn = el("resetBtn");
+const fullBtn  = el("fullBtn");
+const statusEl = el("status");
+const lapsEl   = el("laps");
+const barsEl   = el("bars");
+const figsEl   = el("figures");
+const copyBtn  = el("copyBtn");
+const clearBtn = el("clearBtn");
+
+const KEY = "smallpages.stopwatch";
+const MOST = 500;                  // laps kept, which is more than anybody takes
+
+/* ---------------------------------------------------------------- state -- */
+
+let running = false;
+let acc = 0;                       // finished running stretches, in ms
+let since = 0;                     // when the current stretch began, epoch ms
+let laps = [];                     // elapsed at each lap, in ms, ascending
+let frame = 0;
+let shownTime = "";
+let shownRest = "";
+
+const now = () => Date.now();
+const elapsed = () => (running ? acc + Math.max(0, now() - since) : acc);
+
+/* ---------------------------------------------------------------- saving -- */
+
+function save() {
+  try {
+    localStorage.setItem(KEY, JSON.stringify({ running, acc, since, laps }));
+  } catch { /* private mode, fine */ }
+}
+
+function load() {
+  let kept = null;
+  try { kept = JSON.parse(localStorage.getItem(KEY) || "null"); } catch { /* nothing kept */ }
+  if (!kept || typeof kept !== "object") return;
+  acc = Number.isFinite(kept.acc) ? Math.max(0, kept.acc) : 0;
+  laps = Array.isArray(kept.laps)
+    ? kept.laps.filter((n) => Number.isFinite(n) && n >= 0).slice(0, MOST)
+    : [];
+  // A stretch that was running when the tab closed carries on from the
+  // timestamp it started at — unless that timestamp is in the future, which
+  // means the clock has been moved and the only honest thing is to stop.
+  if (kept.running && Number.isFinite(kept.since) && kept.since <= now()) {
+    running = true;
+    since = kept.since;
+  }
+}
+
+/* -------------------------------------------------------------- the clock -- */
+
+const pad = (n, wide = 2) => String(n).padStart(wide, "0");
+
+/* Hundredths, cut rather than rounded: a stopwatch that reads 10.00 before ten
+   seconds have passed is lying, and every real one cuts. */
+function clockOf(ms) {
+  const total = Math.max(0, Math.floor(ms / 10));       // in hundredths
+  const cs = total % 100;
+  const seconds = Math.floor(total / 100);
+  const hours = Math.floor(seconds / 3600);
+  const mins = Math.floor(seconds / 60) % 60;
+  const head = hours ? `${hours}:${pad(mins)}` : pad(mins);
+  return `${head}:${pad(seconds % 60)}.${pad(cs)}`;
+}
+
+// The same figure without the hundredths, for the lines that are read rather
+// than watched.
+const roughly = (ms) => clockOf(ms).replace(/\.\d\d$/, "");
+
+function howLong(ms) {
+  const s = Math.max(0, ms) / 1000;
+  if (s < 90) return `${s.toFixed(2)}s`;
+  if (s < 3600) return `${Math.floor(s / 60)}m ${pad(Math.floor(s % 60))}s`;
+  return `${Math.floor(s / 3600)}h ${pad(Math.floor(s / 60) % 60)}m`;
+}
+
+// How wide each kind of glyph's box is, in em, and so how wide the whole
+// reading is: the one number the font size is worked out from.
+const BOX = { digit: 0.62, sep: 0.3, dot: 0.22, cs: 0.44 };
+
+// Each glyph has its own box, so the row is rebuilt only when the number of
+// them changes and is otherwise written over a character at a time.
+function writeTime(str) {
+  if (str === shownTime) return;
+  if (str.length !== shownTime.length) {
+    readEl.textContent = "";
+    let past = false;
+    let wide = 0;
+    for (const ch of str) {
+      const box = document.createElement("i");
+      if (ch === ".") { box.className = "dot"; past = true; wide += BOX.dot; }
+      else if (past) { box.className = "cs"; wide += BOX.cs; }
+      else if (ch === ":") { box.className = "sep"; wide += BOX.sep; }
+      else wide += BOX.digit;
+      box.textContent = ch;
+      readEl.append(box);
+    }
+    readEl.style.setProperty("--em", wide.toFixed(2));
+  } else {
+    for (let i = 0; i < str.length; i++) {
+      if (readEl.children[i].textContent !== str[i]) readEl.children[i].textContent = str[i];
+    }
+  }
+  shownTime = str;
+}
+
+/* --------------------------------------------------------------- the laps -- */
+
+const lapTimes = () => laps.map((at, i) => at - (i ? laps[i - 1] : 0));
+
+function best() {
+  const times = lapTimes();
+  if (times.length < 3) return { quick: -1, slow: -1 };
+  let quick = 0;
+  let slow = 0;
+  times.forEach((t, i) => {
+    if (t < times[quick]) quick = i;
+    if (t > times[slow]) slow = i;
+  });
+  return { quick, slow };
+}
+
+function paintLaps() {
+  const times = lapTimes();
+  const { quick, slow } = best();
+  const run = elapsed();
+
+  lapsEl.textContent = "";
+  barsEl.textContent = "";
+  figsEl.textContent = "";
+
+  if (!laps.length) {
+    const none = document.createElement("p");
+    none.className = "empty";
+    none.textContent = running
+      ? "No laps yet — press Lap, or L, to mark one."
+      : "No laps yet.";
+    lapsEl.append(none);
+    return;
+  }
+
+  const table = document.createElement("table");
+  const head = document.createElement("tr");
+  for (const what of ["Lap", "Lap time", "Split", ""]) {
+    const th = document.createElement("th");
+    th.textContent = what;
+    head.append(th);
+  }
+  table.append(head);
+
+  // Newest first: the lap you just took is the one you want to read.
+  for (let i = laps.length - 1; i >= 0; i--) {
+    const row = document.createElement("tr");
+    if (i === quick) row.className = "best";
+    if (i === slow) row.className = "worst";
+    const cells = [
+      [String(i + 1), ""],
+      [clockOf(times[i]), "lap"],
+      [clockOf(laps[i]), ""],
+      [i === quick ? "quickest" : i === slow ? "slowest" : "", "mark"],
+    ];
+    for (const [text, cls] of cells) {
+      const td = document.createElement("td");
+      td.className = cls;
+      td.textContent = text;
+      row.append(td);
+    }
+    table.append(row);
+  }
+
+  // The lap under way, which has no number yet and is not a lap until it is
+  // taken. Shown at the top because that is where the next one will land.
+  if (running) {
+    const row = document.createElement("tr");
+    for (const [text, cls] of [["→", "now"], [clockOf(run - laps[laps.length - 1]), "now"],
+                               [clockOf(run), "now"], ["", "mark"]]) {
+      const td = document.createElement("td");
+      td.className = cls;
+      td.textContent = text;
+      row.append(td);
+    }
+    table.insertBefore(row, table.children[1] || null);
+  }
+  lapsEl.append(table);
+
+  const longest = Math.max(...times);
+  times.forEach((t, i) => {
+    const row = document.createElement("div");
+    row.className = "row" + (i === quick ? " best" : "");
+    const no = document.createElement("span");
+    no.className = "no";
+    no.textContent = String(i + 1);
+    const bar = document.createElement("span");
+    bar.className = "bar";
+    bar.style.width = `${Math.max(1, (t / (longest || 1)) * 74).toFixed(2)}%`;
+    const at = document.createElement("span");
+    at.className = "at";
+    at.textContent = clockOf(t);
+    row.append(no, bar, at);
+    barsEl.append(row);
+  });
+
+  const mean = times.reduce((n, t) => n + t, 0) / times.length;
+  const sorted = [...times].sort((a, b) => a - b);
+  const middle = sorted.length % 2
+    ? sorted[(sorted.length - 1) / 2]
+    : (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2;
+  const rows = [
+    ["laps", String(times.length)],
+    ["mean", clockOf(mean)],
+    ["median", clockOf(middle)],
+    ["quickest", clockOf(sorted[0])],
+    ["slowest", clockOf(sorted[sorted.length - 1])],
+    ["total", clockOf(laps[laps.length - 1])],
+  ];
+  for (const [what, value] of rows) {
+    const cell = document.createElement("span");
+    cell.append(`${what} `);
+    const b = document.createElement("b");
+    b.textContent = value;
+    cell.append(b);
+    figsEl.append(cell);
+  }
+}
+
+/* ------------------------------------------------------------- the paint -- */
+
+function say(text) { statusEl.textContent = text; }
+
+function paint() {
+  const run = elapsed();
+  writeTime(clockOf(run));
+
+  const key = [running, laps.length, run >= 1000 ? Math.floor(run / 1000) : run, acc].join("|");
+  if (key === shownRest) return;
+  shownRest = key;
+
+  faceEl.classList.toggle("live", running);
+  goBtn.textContent = running ? "Stop" : (run > 0 ? "Resume" : "Start");
+  lapBtn.disabled = !running;
+  resetBtn.disabled = !running && run === 0 && !laps.length;
+  copyBtn.disabled = !laps.length;
+  clearBtn.disabled = !laps.length;
+
+  sinceEl.textContent = laps.length
+    ? `lap ${laps.length + (running ? 1 : 0)} · ${clockOf(run - laps[laps.length - 1])} since lap ${laps.length}`
+    : running ? "running" : run > 0 ? "stopped" : "";
+
+  document.title = run > 0 ? `${roughly(run)} · Stopwatch` : "Stopwatch";
+  readEl.setAttribute("aria-label", `${howLong(run)}${running ? ", running" : ", stopped"}`);
+  paintLaps();
+}
+
+function loop() {
+  paint();
+  frame = running ? requestAnimationFrame(loop) : 0;
+}
+
+/* ------------------------------------------------------------- the deeds -- */
+
+function start() {
+  if (running) return;
+  running = true;
+  since = now();
+  say(laps.length ? "Running again." : "Running.");
+  save();
+  loop();
+}
+
+function stop() {
+  if (!running) return;
+  acc = elapsed();
+  running = false;
+  cancelAnimationFrame(frame);
+  frame = 0;
+  say(`Stopped at ${clockOf(acc)}.`);
+  save();
+  paint();
+}
+
+function lap() {
+  if (!running) return;
+  const at = elapsed();
+  // A lap on the same hundredth as the last one is a double press, not a lap.
+  if (laps.length && at - laps[laps.length - 1] < 10) return;
+  laps.push(at);
+  if (laps.length > MOST) laps.shift();
+  const times = lapTimes();
+  const last = times[times.length - 1];
+  say(`Lap ${laps.length} at ${clockOf(at)} — ${clockOf(last)} for that one.`);
+  save();
+  shownRest = "";
+  paint();
+}
+
+function reset() {
+  const was = elapsed();
+  if (running) { stop(); return; }
+  running = false;
+  acc = 0;
+  laps = [];
+  cancelAnimationFrame(frame);
+  frame = 0;
+  shownRest = "";
+  say(was > 0 ? `Cleared ${clockOf(was)}.` : "Nothing timed yet.");
+  save();
+  paint();
+}
+
+goBtn.addEventListener("click", () => (running ? stop() : start()));
+lapBtn.addEventListener("click", lap);
+resetBtn.addEventListener("click", reset);
+
+copyBtn.addEventListener("click", async () => {
+  const times = lapTimes();
+  const lines = ["lap\tlap time\tsplit\tlap ms\tsplit ms"];
+  laps.forEach((at, i) => {
+    lines.push([i + 1, clockOf(times[i]), clockOf(at), times[i], at].join("\t"));
+  });
+  try {
+    await navigator.clipboard.writeText(lines.join("\n"));
+    say(`Copied ${laps.length} lap${laps.length === 1 ? "" : "s"}.`);
+  } catch {
+    say("The browser would not let the page use the clipboard.");
+  }
+});
+
+clearBtn.addEventListener("click", () => {
+  laps = [];
+  shownRest = "";
+  say("Laps cleared. The watch is untouched.");
+  save();
+  paint();
+});
+
+/* --------------------------------------------------------- the fullscreen -- */
+
+let stillFor = 0;
+
+fullBtn.addEventListener("click", () => {
+  if (document.fullscreenElement) document.exitFullscreen();
+  else document.documentElement.requestFullscreen?.().catch(() => {
+    // No fullscreen on offer: the layout is the useful half of it anyway.
+    document.body.classList.toggle("zen");
+  });
+});
+
+document.addEventListener("fullscreenchange", () => {
+  const on = Boolean(document.fullscreenElement);
+  document.body.classList.toggle("zen", on);
+  fullBtn.textContent = on ? "Leave fullscreen" : "Fullscreen";
+  if (!on) document.body.classList.remove("idle");
+});
+
+for (const kind of ["pointermove", "keydown", "focusin"]) {
+  window.addEventListener(kind, () => {
+    stillFor = 0;
+    document.body.classList.remove("idle");
+  });
+}
+setInterval(() => {
+  if (!document.body.classList.contains("zen")) return;
+  stillFor += 1;
+  if (stillFor >= 4) document.body.classList.add("idle");
+}, 1000);
+
+/* -------------------------------------------------------------- the keys -- */
+
+window.addEventListener("keydown", (e) => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const at = e.target;
+  if (at instanceof HTMLElement && /^(INPUT|TEXTAREA|SELECT)$/.test(at.tagName)) return;
+  if (e.key === " " || e.code === "Space") {
+    e.preventDefault();
+    if (running) stop(); else start();
+    return;
+  }
+  if (e.key === "l" || e.key === "L") { e.preventDefault(); lap(); return; }
+  if (e.key === "r" || e.key === "R") { e.preventDefault(); reset(); }
+});
+
+/* A tab that comes back from being throttled or asleep has the right number
+   already — it is a subtraction, not a count — but it has not been painting,
+   so it is told to catch up now rather than on the next frame. */
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState !== "visible") return;
+  shownRest = "";
+  if (running && !frame) loop(); else paint();
+});
+
+load();
+if (running) { say("Still running from before."); loop(); } else paint();
+</script>
+</body>
+</html>
