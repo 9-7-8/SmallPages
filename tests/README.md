@@ -89,6 +89,18 @@ Suites are named for the page they exercise. The ones worth knowing about:
   reads the Markdown: every cue sorted by time rather than by the order it sat
   in the page, every comment with the likes the page displayed, and the export
   notes saying what it could not vouch for.
+- **`test-palette.mjs`** — the colour picker's palette builder. Every image in
+  it is painted by the suite in flat bands of known colour and known width, so
+  the right answer is arithmetic rather than opinion: a band that is three
+  tenths of the picture has to come back as three tenths of it. It checks that
+  two shades a hair apart come back as one colour carrying both their
+  coverage, that no two colours in a palette the page sized itself are close
+  enough to be called the same colour, that the automatic count aims at five
+  and moves off it only when the picture says so, and that a count asked for
+  still returns colours that are in the picture rather than averages of ones
+  that are not. The OKLab arithmetic it measures distances with is written out
+  again in the suite rather than read off the page, so a mistake in the page
+  cannot agree with itself.
 - **`test-pdfb.mjs`** — saves a PDF, reloads it through pdf.js, and reads the
   text back out, which is the only way to prove a copied page stayed a page
   rather than becoming a picture of one.

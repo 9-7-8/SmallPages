@@ -164,6 +164,7 @@ button, input, select { font-size: 0.85rem; }
 .ctl-row { display: flex; flex-wrap: wrap; gap: 1.1rem 1.75rem; align-items: flex-end; }
 .ctl label { display: block; font-size: 0.74rem; color: var(--text-dim); margin-bottom: 0.35rem; }
 .ctl select, .ctl input[type="number"], .ctl input[type="text"] { min-width: 9rem; }
+.ctl-note { font-size: 0.72rem; color: var(--text-faint); margin: 0.85rem 0 0; }
 .pal-top { display: grid; grid-template-columns: 1fr auto; gap: 2rem; align-items: start; }
 .wheel-fig { margin: 0; text-align: center; }
 .wheel-fig canvas { display: block; width: 210px; height: 210px; }
@@ -271,6 +272,11 @@ button.chip:hover, button.chip:focus-visible { border-color: var(--neon); box-sh
 @media (max-width: 560px) {
   .wrap { padding: 0 1rem 4rem; }
   .mast { padding: 2.25rem 0 1rem; }
+  /* A select is as wide as its longest option wants to be, which on a phone
+     is wider than the phone. Here it takes the row instead, and the row is
+     one control deep. */
+  .ctl { flex: 1 1 100%; min-width: 0; }
+  .ctl select, .ctl input[type="number"], .ctl input[type="text"] { width: 100%; min-width: 0; }
   .stop { grid-template-columns: 40px 1fr; grid-auto-flow: dense; }
   .stop input[type="range"] { grid-column: 1 / -1; }
 }
@@ -494,7 +500,7 @@ button.chip:hover, button.chip:focus-visible { border-color: var(--neon); box-sh
             <div class="ctl">
               <label for="pal-rule">Rule</label>
               <select id="pal-rule">
-                <option value="dominant">Dominant &mdash; whatever is actually there</option>
+                <option value="dominant">Dominant &mdash; the commonest colours, combined</option>
                 <option value="complementary">Complementary &mdash; opposite hues</option>
                 <option value="split">Split-complementary</option>
                 <option value="analogous" selected>Analogous &mdash; neighbours</option>
@@ -506,7 +512,8 @@ button.chip:hover, button.chip:focus-visible { border-color: var(--neon); box-sh
             </div>
             <div class="ctl">
               <label for="pal-count">Colours</label>
-              <input type="number" id="pal-count" min="2" max="16" step="1" value="5">
+              <input type="number" id="pal-count" min="2" max="16" step="1" placeholder="auto"
+                     aria-describedby="pal-count-hint">
             </div>
             <div class="btn-row">
               <button id="pal-go">Build</button>
@@ -515,6 +522,9 @@ button.chip:hover, button.chip:focus-visible { border-color: var(--neon); box-sh
               <button class="ghost" id="pal-json">Copy JSON</button>
             </div>
           </div>
+          <p class="ctl-note" id="pal-count-hint">Leave <em>Colours</em> empty and the picture
+          decides how many: five unless it has fewer colours than that, or more that are each
+          worth a place.</p>
         </div>
         <figure class="wheel-fig">
           <canvas id="wheel" width="210" height="210"></canvas>
@@ -524,11 +534,30 @@ button.chip:hover, button.chip:focus-visible { border-color: var(--neon); box-sh
       <div class="pal-grid" id="pal-grid"></div>
       <p class="status" id="pal-status"></p>
       <p class="note">Colours are clustered in OKLab, so what comes back is what the
-      eye would call dominant rather than what the RGB numbers average to. Under a
-      rule, each slot is filled by the image colour closest to the hue that rule asks
-      for; when the image has nothing near it, the nearest colour is rotated onto the
-      target hue instead and marked <em>turned</em>, which is as close to the rule as
-      that image can honestly get.</p>
+      eye would call dominant rather than what the RGB numbers average to. The
+      clustering deliberately finds more colours than anybody wants &mdash; a picture
+      of a forest has a dozen greens and they are all the same green &mdash; and then
+      the nearest two are combined, over and over, the one covering more of the
+      picture keeping its colour &mdash; so a speck is absorbed into the region it
+      sits on without tinting it, and every colour you get back is one that is
+      actually in the picture rather than an average of two that are not. What adds
+      up is the coverage: the percentage under a swatch is every shade folded into it.
+      <em>Dominant</em> stops combining when the colours left are ones a person would
+      call different; every other rule gets the same combined set to choose from.</p>
+
+      <p class="note">Leaving <em>Colours</em> empty lets the picture decide. It aims
+      at five: fewer when the picture has fewer colours that stay apart, more while
+      each extra one still holds a twentieth of the frame, and never more than twelve.
+      Type a number and it combines as far as that number instead &mdash; which past a
+      point means folding together colours that are not really alike, so the swatch
+      says how many shades went into it and the one you see is the commonest of them. Under a rule rather than <em>Dominant</em>, an empty
+      box takes the count from the rule's own geometry: two for complementary, three
+      for triadic, four for square.</p>
+
+      <p class="note">Under a rule, each slot is filled by the image colour closest to
+      the hue that rule asks for; when the image has nothing near it, the nearest
+      colour is rotated onto the target hue instead and marked <em>turned</em>, which
+      is as close to the rule as that image can honestly get.</p>
     </div>
   </section>
 
@@ -1617,9 +1646,15 @@ $('img-clear').addEventListener('click', () => {
   $('stage-wrap').hidden = true; $('img-tools').hidden = true;
   setStatus('img-status', '');
 });
+/* Straight to the colours that are actually in the picture: the button says
+   "from this", so it asks for no rule and no count and lets the image answer
+   both. Whatever the rule box was left on is set back to Dominant rather
+   than quietly deciding this palette. */
 $('img-palette').addEventListener('click', () => {
   palSrc = 'image';
   Array.from($('pal-src').children).forEach(x => x.classList.toggle('on', x.getAttribute('data-src') === 'image'));
+  $('pal-rule').value = 'dominant';
+  $('pal-count').value = '';
   showTab('palette');
   buildPalette();
 });
@@ -1791,14 +1826,82 @@ function kmeans(pts, k, seed) {
   const out = [];
   for (let c = 0; c < k; c++) {
     if (!count[c]) continue;
-    const rgb = oklabToRgb(cx[c * 3], cx[c * 3 + 1], cx[c * 3 + 2]);
-    const lch = oklabToLch({ L: cx[c * 3], a: cx[c * 3 + 1], b: cx[c * 3 + 2] });
+    const lab = { L: cx[c * 3], a: cx[c * 3 + 1], b: cx[c * 3 + 2] };
+    const rgb = oklabToRgb(lab.L, lab.a, lab.b);
+    const lch = oklabToLch(lab);
     out.push({
-      L: lch.L, C: lch.C, h: lch.h, share: count[c] / n,
+      L: lch.L, C: lch.C, h: lch.h, lab: lab, share: count[c] / n, parts: 1,
       hex: rgbToHex(Math.round(rgb.r), Math.round(rgb.g), Math.round(rgb.b))
     });
   }
   return out.sort((a, b) => b.share - a.share);
+}
+
+/* ── combining the ones that are the same colour ────────────────────────
+   k-means is asked for far more clusters than anybody wants a palette of,
+   on purpose: a photograph of a forest has a dozen greens in it and they
+   are all the same green. What comes back is then merged, nearest pair
+   first, and the side covering more of the picture is the one whose colour
+   stays — so a speck is absorbed into the region it sits on without tinting
+   it, and every colour in the finished palette is a colour that is in the
+   picture rather than an average of two that are not. What the merge adds
+   up is the coverage: a colour's share is all the shades folded into it.
+
+   With no count asked for it stops when the nearest two are further apart
+   than NEAR, which is about where a person stops calling two colours the
+   same one. With a count asked for it keeps going to that count, because
+   that is what was asked for, and the swatch says how many shades ended up
+   in each one. */
+const FINE = 24;        // clusters to find before any of them are combined
+const NEAR = 0.1;       // OKLab distance under which two colours are one colour
+const AIM = 5;          // what an unasked-for count tries for
+const MOST = 12;        // and the most it will expand to
+const KEEP = 0.05;      // the share a colour past the fifth has to hold to earn a place
+
+const labGap = (p, q) => Math.hypot(p.L - q.L, p.a - q.a, p.b - q.b);
+
+function combine(list, want) {
+  // `own` is what this colour covers by itself and never changes; `share` is
+  // what it covers once everything folded into it is counted too.
+  const g = list.map(c => Object.assign({}, c, { own: c.share, parts: 1 }));
+  while (g.length > 1 && (!want || g.length > want)) {
+    let bi = 0, bj = 1, bd = Infinity;
+    for (let i = 0; i < g.length; i++) {
+      for (let j = i + 1; j < g.length; j++) {
+        const d = labGap(g[i].lab, g[j].lab);
+        if (d < bd) { bd = d; bi = i; bj = j; }
+      }
+    }
+    if (!want && bd >= NEAR) break;
+    const A = g[bi], B = g[bj];
+    const keep = A.own >= B.own ? A : B;
+    const gone = keep === A ? B : A;
+    keep.share = A.share + B.share;
+    keep.parts = A.parts + B.parts;
+    g.splice(g.indexOf(gone), 1);
+  }
+  return g.sort((x, y) => y.share - x.share);
+}
+
+/* Five, unless the picture says otherwise: fewer when it has fewer colours
+   that stay apart, and more while the next one along is still a real part
+   of the frame rather than a corner of it. */
+function autoCount(groups) {
+  if (groups.length <= AIM) return groups.length;
+  let n = AIM;
+  while (n < Math.min(groups.length, MOST) && groups[n].share >= KEEP) n++;
+  return n;
+}
+
+// What a rule asks for when no count is given: its own geometry.
+const RULE_SIZE = {
+  complementary: 2, split: 3, triadic: 3, tetradic: 4, square: 4,
+  analogous: 5, monochromatic: 5
+};
+
+function groupsFor(want) {
+  const fine = clustersFor(clamp(Math.max(FINE, want ? want * 2 : 0), 2, 40));
+  return fine ? combine(fine, want) : null;
 }
 
 function clustersFor(k) {
@@ -1840,11 +1943,26 @@ function targetHues(rule, n, baseH) {
 const hueGap = (a, b) => { const d = Math.abs(mod360(a) - mod360(b)); return d > 180 ? 360 - d : d; };
 
 function buildPalette() {
-  const n = clamp(parseInt($('pal-count').value, 10) || 5, 2, 16);
-  $('pal-count').value = String(n);
+  /* An empty box is not a zero: it is the page being told to work the count
+     out for itself, which is a different answer for every rule and every
+     picture. */
+  const typed = $('pal-count').value.trim();
+  const asked = typed === '' ? null : clamp(parseInt(typed, 10) || AIM, 2, 16);
+  if (asked !== null) $('pal-count').value = String(asked);
   const rule = $('pal-rule').value;
   const fromImage = palSrc === 'image' && haveImage && !!imgData;
-  const pool = fromImage ? (clustersFor(clamp(Math.max(n + 4, 8), 2, 20)) || []) : [];
+
+  /* Under Dominant the colours are the picture's own, so a count that was
+     asked for is how far to go on combining them; without one the combining
+     stops where the eye would and the count falls out of that. Every other
+     rule picks from the same combined set and takes its count from its own
+     geometry. */
+  const wantFrom = rule === 'dominant' && fromImage ? asked : null;
+  const pool = fromImage ? (groupsFor(wantFrom) || []) : [];
+  const n = rule === 'dominant' && fromImage && pool.length
+    ? (asked === null ? autoCount(pool) : Math.min(asked, pool.length))
+    : (asked === null ? (RULE_SIZE[rule] || AIM) : asked);
+
   const c = cur(), here = oklabToLch(rgbToOklab(c.r, c.g, c.b));
 
   let base = { L: here.L, C: here.C, h: here.h, share: 1, hex: curHex() };
@@ -1862,7 +1980,9 @@ function buildPalette() {
 
   const out = [];
   if (rule === 'dominant' && fromImage && pool.length) {
-    pool.slice(0, n).forEach(p => out.push({ hex: p.hex, origin: 'image', share: p.share }));
+    pool.slice(0, n).forEach(p => out.push({
+      hex: p.hex, origin: 'image', share: p.share, parts: p.parts
+    }));
   } else if (rule === 'monochromatic' || rule === 'dominant') {
     for (let i = 0; i < n; i++) {
       const t = n === 1 ? 0.5 : i / (n - 1);
@@ -1919,7 +2039,30 @@ function buildPalette() {
   const bits = [];
   if (palSrc === 'current') bits.push('Grown from ' + curHex() + '.');
   else if (!fromImage) bits.push('No image yet, so this is grown from the current colour instead.');
-  if (fromImage) {
+
+  if (fromImage && rule === 'dominant') {
+    const held = out.reduce((t, x) => t + (x.share || 0), 0);
+    bits.push(out.length + ' colour' + (out.length === 1 ? '' : 's')
+      + ', ' + Math.round(held * 100) + '% of the picture between them.');
+    const joined = out.filter(x => x.parts > 1).length;
+    if (joined) {
+      bits.push(joined + ' of them combined shades too close to tell apart.');
+    }
+    if (asked === null) {
+      bits.push(out.length < AIM
+        ? 'Fewer than five, because that is every colour this picture keeps apart.'
+        : out.length > AIM
+          ? 'Past five, because each one after the fifth still holds a twentieth of the frame.'
+          : 'Five, which is what it tries for \u2014 type a number to ask for another.');
+      const left = pool.length - out.length;
+      if (left > 0) {
+        bits.push(left + ' smaller one' + (left === 1 ? '' : 's') + ' left out.');
+      }
+    } else if (out.length < asked) {
+      bits.push('You asked for ' + asked + ', but that is every colour this picture has '
+        + 'that is not already one of the others.');
+    }
+  } else if (fromImage) {
     const taken = out.filter(x => x.origin === 'image').length;
     const turned = out.filter(x => x.origin === 'turned').length;
     const steps = out.filter(x => x.origin === 'step').length;
@@ -1928,6 +2071,7 @@ function buildPalette() {
     if (turned) how.push(turned + ' turned onto the rule');
     if (steps) how.push(steps + " stepped along the image's own hue");
     bits.push(how.join(', ') + '.');
+    if (asked === null) bits.push(RULE_LABEL[rule] + ' asks for ' + n + '.');
   }
   setStatus('pal-status', bits.join(' '));
 }
@@ -1951,8 +2095,10 @@ function drawPalette() {
     hex.className = 'hex'; hex.textContent = p.hex;
     const meta = document.createElement('div');
     meta.className = 'meta';
+    const share = p.share >= 0.005 ? Math.round(p.share * 100) + '%' : 'under 1%';
     meta.textContent = p.origin === 'image'
-      ? Math.round(p.share * 100) + '% of the image'
+      ? share + ' of the image'
+        + (p.parts > 1 ? ' \u00b7 ' + p.parts + ' shades combined' : '')
       : p.origin === 'step'
         ? 'step ' + p.step + ' of ' + p.of
         : p.origin === 'turned'
