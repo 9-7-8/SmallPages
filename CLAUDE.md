@@ -32,6 +32,27 @@ GIF`. Case is ignored. Every tile is the same height whatever group it is in,
 which is what the `min-height` on `nav a` is for. The `<symbol>` sprite above the
 list is referenced by id and its order does not matter.
 
+## Applets
+
+Bookmarklets live in [`bookmarklets.html`](bookmarklets.html), which is the
+whole of their home: one `<script type="text/plain" id="src-<name>">` block at
+the foot of that file holding the source verbatim, and one entry in the
+`APPLETS` list naming it, saying what it does, how to use it and what it cannot
+do. The button, the encoding, the sizes and the source listing are all built
+from that, so a new applet touches nothing else in the repo but the list and
+the block.
+
+Two things a source may not contain. `</script>` ends the raw-text block
+holding it, and `innerHTML` is refused outright by any site that sets
+`require-trusted-types-for 'script'` — which is most of the sites worth writing
+an applet for, and fails by doing nothing at all rather than by complaining.
+Build a panel with `createElement`, `textContent` and `append`.
+
+An applet gets what a page gets: its limits written down beside it, and a test
+that runs it rather than reading it. `tests/test-applets.mjs` serves a stub of
+the site the applet is for, runs the applet against it, and checks what came
+out the other end.
+
 ## Tests
 
 Suites live in [`tests/`](tests/) and run with `node tests/run.mjs`, which starts

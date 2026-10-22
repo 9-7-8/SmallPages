@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bookmarklets</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  /* Layout and sizing only. Colour, type and component styling live in theme.css. */
+
+  body { margin: 0; padding: 2.2rem 1.5rem 4rem; }
+  main { max-width: 1020px; margin: 0 auto; }
+  p.lede { margin: 0 0 2rem; max-width: 64ch; }
+
+  .card { margin-bottom: 1.5rem; }
+  h2 { margin: 0 0 1.2rem; }
+
+  /* ------------------------------------------------------------ an applet -- */
+
+  .applet + .applet { margin-top: 2rem; padding-top: 1.8rem; border-top: 1px solid var(--line-soft); }
+  .applet h3 {
+    margin: 0 0 0.4rem;
+    font-weight: 500;
+    font-size: 1.05rem;
+    letter-spacing: 0.01em;
+    color: var(--text);
+  }
+  .applet .what { margin: 0 0 1.1rem; max-width: 68ch; font-size: 0.88rem; color: var(--text-dim); }
+
+  /* The thing you drag. It is an anchor because a bookmarklet is a link, and
+     it is styled like the page's primary button because that is what it is
+     for. Clicking it is caught and explained rather than allowed: a click
+     here runs the applet on this page, which is never what was meant. */
+  .grab {
+    display: inline-block;
+    font-family: var(--sans);
+    font-weight: 400;
+    letter-spacing: 0.04em;
+    padding: 0.72rem 1.5rem;
+    border: 1px solid var(--neon-deep);
+    border-bottom: 1px solid var(--neon-deep);
+    color: var(--neon);
+    cursor: grab;
+    user-select: none;
+  }
+  .grab:hover, .grab:focus-visible {
+    color: var(--neon-hot);
+    border-color: var(--neon);
+    background: hsl(var(--tint) / 0.07);
+    box-shadow: var(--glow);
+    text-shadow: none;
+  }
+  .grab:active { cursor: grabbing; }
+
+  .row { display: flex; flex-wrap: wrap; gap: 0.7rem; align-items: center; }
+  .row + .row { margin-top: 1rem; }
+
+  .facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 1.5rem;
+    margin-top: 0.9rem;
+    font-size: 0.76rem;
+    color: var(--text-faint);
+  }
+  .facts b {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-weight: 400;
+    color: var(--text-dim);
+  }
+
+  .said { font-size: 0.8rem; color: var(--text-faint); min-height: 1.3em; margin: 0.8rem 0 0; }
+  /* Nothing to say yet is no reason to hold a line of space open for it. */
+  .said:empty { min-height: 0; margin: 0; }
+  .said.error { color: var(--neon-hot); text-shadow: var(--text-glow); }
+
+  ol.steps { margin: 1.1rem 0 0; padding-left: 1.3rem; font-size: 0.82rem; color: var(--text-dim); max-width: 68ch; }
+  ol.steps li { margin-bottom: 0.3rem; }
+  ul.caveats { margin: 1rem 0 0; padding-left: 1.3rem; font-size: 0.78rem; color: var(--text-faint); max-width: 68ch; }
+  ul.caveats li { margin-bottom: 0.3rem; }
+
+  details { margin-top: 1.2rem; }
+  summary {
+    cursor: pointer;
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    letter-spacing: 0.02em;
+  }
+  summary:hover { color: var(--neon); }
+  pre.src {
+    margin: 0.8rem 0 0;
+    padding: 0.9rem;
+    max-height: 26rem;
+    overflow: auto;
+    background: var(--sunken);
+    border: 1px solid var(--line-soft);
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    color: var(--text-dim);
+  }
+
+  /* --------------------------------------------------------- make your own -- */
+
+  .field { display: flex; flex-direction: column; gap: 0.35rem; }
+  .field label { font-size: 0.8rem; }
+  .field .unit { font-size: 0.72rem; margin-top: 0.1rem; color: var(--text-faint); }
+  #ownName { max-width: 24rem; }
+  #ownCode {
+    width: 100%;
+    min-height: 13rem;
+    resize: vertical;
+    font-family: var(--mono);
+    font-size: 0.76rem;
+    line-height: 1.55;
+  }
+  .made { margin-top: 1.1rem; }
+  .made.off { display: none; }
+
+  .note { font-size: 0.78rem; margin-top: 1.2rem; max-width: 68ch; }
+  .note strong { color: var(--text-dim); font-weight: 400; }
+  .note code { font-family: var(--mono); font-size: 0.92em; color: var(--text-dim); }
+
+  @media (max-width: 620px) {
+    body { padding: 1.6rem 1rem 3.5rem; }
+    .grab { width: 100%; text-align: center; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <a class="home" href="index.html">&larr; index</a>
+  <h1>Bookmarklets</h1>
+  <p class="lede">Little programs that live in your bookmarks bar and run on whatever page you are
+  looking at. Drag one of the buttons below onto the bar, open the page it is for, and click it.
+  The source of every one is here in full, and there is a box at the bottom for turning code of
+  your own into one.</p>
+
+  <div class="card">
+    <h2>The ones this page carries</h2>
+    <div id="applets"></div>
+  </div>
+
+  <div class="card">
+    <h2>Make one of your own</h2>
+    <p class="what" style="margin-top:-0.6rem">Paste JavaScript in and get a bookmarklet out. It is
+    checked for syntax as you type &mdash; compiled, not run &mdash; and nothing is sent anywhere.</p>
+
+    <div class="field" style="margin-bottom:1rem">
+      <label for="ownName">What to call it</label>
+      <input type="text" id="ownName" value="My bookmarklet" spellcheck="false" autocomplete="off">
+      <span class="unit">the name the bookmark gets when you drag it</span>
+    </div>
+
+    <div class="field">
+      <label for="ownCode">The code</label>
+      <textarea id="ownCode" spellcheck="false" autocomplete="off"
+                placeholder="alert(document.querySelectorAll('img').length + ' images on this page');"></textarea>
+    </div>
+
+    <div class="facts" id="ownFacts"></div>
+    <p class="said" id="ownSaid"></p>
+
+    <div class="made off" id="ownMade">
+      <div class="row">
+        <a class="grab" id="ownGrab" draggable="true" href="javascript:void(0)">My bookmarklet</a>
+        <button type="button" class="ghost" id="ownCopy">Copy the bookmarklet</button>
+      </div>
+    </div>
+  </div>
+
+  <p class="note"><strong>A bookmarklet is a bookmark whose address is a program.</strong> Where an
+  ordinary bookmark holds <code>https://&hellip;</code>, this one holds
+  <code>javascript:&hellip;</code> &mdash; the whole program, URL-encoded, in the address field.
+  Clicking it runs that program against the page you are on, with the same access the page's own
+  scripts have and none of the installing, permissions or updating an extension needs. Nothing
+  here is fetched at run time: what you drag is the whole of it.</p>
+
+  <p class="note"><strong>Drag them, do not click them.</strong> Clicking one of these buttons on
+  this page would run the applet here, against this page, which is never what was meant &mdash; so
+  a click is caught and told to drag instead. Drag the button onto your bookmarks bar, or use
+  <em>Copy the bookmarklet</em> and paste it into the address field of a bookmark you make by hand.
+  In Firefox that is right-click the bar &rarr; Add bookmark; in Chrome, right-click &rarr; Add
+  page, and paste into URL.</p>
+
+  <p class="note"><strong>Write them without <code>innerHTML</code>.</strong> YouTube, GitHub and a
+  growing number of other sites set <code>require-trusted-types-for 'script'</code>, which stops a
+  page assigning a string to <code>innerHTML</code> at all &mdash; so a bookmarklet that builds its
+  panel that way dies silently on exactly the sites worth writing one for. Build the panel with
+  <code>createElement</code>, <code>textContent</code> and <code>append</code> instead. The applet
+  above does, and a check in this repo's tests fails if one ever stops doing so.</p>
+
+  <p class="note"><strong>There is no length limit worth worrying about, but there is a limit.</strong>
+  Firefox and Chrome take bookmarklets of tens of kilobytes; the one above is a good deal longer
+  than anything you would write by hand and installs fine in both. Some older browsers and some
+  bookmark-syncing services truncate long URLs without saying so, which shows up as a bookmarklet
+  that does nothing. The encoded size of each one is printed next to it so you can see what you
+  are asking a browser to hold.</p>
+
+  <p class="note"><strong>Adding another one here.</strong> Put its source in a
+  <code>&lt;script type="text/plain" id="src-&lt;name&gt;"&gt;</code> block at the foot of this
+  file and add an entry to the <code>APPLETS</code> list in the script under it &mdash; an id
+  matching that block, a name, a line saying what it does, the steps to use it, and whatever has
+  to be said about what it cannot do. Everything else, including the encoding, the drag button and
+  the source listing, is built from that. Two rules the source has to keep: no
+  <code>&lt;/script&gt;</code> anywhere in it, because the block holding it is raw text and would
+  end early; and no <code>innerHTML</code>, for the reason above. Both are checked by
+  <code>tests/test-applets.mjs</code>.</p>
+
+  <p class="note"><strong>Everything here happens in this tab.</strong> The encoding is
+  <code>encodeURIComponent</code> and the syntax check is the browser's own parser, by way of
+  <code>new Function</code>, which compiles the code without running any of it. Nothing you paste
+  is executed, stored or sent anywhere.</p>
+</main>
+
+<!-- The applets themselves. Raw text rather than markup, so what is here is
+     exactly what runs: nothing is parsed, escaped or rewritten on the way
+     into the bookmark. A source holding "</script>" would end this block
+     early, which is why nothing here may contain one. -->
+<script type="text/plain" id="src-youtube-markdown">
+void(async()=>{
+'use strict';
+const videoID=()=>new URL(location.href).searchParams.get('v');
+if(!/(^|\.)youtube\.com$/.test(location.hostname)||!videoID()){alert('Open a desktop YouTube watch page.');return;}
+if(document.getElementById('ytmd-auto-close')){alert('Exporter already open.');return;}
+const id=videoID(),ui=document.createElement('div');ui.id='ytmd-auto-close';ui.style.cssText='position:fixed;top:16px;right:16px;z-index:2147483647;width:430px;max-width:85vw;max-height:85vh;overflow:auto;background:#202124;color:white;border:2px solid #8ab4f8;padding:18px;border-radius:12px;font:14px/1.5 system-ui';
+const add=(tag,t='',r=ui)=>{const e=document.createElement(tag);e.textContent=t;r.append(e);return e;};
+add('h3','YouTube Markdown · Auto-download + auto-close');add('p','Open Show transcript. Select Top comments. Markdown downloads automatically only when transcript text is captured.');
+const warning=add('div');warning.style.color='#ffd479';const label=add('label','Comment limit: '),limitInput=add('input','',label);limitInput.type='number';limitInput.min=0;limitInput.max=10000;limitInput.value=100;limitInput.style.width='75px';
+const al=add('label',' All available top-level comments ');al.style.display='block';const allInput=add('input','',al);allInput.type='checkbox';
+const start=add('button','Collect'),finish=add('button','Finish comments now'),reload=add('button','Reload (optional)'),copy=add('button','Copy log'),close=add('button','Close');finish.disabled=true;
+const downloads=add('div'),log=add('pre');log.style.cssText='white-space:pre-wrap;overflow-wrap:anywhere;background:#111;padding:10px;max-height:230px;overflow:auto;font:11px/1.5 monospace';document.documentElement.append(ui);
+const lines=[],warnings=new Set();let stopped=false,busy=false,finishNow=false,url;
+const say=m=>{lines.push(new Date().toISOString().slice(11,23)+' '+m);if(lines.length>350)lines.shift();log.textContent=lines.join('\n');log.scrollTop=log.scrollHeight;};
+const warn=m=>{if(!warnings.has(m)){warnings.add(m);warning.textContent=[...warnings].join('\n');say('WARNING: '+m);}};
+const clear=()=>{downloads.replaceChildren();if(url)URL.revokeObjectURL(url);url=null;};
+const invalidate=()=>{if(stopped)return;stopped=true;clear();start.disabled=true;finish.disabled=true;warn('Navigation detected: cancelled. Close and reopen the exporter on the intended video.');};
+window.addEventListener('yt-navigate-start',invalidate);const timer=setInterval(()=>{if(videoID()!==id)invalidate();},300);
+close.onclick=()=>{stopped=true;clearInterval(timer);window.removeEventListener('yt-navigate-start',invalidate);clear();ui.remove();};reload.onclick=()=>location.reload();finish.onclick=()=>{finishNow=true;};
+copy.onclick=async()=>{try{await navigator.clipboard.writeText(lines.join('\n'));say('Log copied');}catch{const a=add('textarea',lines.join('\n'));a.select();}};
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));const check=()=>{if(stopped||videoID()!==id)throw Error('Cancelled or video changed.');};
+const text=e=>{try{return (e?.innerText||e?.textContent||'').trim();}catch{return '';}};
+const visible=e=>{try{if(!e?.isConnected||e.closest('[hidden],[aria-hidden="true"]'))return false;const s=getComputedStyle(e);return s.display!=='none'&&s.visibility!=='hidden'&&e.getClientRects().length>0;}catch{return false;}};
+const get=(s,r=document)=>text(r.querySelector(s));const player=()=>{try{return document.querySelector('#movie_player')?.getPlayerResponse?.();}catch{return null;}};
+const roots=[document],rootSet=new Set(roots),nativeShadow=Object.getOwnPropertyDescriptor(Element.prototype,'shadowRoot')?.get;
+const query=(r,s)=>{try{return Array.from((r.nodeType===9?Document.prototype.querySelectorAll:DocumentFragment.prototype.querySelectorAll).call(r,s));}catch{return [];}};
+const scanRoots=()=>{for(let i=0;i<roots.length&&i<100;i++)for(const e of query(roots[i],'*')){if(ui.contains(e))continue;try{const r=nativeShadow?.call(e);if(r?.nodeType===11&&!rootSet.has(r)){rootSet.add(r);roots.push(r);}}catch{}}};
+const find=s=>roots.flatMap(r=>query(r,s));
+try{const initial=performance.getEntriesByType('navigation')[0]?.name;if(initial&&new URL(initial).searchParams.get('v')!==id)warn('Possible stale page after in-page navigation. Reload advised, not required.');}catch{}
+say('Target video: '+id);
+start.onclick=async()=>{if(busy||stopped)return;busy=true;start.disabled=true;finishNow=false;clear();const originalY=scrollY;
+try{
+check();const pr=player(),d=pr?.videoDetails?.videoId===id?pr.videoDetails:{};if(pr?.videoDetails?.videoId&&pr.videoDetails.videoId!==id)warn('Player metadata is stale and will be ignored. Reload advised.');
+const title=d.title||get('ytd-watch-metadata h1')||document.title,channel=d.author||get('#owner ytd-channel-name'),description=d.shortDescription||get('ytd-watch-metadata #description-inline-expander');
+say('Title: '+title);scanRoots();
+const panelSelector='ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-searchable-transcript"],ytd-transcript-renderer,yt-transcript-renderer,yt-transcript-view-model,[class*="transcriptViewModelHost"]';
+const rowSelector='ytd-transcript-segment-renderer,yt-transcript-segment-view-model,yt-transcript-segment-renderer,transcript-segment-view-model,[class*="transcriptSegmentViewModelHost"]';
+const timestamp='(?:\\d+:)?\\d{1,3}:\\d{2}',timeOnly=new RegExp('^'+timestamp+'$'),inline=new RegExp('^('+timestamp+')\\s+(.+)$');
+const segments=new Map();let method='',lastState;
+const save=(time,body)=>{time=(time||'').trim();body=(body||'').trim();if(timeOnly.test(time)&&body)segments.set(time+'\n'+body,{time,body});};
+const parse=e=>{const ls=text(e).split(/\n/).map(s=>s.trim()).filter(Boolean);let time='',body=[];for(const line of ls){const m=line.match(inline);if(timeOnly.test(line)||m){if(time)save(time,body.join(' '));time=m?m[1]:line;body=m?[m[2]]:[];}else if(time)body.push(line);}if(time)save(time,body.join(' '));};
+const read=()=>{check();scanRoots();const panels=find(panelSelector).filter(visible),rows=find(rowSelector).filter(visible);const safeRows=rows.filter(row=>{const owner=row.closest('[video-id],[data-video-id]');const v=owner?.getAttribute('video-id')||owner?.getAttribute('data-video-id');return !v||v===id;});
+for(const row of safeRows){const t=text(row.querySelector('.segment-timestamp,.timestamp,[class*="imestamp"]')).match(new RegExp(timestamp))?.[0],body=text(row.querySelector('.segment-text,[class*="egmentText"],[class*="egmentContent"]'));if(t&&body)save(t,body);else parse(row);}
+if(safeRows.length)method='visible transcript rows';
+if(!safeRows.length){for(const panel of panels){const v=panel.getAttribute('video-id')||panel.getAttribute('data-video-id');if(!v||v===id)parse(panel);}if(segments.size)method='visible transcript panel timestamp lines';}
+lastState={panels,rows:safeRows};return lastState;};
+read();say('Transcript candidates: '+lastState.panels.length+' visible panels; '+lastState.rows.length+' visible rows; '+segments.size+' parsed cues');
+if(!segments.size){const b=[...document.querySelectorAll('ytd-watch-metadata button,ytd-video-description-transcript-section-renderer button')].find(e=>/show transcript/i.test(text(e)+' '+e.getAttribute('aria-label')));say('Show transcript opener found: '+Boolean(b));b?.click();for(let i=0;i<20&&!segments.size;i++){await sleep(350);read();}}
+if(!segments.size){const tags=[...new Set(find('*').filter(e=>/transcript/i.test(e.localName)).map(e=>e.localName))];say('Transcript-related tags: '+tags.join(', '));for(const panel of lastState.panels.slice(0,2))say('Panel sample: '+text(panel).slice(0,700));throw Error('No transcript text captured. Automatic download skipped. Leave Show transcript open and retry, or copy this log.');}
+warn('Transcript ownership is not independently verified. Check the opening text, especially after switching videos; reload is optional.');
+say('Transcript method: '+method);
+const containers=[...lastState.panels];for(const row of lastState.rows.slice(0,1)){let e=row.parentElement;for(let depth=0;e&&depth<8;depth++,e=e.parentElement)if(e!==document.body&&e!==document.documentElement)containers.push(e);}
+const candidates=[...new Set(containers.flatMap(e=>[e,...e.querySelectorAll('*')]))].filter(e=>visible(e)&&e.clientHeight>80&&e.scrollHeight>e.clientHeight+40&&/auto|scroll/.test(getComputedStyle(e).overflowY));
+const scroller=candidates.sort((a,b)=>(b.scrollHeight-b.clientHeight)-(a.scrollHeight-a.clientHeight))[0];
+const notes=[];
+if(scroller){const position=scroller.scrollTop;scroller.scrollTop=0;await sleep(250);let last=null,repeated=0;for(let pass=0;pass<100;pass++){read();repeated=last===segments.size?repeated+1:1;last=segments.size;say('Transcript: '+segments.size+' cues; repeated '+repeated+'/5');if(repeated>=5){notes.push('Transcript scroll stopped after five identical cue counts.');break;}if(scroller.scrollTop+scroller.clientHeight>=scroller.scrollHeight-4){await sleep(350);read();break;}scroller.scrollTop+=Math.max(100,scroller.clientHeight*.8);await sleep(220);}scroller.scrollTop=position;}
+const sec=s=>s.split(':').reduce((v,n)=>v*60+Number(n),0),transcript=[...segments.values()].sort((a,b)=>sec(a.time)-sec(b.time));
+say('Transcript opening: '+transcript[0].body.slice(0,220));say('Transcript captured: '+transcript.length+' cues');
+const comments=new Map(),limit=allInput.checked?Infinity:Math.max(0,Math.min(10000,Number(limitInput.value)||0));let reason='Skipped';
+const grab=()=>{const section=document.querySelector('ytd-comments#comments'),threads=[...(section||document).querySelectorAll('ytd-comment-thread-renderer')];for(const thread of threads){const root=thread.querySelector('ytd-comment-view-model,ytd-comment-renderer')||thread,body=get('#content-text',root);if(!body)continue;const author=get('#author-text',root),link=root.querySelector('#published-time-text a')?.href||'',key=link||author+'\n'+body;if(!comments.has(key))comments.set(key,{author,body,link,date:get('#published-time-text',root),likes:get('#vote-count-middle',root)||'Not displayed'});}return {section,threads};};
+if(limit){finish.disabled=false;let state=grab(),idle=0;const deadline=Date.now()+600000;state.section?.scrollIntoView();await sleep(900);while(true){check();state=grab();if(comments.size>=limit){reason='Requested count reached';break;}if(finishNow){reason='Stopped by user';break;}if(Date.now()>deadline){reason='Ten-minute safety limit';break;}const before=comments.size,target=state.section?.querySelector('ytd-continuation-item-renderer')||state.threads.at(-1)||state.section;target?.scrollIntoView({block:'end'});window.scrollBy(0,Math.max(800,innerHeight*1.3));for(let i=0;i<10;i++){await sleep(300);check();grab();if(comments.size>before||finishNow)break;}idle=comments.size>before?0:idle+1;say('Comments '+Math.min(comments.size,limit)+'; idle '+idle+'/3');if(idle>=3){reason='Three consecutive idle checks';break;}}}
+check();const current=player()?.videoDetails?.videoId;if(current&&current!==id)throw Error('Player identifies another video. Download cancelled.');
+const selected=[...comments.values()].slice(0,limit),canonical='https://www.youtube.com/watch?v='+id;
+notes.push('Transcript completeness is not independently verified.');notes.push('Top-level comments in loaded order; replies excluded. Stop reason: '+reason+'.');
+let md='# '+title+'\n\n- Channel: '+channel+'\n- Video: '+canonical+'\n- Video ID: '+id+'\n- Exported: '+new Date().toISOString()+'\n';if(d.channelId)md+='- Channel URL: https://www.youtube.com/channel/'+d.channelId+'\n';if(d.viewCount)md+='- Views (metadata): '+d.viewCount+'\n';if(d.lengthSeconds)md+='- Duration (seconds): '+d.lengthSeconds+'\n';
+md+='\n## Description\n\n'+description+'\n\n## Comments ('+selected.length+')\n\n'+selected.map((c,i)=>'### '+(i+1)+'. '+c.author+'\n\n'+c.date+' · Likes: '+c.likes+(c.link?' · '+c.link:'')+'\n\n'+c.body.split('\n').map(s=>'> '+s).join('\n')).join('\n\n');
+md+='\n\n## Transcript\n\n'+transcript.map(t=>'['+t.time+']('+canonical+'&t='+sec(t.time)+'s) '+t.body).join('\n\n')+'\n\n## Export notes\n\n'+[...warnings,...notes].map(s=>'- '+s).join('\n')+'\n';
+url=URL.createObjectURL(new Blob([md],{type:'text/markdown;charset=utf-8'}));const a=add('a','Download Markdown again / save manually',downloads);a.href=url;a.download=title.replace(/[<>:"/\\|?*\u0000-\u001f]/g,'_').slice(0,130)+' ['+id+'].md';a.style.cssText='display:block;color:#8ab4f8;padding:12px';a.onclick=e=>{if(stopped||videoID()!==id){e.preventDefault();invalidate();}};
+window.scrollTo(0,originalY);check();a.click();say('Download requested. Closing panel…');const exportURL=url;url=null;setTimeout(()=>{if(ui.isConnected)close.onclick();},1500);setTimeout(()=>URL.revokeObjectURL(exportURL),60000);
+}catch(e){clear();say(e.name+': '+e.message);console.error('[YTMD auto]',e);}finally{busy=false;finish.disabled=true;start.disabled=stopped;}
+};
+})().catch(e=>{alert('Exporter startup failed: '+e.message);console.error(e);})
+</script>
+
+<script>
+"use strict";
+
+const el = (id) => document.getElementById(id);
+
+/* Everything about an applet but the code itself, which lives in the
+   `<script type="text/plain" id="src-…">` block named by the id. Adding one
+   means adding a block and an entry here; nothing else on this page knows
+   what any particular applet is. */
+const APPLETS = [
+  {
+    id: "youtube-markdown",
+    name: "YouTube → Markdown",
+    what: "Takes the video you are watching and writes it out as a Markdown file: the title, "
+      + "the channel, the description, the top-level comments, and the transcript with every "
+      + "cue linked back to the moment it is said. It downloads by itself as soon as it has "
+      + "the transcript, and the panel closes behind it.",
+    steps: [
+      "Open the video on the desktop YouTube site — not a Short, not an embed, not m.youtube.com.",
+      "Open Show transcript under the description, and leave the panel open.",
+      "Set the comments to Top comments, which is what the export says it collected.",
+      "Click the bookmark. A panel appears at the top right.",
+      "Set how many comments you want, or tick the box for all of the top-level ones, and click Collect.",
+      "Leave the tab alone while it works. It scrolls the transcript and the comments itself and puts the scroll back when it is done.",
+      "The file downloads by itself and the panel closes a second and a half later.",
+    ],
+    caveats: [
+      "No transcript captured means no download. An export without the transcript is the one "
+        + "thing it will not quietly hand you, so a failure leaves the panel open with the log in it.",
+      "Comments are the top-level ones in the order YouTube loaded them; replies are not collected. "
+        + "Collection stops at your limit, at three idle passes, at ten minutes, or when you press "
+        + "Finish comments now — and the file records which of those it was.",
+      "Moving to another video cancels the run and invalidates the download, because YouTube "
+        + "swaps the page under you rather than reloading it and the transcript left behind "
+        + "belongs to the video you were on before.",
+      "Transcript ownership cannot be proved from the page, so the export says so rather than "
+        + "claiming the transcript is certainly the right one. The log prints its opening line "
+        + "for a quick check against the video.",
+      "It reads the transcript panel the site gives you. YouTube rearranges that panel from time "
+        + "to time, and when it does this will need fixing rather than degrading gracefully.",
+    ],
+  },
+];
+
+/* A bookmarklet is the program, URL-encoded, after `javascript:`. Newlines
+   and all: encodeURIComponent turns them into %0A, which every browser puts
+   back, so the source stays as written rather than being squashed onto one
+   line and risking a `//` comment swallowing the rest of it. */
+const asBookmarklet = (code) => "javascript:" + encodeURIComponent(code.trim());
+
+const sourceOf = (id) => {
+  const block = el(`src-${id}`);
+  if (!block) throw new Error(`no source block for ${id}`);
+  return block.textContent.trim();
+};
+
+/* Compiled, not run. `new Function` hands the code to the same parser that
+   would run it and throws the same SyntaxError, without any of it executing
+   — which is the only honest way to tell somebody their paste is broken
+   before they put it in their bookmarks bar. */
+function syntaxOf(code) {
+  try {
+    new Function(code);
+    return null;
+  } catch (err) {
+    return `${err.name}: ${err.message}`;
+  }
+}
+
+const fmt = (n) => n.toLocaleString("en-GB");
+const kb = (n) => (n < 1024 ? `${n} B` : `${(n / 1024).toFixed(1)} kB`);
+
+function writeFacts(into, rows) {
+  into.textContent = "";
+  for (const [what, value] of rows) {
+    const cell = document.createElement("span");
+    cell.append(`${what} `);
+    const b = document.createElement("b");
+    b.textContent = value;
+    cell.append(b);
+    into.append(cell);
+  }
+}
+
+async function copy(text, say, what) {
+  try {
+    await navigator.clipboard.writeText(text);
+    say.classList.remove("error");
+    say.textContent = `${what} copied — ${kb(text.length)}.`;
+  } catch {
+    say.classList.add("error");
+    say.textContent = "The browser would not let the page use the clipboard. "
+      + "Open the source below and copy it by hand.";
+  }
+}
+
+/* The one thing a drag target must not do is work when it is clicked: a
+   click here runs the applet against this page. */
+function dragOnly(link, say) {
+  link.addEventListener("click", (e) => {
+    e.preventDefault();
+    say.classList.remove("error");
+    say.textContent = "Drag it to your bookmarks bar rather than clicking it — "
+      + "a click here would run it on this page.";
+  });
+}
+
+function paintApplets() {
+  const into = el("applets");
+  into.textContent = "";
+
+  for (const applet of APPLETS) {
+    const code = sourceOf(applet.id);
+    const url = asBookmarklet(code);
+
+    const block = document.createElement("div");
+    block.className = "applet";
+    block.dataset.applet = applet.id;
+
+    const name = document.createElement("h3");
+    name.textContent = applet.name;
+    const what = document.createElement("p");
+    what.className = "what";
+    what.textContent = applet.what;
+    block.append(name, what);
+
+    const row = document.createElement("div");
+    row.className = "row";
+    const link = document.createElement("a");
+    link.className = "grab";
+    link.href = url;
+    link.draggable = true;
+    link.textContent = applet.name;
+    link.title = "Drag me to your bookmarks bar";
+    const copyBtn = document.createElement("button");
+    copyBtn.type = "button";
+    copyBtn.className = "ghost";
+    copyBtn.textContent = "Copy the bookmarklet";
+    const copySrc = document.createElement("button");
+    copySrc.type = "button";
+    copySrc.className = "ghost";
+    copySrc.textContent = "Copy the source";
+    row.append(link, copyBtn, copySrc);
+    block.append(row);
+
+    const facts = document.createElement("div");
+    facts.className = "facts";
+    const bad = syntaxOf(code);
+    writeFacts(facts, [
+      ["source", kb(code.length)],
+      ["encoded", kb(url.length)],
+      ["lines", fmt(code.split("\n").length)],
+      ["syntax", bad ? "will not compile" : "compiles"],
+    ]);
+    block.append(facts);
+
+    const say = document.createElement("p");
+    say.className = "said";
+    if (bad) {
+      say.classList.add("error");
+      say.textContent = bad;
+    }
+    block.append(say);
+    dragOnly(link, say);
+    copyBtn.addEventListener("click", () => copy(url, say, "The bookmarklet"));
+    copySrc.addEventListener("click", () => copy(code, say, "The source"));
+
+    if (applet.steps?.length) {
+      const steps = document.createElement("ol");
+      steps.className = "steps";
+      for (const step of applet.steps) {
+        const li = document.createElement("li");
+        li.textContent = step;
+        steps.append(li);
+      }
+      block.append(steps);
+    }
+
+    if (applet.caveats?.length) {
+      const caveats = document.createElement("ul");
+      caveats.className = "caveats";
+      for (const line of applet.caveats) {
+        const li = document.createElement("li");
+        li.textContent = line;
+        caveats.append(li);
+      }
+      block.append(caveats);
+    }
+
+    const details = document.createElement("details");
+    const summary = document.createElement("summary");
+    summary.textContent = `The source — ${fmt(code.split("\n").length)} lines, `
+      + `${kb(code.length)}, and the whole of what runs`;
+    const pre = document.createElement("pre");
+    pre.className = "src";
+    pre.textContent = code;
+    details.append(summary, pre);
+    block.append(details);
+
+    into.append(block);
+  }
+}
+
+/* ------------------------------------------------------- make your own -- */
+
+const ownCode = el("ownCode");
+const ownName = el("ownName");
+const ownGrab = el("ownGrab");
+const ownSaid = el("ownSaid");
+
+dragOnly(ownGrab, ownSaid);
+
+function paintOwn() {
+  const code = ownCode.value.trim();
+  const label = ownName.value.trim() || "My bookmarklet";
+
+  if (!code) {
+    el("ownMade").classList.add("off");
+    writeFacts(el("ownFacts"), []);
+    ownSaid.classList.remove("error");
+    ownSaid.textContent = "";
+    return;
+  }
+
+  const bad = syntaxOf(code);
+  const url = asBookmarklet(code);
+  writeFacts(el("ownFacts"), [
+    ["source", kb(code.length)],
+    ["encoded", kb(url.length)],
+    ["lines", fmt(code.split("\n").length)],
+    ["syntax", bad ? "will not compile" : "compiles"],
+  ]);
+
+  ownSaid.classList.toggle("error", Boolean(bad));
+  ownSaid.textContent = bad || "";
+  el("ownMade").classList.toggle("off", Boolean(bad));
+  ownGrab.href = url;
+  ownGrab.textContent = label;
+}
+
+for (const input of [ownCode, ownName]) input.addEventListener("input", paintOwn);
+el("ownCopy").addEventListener("click", () => {
+  copy(ownGrab.getAttribute("href"), ownSaid, "The bookmarklet");
+});
+
+paintApplets();
+paintOwn();
+</script>
+</body>
+</html>

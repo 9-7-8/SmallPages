@@ -78,6 +78,17 @@ Suites are named for the page they exercise. The ones worth knowing about:
   upright for the camera. Then the arithmetic — three hundred rolls of a d6
   against the range and every face of it, a simulated twenty thousand against
   the mean and the sixths it should land on.
+- **`test-applets.mjs`** — the bookmarklets page and the bookmarklet on it.
+  Half of it is the page: that the drag button holds exactly the source
+  printed under it, that a click on it does not run the thing here, and that
+  no source contains `</script>` or touches `innerHTML`. The other half runs
+  the applet. A bookmarklet that compiles is not a bookmarklet that works, so
+  the suite serves its own YouTube watch page — a transcript, three comments,
+  player metadata, nothing else — fulfils the request for `youtube.com`
+  locally, runs the exported bookmarklet against it, catches the download and
+  reads the Markdown: every cue sorted by time rather than by the order it sat
+  in the page, every comment with the likes the page displayed, and the export
+  notes saying what it could not vouch for.
 - **`test-pdfb.mjs`** — saves a PDF, reloads it through pdf.js, and reads the
   text back out, which is the only way to prove a copied page stayed a page
   rather than becoming a picture of one.
