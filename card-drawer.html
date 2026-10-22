@@ -205,6 +205,8 @@
     color: var(--text-dim);
   }
 
+  #hand { justify-content: center; margin-top: 1.2rem; }
+
   .fields { display: flex; flex-wrap: wrap; gap: 0.8rem 1.1rem; margin-top: 0.4rem; }
   .fields label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.75rem; }
   .fields input {
@@ -298,8 +300,10 @@
   <a class="home" href="index.html">&larr; index</a>
   <h1>Card Drawer</h1>
   <p class="lede">Draw from a deck &mdash; playing cards, a tarot deck or either half of one,
-  an Uno deck, or one you write yourself &mdash; and watch the cards land. Underneath, the same
-  draw made ten thousand times over, so you can see what the totals do.</p>
+  an Uno deck, or one you write yourself &mdash; and watch them come off the deck one at a time
+  and go down on the table, in a line, as past, present and future, or in a ring. Hearts are red
+  and a green Uno card is green. Underneath, the same draw made ten thousand times over, so you
+  can see what the totals do.</p>
 
   <div class="card">
     <div class="picks">
@@ -327,6 +331,14 @@
         <input type="text" id="howMany" value="3" inputmode="numeric" spellcheck="false"
                autocomplete="off" aria-describedby="err">
       </div>
+      <div class="field">
+        <label for="shape">Laid out</label>
+        <select id="shape">
+          <option value="line">In a line</option>
+          <option value="rows">Past, present, future</option>
+          <option value="ring">In a ring</option>
+        </select>
+      </div>
       <button type="button" id="drawBtn">Draw</button>
     </div>
 
@@ -338,14 +350,15 @@
     </div>
 
     <div class="drawn" id="drawn"></div>
+    <div class="figures" id="hand"></div>
   </div>
 
   <div class="card">
     <canvas id="tray" role="img" aria-label="The cards, face up on the table"></canvas>
     <div class="trayBar">
       <span class="what" id="trayNote">The table is empty.</span>
-      <label class="tick"><input type="checkbox" id="tumble" checked> <span>Throw them</span></label>
-      <button type="button" id="againBtn" class="ghost">Throw again</button>
+      <label class="tick"><input type="checkbox" id="tumble" checked> <span>Deal them out</span></label>
+      <button type="button" id="againBtn" class="ghost">Deal again</button>
       <button type="button" id="drawHere">Draw</button>
     </div>
   </div>
@@ -448,12 +461,34 @@
   draws taken from <code>crypto.getRandomValues</code>, the ragged tail thrown away, so every
   arrangement of the deck is as likely as every other.</p>
 
-  <p class="note"><strong>The throw is not steered.</strong> The cards are thrown at the table and
-  left to stop where they stop, the same physics the dice roller uses: every contact is an impulse
-  at the corner that is touching. What is settled in advance is which cards came out; which way up
-  each one lands is the throw's business, and the face is painted on whichever side ends up
-  looking at the ceiling, so a card is never face down when it matters. Turn <em>Throw them</em>
-  off, or ask your system for reduced motion, and they are simply laid out instead.</p>
+  <p class="note"><strong>They are dealt, not thrown.</strong> Each card is lifted off the top of
+  the deck at the back of the table, carried over in a low arc, turned face up on the way and set
+  down in its place &mdash; the last of the flight is the slowest part of it, which is the
+  difference between a card being placed and a card being dropped. The deck gets shorter as they
+  come off it. Nothing bounces and nothing is left to chance: where a card is going is decided
+  before it leaves, and the only thing the deal decides is the order you watch them arrive in.
+  Turn <em>Deal them out</em> off, or ask your system for reduced motion, and they are simply
+  there instead.</p>
+
+  <p class="note"><strong>Three ways to lay them out.</strong> <em>In a line</em> is the default
+  and is what it says: one row, side by side, in the order they came out, as large as a row of
+  that many will go. <em>Past, present, future</em> divides them into three rows as near equal as
+  thirds go &mdash; the outer two take a third each and whatever will not divide goes to the
+  present, so the present is the widest row whenever they differ and the arrangement is
+  symmetrical either way. <em>In a ring</em> puts them round a circle, kept a circle rather than
+  stretched to the shape of the table, with each card turned to face out of it the way the cards
+  in a wheel spread lie.</p>
+
+  <p class="note"><strong>The cards are the colour they are.</strong> Hearts and diamonds red,
+  spades and clubs black, on stock the colour card actually is &mdash; and the tarot suits with
+  them, because cups are hearts and swords are spades and always were. An Uno card is its own
+  colour with the printing on top, which is the way round a real one works; yellow prints dark,
+  because white on yellow cannot be read. Anything else &mdash; a major arcanum, a card out of a
+  deck you wrote &mdash; has no colour of its own and prints in whatever the page is set to,
+  unless you gave it a suit for an icon, in which case it is red or black like any other card
+  wearing one. This is
+  the one thing here the two knobs in <code>theme.css</code> do not reach: the table, the deck
+  and the backs of the cards are all still the page's colour.</p>
 
   <p class="note"><strong>Face cards are worth what you say they are.</strong> Everything that is
   already a number counts as that number; the rest &mdash; aces, courts, Uno's skips and wilds
@@ -467,6 +502,12 @@
   box steps aside while one is picked. <em>Load a file</em> takes JSON: one spread as
   <code>{"name": "...", "positions": ["...", "..."]}</code>, or an array of them, or
   <code>{"spreads": [...]}</code>, which is what <em>Copy them as JSON</em> gives you.</p>
+
+  <p class="note"><strong>The figures are under both.</strong> Under the cards: what the hand in
+  front of you came to, and the mean, the median and the ends of it. Under the chart: the same
+  for the ten thousand draws behind it &mdash; how many, the mean, the median, the total that
+  came up most often, the spread either side and the lowest and highest ever reached, with the
+  chance of doing at least as well as the draw on the table.</p>
 
   <p class="note"><strong>Every new draw is dealt ten thousand times over.</strong> Change the
   deck, the count or what a face card is worth and the chart under it is redrawn from ten thousand
@@ -496,6 +537,7 @@ const againBtn  = el("againBtn");
 const canvas    = el("tray");
 const brush     = canvas.getContext("2d");
 const spreadIn  = el("spread");
+const shapeIn   = el("shape");
 const manyIn    = el("howMany");
 const jokersIn  = el("jokers");
 const worthsEl  = el("worths");
@@ -731,6 +773,9 @@ function howManyNow() {
   return Number.isFinite(n) ? n : 0;
 }
 
+// Which of the three arrangements the cards go down in.
+const shapeNow = () => (SHAPES[shapeIn.value] ? shapeIn.value : "line");
+
 const seatsNow = () => {
   const spread = spreadNow();
   return spread ? spread.seats : null;
@@ -806,12 +851,50 @@ function paintDrawn(drawn) {
   });
 }
 
+/* A row of figures, written the same way under the cards and under the chart
+   so the two read as the same kind of thing. */
+function writeFigures(into, rows) {
+  into.textContent = "";
+  for (const [what, value] of rows) {
+    const cell = document.createElement("span");
+    cell.append(`${what} `);
+    const b = document.createElement("b");
+    b.textContent = value;
+    cell.append(b);
+    into.append(cell);
+  }
+}
+
+const middleOf = (sorted) => (sorted.length % 2
+  ? sorted[(sorted.length - 1) / 2]
+  : (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2);
+
+// What the hand on the table comes to, which is a different question from
+// what the chart underneath is about: this one is the draw you actually made.
+function paintHand(drawn) {
+  const hand = el("hand");
+  if (!drawn || drawn.length < 2) { hand.textContent = ""; return; }
+  const values = drawn.map((c) => c.value);
+  const sorted = [...values].sort((a, b) => a - b);
+  const total = totalOf(drawn);
+  const mean = total / values.length;
+  writeFigures(hand, [
+    ["cards", String(values.length)],
+    ["total", fmt(total)],
+    ["mean", mean.toFixed(2)],
+    ["median", String(Number(middleOf(sorted).toFixed(2)))],
+    ["lowest", String(sorted[0])],
+    ["highest", String(sorted[sorted.length - 1])],
+  ]);
+}
+
 function showDraw(drawn) {
   const total = totalOf(drawn);
   totalEl.textContent = String(total);
   totalEl.classList.remove("none");
   sayEl.textContent = sayOf(drawn, total);
   paintDrawn(drawn);
+  paintHand(drawn);
 }
 
 function paintLog() {
@@ -840,7 +923,7 @@ function save() {
   try {
     localStorage.setItem(KEY, JSON.stringify({
       deck: deckKind, jokers: jokersIn.checked, many: manyIn.value, spread: spreadIn.value,
-      tumble: tumbleIn.checked, worth: worthSet, own: ownIn.value,
+      shape: shapeIn.value, tumble: tumbleIn.checked, worth: worthSet, own: ownIn.value,
       spreads: mySpreads.slice(0, 60), entries: entries.slice(0, CAP),
     }));
   } catch {}
@@ -854,6 +937,7 @@ function load() {
   if (typeof held.jokers === "boolean") jokersIn.checked = held.jokers;
   if (typeof held.many === "string") manyIn.value = held.many;
   if (typeof held.tumble === "boolean") tumbleIn.checked = held.tumble;
+  if (typeof held.shape === "string" && SHAPES[held.shape]) shapeIn.value = held.shape;
   if (typeof held.own === "string") ownIn.value = held.own.slice(0, 20000);
   if (held.worth && typeof held.worth === "object") {
     for (const [kind, set] of Object.entries(held.worth)) {
@@ -929,8 +1013,6 @@ const vlen = (a) => Math.sqrt(dot(a, a));
 
 const unit = (a) => mul(a, 1 / (vlen(a) || 1));
 
-const perp = (a) => unit(cross(a, Math.abs(a.x) < 0.9 ? v3(1, 0, 0) : v3(0, 1, 0)));
-
 const qMul = (a, b) => ({
   w: a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z,
   x: a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y,
@@ -952,16 +1034,6 @@ function turn(q, v) {                      // v rotated by q
   const u = v3(q.x, q.y, q.z);
   const t = mul(cross(u, v), 2);
   return add(add(v, mul(t, q.w)), cross(u, t));
-}
-
-/* The shortest rotation taking one direction to another: used to tip a card
-   onto the face it rolled without spinning it any further than it has to. */
-function qBetween(a, b) {
-  const d = dot(a, b);
-  if (d > 0.999999) return { w: 1, x: 0, y: 0, z: 0 };
-  if (d < -0.999999) { const ax = perp(a); return { w: 0, x: ax.x, y: ax.y, z: ax.z }; }
-  const c = cross(a, b);
-  return qUnit({ w: 1 + d, x: c.x, y: c.y, z: c.z });
 }
 
 function qSlerp(a, b, t) {
@@ -1053,14 +1125,18 @@ const EYE = v3(0, 23.5, 27);
 const AIM = v3(0, 0.4, 0);
 const LIGHT = unit(v3(-0.35, 1, 0.5));
 
-const G = 981;
-const STEP = 1 / 300;
-const LUMP = 0.3;              // moment of inertia, as a fraction of m·R²
-const BOUNCE = 0.28;           // card on wood barely bounces at all
-const RUB = 0.5;               // and slides less than a die
-const CALM = 0.95;             // when the table starts taking the energy out
-const LONGEST = 1.75;          // and when it has to be still regardless
-const FLAT = 0.14;             // the last settle onto the face it is lying on
+/* The deal. A card is lifted off the top of the deck, carried over in a low
+   arc, turned face up on the way and set down. Nothing is thrown and nothing
+   bounces: where a card goes is decided before it leaves the deck, which is
+   what makes this a deal rather than a throw, and the slowest part of the
+   flight is the landing. */
+const DECK = { x: -TRAY.w + 3.8, z: -TRAY.d + 2.6 };
+const LEAF = 0.035;            // what one card in a stack is really worth, in cm
+const DEEP = 120;              // and as tall a stack as this will draw
+const FLY = 0.62;              // how long one card takes to cross, in seconds
+const GAP = 0.14;              // and how long after it the next one leaves
+const SPILL = 2.3;             // the whole deal held to about this long
+const LIFT = 3.4;              // how far the arc rises above the table
 
 const FWD = unit(sub(AIM, EYE));
 const RIGHT = unit(cross(FWD, v3(0, 1, 0)));
@@ -1077,10 +1153,10 @@ let hue = 288;
 let colour = 0;
 let faceFont = "sans-serif";
 let raf = 0;
-let dealSteps = 0;
 let began = 0;
-let played = 0;
-let settled = false;           // the throw is over and the cards are where they stop
+let settled = false;           // the deal is over and every card is down
+let deckLeft = 0;              // cards still on the deck, for drawing the stack
+let deckSize = 0;              // and how many were in it before the deal
 
 /* ------------------------------------------------------------ the chart -- */
 
@@ -1193,233 +1269,6 @@ function spinVerts(card) {
   }
 }
 
-/* One contact, resolved as an impulse at the corner that is touching. This is
-   what makes a thrown card behave like one: the impulse is off-centre, so it
-   is also a torque, and a card that lands on a corner flips over it instead of
-   sliding. Friction along the surface does the same job the other way, turning
-   a skid into a roll. Nothing here is a fudge factor on the spin — the tumble
-   falls out of where the card is hit. */
-function bump(card, n, r) {
-  const vAt = add(card.vel, cross(card.omega, r));
-  const vn = dot(vAt, n);
-  if (vn >= 0) return;
-  const spin = LUMP * card.R2;
-  const rn = dot(r, n);
-  const kn = 1 + (dot(r, r) - rn * rn) / spin;
-  // A corner coming down slowly does not bounce at all. Without that cutoff a
-  // card at rest trades a hair of height for a hair of speed on every step and
-  // never actually stops, which is the usual reason a card in a game jitters.
-  const give = -vn < 7 ? 0 : BOUNCE;
-  const jn = -(1 + give) * vn / kn;
-  let push = mul(n, jn);
-
-  const vt = sub(vAt, mul(n, vn));
-  const slide = vlen(vt);
-  if (slide > 1e-6) {
-    const t = mul(vt, 1 / slide);
-    const rt = dot(r, t);
-    const kt = 1 + (dot(r, r) - rt * rt) / spin;
-    push = sub(push, mul(t, Math.min(RUB * jn, slide / kt)));
-  }
-  card.vel = add(card.vel, push);
-  card.omega = add(card.omega, mul(cross(r, push), 1 / spin));
-}
-
-// The table is every corner that is under it, not a ball around the middle,
-// so a card landing flat settles instead of rocking on one point.
-function meetTable(card) {
-  const rot = card.rot;
-  let deep = 0;
-  for (let i = 1; i < rot.length; i += 3) {
-    const under = -(card.pos.y + rot[i]);
-    if (under > deep) deep = under;
-  }
-  if (deep <= 0) return false;
-  card.pos.y += deep;
-
-  /* Lifted clear first, and only then asked which corners are touching: a
-     corner a hair above the table is still resting on it, and taking the
-     whole set at once is what keeps a card that has landed flat from rocking
-     from one corner to the next. Three passes over them, because an impulse
-     at one corner changes what the others need. */
-  const band = 0.02 * card.r;
-  const touching = [];
-  for (let i = 0; i < rot.length; i += 3) if (card.pos.y + rot[i + 1] < band) touching.push(i);
-  for (let pass = 0; pass < 3; pass++) {
-    for (const i of touching) bump(card, v3(0, 1, 0), v3(rot[i], rot[i + 1], rot[i + 2]));
-  }
-  return true;
-}
-
-function meetWalls(card) {
-  const rot = card.rot;
-  let hit = false;
-  for (const side of [-1, 1]) {
-    for (const axis of [0, 2]) {
-      const edge = side * (axis === 0 ? TRAY.w : TRAY.d);
-      const middle = axis === 0 ? card.pos.x : card.pos.z;
-      let deep = 0;
-      for (let i = 0; i < rot.length; i += 3) {
-        const over = side * (middle + rot[i + axis] - edge);
-        if (over > deep) deep = over;
-      }
-      if (deep <= 0) continue;
-      hit = true;
-      if (axis === 0) card.pos.x -= side * deep; else card.pos.z -= side * deep;
-      const now = axis === 0 ? card.pos.x : card.pos.z;
-      const band = 0.02 * card.r;
-      const touching = [];
-      for (let i = 0; i < rot.length; i += 3) {
-        if (side * (now + rot[i + axis] - edge) > -band) touching.push(i);
-      }
-      const n = axis === 0 ? v3(-side, 0, 0) : v3(0, 0, -side);
-      for (let pass = 0; pass < 2; pass++) {
-        for (const i of touching) bump(card, n, v3(rot[i], rot[i + 1], rot[i + 2]));
-      }
-    }
-  }
-  return hit;
-}
-
-// Dice against each other, as the balls they very nearly are. Knocking one
-// card into another is half of what a handful of cards looks like.
-function knock() {
-  for (let i = 0; i < cards.length; i++) {
-    for (let j = i + 1; j < cards.length; j++) {
-      const a = cards[i];
-      const b = cards[j];
-      const ra = a.shape.radius * a.r * 0.88;
-      const rb = b.shape.radius * b.r * 0.88;
-      const gap = sub(a.pos, b.pos);
-      const apart = vlen(gap);
-      if (apart >= ra + rb || apart < 1e-6) continue;
-      const n = mul(gap, 1 / apart);
-
-      /* They are eased apart along the table rather than along the line
-         between them, so that a card cannot come to rest held up in the air by
-         the one underneath it: everything reaches the table, which is what
-         lets it stop. Two cards lying against each other are only nudged —
-         waking a card every time it touches its neighbour is how a handful of
-         cards ends up never settling at all. */
-      if (Math.abs(a.pos.y - b.pos.y) < ra + rb) {
-        let fx = a.pos.x - b.pos.x;
-        let fz = a.pos.z - b.pos.z;
-        let flat = Math.hypot(fx, fz);
-        // Not Math.random: this runs once to find out where the cards land and
-        // again to show it, and the two have to come out the same.
-        if (flat < 1e-4) { fx = (i % 7) / 7 - 0.5 + 0.01; fz = (j % 5) / 5 - 0.5; flat = Math.hypot(fx, fz); }
-        const want = (ra + rb) * 0.95;
-        if (flat < want) {
-          const share = (want - flat) / 2 / flat * (a.asleep && b.asleep ? 0.25 : 1);
-          a.pos.x += fx * share; a.pos.z += fz * share;
-          b.pos.x -= fx * share; b.pos.z -= fz * share;
-        }
-      }
-
-      const rel = sub(a.vel, b.vel);
-      const vn = dot(rel, n);
-      if (vn > -3) continue;                // leaning together, not colliding
-      // Only a real knock wakes a card that has stopped. A card at rest still
-      // twitches by a hair, and letting that count as a collision is how a
-      // crowd of cards keeps nudging itself awake for ever.
-      if (vn < -8) {
-        if (a.asleep) { a.asleep = false; a.still = 0; }
-        if (b.asleep) { b.asleep = false; b.still = 0; }
-      }
-      const jn = -(1 + 0.35) * vn / 2;
-      a.vel = add(a.vel, mul(n, jn));
-      b.vel = sub(b.vel, mul(n, jn));
-
-      const vt = sub(rel, mul(n, vn));
-      const slide = vlen(vt);
-      if (slide < 1e-6) continue;
-      const t = mul(vt, 1 / slide);
-      const jt = Math.min(0.3 * jn, slide / 4);
-      a.vel = sub(a.vel, mul(t, jt));
-      b.vel = add(b.vel, mul(t, jt));
-      a.omega = add(a.omega, mul(cross(mul(n, -ra), mul(t, -jt)), 1 / (LUMP * a.R2)));
-      b.omega = add(b.omega, mul(cross(mul(n, rb), mul(t, jt)), 1 / (LUMP * b.R2)));
-    }
-  }
-}
-
-function oneStep(at) {
-  // Past a point the table quietly takes the energy out, so that a card that
-  // found a lucky bounce is still down before the throw outstays its welcome.
-  const taking = at > CALM ? 0.986 : 1;
-  for (const card of cards) {
-    if (card.asleep) continue;
-    card.vel.y -= G * STEP;
-    card.pos = add(card.pos, mul(card.vel, STEP));
-
-    const w = { w: 0, x: card.omega.x, y: card.omega.y, z: card.omega.z };
-    const dq = qMul(w, card.quat);
-    card.quat = qUnit({
-      w: card.quat.w + dq.w * STEP * 0.5, x: card.quat.x + dq.x * STEP * 0.5,
-      y: card.quat.y + dq.y * STEP * 0.5, z: card.quat.z + dq.z * STEP * 0.5,
-    });
-    spinVerts(card);
-
-    meetTable(card);
-    meetWalls(card);
-
-    // Down on the table rather than touching it to the millimetre: a card that
-    // has finished is often a hair clear of it, and treating that as flight
-    // leaves it hanging there with nothing taking its energy away.
-    let low = Infinity;
-    for (let i = 1; i < card.rot.length; i += 3) low = Math.min(low, card.pos.y + card.rot[i]);
-    const near = low < 0.05 * card.r;
-
-    if (near) {
-      // Rolling costs something, or a d20 would run like a marble — but only
-      // a little. Taking it out faster than this stops a thrown card dead on
-      // the spot it lands, because the roll is where the rest of its travel
-      // comes from once friction has had the slide.
-      card.omega = mul(card.omega, 0.998);
-      card.vel = mul(card.vel, 0.999);
-      const going = vlen(card.vel);
-      const spinning = vlen(card.omega);
-      // A card spinning on one corner has nothing sliding at the corner, so
-      // friction never sees it and it would spin like a top for ever. Real
-      // ones wind down in about a second, and so does this.
-      if (going < 4 && spinning > 4) card.omega = mul(card.omega, 0.95);
-      // And the last of it goes quickly: a contact worked out once a step
-      // leaves a card buzzing on the spot otherwise.
-      if (going < 7 && spinning < 7) {
-        card.vel = mul(card.vel, 0.86);
-        card.omega = mul(card.omega, 0.86);
-      }
-    }
-    if (taking !== 1) {
-      card.vel = mul(card.vel, taking);
-      card.omega = mul(card.omega, taking);
-    }
-
-    // Credit for being still, and only a little of it taken back for a
-    // twitch: in a crowd a card is forever being brushed by its neighbours,
-    // and starting its count again every time means it never finishes.
-    if (near && vlen(card.vel) < 2.5 && vlen(card.omega) < 2.5) card.still += STEP;
-    else card.still = Math.max(0, card.still - STEP * 2);
-    if (card.still > 0.1) {
-      card.asleep = true;
-      card.vel = v3(0, 0, 0);
-      card.omega = v3(0, 0, 0);
-    }
-  }
-  knock();
-}
-
-function backToStart(card) {
-  const from = card.start;
-  card.pos = { ...from.pos };
-  card.vel = { ...from.vel };
-  card.omega = { ...from.omega };
-  card.quat = { ...from.quat };
-  card.asleep = false;
-  card.still = 0;
-  spinVerts(card);
-}
-
 function paintTable() {
   brush.strokeStyle = tone(26, 0.5);
   brush.lineWidth = 1;
@@ -1468,11 +1317,57 @@ function paintTable() {
   }
 }
 
+/* What is left of the deck, as a block of cards at the back of the table. It
+   is drawn rather than modelled — three faces of a box — because a deck is
+   only ever seen from one side and nothing about it has to be right except
+   that it gets shorter as the cards come off it. */
+function paintDeck(r) {
+  // What is left of the real deck, not of the hand: the rest of it is still
+  // sitting there after the last card has gone down, the way it would be.
+  // A card in a stack is a third of a millimetre, not the sixteenth of a
+  // centimetre a single card has to be drawn at to be seen at all.
+  const left = deckSize - (cards.length - deckLeft);
+  if (left <= 0) return;
+  const hw = CARD.w * r / 2;
+  const hh = CARD.h * r / 2;
+  const top = Math.max(CARD.t * r, LEAF * r * left);
+  const at = (x, y, z) => project(v3(DECK.x + x, y, DECK.z + z));
+  const quad = (pts, fill, line) => {
+    if (!pts.every(Boolean)) return;
+    brush.beginPath();
+    pts.forEach((q, i) => (i ? brush.lineTo(q.x, q.y) : brush.moveTo(q.x, q.y)));
+    brush.closePath();
+    brush.fillStyle = fill;
+    brush.fill();
+    brush.strokeStyle = line;
+    brush.lineWidth = 1;
+    brush.stroke();
+  };
+  // The two sides first, then the top over them: the deck is at the far
+  // corner, so this is the only order they can be seen in.
+  quad([at(-hw, 0, hh), at(hw, 0, hh), at(hw, top, hh), at(-hw, top, hh)],
+       tone(13), tone(26, 0.6));
+  quad([at(hw, 0, -hh), at(hw, 0, hh), at(hw, top, hh), at(hw, top, -hh)],
+       tone(10), tone(24, 0.6));
+  quad([at(-hw, top, -hh), at(hw, top, -hh), at(hw, top, hh), at(-hw, top, hh)],
+       tone(18), tone(40, 0.7));
+  // The frame on the back of the top card, the same one every face-down card
+  // in the air is wearing.
+  const inset = [at(-hw * 0.84, top, -hh * 0.88), at(hw * 0.84, top, -hh * 0.88),
+                 at(hw * 0.84, top, hh * 0.88), at(-hw * 0.84, top, hh * 0.88)];
+  if (!inset.every(Boolean)) return;
+  brush.beginPath();
+  inset.forEach((q, i) => (i ? brush.lineTo(q.x, q.y) : brush.moveTo(q.x, q.y)));
+  brush.closePath();
+  brush.strokeStyle = tone(46, 0.5);
+  brush.stroke();
+}
+
 /* Text lying on the face and turning with it. The two directions it is drawn
    along are the ones painted on the face in the solid's own frame, so a
    number goes round with the card and comes up sideways or upside down exactly
    as the numbers on a real card do. */
-function faceText(at, across, down, text, high, fill, glow) {
+function faceText(at, across, down, text, high, fill) {
   const s = 0.2;
   const p0 = project(at);
   const pa = project(add(at, mul(across, s)));
@@ -1483,8 +1378,11 @@ function faceText(at, across, down, text, high, fill, glow) {
 
   const F = 40;
   const k = high / F / s;
-  // A number seen almost edge-on is a smear; it is left off rather than drawn.
-  if (Math.hypot(ax, ay) * k * F < 7 || Math.hypot(dx, dy) * k * F < 5) return;
+  // Text seen almost edge-on is a smear; it is left off rather than drawn.
+  // The floor is low because nothing on this table tumbles any more: a card
+  // is flat and square to the camera, and the only thing that shrinks a line
+  // of printing is the far end of the table being further away than the near.
+  if (Math.hypot(ax, ay) * k * F < 3.5 || Math.hypot(dx, dy) * k * F < 2.5) return;
 
   brush.save();
   brush.setTransform(ax * k * dpr, ay * k * dpr, dx * k * dpr, dy * k * dpr, p0.x * dpr, p0.y * dpr);
@@ -1492,55 +1390,57 @@ function faceText(at, across, down, text, high, fill, glow) {
   brush.textAlign = "center";
   brush.textBaseline = "middle";
   brush.fillStyle = fill;
-  if (glow) { brush.shadowColor = fill; brush.shadowBlur = 22; }
   brush.fillText(text, 0, 0);
   brush.restore();
   brush.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 
+/* When card i leaves the deck. A long deal is dealt quicker rather than
+   kept waiting through: forty cards at a seventh of a second each would be
+   six seconds of watching somebody else's hands. */
+const leavesAt = (i, n) => i * (n > 1 ? Math.min(GAP, SPILL / (n - 1)) : 0);
+const dealLasts = (n) => (n ? leavesAt(n - 1, n) + FLY : 0);
+
+// Out of the deck gently and into the table more gently still: a card that is
+// placed spends the last of its travel barely moving.
+const ease = (u) => (u < 0.5 ? 2 * u * u : 1 - ((-2 * u + 2) ** 2) / 2);
+
 function tick(ms) {
   if (!began) began = ms;
   const over = (ms - began) / 1000;
-  const want = Math.min(dealSteps, Math.floor(over / STEP));
-  while (played < want) { oneStep(played * STEP); played++; }
+  const n = cards.length;
+  let onDeck = 0;
 
-  if (played >= dealSteps) {
-    // The last of it: whatever corner it stopped on, rocked flat onto the
-    // face it is lying on. On a throw that finished by itself this is a
-    // degree or two and you would not catch it.
-    const through = Math.min(1, (over - dealSteps * STEP) / FLAT);
-    const ease = through * through * (3 - 2 * through);
-    for (const card of cards) {
-      if (!card.settling) {
-        card.settling = { quat: card.quat, y: card.pos.y, x: card.pos.x, z: card.pos.z };
-      }
-      card.quat = qSlerp(card.settling.quat, card.endQuat, ease);
-      card.pos.y = card.settling.y + (card.endY - card.settling.y) * ease;
-      card.pos.x = card.settling.x + (card.endX - card.settling.x) * ease;
-      card.pos.z = card.settling.z + (card.endZ - card.settling.z) * ease;
-      spinVerts(card);
-    }
-    // Settled before the last frame rather than after it: the places in a
-    // spread are written on the table once the cards have stopped, and that
-    // frame is the one they have to be on.
-    settled = through >= 1;
-    draw();
-    if (through < 1) { raf = requestAnimationFrame(tick); return; }
-    raf = 0;
-    return;
-  }
+  cards.forEach((card, i) => {
+    const u = Math.max(0, Math.min(1, (over - leavesAt(i, n)) / FLY));
+    if (u <= 0) onDeck++;
+    const e = ease(u);
+    const place = card.place;
+    card.pos = v3(
+      card.from.x + (place.x - card.from.x) * e,
+      card.from.y + (place.y - card.from.y) * e + Math.sin(Math.PI * e) * LIFT * card.r,
+      card.from.z + (place.z - card.from.z) * e,
+    );
+    card.quat = e <= 0 ? card.fromQuat : qSlerp(card.fromQuat, place.quat, e);
+    spinVerts(card);
+  });
 
+  deckLeft = onDeck;
+  // Settled before the last frame rather than after it: the places in a
+  // spread are written on the table once the cards have stopped, and that
+  // frame is the one they have to be on.
+  settled = over >= dealLasts(n);
   draw();
-  raf = requestAnimationFrame(tick);
+  if (!settled) { raf = requestAnimationFrame(tick); return; }
+  raf = 0;
 }
 
 function stopTick() {
   if (raf) cancelAnimationFrame(raf);
   raf = 0;
   began = 0;
-  played = 0;
   settled = false;
-  for (const card of cards) card.settling = null;
+  deckLeft = 0;
 }
 
 /* sfc32, seeded from the same place a single roll comes from. Not the
@@ -1741,25 +1641,18 @@ function sayBin(which, bins) {
 }
 
 function paintFigures() {
-  figures.textContent = "";
   const rows = [
     ["draws", fmt(sim.trials)],
     ["mean", sim.mean.toFixed(2)],
     ["median", String(sim.median)],
+    ["most often", String(sim.peakAt)],
     ["spread", `±${sim.sd.toFixed(2)}`],
     ["lowest", String(sim.first)],
     ["highest", String(sim.last)],
   ];
   const mine = lastDraw ? totalOf(lastDraw) : null;
   if (mine !== null) rows.push([`${mine} or better`, pct(shareAtOrAbove(mine), 2)]);
-  for (const [what, value] of rows) {
-    const cell = document.createElement("span");
-    cell.append(`${what} `);
-    const b = document.createElement("b");
-    b.textContent = value;
-    cell.append(b);
-    figures.append(cell);
-  }
+  writeFigures(figures, rows);
 }
 
 /* The same numbers as the chart, in the same bins, for anyone the chart does
@@ -1876,11 +1769,6 @@ function stopSim() {
 
 /* ------------------------------------------------------------ the cards -- */
 
-const randomQuat = () => qUnit({
-  w: Math.random() - 0.5, x: Math.random() - 0.5,
-  y: Math.random() - 0.5, z: Math.random() - 0.5,
-});
-
 /* One shape for every card: a flat box, with the two big faces the ones that
    carry anything. The printing is laid out along the card in the card's own
    frame, so it turns with it rather than staying upright for the camera. */
@@ -1904,135 +1792,158 @@ function cardShape() {
   }
   let radius = 0;
   for (const p of pts) radius = Math.max(radius, vlen(p));
-  shapeHeld = { pts, faces, reads, radius };
+  // Which of the two is the printed one: a card at rest is square to the
+  // table, so the face looking at the ceiling is the face with the words on.
+  const up = reads.findIndex((f) => f.normal.y > 0);
+  shapeHeld = { pts, faces, reads, radius, up: up < 0 ? 0 : up };
   return shapeHeld;
 }
 
-// Ten cards fill the table at their real size; past that they shrink, because
-// a hand you cannot see is worse than one that is small.
-function cardSize(n) {
-  const room = TRAY.w * 2 * TRAY.d * 2;
-  return Math.max(0.34, Math.min(1, Math.sqrt(room / (n * 90))));
+/* ============================================================== colours == */
+
+/* A card's colour belongs to the card rather than to the page: a heart is red
+   and a green Uno card is green whatever the two knobs in theme.css are set
+   to. This is the one place in here that paints something the theme does not
+   reach, and it is kept as narrow as it can be — the stock, the ink, and
+   nothing else. The table, the deck and the backs are all still the theme's. */
+const STOCK = [0xee, 0xe8, 0xdb];          // warm off-white, the colour of card
+const INK_RED = [0xc0, 0x2f, 0x29];
+const INK_BLACK = [0x1b, 0x1b, 0x20];
+
+// Hearts and diamonds red, spades and clubs black — and the tarot suits with
+// them, because cups are hearts and swords are spades and always were.
+const SUIT_INK = { "♥": INK_RED, "♦": INK_RED,
+                   "♠": INK_BLACK, "♣": INK_BLACK };
+
+/* Uno's four and its wild. On a real Uno card the card is the colour and the
+   printing sits on it, which is the way round this does it too. Yellow is the
+   exception: white on yellow cannot be read, so yellow prints dark. */
+const UNO_LOOK = {
+  "●": { stock: [0xcd, 0x32, 0x2d], ink: [0xfb, 0xf8, 0xf2] },   // red
+  "◆": { stock: [0xe2, 0xad, 0x1a], ink: [0x2b, 0x22, 0x05] },   // yellow
+  "▲": { stock: [0x2c, 0x8b, 0x4b], ink: [0xfb, 0xf8, 0xf2] },   // green
+  "■": { stock: [0x24, 0x5e, 0xb5], ink: [0xfb, 0xf8, 0xf2] },   // blue
+  "✸": { stock: [0x1b, 0x1b, 0x20], ink: [0xfb, 0xf8, 0xf2] },   // wild
+};
+
+/* What a card looks like. An Uno card is its colour; anything wearing a suit
+   is red or black; everything else — a major arcanum, a card out of a deck
+   you wrote — has no colour of its own, so `ink: null` sends the printing
+   back to the theme. */
+function lookOf(face) {
+  if (deckKind === "uno" && UNO_LOOK[face.icon]) return UNO_LOOK[face.icon];
+  const ink = SUIT_INK[face.icon];
+  return { stock: STOCK, ink: ink || null };
 }
 
-function makeCard(face, seat, r) {
+const dim = (rgb, k) => `rgb(${Math.min(255, Math.round(rgb[0] * k))} `
+  + `${Math.min(255, Math.round(rgb[1] * k))} ${Math.min(255, Math.round(rgb[2] * k))})`;
+
+/* =============================================================== shapes == */
+
+/* Where the cards go once they are down. Each arrangement works out how big
+   the cards have to be for itself rather than taking one size from the count:
+   ten in a line is ten small cards, the same ten in three rows are nearly
+   full size, and the ring sizes them by the gap between neighbours. */
+const SHAPES = {
+  line: { say: "in a line", rows: null },
+  rows: { say: "as past, present and future", rows: ["Past", "Present", "Future"] },
+  ring: { say: "in a ring", rows: null },
+};
+
+const ROOM = { w: TRAY.w * 2 * 0.97, d: TRAY.d * 2 * 0.94 };
+
+// Side by side, in the order they came out, which is the arrangement you want
+// unless you asked for another one.
+function lineOf(n) {
+  const r = Math.min(1, ROOM.w / (n * CARD.w * 1.1), ROOM.d / (CARD.h * 1.18));
+  const pitch = CARD.w * 1.1 * r;
+  return Array.from({ length: n }, (_, i) => ({
+    x: (i - (n - 1) / 2) * pitch, z: 0, turn: 0, square: true, r, row: -1, first: false,
+  }));
+}
+
+/* Thirds, as near as thirds go. Past and future take the floor of a third
+   each and everything left over goes to the present, so the present is the
+   widest row whenever the three are not equal — and the whole thing comes out
+   symmetrical either way, because what is left over is shared by nobody. */
+function threeRows(n) {
+  const outer = Math.floor(n / 3);
+  const rows = [outer, n - outer * 2, outer];
+  const widest = Math.max(...rows, 1);
+  const r = Math.min(1, ROOM.w / (widest * CARD.w * 1.1), ROOM.d / (3 * CARD.h * 1.16));
+  const pitch = CARD.w * 1.1 * r;
+  const step = CARD.h * 1.16 * r;
+  const out = [];
+  rows.forEach((many, row) => {
+    for (let i = 0; i < many; i++) {
+      out.push({ x: (i - (many - 1) / 2) * pitch, z: (row - 1) * step,
+                 turn: 0, square: true, r, row, first: i === 0 });
+    }
+  });
+  return out;
+}
+
+/* A circle, and kept a circle rather than stretched into the table's oblong:
+   the radius is whatever the shorter side of the table allows, and the cards
+   shrink until the gap between two neighbours is wide enough to hold one.
+   Each card is turned to face out of the ring, the way the cards in a wheel
+   spread lie, so the ring reads as a ring rather than as a rectangle of
+   rectangles. */
+function ringOf(n) {
+  if (n < 2) return [{ x: 0, z: 0, turn: 0, square: false, r: 1, row: -1, first: false }];
+  const across = Math.min(ROOM.w, ROOM.d) / 2;
+  const chord = 2 * Math.sin(Math.PI / n);
+  const r = Math.min(1, across / (CARD.w * 1.12 / chord + CARD.h / 2));
+  const tight = CARD.w * 1.12 * r / chord;
+  const sit = Math.min(across - CARD.h * r / 2, Math.max(tight, across * 0.6));
+  return Array.from({ length: n }, (_, i) => {
+    const angle = (i / n) * Math.PI * 2;
+    return { x: Math.sin(angle) * sit, z: -Math.cos(angle) * sit,
+             turn: -angle, square: false, r, row: -1, first: false };
+  });
+}
+
+const placesFor = (n, shape) =>
+  shape === "rows" ? threeRows(n) : shape === "ring" ? ringOf(n) : lineOf(n);
+
+/* A card, with both ends of its flight worked out before it moves: the top of
+   the deck, and the place on the table it is being put down in. */
+function makeCard(face, seat, place, i, n) {
   const shape = cardShape();
+  const r = place.r;
+  // A whisker of turn on the ones that are square to the table, so a line of
+  // cards looks dealt rather than printed. The ring sets its own angles and
+  // is left alone, because in a ring the angle is the arrangement.
+  const wobble = place.square ? (Math.random() - 0.5) * 0.07 : 0;
   return {
     face, seat, r, shape,
-    up: 0,
-    R2: (shape.radius * r) * (shape.radius * r),
-    pos: v3(0, 0, 0),
-    vel: v3(0, 0, 0),
-    omega: v3(0, 0, 0),
+    look: lookOf(face),
+    up: shape.up,
+    place: {
+      x: place.x, y: CARD.t * r / 2, z: place.z,
+      quat: qAxis(v3(0, 1, 0), place.turn + wobble),
+    },
+    // Face down on top of the deck, which is that much shorter by the time
+    // this one is the card being taken off it.
+    from: { x: DECK.x, y: LEAF * r * Math.max(0, deckSize - i) + CARD.t * r / 2, z: DECK.z },
+    fromQuat: qAxis(v3(1, 0, 0), Math.PI),
+    pos: v3(DECK.x, LEAF * r * Math.max(0, deckSize - i), DECK.z),
     quat: { w: 1, x: 0, y: 0, z: 0 },
     rot: new Float64Array(shape.pts.length * 3),
     world: [],
-    asleep: false,
-    still: 0,
   };
 }
 
-/* Where it ends up once it is lying flat: the side that is nearest the table
-   turned flat against it, and the face printed on the other one. A card is
-   never face down on this table, which is the one liberty taken — the throw
-   decides which way up it lands, and the printing follows it. */
-function flatten(card) {
-  const reads = card.shape.reads;
-  const rest = turn(card.quat, reads[0].normal).y < turn(card.quat, reads[1].normal).y ? 0 : 1;
-  const quat = qMul(qBetween(turn(card.quat, reads[rest].normal), v3(0, -1, 0)), card.quat);
-
-  let bottom = Infinity;
-  let leftX = Infinity, rightX = -Infinity, backZ = Infinity, frontZ = -Infinity;
-  for (const p of card.shape.pts) {
-    const w = mul(turn(quat, p), card.r);
-    bottom = Math.min(bottom, w.y);
-    leftX = Math.min(leftX, w.x); rightX = Math.max(rightX, w.x);
-    backZ = Math.min(backZ, w.z); frontZ = Math.max(frontZ, w.z);
-  }
-  let x = card.pos.x;
-  let z = card.pos.z;
-  if (x + rightX > TRAY.w) x = TRAY.w - rightX;
-  if (x + leftX < -TRAY.w) x = -TRAY.w - leftX;
-  if (z + frontZ > TRAY.d) z = TRAY.d - frontZ;
-  if (z + backZ < -TRAY.d) z = -TRAY.d - backZ;
-  return { quat, y: -bottom, x, z, up: rest === 0 ? 1 : 0 };
-}
-
-function thrownFrom(card, i, n) {
-  // Along the back to start with, thrown across each other so they fan out
-  // and collide on the way rather than landing in the order they were dealt.
-  const across = n === 1 ? 0 : ((i + 0.5) / n - 0.5) * TRAY.w * 1.15;
-  return {
-    pos: v3(across + (Math.random() - 0.5) * 3,
-            3.5 + Math.random() * 4,
-            -TRAY.d + 2 + (Math.random() - 0.5) * 3),
-    vel: v3((Math.random() - 0.5) * 70 - across * 2.4, -8 + Math.random() * 18,
-            55 + Math.random() * 60),
-    // Mostly about the upright, the way a thrown card spins.
-    omega: mul(unit(v3((Math.random() - 0.5) * 0.7, Math.random() - 0.5, (Math.random() - 0.5) * 0.7)),
-               7 + Math.random() * 15),
-    quat: randomQuat(),
-  };
-}
-
-/* The throw, run through once with nothing drawn, so the page knows where
-   every card stops and which way up before the first frame. Nothing is
-   steered: the faces are painted on afterwards. */
-function throwThem() {
-  cards.forEach((card, i) => {
-    card.start = thrownFrom(card, i, cards.length);
-    backToStart(card);
-  });
-
-  const most = Math.ceil(LONGEST / STEP);
-  let steps = 0;
-  while (steps < most && cards.some((c) => !c.asleep)) { oneStep(steps * STEP); steps++; }
-  dealSteps = steps;
-
-  for (const card of cards) {
-    const done = flatten(card);
-    card.up = done.up;
-    card.endQuat = done.quat;
-    card.endY = done.y;
-    card.endX = done.x;
-    card.endZ = done.z;
-  }
-  for (const card of cards) backToStart(card);
-}
-
-/* How many across, how far apart, and how big they have to be to fit: a card
-   laid out needs its own width and a little more, and a row needs the height
-   of a card and the gap under it. */
-function layout(n) {
-  const cols = Math.max(1, Math.min(n, Math.ceil(Math.sqrt(n * (TRAY.w / TRAY.d)))));
-  const rows = Math.ceil(n / cols);
-  const cellW = TRAY.w * 2 / cols;
-  const cellH = TRAY.d * 2 / rows;
-  return { cols, rows, cellW, cellH, r: Math.min(1, cellW / (CARD.w * 1.12), cellH / (CARD.h * 1.2)) };
-}
-
+// Straight down, with nothing in the air: what the page shows when the deal
+// is turned off, or when the system has asked for less motion.
 function setDown() {
-  const n = cards.length;
-  const { cols, rows, cellW, cellH } = layout(n);
-  cards.forEach((card, i) => {
-    const col = i % cols;
-    const row = Math.floor(i / cols);
-    const inRow = Math.min(cols, n - row * cols);
-    card.pos = v3((col - (inRow - 1) / 2) * cellW, 0, (row - (rows - 1) / 2) * cellH);
-    // Square to the table, with only a little turn: a spread laid out is read
-    // left to right, and a card at an angle is a card you are tilting to see.
-    card.quat = qAxis(v3(0, 1, 0), (Math.random() - 0.5) * 0.18);
-    const done = flatten(card);
-    card.quat = done.quat;
-    card.pos.y = done.y;
-    card.pos.x = done.x;
-    card.pos.z = done.z;
-    card.up = done.up;
-    card.vel = v3(0, 0, 0);
-    card.omega = v3(0, 0, 0);
-    card.asleep = true;
+  for (const card of cards) {
+    card.pos = v3(card.place.x, card.place.y, card.place.z);
+    card.quat = card.place.quat;
     spinVerts(card);
-  });
+  }
+  deckLeft = 0;
 }
 
 function paintFace(bit) {
@@ -2053,27 +1964,30 @@ function paintFace(bit) {
   const area = Math.abs(twice) / 2;
 
   const lit = 0.18 + 0.82 * Math.max(0, dot(nrm, LIGHT));
-  const up = nrm.y > 0.86;
-  // Kept well off white: a card is a big flat shape, and a page whose depth
-  // comes from hairlines does not want five of them glaring out of it. The
-  // printing is what is bright.
-  const shade = 5 + 30 * lit + (up ? 8 : 0);
+  const look = card.look;
+  const front = face.read === card.up;
+  const back = face.read >= 0 && !front;
+  // Stock and ink are shaded by the same amount, so a card in shadow is a
+  // darker card rather than a card whose printing has gone grey.
+  const bright = 0.30 + 0.74 * lit;
 
   brush.beginPath();
   flat.forEach((p, i) => (i ? brush.lineTo(p.x, p.y) : brush.moveTo(p.x, p.y)));
   brush.closePath();
-  brush.fillStyle = tone(shade);
+  // The back is the page's own colour rather than the card's: it is the only
+  // part of a deck that is the deck's rather than the card's.
+  brush.fillStyle = back ? tone(7 + 14 * lit) : dim(look.stock, bright);
   brush.fill();
-  brush.strokeStyle = tone(shade + 30, 0.75);
+  brush.strokeStyle = back ? tone(30 + 18 * lit, 0.8) : dim(look.stock, bright * 0.52);
   brush.lineWidth = 1;
   brush.stroke();
 
   if (face.read < 0 || area < 140) return;          // the thin edges of it
   const mid = add(card.pos, mul(turn(card.quat, face.mid), card.r));
 
-  if (face.read !== card.up) {
-    // The back: a frame inside the edge, which is all a back needs to be for
-    // you to know you are looking at one.
+  if (back) {
+    // A frame inside the edge, which is all a back needs to be for you to
+    // know you are looking at one.
     const inset = [];
     for (const i of face.verts) {
       const p = project(add(mul(card.world[i], 0.86), mul(mid, 0.14)));
@@ -2083,32 +1997,36 @@ function paintFace(bit) {
     brush.beginPath();
     inset.forEach((p, i) => (i ? brush.lineTo(p.x, p.y) : brush.moveTo(p.x, p.y)));
     brush.closePath();
-    brush.strokeStyle = tone(Math.min(96, shade + 18), 0.55);
+    brush.strokeStyle = tone(44 + 16 * lit, 0.55);
     brush.stroke();
     return;
   }
 
   const across = turn(card.quat, face.across);
   const down = turn(card.quat, face.down);
-  const ink = up ? tone(96) : tone(Math.min(96, shade + 44));
+  // A card with no colour of its own — a major arcanum, one out of a deck you
+  // wrote — prints in the theme, dark enough to read on the stock.
+  const ink = look.ink ? dim(look.ink, bright) : tone(8 + 14 * bright);
   const label = card.face.label || "";
   const big = Math.min(2.6, 9 / Math.max(2, label.length));
   if (card.face.icon) {
     faceText(add(mid, mul(down, -1.5 * card.r)), across, down, card.face.icon,
-      2.1 * card.r, ink, up);
+      2.1 * card.r, ink);
   }
   faceText(add(mid, mul(down, (card.face.icon ? 1.1 : 0) * card.r)), across, down, label,
-    big * card.r, ink, up);
+    big * card.r, ink);
 
-  // The place in the spread is printed along the bottom of the card rather
-  // than on the table beside it: a name on the table is a name that collides
-  // with the next card along, and this one travels with the card it names.
+  // The place in the spread is printed across the top of the card rather than
+  // on the table beside it: a name on the table is a name that collides with
+  // the next card along, and this one travels with the card it names. The top
+  // rather than the foot, because in three rows the row in front stands on
+  // the foot of the row behind it, and a name down there is a name covered.
   if (card.seat) {
     // Shortened to what the card is wide rather than shrunk to fit it: a name
     // small enough to hold "What crosses it" is a name too small to read.
-    const seat = card.seat.length > 17 ? `${card.seat.slice(0, 16)}\u2026` : card.seat;
-    faceText(add(mid, mul(down, 3.35 * card.r)), across, down, seat, 0.64 * card.r,
-      up ? tone(66) : tone(Math.min(80, shade + 26)), false);
+    const seat = card.seat.length > 17 ? `${card.seat.slice(0, 16)}…` : card.seat;
+    faceText(add(mid, mul(down, -3.25 * card.r)), across, down, seat, 0.76 * card.r,
+      look.ink ? dim(look.ink, bright * 0.78) : tone(18 + 16 * bright));
   }
 }
 
@@ -2117,6 +2035,7 @@ function draw() {
   fitCanvas();
   brush.clearRect(0, 0, view.w, view.h);
   paintTable();
+  if (cards.length) paintDeck(cards[0].r);
 
   const bits = [];
   for (const card of cards) {
@@ -2142,15 +2061,28 @@ function draw() {
 function describe() {
   if (!cards.length) return "The table is empty.";
   const spread = seatsNow() ? `${spreadNow().name} · ` : "";
-  return `${spread}${cards.length} card${cards.length === 1 ? "" : "s"} from ${deckSay()}`;
+  return `${spread}${cards.length} card${cards.length === 1 ? "" : "s"} from ${deckSay()}, `
+    + SHAPES[shapeNow()].say;
 }
 
 function present(drawn, animate) {
   stopTick();
   cards.length = 0;
   const seats = seatsNow();
-  const r = animate ? cardSize(Math.max(1, drawn.length)) : layout(Math.max(1, drawn.length)).r;
-  drawn.forEach((face, i) => cards.push(makeCard(face, seats ? seats[i] || "" : "", r)));
+  const shape = shapeNow();
+  const many = Math.max(1, drawn.length);
+  const places = placesFor(many, shape);
+  deckSize = Math.min(DEEP, Math.max(deckNow().length, many));
+  const rows = SHAPES[shape].rows;
+  drawn.forEach((face, i) => {
+    const place = places[i] || places[places.length - 1];
+    // A named spread writes its own places on the cards. Without one, the
+    // three-row arrangement names its rows, on the first card of each: three
+    // cards get a name apiece, and nine get a heading a row.
+    const seat = seats ? (seats[i] || "")
+      : rows && place.first ? rows[place.row] : "";
+    cards.push(makeCard(face, seat, place, i, many));
+  });
 
   trayNote.textContent = describe();
   againBtn.disabled = !cards.length;
@@ -2160,7 +2092,12 @@ function present(drawn, animate) {
 
   if (!cards.length) { settled = true; draw(); return; }
   if (!animate) { setDown(); settled = true; draw(); return; }
-  throwThem();
+  deckLeft = cards.length;
+  for (const card of cards) {
+    card.pos = v3(card.from.x, card.from.y, card.from.z);
+    card.quat = card.fromQuat;
+    spinVerts(card);
+  }
   raf = requestAnimationFrame(tick);
 }
 
@@ -2308,7 +2245,7 @@ function chartTheDraw() {
 /* ============================================================== wiring == */
 
 const calm = window.matchMedia("(prefers-reduced-motion: reduce)");
-const throwing = () => tumbleIn.checked && !calm.matches;
+const dealing = () => tumbleIn.checked && !calm.matches;
 
 function deal() {
   const deck = deckNow();
@@ -2340,7 +2277,7 @@ function deal() {
   paintLog();
   save();
 
-  present(drawn, throwing());
+  present(drawn, dealing());
   // The chart marks the draw on the table, so a new draw moves the mark
   // rather than leaving the last one sitting there contradicting the total.
   if (sim) { drawPlot(); paintFigures(); paintNumbers(); }
@@ -2369,6 +2306,12 @@ el("decks").addEventListener("click", (e) => {
 
 jokersIn.addEventListener("change", () => settings("worth"));
 spreadIn.addEventListener("change", () => settings());
+// A different arrangement is the same draw laid out again, so it is dealt
+// again rather than redrawn: no card changes, only where it ends up.
+shapeIn.addEventListener("change", () => {
+  save();
+  if (lastDraw) present(lastDraw, dealing());
+});
 manyIn.addEventListener("input", () => { clearFail(); settings(); });
 manyIn.addEventListener("keydown", (e) => {
   if (e.key !== "Enter") return;
@@ -2379,10 +2322,10 @@ manyIn.addEventListener("keydown", (e) => {
 el("drawBtn").addEventListener("click", deal);
 el("drawHere").addEventListener("click", deal);
 
-againBtn.addEventListener("click", () => { if (lastDraw) present(lastDraw, throwing()); });
+againBtn.addEventListener("click", () => { if (lastDraw) present(lastDraw, dealing()); });
 tumbleIn.addEventListener("change", () => {
   save();
-  if (lastDraw) present(lastDraw, throwing());
+  if (lastDraw) present(lastDraw, dealing());
 });
 
 worthsEl.addEventListener("input", (e) => {
