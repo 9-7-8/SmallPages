@@ -212,6 +212,12 @@
   columns, tables, floated images and precise spacing are not reproduced. If a document's layout
   matters, export it to PDF from the program that made it and drop that in instead.</p>
 
+  <p class="note"><strong>A long document is the ordinary case.</strong> Three hundred pages
+  behave the same as three: a thumbnail is drawn only when it scrolls into view, and the drawings
+  are forgotten again once a few hundred of them have been made, so what the tab holds is the
+  documents themselves rather than a picture of every page in them. Nothing here caps how many
+  pages you can drop in or how many can come out.</p>
+
   <p class="note"><strong>Everything happens in this tab.</strong> The zip reading is the
   browser's own <code>DecompressionStream</code>; the PDF work is
   <a href="vendor/pdf-lib/">pdf-lib</a> for building and <a href="vendor/pdfjs/">pdf.js</a> for
@@ -240,7 +246,13 @@ let pages = [];            // { key, docId, index, rotate, blank }
 let selected = new Set();
 let nextId = 1;
 let anchor = null;         // for shift-clicking a run
-const thumbs = new Map();  // `${docId}:${index}` -> dataURL
+/* `${docId}:${index}` -> dataURL. Capped, because a thumbnail is thirty-odd
+   kilobytes and a document of several hundred pages scrolled end to end would
+   otherwise leave every one of them in memory for the rest of the session.
+   The oldest go first, which for a grid being scrolled is the ones furthest
+   from the screen. */
+const thumbs = new Map();
+const THUMB_CAP = 400;
 
 function setStatus(words, bad = false) {
   statusEl.textContent = words;
@@ -616,6 +628,7 @@ async function paint(sheet) {
       console.error(err);
       thumbs.set(cacheKey, null);
     }
+    while (thumbs.size > THUMB_CAP) thumbs.delete(thumbs.keys().next().value);
   }
   const url = thumbs.get(cacheKey);
   if (url) { img.src = url; img.classList.remove("waiting"); }

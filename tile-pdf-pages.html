@@ -266,6 +266,13 @@
   oversized page down until it fits and says how many it did that to; turn that off and those pages
   are left out instead, which is at least honest about it.</p>
 
+  <p class="note"><strong>A long document is the ordinary case.</strong> Several hundred pages
+  go onto sheets as readily as four do: the pages are embedded one at a time and only the sheet
+  you are looking at is ever drawn, so the cost of a long document is the time it takes rather
+  than the memory it needs. The range box is the way to take a long one in pieces &mdash;
+  <code>1-40</code>, then <code>41-</code> &mdash; and nothing here caps how many pages go in or
+  how many sheets come out.</p>
+
   <p class="note"><strong>It runs here.</strong> Nothing is uploaded. The imposition is
   <a href="https://github.com/Hopding/pdf-lib">pdf-lib</a> and the preview is
   <a href="https://github.com/mozilla/pdf.js">PDF.js</a>, both

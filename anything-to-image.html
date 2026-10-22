@@ -392,12 +392,26 @@ async function fromPdf(file, name) {
 }
 
 async function renderPdf(name = `${pdfStem}.pdf`) {
-  const scale = Number(pdfScale.value);
+  let scale = Number(pdfScale.value);
   const crop = pdfTrim.checked;
 
   const doc = await pdfjsLib.getDocument({ data: pdfBytes.slice() }).promise;
   const list = [];
   let cropped = 0;
+
+  /* Every page stays drawn, because you can flick between them and save the
+     lot: a hundred-page document is a hundred canvases, and at four bytes a
+     pixel that is how a tab runs out of memory. So the resolution is measured
+     against the length of the document before anything is drawn, and a long
+     one is drawn smaller rather than not at all. The page says when it has
+     done this; asking for fewer pages at a time is the way to get them big. */
+  const first = (await doc.getPage(1)).getViewport({ scale: 1 });
+  const each = first.width * first.height;
+  let eased = 0;
+  if (each * scale * scale * doc.numPages > PAGE_BUDGET) {
+    scale = Math.max(0.4, Math.sqrt(PAGE_BUDGET / (each * doc.numPages)));
+    eased = Math.round(scale * 72);
+  }
 
   try {
     for (let n = 1; n <= doc.numPages; n++) {
@@ -432,7 +446,9 @@ async function renderPdf(name = `${pdfStem}.pdf`) {
   const aside = [
     `${list.length} page${list.length === 1 ? "" : "s"} from ${name}`,
     crop ? (cropped ? `${cropped} cropped to the ink` : "nothing to crop") : "full pages",
-    `at ${scale * 72} dpi`,
+    eased
+      ? `at ${eased} dpi — ${doc.numPages} pages would not fit in the tab at the size asked for`
+      : `at ${scale * 72} dpi`,
   ].join(" — ");
 
   showPages(list, "#ffffff", `${aside}.`);
@@ -1039,6 +1055,10 @@ async function rasterize(holder, settle) {
     holder.remove();
   }
 }
+
+/* How many pixels every page of a PDF may take between them, at four bytes
+   each: eighty million is a third of a gigabyte, which a tab will carry. */
+const PAGE_BUDGET = 80e6;
 
 const MAX_CANVAS_SIDE = 8000;
 const MAX_CANVAS_AREA = 40e6;
