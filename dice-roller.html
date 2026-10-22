@@ -167,6 +167,7 @@
     font-weight: 400;
     color: var(--text);
   }
+  #hand { justify-content: center; margin-top: 1.2rem; }
   .plotActs { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-top: 1rem; }
 
   /* The same numbers as the chart, for anyone the chart does not reach. */
@@ -270,6 +271,7 @@
     </div>
 
     <div class="terms" id="terms"></div>
+    <div class="figures" id="hand"></div>
   </div>
 
   <div class="card">
@@ -343,6 +345,13 @@
   on which face is arbitrary on a real die too &mdash; it is settled in a factory, not by the
   throw &mdash; and the arrangement is kept: opposite faces still add to one more than the number
   of sides, or carry the same number where each number is on two faces.</p>
+
+  <p class="note"><strong>The figures are under both.</strong> Under the dice: how many were
+  thrown, the pips between them, and the mean, the median and the ends of what they showed &mdash;
+  the dice only, because a flat <code>+3</code> is not a die and has no average to take. Under the
+  chart: the same for the twenty thousand throws behind it &mdash; how many, the mean, the median,
+  the total that came up most often, the spread either side and the lowest and highest ever
+  reached, with the chance of doing at least as well as the throw on the table.</p>
 
   <p class="note"><strong>Two buttons by the table and one above it.</strong> <em>Roll</em> beside
   the dice is the <em>Roll</em> at the top of the page again, for when the table is where you are
@@ -537,6 +546,46 @@ function sayOf(rolled, total) {
     return `${nameOf(rolled[0])}, out of ${lo} to ${hi}${edge}`;
   }
   return `${workingOf(rolled)} = ${total}`;
+}
+
+/* A row of figures, written the same way under the dice and under the chart
+   so the two read as the same kind of thing. */
+function writeFigures(into, rows) {
+  into.textContent = "";
+  for (const [what, value] of rows) {
+    const cell = document.createElement("span");
+    cell.append(`${what} `);
+    const b = document.createElement("b");
+    b.textContent = value;
+    cell.append(b);
+    into.append(cell);
+  }
+}
+
+const middleOf = (sorted) => (sorted.length % 2
+  ? sorted[(sorted.length - 1) / 2]
+  : (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2);
+
+/* What the dice on the table came to, which is a different question from what
+   the chart underneath is about: this one is the throw you actually made.
+   Only the dice count — a flat +3 is not a die and has no average to take. */
+function paintHand(rolled) {
+  const hand = el("hand");
+  const faces = [];
+  for (const t of rolled || []) {
+    if (t.kind === "dice") for (const v of t.rolls) faces.push(v);
+  }
+  if (faces.length < 2) { hand.textContent = ""; return; }
+  const sorted = [...faces].sort((a, b) => a - b);
+  const sum = faces.reduce((n, v) => n + v, 0);
+  writeFigures(hand, [
+    ["dice", String(faces.length)],
+    ["pips", fmt(sum)],
+    ["mean", (sum / faces.length).toFixed(2)],
+    ["median", String(Number(middleOf(sorted).toFixed(2)))],
+    ["lowest", String(sorted[0])],
+    ["highest", String(sorted[sorted.length - 1])],
+  ]);
 }
 
 function paintTerms(rolled) {
@@ -1714,6 +1763,7 @@ function roll() {
   totalEl.classList.remove("none");
   sayEl.textContent = sayOf(rolled, total);
   paintTerms(rolled);
+  paintHand(rolled);
 
   // The chart marks the roll on the table, so a new roll moves the mark
   // rather than leaving the last one sitting there contradicting the total.
@@ -2239,25 +2289,18 @@ function sayBin(which, bins) {
 }
 
 function paintFigures() {
-  figures.textContent = "";
   const rows = [
     ["throws", fmt(sim.trials)],
     ["mean", sim.mean.toFixed(2)],
     ["median", String(sim.median)],
+    ["most often", String(sim.peakAt)],
     ["spread", `±${sim.sd.toFixed(2)}`],
     ["lowest", String(sim.first)],
     ["highest", String(sim.last)],
   ];
   const mine = lastRolled ? totalOf(lastRolled) : null;
   if (mine !== null) rows.push([`${mine} or better`, pct(shareAtOrAbove(mine), 2)]);
-  for (const [what, value] of rows) {
-    const cell = document.createElement("span");
-    cell.append(`${what} `);
-    const b = document.createElement("b");
-    b.textContent = value;
-    cell.append(b);
-    figures.append(cell);
-  }
+  writeFigures(figures, rows);
 }
 
 /* The same numbers as the chart, in the same bins, for anyone the chart does
