@@ -55,9 +55,17 @@ Suites are named for the page they exercise. The ones worth knowing about:
   twice, that a face card is worth what the boxes under the table say, that a
   deck written by hand is read the way the page claims to read it, and that a
   spread fills its places in order — including one loaded from a JSON file
-  with rubbish in it, which has to come back with the rubbish left out. The
-  same two checks the dice roller has about its throw are here too: a card is
-  left where it stops, and what is printed on it turns with it.
+  with rubbish in it, which has to come back with the rubbish left out. Then
+  the deal: a card finishes in the place the arrangement gave it to the
+  millimetre, the cards leave the deck one at a time and land one at a time
+  rather than all at once, and each one leaves face down and arrives face up.
+  The three arrangements are checked against what they claim — a line is one
+  row in the order drawn, three rows divide as 1-1-1, 1-2-1, 1-3-1, 2-3-2,
+  2-4-2, 3-3-3 with the present widest, and a ring is a circle rather than an
+  oval, evenly spaced, each card turned to face out of it. The colours are
+  read off the deck rather than off the screen: hearts red, spades black,
+  tarot suits following the suits they are, each Uno colour the colour it
+  says, a major arcanum with no colour of its own.
 - **`test-dice.mjs`** — the dice roller, where the claim worth checking is that
   the die on the table is showing what the page says was rolled. It reads each
   die's quaternion back out and works out which labelled face is pointing at
@@ -73,6 +81,23 @@ Suites are named for the page they exercise. The ones worth knowing about:
 - **`test-pdfb.mjs`** — saves a PDF, reloads it through pdf.js, and reads the
   text back out, which is the only way to prove a copied page stayed a page
   rather than becoming a picture of one.
+- **`test-pdfocr.mjs`** — the same idea one step further. It builds its own
+  scans — a canvas of text embedded as a JPEG, with no text layer anywhere in
+  the file — reads them, saves the searchable PDF, reloads that through pdf.js
+  and checks not only that the words extract but that they land where the
+  words were printed, to within a few points. The turned pages are the reason
+  it is worth the trouble: a document with a `/Rotate` of 90, 180 and 270 on
+  three pages has to come back with its text in the same place it would be if
+  nothing were turned. It also checks that a page which already had text is
+  left alone, and walks a hundred-and-forty-page document to prove the range
+  box and the page-at-a-time reading hold up over a long one.
+- **`test-stopwatch.mjs`, `test-countdown.mjs`** — the two clocks. What is
+  checked is the arithmetic a clock is easy to get wrong in: a stopwatch cuts
+  hundredths rather than rounding them, a countdown rounds up and an overrun
+  rounds down, lap times add up to splits, and the reading is the wall clock's
+  answer rather than a count of frames — measured against `Date.now()` on the
+  node side. Both are reloaded mid-run, because a reload that stops the clock
+  is the bug a person notices first.
 - **`test-caps*.mjs`** — the caption fetcher's route ladder, against
   `stubs/stub-yt.py`, which stands in for both a CORS relay and YouTube behind
   it so the whole path can be walked with neither reachable.
@@ -96,6 +121,11 @@ because linking was tried first and was wrong: `test-pdfb` saves its output as
 `text.pdf`, which went through the link and replaced the fixture
 `test-ati-file` reads, in the working tree, for good. A new fixture has to be
 named in `FIXTURES` in `lib/env.mjs` or it will not be there to read.
+
+Not everything needs to be one. `test-pdfocr.mjs` builds its scans in the
+browser when it runs — a picture of a page is a hundred kilobytes and nobody
+needs to keep one in a repository — which is worth copying for anything a
+suite can draw for itself.
 
 Two suites are not runnable as checked out. `test-quiz.mjs` and
 `test-quiz2.mjs` were written against a personal 5,000-card Anki collection,

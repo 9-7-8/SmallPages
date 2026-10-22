@@ -70,7 +70,7 @@ ok(i !== -1, 'PDF Builder has a tile');
 ok(info.hrefs[i] === 'pdf-builder.html', 'it points at pdf-builder.html');
 const paper = info.groups.find(g => g.title === 'Paper');
 ok(!!paper && paper.names.includes('PDF Builder'), 'it is filed under Paper');
-ok(!!paper && paper.names.join(' | ') === 'Document Viewer | Images → Searchable PDF | PDF Builder | Tile PDF Pages',
+ok(!!paper && paper.names.join(' | ') === 'Document Viewer | Images → Searchable PDF | PDF Builder | PDF OCR | Tile PDF Pages',
    `Paper holds ${paper ? paper.names.join(', ') : 'nothing'}`);
 
 const res = await page.goto('http://127.0.0.1:8099/pdf-builder.html');
