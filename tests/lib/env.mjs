@@ -60,9 +60,9 @@ export const SITE = process.env.SITE || `http://127.0.0.1:${PORT}`;
 
 /* Where a suite writes its screenshots and downloads, and where it reads its
    fixtures from. They are the same directory because the suites were written
-   against a flat scratchpad: the fixture folders are linked in rather than
-   copied, so `WORK + "/docs/alpha.pdf"` and `WORK + "/rain.png"` both land
-   somewhere sensible and only the second is ever written. */
+   against a flat scratchpad, so `WORK + "/docs/alpha.pdf"` and
+   `WORK + "/rain.png"` both land somewhere sensible. How the fixtures get
+   there, and why that matters, is the next comment down. */
 export const WORK = process.env.TEST_WORK || path.join(TESTS, ".work");
 
 const FIXTURES = [
