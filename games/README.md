@@ -75,7 +75,7 @@ Pass-and-play, because this repo has no server (see below).
 | --- | --- | --- |
 | `liars-dice` | Bluffing with hidden dice. | Small. Pass-and-play with a hand-over screen, or everyone with their own window. An opponent that bluffs believably is a nice optional extra. |
 | `werewolf` | The folk game, with the device as narrator. | Medium. Deal roles by passing the phone round, then run the night script and keep the timer. No rules invention needed — it is public domain and centuries old. |
-| `the-committee` | Hidden roles, policy cards and an election tracker. | Medium. *Secret Hitler*, rebuilt and renamed. The rules are not copyrightable but the name and art are, and the original is licensed non-commercially, which does not fit this repo's CC BY. So: our name, our board, our wording. |
+| `the-committee` | Hidden roles, policy cards and an election tracker. | Medium. *Secret Hitler*, rebuilt and renamed. The rules are not copyrightable but the name and art are, and the original is published CC BY-NC-SA, which a GPL repo cannot take in: a non-commercial clause is exactly the kind of restriction the GPL forbids adding. So: our name, our board, our wording. |
 | `cribbage` | Two-handed, with the board. | Medium. The scoring hand is the whole game and is very testable — fifteens, pairs, runs, flush, his nobs. |
 | `whist` | Four-handed trick-taking. | Medium. Needs three opponents that follow suit sensibly. |
 | `bridge` | Bidding and play. | Large. Bidding is a language; a partner that can hold up its end is the hard part, and it may be worth shipping play-only first. |

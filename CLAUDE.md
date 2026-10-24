@@ -17,6 +17,17 @@ commit. Push the working branch too, so the two stay in step.
 Only hold off if the merge would land something broken, or if the user asks for
 a pull request instead.
 
+## Licence
+
+GPL-3.0-or-later, the full text in [`LICENSE`](LICENSE). Every page and
+`theme.css` carry a five-line notice at the top naming it, because a page here
+is meant to be handed over on its own and a file with no notice has no visible
+licence. A new page copies that notice with its own name in the first line;
+everything else in the repo is covered by `LICENSE` at the root.
+
+Only our own work is under it. `vendor/` is other people's and keeps their
+terms, which is why the README says what each one is.
+
 ## The index
 
 The tiles in [`index.html`](index.html) are grouped by what the page is for, in

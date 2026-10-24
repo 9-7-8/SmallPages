@@ -57,6 +57,11 @@ being copyable on its own, so say so in its own notes when it does.
 
 ```html
 <!DOCTYPE html>
+<!-- Name, from SmallPages <https://github.com/9-7-8/SmallPages>
+     Copyright (C) 2026 Ixora. SPDX-License-Identifier: GPL-3.0-or-later
+     Free software with no warranty, under the GNU General Public License,
+     version 3 or later: see LICENSE in the repository, or
+     <https://www.gnu.org/licenses/>. -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -79,6 +84,10 @@ being copyable on its own, so say so in its own notes when it does.
 </body>
 </html>
 ```
+
+That notice is not boilerplate to skip: the whole point of a page here is
+that it can be handed to someone on its own, and a file handed over with no
+notice has no visible licence. Put the game's own name in the first line.
 
 The shared vocabulary — `.card`, `.seg`, `.status`, `button`, form controls —
 is styled once in [`../theme.css`](../theme.css), so a page that uses it needs
@@ -253,8 +262,9 @@ was free.
 
 Give the game its own name and its own art. Re-implementing a familiar set of
 rules is fine; rules are not copyrightable. Shipping somebody's title, their
-characters or their artwork is a different thing, and the repo is CC BY 4.0,
-which means anyone may use what is here commercially. So a match-three is not
+characters or their artwork is a different thing, and the GPL lets anyone
+redistribute and sell what is here so long as they keep it free &mdash; which
+is no defence at all against a trademark. So a match-three is not
 *Bejeweled*, a lane runner is not *Subway Surfers*, and the hidden-role game is
 *The Committee*. Folk games — Werewolf, Liar's Dice, whist, cribbage, Klondike
 — have no owner and keep their names.
@@ -295,6 +305,7 @@ starts lower case, and `node tests/run.mjs` for the lot.
 ## Checklist
 
 - [ ] `games/<name>/index.html`, self-contained, theme linked from two levels up
+- [ ] The licence notice at the top, with the game's name in it
 - [ ] Back link to `../index.html`, `h1`, `.lede`
 - [ ] Layout-only CSS, or a comment saying why not
 - [ ] Fixed step, nothing random, `window.GAME` hook with `fast()`

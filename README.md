@@ -1,5 +1,5 @@
 # SmallPages
-[![CC BY 4.0](https://img.shields.io/badge/License-CC%20BY%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by/4.0/)
+[![GPL v3 or later](https://img.shields.io/badge/License-GPLv3%20or%20later-lightgrey.svg)](LICENSE)
 
 Single-purpose browser tools. Each one is a standalone HTML file — open it, use it,
 close it. Nothing is uploaded anywhere; every image, GIF and byte stays in your tab.
@@ -189,7 +189,31 @@ repo, and it's why any page here can be handed to someone as a single file.
 
 ## License
 
-[![CC BY 4.0](https://img.shields.io/badge/License-CC%20BY%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by/4.0/)
+[![GPL v3 or later](https://img.shields.io/badge/License-GPLv3%20or%20later-lightgrey.svg)](LICENSE)
 
-[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) — use it for anything,
-commercial or not, modify it freely. Just credit Ixora and link back to this repo.
+Copyright (C) 2026 Ixora. SmallPages is free software: you can redistribute it
+and modify it under the terms of the [GNU General Public License](LICENSE) as
+published by the Free Software Foundation, either version 3 of that licence or,
+at your option, any later one. It comes with no warranty; the licence says what
+that means.
+
+Copyleft rather than something permissive, on purpose. Take a page apart, learn
+from it, build whatever you like on it — and if you pass your version on, pass
+it on free as well. Half of what is in here is a replacement for something that
+used to be a program and is now an advert with a timer attached; the licence is
+the part that stops this lot going the same way.
+
+What is in [`vendor/`](vendor/) is not ours and keeps its own terms. pdf.js and
+Tesseract are Apache-2.0; pdf-lib, gifenc, webm-muxer and the Pantone data are
+MIT; the thread charts are Ink/Stitch's, already GPL-3.0; and the
+background-removal bundle is AGPL-3.0, which section 13 of the GPL allows a GPL
+work to be combined with, the AGPL part keeping its own terms. The display faces
+in [`vendor/fonts/`](vendor/fonts/) and the scans in
+[`vendor/cd-image/`](vendor/cd-image/) and [`vendor/cassette/`](vendor/cassette/)
+arrived from the original tools' own folders with no licence recorded, so nothing
+here grants any rights in them — they are somebody else's work sitting in the
+repo, and [`vendor/README.md`](vendor/README.md) says where each one came from.
+
+Up to October 2026 this repo was CC BY 4.0. That licence cannot be taken back
+from copies already handed out under it, so anything released before the change
+stays available on those terms.
