@@ -473,6 +473,11 @@ function seamless(fill) {
 }
 
 const fillWhite = (d) => { for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; };
+
+/* Brown, for thunder, and only for thunder now: nearly everything it carries
+   sits at or under the bottom of hearing, which is right for a rumble behind
+   a lowpass at 50 Hz and wrong for anything meant to hold a level. See
+   fillPink below for what that cost. */
 const fillBrown = (d) => {
   let last = 0;
   for (let i = 0; i < d.length; i++) {
@@ -481,9 +486,65 @@ const fillBrown = (d) => {
   }
 };
 
+/* Pink, for the far wash and the wind, which were running on the brown and
+   should not have been. A narrow band of noise has an envelope that wanders
+   at the width of the band, and brown here is a narrow band: a one-pole at
+   0.995 is flat below about 40 Hz and falls away above it, so nearly all of
+   it sits in that bottom 40 Hz. Its level swung between a half and twice its
+   own average from one 25 ms window to the next, where the white's held
+   inside a few per cent, and both layers ran it through a lowpass at a few
+   hundred hertz, which keeps every bit of that. Too slow to hear as a pitch
+   and far too big to miss as a level: it came out as a flutter under both
+   the rain and the wind — the jittering.
+
+   The cure is the highpass, not the colour. Plain pink wanders just as badly
+   — the noise machine's own is sixteen rows, the slowest turning over about
+   twice a second, and measured through this same lowpass it came out at a
+   wider swing than the brown did. What both of them have is a pile of energy
+   below hearing, and taking a level that moves and putting it under the
+   bottom of the band does not stop it moving. So: one-pole highpass at 60 Hz
+   to cut the part that was only ever there to wander, and pink rather than
+   white above it because a wash of distant rain and a lot of moving air both
+   do fall away towards the top. Normalised to the white's own RMS, so the
+   two washes start from the same place. */
+const fillPink = (d) => {
+  /* Voss-McCartney, the same as the noise machine's: a handful of random
+     generators each updating half as often as the last, summed. */
+  const rows = new Float32Array(16);
+  let running = 0;
+  const dt = 1 / ctx.sampleRate;
+  const rc = 1 / (2 * Math.PI * 60);
+  const keep = rc / (rc + dt);
+  let high = 0, prev = 0;
+  for (let i = 0; i < d.length; i++) {
+    // The lowest set bit of the counter says which row is due an update,
+    // which is what gives each row half the rate of the one below it.
+    let bit = i & -i;
+    let row = 0;
+    while (bit > 1) { bit >>= 1; row++; }
+    if (row < rows.length) {
+      running -= rows[row];
+      rows[row] = Math.random() * 2 - 1;
+      running += rows[row];
+    }
+    const pink = (running + (Math.random() * 2 - 1)) / (rows.length + 1);
+    high = keep * (high + pink - prev);
+    prev = pink;
+    d[i] = high;
+  }
+  // The level is set here rather than by a constant in the loop, because the
+  // highpass above has taken an unknown amount of the energy away with it.
+  let power = 0;
+  for (let i = 0; i < d.length; i++) power += d[i] * d[i];
+  const scale = 0.577 / Math.sqrt(power / d.length);   // 1/sqrt(3): the white's
+  for (let i = 0; i < d.length; i++) d[i] *= scale;
+};
+
+const FILLS = { white: fillWhite, brown: fillBrown, pink: fillPink };
+
 const bank = new Map();
 function noise(kind) {
-  if (!bank.has(kind)) bank.set(kind, seamless(kind === "white" ? fillWhite : fillBrown));
+  if (!bank.has(kind)) bank.set(kind, seamless(FILLS[kind]));
   return bank.get(kind);
 }
 
@@ -664,7 +725,12 @@ function shapeWeather(ramp = 0.3) {
   // The wash is the far field: dense cloud a kilometre off, with the top
   // rolled off it, which is what distance does to sound before anything else.
   set(washNodes.near.gain, wet * over * 0.5 * place.wash);
-  set(washNodes.far.gain, wet * far * 0.85 * place.wash);
+  /* 1.35 where it was 0.85: pink comes out 1.6x quieter than the brown did
+     above 100 Hz through this same lowpass, and that band is the only part
+     of it anyone was hearing. Matching the old *total* level instead would
+     have made the wash half again as loud, because most of that total was
+     the sub-bass this no longer carries. */
+  set(washNodes.far.gain, wet * far * 1.35 * place.wash);
   set(washNodes.farFilter.frequency, 420 + far * 900);
   // Level carries the intensity; the filter barely moves. Sweeping a
   // bandpass across 2,600 Hz of noise is a whoosh, and tying it to the
@@ -672,7 +738,7 @@ function shapeWeather(ramp = 0.3) {
   // underlying level rather than the gusted one, over a fifth of the range.
   set(washNodes.nearFilter.frequency, 1100 + BANDS.rain.now * 520);
   const blowing = nowOf("wind");
-  set(airNodes.gain.gain, blowing * 0.3);
+  set(airNodes.gain.gain, blowing * 0.48);   // 0.3 was, same 1.6x as the wash
   set(airNodes.filter.frequency, 320 + blowing * 900);
 }
 
@@ -907,7 +973,7 @@ async function start() {
   near.gain.value = 0;
   nearSource.connect(nearFilter).connect(near).connect(outdoors);
 
-  const farSource = looping(noise("brown"));
+  const farSource = looping(noise("pink"));
   const farFilter = ctx.createBiquadFilter();
   farFilter.type = "lowpass";
   farFilter.frequency.value = 600;
@@ -915,7 +981,7 @@ async function start() {
   far.gain.value = 0;
   farSource.connect(farFilter).connect(far).connect(outdoors);
 
-  const airSource = looping(noise("brown"));
+  const airSource = looping(noise("pink"));
   const airFilter = ctx.createBiquadFilter();
   airFilter.type = "lowpass";
   airFilter.frequency.value = 400;
@@ -927,8 +993,8 @@ async function start() {
   const at = ctx.currentTime + 0.1;
   nearSource.start(at); farSource.start(at); airSource.start(at);
 
-  washNodes = { near, far, nearFilter, farFilter };
-  airNodes = { gain: airGain, filter: airFilter };
+  washNodes = { near, far, nearFilter, farFilter, nearSource, farSource };
+  airNodes = { gain: airGain, filter: airFilter, source: airSource };
 
   running = true;
   playBtn.textContent = "Stop";

@@ -344,6 +344,143 @@ const sweep = await page.evaluate(() => {
 ok('the wash filter barely moves across the whole rain range',
    sweep.highest / sweep.lowest < 1.6, `${sweep.lowest.toFixed(0)} to ${sweep.highest.toFixed(0)} Hz`);
 
+/* ---- the wash and the wind hold a level ---- */
+
+/* A jitter under both the rain and the wind, and both ran on the same brown
+   buffer, which is why it was under both. A narrow band of noise has an
+   envelope that wanders at the width of the band, and brown is a narrow
+   band: a one-pole at 0.995 is flat below about 40 Hz and falls away above
+   it, so almost everything it carries is in that bottom 40 Hz. Its level
+   swung between a half and twice its own average across a fortieth of a
+   second, and the lowpass each layer sits behind kept every bit of it. Too
+   slow to hear as a pitch, far too big to miss as a level.
+
+   Measured as what the layer produced rather than as what the buffer looks
+   like: RMS in 25 ms windows, and how far that moves. Two controls go
+   through the same two chains alongside, so the checks are known to be able
+   to fail. The brown is the first. The second is pink with the highpass
+   left off, which matters because it is the near miss: the colour is not
+   what fixed this. Plain pink wanders about as badly as the brown — the
+   slowest of its sixteen rows turns over twice a second — and it is cutting
+   what sits below hearing that holds the level still. Levels are compared
+   above 100 Hz, because what the swap took away below that was never
+   audible in the first place. */
+const steady = await page.evaluate(async () => {
+  const RATE = 48000;
+  const envelope = (d) => {
+    const win = Math.floor(RATE * 0.025);
+    const e = [];
+    for (let i = 0; i + win < d.length; i += win) {
+      let a = 0; for (let j = i; j < i + win; j++) a += d[j] * d[j];
+      e.push(Math.sqrt(a / win));
+    }
+    const mean = e.reduce((a, b) => a + b, 0) / e.length;
+    const sd = Math.sqrt(e.reduce((a, v) => a + (v - mean) ** 2, 0) / e.length);
+    return { cv: sd / mean, lo: Math.min(...e) / mean, hi: Math.max(...e) / mean };
+  };
+  // Which side of a corner a signal's energy sits on, by one-pole either way.
+  const split = (d, hz) => {
+    const dt = 1 / RATE, rc = 1 / (2 * Math.PI * hz), a = rc / (rc + dt);
+    let hi = 0, pv = 0, lo = 0, hp = 0, lp = 0;
+    for (let i = 0; i < d.length; i++) {
+      hi = a * (hi + d[i] - pv); pv = d[i];
+      lo = lo + (d[i] - lo) * (dt / (rc + dt));
+      hp += hi * hi; lp += lo * lo;
+    }
+    return { under: Math.sqrt(lp / d.length), over: Math.sqrt(hp / d.length) };
+  };
+
+  const prime = new OfflineAudioContext(1, 1024, RATE);
+  ctx = prime; bank.clear();
+  const buffers = { pink: noise('pink'), brown: noise('brown'), white: noise('white') };
+
+  /* The second control: the page's pink with the 60 Hz highpass taken out of
+     it, which is the version that looks like the obvious fix and is not. */
+  buffers.unfiltered = (() => {
+    const len = buffers.pink.length;
+    const d = new Float32Array(len);
+    const rows = new Float32Array(16);
+    let running = 0;
+    for (let i = 0; i < len; i++) {
+      let bit = i & -i, row = 0;
+      while (bit > 1) { bit >>= 1; row++; }
+      if (row < rows.length) { running -= rows[row]; rows[row] = Math.random() * 2 - 1; running += rows[row]; }
+      d[i] = (running + (Math.random() * 2 - 1)) / (rows.length + 1);
+    }
+    let power = 0;
+    for (let i = 0; i < len; i++) power += d[i] * d[i];
+    const scale = 0.577 / Math.sqrt(power / len);
+    const out = prime.createBuffer(1, len, RATE);
+    const into = out.getChannelData(0);
+    for (let i = 0; i < len; i++) into[i] = d[i] * scale;
+    return out;
+  })();
+
+  // The two layers as start() wires them, at a middling rain and wind.
+  const layer = async (kind, which) => {
+    const off = new OfflineAudioContext(1, RATE * 4, RATE);
+    const src = off.createBufferSource();
+    src.buffer = buffers[kind];
+    src.loop = true;
+    const filter = off.createBiquadFilter();
+    filter.type = 'lowpass';
+    if (which === 'far') filter.frequency.value = 420 + 0.3 * 900;
+    else { filter.frequency.value = 320 + 0.3 * 900; filter.Q.value = 3; }
+    src.connect(filter).connect(off.destination);
+    src.start(0);
+    const d = (await off.startRendering()).getChannelData(0);
+    let peak = 0;
+    for (let i = 0; i < d.length; i++) peak = Math.max(peak, Math.abs(d[i]));
+    return { ...envelope(d), ...split(d, 100), peak };
+  };
+
+  const buf = (kind) => {
+    const d = buffers[kind].getChannelData(0);
+    return { ...envelope(d), ...split(d, 100) };
+  };
+  return {
+    buffer: { pink: buf('pink'), brown: buf('brown'), white: buf('white') },
+    far: { pink: await layer('pink', 'far'), brown: await layer('brown', 'far'),
+           unfiltered: await layer('unfiltered', 'far') },
+    air: { pink: await layer('pink', 'air'), brown: await layer('brown', 'air'),
+           unfiltered: await layer('unfiltered', 'air') },
+  };
+});
+ok('the noise under the wash and the wind keeps its energy where it can be heard',
+   steady.buffer.pink.over > steady.buffer.pink.under * 1.5,
+   `${steady.buffer.pink.under.toFixed(2)} under 100 Hz against ${steady.buffer.pink.over.toFixed(2)} over`);
+ok('and the brown it ran on did the opposite, so this measures something',
+   steady.buffer.brown.under > steady.buffer.brown.over * 1.4,
+   `${steady.buffer.brown.under.toFixed(2)} under against ${steady.buffer.brown.over.toFixed(2)} over`);
+ok('so its own level sits still rather than wandering',
+   steady.buffer.pink.cv < 0.12 && steady.buffer.brown.cv > 0.2,
+   `${steady.buffer.pink.cv.toFixed(3)} against the brown's ${steady.buffer.brown.cv.toFixed(3)}`
+   + ` and the white's ${steady.buffer.white.cv.toFixed(3)}`);
+
+for (const [name, which] of [['far wash', 'far'], ['wind', 'air']]) {
+  const now = steady[which].pink, was = steady[which].brown;
+  ok(`the ${name} comes out at a steady level`, now.cv < 0.17,
+     `${now.cv.toFixed(3)}, between ${now.lo.toFixed(2)}x and ${now.hi.toFixed(2)}x its own average`);
+  ok(`and the jitter the ${name} had really was there to find`, was.cv > now.cv * 1.8,
+     `${was.cv.toFixed(3)} the old way, ${was.lo.toFixed(2)}x to ${was.hi.toFixed(2)}x`);
+  // Pink on its own is not the fix, and a check that passed without the
+  // highpass would be saying the wrong thing about why this works.
+  const bare = steady[which].unfiltered;
+  ok(`and pinking the ${name} without the sub-audio cut would not have done it`,
+     bare.cv > now.cv * 1.8,
+     `${bare.cv.toFixed(3)} unfiltered, ${bare.lo.toFixed(2)}x to ${bare.hi.toFixed(2)}x`);
+  // The gain each layer was given back, against what it had before.
+  const gain = which === 'far' ? [1.35, 0.85] : [0.48, 0.3];
+  ok(`and the ${name} is no quieter for it where it counts`,
+     Math.abs(now.over * gain[0] - was.over * gain[1]) < was.over * gain[1] * 0.15,
+     `${(now.over * gain[0]).toFixed(3)} against ${(was.over * gain[1]).toFixed(3)} above 100 Hz`);
+  ok(`with more headroom than the ${name} had, not less`,
+     now.peak * gain[0] < was.peak * gain[1],
+     `peaks ${(now.peak * gain[0]).toFixed(2)} against ${(was.peak * gain[1]).toFixed(2)}`);
+  console.log(`      ${name}: level moves ${now.lo.toFixed(2)}–${now.hi.toFixed(2)}x,`
+    + ` was ${was.lo.toFixed(2)}–${was.hi.toFixed(2)}x`);
+}
+
 /* The crack is measured by its band, not by a window of time. A window at
    the onset catches whatever the body is doing there too, and once the body
    attacked faster that is exactly what it started reporting. Split at
@@ -478,6 +615,18 @@ ok('the near end of the channel is heard first',
 ok('and the far end has had the top rubbed off it',
    bolt.sent[bolt.sent.length-1].close < bolt.sent[0].close, `${bolt.sent[0].close.toFixed(2)} → ${bolt.sent[bolt.sent.length-1].close.toFixed(2)}`);
 console.log(`      ${bolt.n} segments over ${(bolt.sent[bolt.sent.length-1].at - bolt.flash).toFixed(1)}s`);
+
+// Measuring the buffers proves nothing if a layer is not playing the one it
+// should, which is the quiet way this undoes itself. Asked of the graph that
+// is actually running.
+const playing = await page.evaluate(() => ({
+  far: washNodes.farSource.buffer === bank.get('pink'),
+  air: airNodes.source.buffer === bank.get('pink'),
+  near: washNodes.nearSource.buffer === bank.get('white'),
+}));
+ok('the far wash and the wind are both playing the steady noise',
+   playing.far && playing.air, JSON.stringify(playing));
+ok('and the near wash is still the white it always was', playing.near, JSON.stringify(playing));
 
 /* ---- drops follow the rain ---- */
 await page.evaluate(() => {
