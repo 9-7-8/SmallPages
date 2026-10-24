@@ -4,7 +4,14 @@ import path from 'node:path';
 const browser = await chromium.launch({ executablePath: CHROMIUM_BIN });
 const page = await browser.newPage({ viewport: { width: 1250, height: 1400 }, acceptDownloads: true });
 const errs = [];
-page.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
+/* Chromium's text for a subresource that would not load never names the file
+   — "Failed to load resource: … 404" and the URL only in the message's
+   location. So filtering the text for "favicon" matched nothing, and this
+   suite failed every run on the browser asking for an icon the repo does not
+   carry. Filtered on the location instead, a 404 of something the page really
+   does want still counts against it. */
+const anIcon = m => /\/favicon\.ico$/.test((m.location() || {}).url || '');
+page.on('console', m => { if (m.type() === 'error' && !anIcon(m)) errs.push(m.text()); });
 page.on('pageerror', e => errs.push('pageerror: ' + e.message));
 let failed = 0;
 const ok = (n, c, x = '') => { if (!c) failed++; console.log((c ? 'PASS' : 'FAIL') + '  ' + n + (c ? '' : '  <<< ' + x)); };
@@ -110,6 +117,6 @@ await page.waitForTimeout(1200);
 s = await read();
 ok('a busy picture is refused, with the reason', /isn't one colour/.test(s.status) && s.sizes.length === 0, s.status);
 
-console.log(errs.length ? 'CONSOLE ERRORS: ' + errs.filter(e => !/favicon/.test(e)).join(' | ') : 'no console errors');
+console.log(errs.length ? 'CONSOLE ERRORS: ' + errs.join(' | ') : 'no console errors');
 await browser.close();
-process.exit(failed || errs.filter(e => !/favicon/.test(e)).length ? 1 : 0);
+process.exit(failed || errs.length ? 1 : 0);
