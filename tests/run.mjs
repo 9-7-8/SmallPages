@@ -7,7 +7,10 @@
        node tests/run.mjs rain noise   the ones whose name contains either
 
    A suite is a file that prints a PASS/FAIL line per check and exits non-zero
-   if any failed; this only starts them, reads the exit code, and adds up. */
+   if any failed; this only starts them, reads the exit code, and adds up.
+
+   They sit in this folder, except the games', which sit in `games/` under it
+   because there are going to be a lot of them. Nothing else nests. */
 
 import { spawn } from "node:child_process";
 import fs from "node:fs";
@@ -21,8 +24,13 @@ const WANTS_STUB = /^test-caps-(diag|fetch|relay|slow)\.mjs$/;
 const WANTS_RELAY = /^test-caps-relay\.mjs$/;
 
 const asked = process.argv.slice(2);
-const suites = fs.readdirSync(TESTS)
-  .filter((f) => f.startsWith("test-") && f.endsWith(".mjs"))
+const inside = (dir) => {
+  const here = dir ? path.join(TESTS, dir) : TESTS;
+  if (!fs.existsSync(here)) return [];
+  return fs.readdirSync(here).map((f) => (dir ? `${dir}/${f}` : f));
+};
+const suites = [...inside(""), ...inside("games")]
+  .filter((f) => path.basename(f).startsWith("test-") && f.endsWith(".mjs"))
   .filter((f) => !asked.length || asked.some((want) => f.includes(want)))
   .sort();
 
@@ -91,7 +99,7 @@ for (const r of over) {
   if (sick) bad++;
   if (r.skipped) skipped++;
   const mark = r.skipped ? "skip" : sick ? "FAIL" : "ok  ";
-  console.log(`${mark}  ${r.file.padEnd(26)} `
+  console.log(`${mark}  ${r.file.padEnd(28)} `
     + (r.skipped ? "no fixture for it here" : `${r.passed} passing`
         + (r.failed ? `, ${r.failed} failing` : "")
         + (r.code !== 0 && !r.failed ? `  (exit ${r.code})` : "")));

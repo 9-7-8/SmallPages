@@ -13,6 +13,11 @@ node tests/run.mjs rain noise   # the ones whose name contains either
 node tests/test-pdfb.mjs        # one, with the server already up on 8099
 ```
 
+Suites sit in this folder, except the games', which sit in
+[`games/`](games/) under it because there are going to be a lot of them and
+because a game's tests must not live in the game's own folder. Nothing else
+nests.
+
 `run.mjs` starts the static server the suites point at, the caption stub for
 the four suites that need it and the relay stub for the one that does, runs
 each suite in turn and adds up the result. Nothing is left running afterwards.
@@ -89,7 +94,7 @@ Suites are named for the page they exercise. The ones worth knowing about:
   reads the Markdown: every cue sorted by time rather than by the order it sat
   in the page, every comment with the likes the page displayed, and the export
   notes saying what it could not vouch for.
-- **`test-gridlock.mjs`** — the traffic game. Drawing is done with real
+- **`games/test-gridlock.mjs`** — the traffic game. Drawing is done with real
   pointer drags and checked as road: one-way the way it was dragged, two-way
   only after a drag back over it, refused into a blob that makes cars or out
   of one that takes them, and stopped dead by the budget. The rest is the run,

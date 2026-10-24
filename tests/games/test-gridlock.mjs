@@ -13,7 +13,7 @@
    happens when it is missing: each of those levels is played through twice,
    once without and once with, and the test fails if the one without wins. */
 
-import { chromium, CHROMIUM_BIN, WORK, SITE, scoring } from "./lib/env.mjs";
+import { chromium, CHROMIUM_BIN, WORK, SITE, scoring } from "../lib/env.mjs";
 
 const { ok, done } = scoring();
 const URL = `${SITE}/games/gridlock/`;

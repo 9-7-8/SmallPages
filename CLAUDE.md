@@ -34,12 +34,22 @@ list is referenced by id and its order does not matter.
 
 ## Games
 
-A game lives in `games/<name>/index.html`, so its address is `/games/<name>/`
-with no extension on the end. It is a page like any other, with the theme
-linked from two levels up and the back link pointing at `../index.html`, which
-is [`games/index.html`](games/index.html): the list `/games/` serves, and the
-one place besides the hub that has to learn about a new game. A game gets a
-tile in both.
+Read [`games/MAKING.md`](games/MAKING.md) before starting one. It is the whole
+procedure — paths, the page skeleton, the fixed-step loop and the test hook,
+what a game's suite has to check, how to tune difficulty with the harness, and
+the things that have already cost an afternoon once.
+[`games/README.md`](games/README.md) is the list of what is still to build.
+
+The short of it: a game lives in `games/<name>/index.html`, so its address is
+`/games/<name>/` with no extension on the end, with the theme linked from two
+levels up and the back link pointing at `../index.html`. It has to be
+self-contained — someone should be able to copy the folder out and have a
+working game — so no shared engine, no importing from a sibling, and nothing
+outside it but `theme.css`. Its suite goes in `tests/games/`, never in the
+game's own folder, which is the only part of `tests/` that nests.
+
+A new game gets a tile in both [`games/index.html`](games/index.html), the list
+`/games/` serves, and the hub.
 
 ## Applets
 
