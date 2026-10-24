@@ -628,11 +628,33 @@ ok('the far wash and the wind are both playing the steady noise',
    playing.far && playing.air, JSON.stringify(playing));
 ok('and the near wash is still the white it always was', playing.near, JSON.stringify(playing));
 
+/* Hiding the tab is the one warning the page gets that its timers are about
+   to be clamped, and the horizon goes deep on it rather than a starved
+   second later. Headless keeps every page visible, so the state and the
+   event are both supplied here; what is being checked is that the page
+   answers the event it will really be given. Put back afterwards, because
+   the drop checks below measure the lead times. */
+const onHide = await page.evaluate(() => {
+  if (!rainPump) return { ran: false };
+  rainPump.reach = AHEAD_MIN;
+  const before = rainPump.reach;
+  Object.defineProperty(document, 'hidden', { get: () => true, configurable: true });
+  document.dispatchEvent(new Event('visibilitychange'));
+  const after = rainPump.reach;
+  delete document.hidden;
+  rainPump.reach = AHEAD_MIN;
+  return { ran: true, before, after, max: AHEAD_MAX, restored: document.hidden };
+});
+ok('hiding the tab deepens the lookahead at once', onHide.ran && onHide.after === onHide.max,
+   JSON.stringify(onHide));
+ok('and the page is visible again afterwards', onHide.restored === false, JSON.stringify(onHide));
+
 /* ---- drops follow the rain ---- */
 await page.evaluate(() => {
   window.__drops = [];
   const real = drop;
-  drop = (...args) => { window.__drops.push({ s: args[0], z: args[1], g: args[2], at: args[3], now: ctx.currentTime }); return real(...args); };
+  drop = (...args) => { window.__drops.push({ s: args[0], z: args[1], g: args[2], at: args[3],
+    now: ctx.currentTime, reach: rainPump ? rainPump.reach : 0 }); return real(...args); };
 });
 await page.evaluate(() => {
   clouds.length = 0; clouds.push({ x: 0, y: 0, r: 200, thick: 1, wobble: 0 });
@@ -642,8 +664,23 @@ await page.waitForTimeout(2500);
 const heavy = await page.evaluate(() => { const d = window.__drops.slice(); window.__drops = []; return d; });
 await page.evaluate(() => { BANDS.rain.lo.value = '12'; BANDS.rain.hi.value = '12'; BANDS.rain.now = 0.12; });
 await page.waitForTimeout(2500);
-const light = await page.evaluate(() => window.__drops.length);
-ok('heavier rain really is more drops', heavy.length > light * 2.5, `${heavy.length} vs ${light} in 2.5s`);
+const light = await page.evaluate(() => { const d = window.__drops.slice(); window.__drops = []; return d; });
+
+/* Drops a second, over the stretch of the audio clock they were actually
+   laid on, rather than however many turned up inside a wall-clock window.
+   The lookahead is not a fixed third of a second any more — it deepens when
+   the pump is made to wait — so a window of wall time catches a whole number
+   of burst-sized fills and the count comes out quantised by whatever the
+   horizon happened to be. The rate over the span they cover is not: it is
+   the same figure however the fills were grouped, which is the point. */
+const perSecond = (list) => {
+  const at = list.map((d) => d.at).sort((a, b) => a - b);
+  const span = at[at.length - 1] - at[0];
+  return span > 0.5 ? (at.length - 1) / span : 0;
+};
+ok('heavier rain really is more drops', perSecond(heavy) > perSecond(light) * 2.5,
+   `${perSecond(heavy).toFixed(1)} a second against ${perSecond(light).toFixed(1)}`
+   + ` (${heavy.length} drops and ${light.length} over 2.5s apiece)`);
 // The skipping was drops fired by a main-thread timer: a long frame delays
 // the callbacks and they then arrive together, so the rain bunches and gaps.
 // Scheduled ahead on the audio clock, a drop is handed over before it is due.
@@ -651,9 +688,17 @@ const lead = heavy.map(d => d.at - d.now).filter(v => Number.isFinite(v));
 ok('drops are handed to the audio clock before they are due',
    lead.filter(v => v > 0.004).length > lead.length * 0.8,
    `${lead.filter(v => v > 0.004).length} of ${lead.length} scheduled ahead`);
+/* Judged against the horizon that was in force when each drop was placed,
+   rather than against a figure. The horizon follows how long the pump is
+   being made to wait, so a frame that ran long legitimately deepens it, and
+   a flat ceiling here would fail on that while saying nothing about the
+   thing it was put there to watch. */
 ok('and spread across the lookahead rather than all at one instant',
-   Math.max(...lead) > 0.05 && Math.max(...lead) < 0.45,
+   Math.max(...lead) > 0.05 && heavy.every((d) => d.at - d.now <= d.reach + 0.05),
    `furthest ahead ${Math.max(...lead).toFixed(3)}s`);
+ok('and the lookahead sits at its floor while the page is in front of you',
+   heavy.filter((d) => d.reach <= 0.3001).length > heavy.length * 0.9,
+   `${heavy.filter((d) => d.reach <= 0.3001).length} of ${heavy.length} drops placed at the floor`);
 ok('none is scheduled in the past', Math.min(...lead) > -0.02, Math.min(...lead).toFixed(4));
 console.log(`      lead times ${Math.min(...lead).toFixed(3)}s to ${Math.max(...lead).toFixed(3)}s`);
 
@@ -685,6 +730,79 @@ ok('with drips on stone rather than a roof',
 await page.click('#playBtn');
 await page.waitForTimeout(600);
 ok('it stops cleanly', await page.evaluate(() => !running), '');
+
+/* ---- the rain behind another tab ---- */
+
+/* What was reported after the flutter went: a sharp cut off, like the noise
+   restarting. The drops are placed by a main-thread timer, and a tab that is
+   not in front of you — behind another tab, or merely covered by another
+   window — has its timers clamped to one a second. The pump was laying down
+   a third of a second of drops and then waiting a whole one, so seven tenths
+   of every second had nothing in them: the rain stopped dead and came back,
+   once a second, for as long as it was left. Which is how this page is used,
+   so it is the case that matters most and the only one nothing watched.
+
+   Playwright turns that throttling off, so it is put back by hand: setTimeout
+   is clamped before the page loads, which is the same thing happening for the
+   same reason. One fixed cloud overhead pins the drop rate, so the only thing
+   that differs between the two runs is the scheduler. Measured on the times
+   drops were actually handed to the audio clock, against what an exponential
+   at the same mean says to expect — and run a second time with the horizon
+   held down at the old third of a second, so the check is known to be able
+   to fail. */
+const BEHIND = 7000;
+const behind = async (pin) => {
+  const tab = await browser.newPage();
+  await tab.addInitScript((ms) => {
+    const real = window.setTimeout;
+    window.setTimeout = (fn, d, ...rest) => real(fn, Math.max(ms, d || 0), ...rest);
+  }, 1000);
+  await tab.goto(URL);
+  await tab.waitForTimeout(250);
+  for (const [id, v] of [['stormLo', '0'], ['stormHi', '0'], ['rainLo', '70'], ['rainHi', '70'],
+                         ['windLo', '0'], ['windHi', '0'], ['driftIn', '0']]) {
+    await tab.fill('#' + id, v); await tab.dispatchEvent('#' + id, 'input');
+  }
+  await tab.evaluate((held) => {
+    clouds.length = 0; clouds.push({ x: 0, y: 0, r: 240, thick: 1, wobble: 0 });
+    moveClouds = () => {};
+    if (held) AHEAD_MAX = held;
+    window.__at = [];
+    const real = drop;
+    drop = (...a) => { window.__at.push(a[3]); return real(...a); };
+  }, pin || 0);
+  await tab.click('#playBtn');
+  await tab.waitForTimeout(BEHIND);
+  const got = await tab.evaluate(() => {
+    const at = window.__at.slice().sort((a, b) => a - b);
+    const gaps = [];
+    for (let i = 1; i < at.length; i++) gaps.push(at[i] - at[i - 1]);
+    const mean = gaps.reduce((a, b) => a + b, 0) / gaps.length;
+    // Drops are Poisson, so the gaps are exponential and how many run past
+    // any length is arithmetic rather than a guess.
+    return { drops: at.length, mean, longest: Math.max(...gaps),
+             over: gaps.filter((g) => g > mean * 8).length,
+             expected: gaps.length * Math.exp(-8),
+             dead: gaps.filter((g) => g > 0.4).reduce((a, g) => a + g - 0.4, 0) };
+  });
+  await tab.close();
+  return got;
+};
+const kept = await behind(0);
+const atOld = await behind(0.3);
+ok('behind another tab the rain keeps falling',
+   kept.over <= Math.max(3, kept.expected * 4),
+   `${kept.over} gaps past eight times the mean, where chance says ${kept.expected.toFixed(1)}`);
+ok('and with no second-long holes in it', kept.longest < 0.5,
+   `longest gap ${kept.longest.toFixed(3)}s, ${kept.dead.toFixed(2)}s of dead air`);
+ok('held at the old lookahead it stops dead, so this can fail',
+   atOld.longest > 0.6, `longest gap ${atOld.longest.toFixed(3)}s`);
+ok('and that is dead air rather than rain that merely thinned out',
+   atOld.dead > 1 && kept.drops > atOld.drops * 1.8,
+   `${atOld.dead.toFixed(2)}s dead against ${kept.dead.toFixed(2)}s,`
+   + ` ${atOld.drops} drops against ${kept.drops}`);
+console.log(`      throttled: ${kept.drops} drops, longest gap ${kept.longest.toFixed(2)}s`
+  + ` — at the old lookahead ${atOld.drops} drops, longest ${atOld.longest.toFixed(2)}s`);
 
 console.log(errs.length ? 'CONSOLE ERRORS: ' + errs.join(' | ') : 'no console errors');
 

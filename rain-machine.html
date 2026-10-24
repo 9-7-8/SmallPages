@@ -686,18 +686,50 @@ function fallOne(at) {
    behind it, which is the skipping. Scheduling ahead means a frame that runs
    long costs nothing at all, because the drops for the next third of a
    second have already been handed to the audio thread. */
+/* How far ahead the pump fills. A third of a second is plenty while the page
+   is in front of you and the pump gets its turn every 60 ms, and nowhere
+   near enough behind another tab, where the browser clamps setTimeout to
+   once a second: the pump then lays down 300 ms of drops and the next nine
+   hundred have nothing in them, so the rain stops dead and comes back, once
+   a second, for as long as you leave it. Which is most of the time — this is
+   a page you start and then go and do something else, and a window that is
+   merely covered by another counts as hidden too.
+
+   So the horizon is not a constant. It follows how long the pump is actually
+   being made to wait, which covers a throttled tab, a machine having a bad
+   moment and a frame that ran long, without having to tell them apart. The
+   cost of a deep horizon is that drops are committed further ahead and the
+   rain takes that much longer to answer the sliders, which is why it comes
+   back down again as soon as the turns come quickly. */
+const AHEAD_MIN = 0.3;
+let AHEAD_MAX = 3;        // not const: the suite pins it to the old depth
+
 function raining() {
-  rainPump = { timer: null, cancelled: false, next: ctx.currentTime + 0.06 };
+  /* Deep to begin with and decaying down, rather than shallow and growing.
+     Growing into it costs one starved turn before the first measurement
+     exists, and that turn is as audible as any other; starting deep costs
+     nothing anyone can hear, because the sliders have only just been set and
+     there is nothing yet for the rain to be slow to answer. */
+  rainPump = { timer: null, cancelled: false, next: ctx.currentTime + 0.06,
+               last: ctx.currentTime, reach: AHEAD_MAX };
   const state = rainPump;
 
   const pump = () => {
     if (!running || state.cancelled || !ctx) return;
-    const horizon = ctx.currentTime + 0.3;
-    // A backgrounded tab wakes with the clock far ahead of the last drop.
-    if (state.next < ctx.currentTime - 0.3) state.next = ctx.currentTime + 0.05;
+    const now = ctx.currentTime;
+    // Three times the wait, so a turn that comes late still finds the clock
+    // covered; decayed rather than dropped, so coming back to the page does
+    // not leave a stale three seconds of rain that cannot be steered.
+    const waited = now - state.last;
+    state.last = now;
+    state.reach = Math.min(AHEAD_MAX, Math.max(AHEAD_MIN, waited * 3, state.reach * 0.85));
+    const horizon = now + state.reach;
+    // A tab that was suspended outright wakes with the clock far ahead of
+    // the last drop; those are gone and firing them now is a burst.
+    if (state.next < now - 0.3) state.next = now + 0.05;
 
     let guard = 0;
-    while (state.next < horizon && guard++ < 400) {
+    while (state.next < horizon && guard++ < 800) {
       const rate = dropRate();
       if (rate > 0.01) {
         fallOne(state.next);
@@ -1330,20 +1362,27 @@ function tick() {
   windAngle += step * 0.012;
   draw();
   markNow();
-  if (nowMs - lastWords > 180) { lastWords = nowMs; notes(); }
-
-  const { over, far } = sky();
-  const bits = [`<b>${place.name.toLowerCase()}</b>`];
-  bits.push(`overhead <b>${Math.round(over * 100)}%</b> · around <b>${Math.round(far * 100)}%</b>`);
-  if (running) {
-    if (lastStrike) bits.push(`last strike <b>${(lastStrike.metres / 1000).toFixed(1)} km</b>`
-      + ` · <b>${lastStrike.delay.toFixed(1)}s</b> away`);
-    const coming = strikes.filter((s) => (nowMs - s.at) / 1000 < s.delay).length;
-    if (coming) bits.push(`<b>${coming}</b> on the way`);
-  } else {
-    bits.push("not playing");
+  /* The readout goes at the same fifth of a second as the words, not every
+     frame. Parsing a string into DOM and laying it out sixty times a second
+     is real work on the one thread the drop scheduler is also waiting on for
+     its turn, and a long turn there is a hole in the rain. None of it was
+     visible either: these are figures to read, not an animation. */
+  if (nowMs - lastWords > 180) {
+    lastWords = nowMs;
+    notes();
+    const { over, far } = sky();
+    const bits = [`<b>${place.name.toLowerCase()}</b>`];
+    bits.push(`overhead <b>${Math.round(over * 100)}%</b> · around <b>${Math.round(far * 100)}%</b>`);
+    if (running) {
+      if (lastStrike) bits.push(`last strike <b>${(lastStrike.metres / 1000).toFixed(1)} km</b>`
+        + ` · <b>${lastStrike.delay.toFixed(1)}s</b> away`);
+      const coming = strikes.filter((s) => (nowMs - s.at) / 1000 < s.delay).length;
+      if (coming) bits.push(`<b>${coming}</b> on the way`);
+    } else {
+      bits.push("not playing");
+    }
+    readoutEl.innerHTML = bits.join(" · ");
   }
-  readoutEl.innerHTML = bits.join(" · ");
   requestAnimationFrame(tick);
 }
 
@@ -1354,6 +1393,13 @@ draw();
 requestAnimationFrame(tick);
 
 window.addEventListener("pagehide", stop);
+
+/* Waiting to be made to wait costs one starved second, and that one is as
+   audible as the rest. Hiding the tab is the one warning there is, so the
+   horizon goes deep on it rather than on the evidence. */
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden && rainPump) rainPump.reach = AHEAD_MAX;
+});
 </script>
 </body>
 </html>
