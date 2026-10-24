@@ -6,11 +6,12 @@
    palette read off a picture has to come out the same either way.
 
    So this suite does two different things. It runs the command for real as a
-   subprocess, on a picture painted here in flat bands of known width, and
-   checks the answer against arithmetic. Then it opens the same page in a
-   browser, drives it by hand, and checks the two agree. A command line that
-   quietly grew its own colour maths would pass the first half and fail the
-   second. */
+   subprocess, on pictures painted here — flat bands of known width, and a
+   noisy one an encoder has to work at — and checks the answer against
+   arithmetic. Then it opens the same page in a browser, drives it by hand,
+   and checks the two agree. A command line that quietly grew its own colour
+   maths, or its own idea of how big 400 pixels is, would pass the first half
+   and fail the second. */
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
@@ -22,10 +23,10 @@ const CLI = path.join(REPO, "cli", "run.mjs");
 
 /* ------------------------------------------------------------ the picture -- */
 
-/* Flat vertical bands, each as wide as its share of the frame, written as a
-   PNG without anything in between that could dither or resample it. What the
-   page should find is exactly the list that went in. */
-function bandsPng(bands, W = 600, H = 300) {
+/* A PNG, written here rather than committed, so a fixture is bytes this file
+   decided on with nothing in between that could dither or resample it. `row`
+   is called once per line and hands back that line's RGB triples. */
+function pngOf(W, H, row) {
   const chunk = (tag, body) => {
     const head = Buffer.alloc(4);
     head.writeUInt32BE(body.length);
@@ -34,16 +35,8 @@ function bandsPng(bands, W = 600, H = 300) {
     crc.writeUInt32BE(zlib.crc32(mid) >>> 0);
     return Buffer.concat([head, mid, crc]);
   };
-  const row = [];
-  let x = 0;
-  bands.forEach(([rgb, share], i) => {
-    const w = i === bands.length - 1 ? W - x : Math.round(W * share);
-    for (let n = 0; n < w; n++) row.push(...rgb);
-    x += w;
-  });
-  const line = Buffer.from(row);
-  const raw = Buffer.concat(
-    Array.from({ length: H }, () => Buffer.concat([Buffer.from([0]), line])));
+  const raw = Buffer.concat(Array.from({ length: H }, (_, y) =>
+    Buffer.concat([Buffer.from([0]), Buffer.from(row(y))])));
   const ihdr = Buffer.alloc(13);
   ihdr.writeUInt32BE(W, 0); ihdr.writeUInt32BE(H, 4);
   ihdr[8] = 8; ihdr[9] = 2;            // eight bits a channel, truecolour
@@ -55,6 +48,52 @@ function bandsPng(bands, W = 600, H = 300) {
   ]);
 }
 
+/* Flat vertical bands, each as wide as its share of the frame. What the
+   colour picker should find is exactly the list that went in. */
+function bandsPng(bands, W = 600, H = 300) {
+  const line = [];
+  let x = 0;
+  bands.forEach(([rgb, share], i) => {
+    const w = i === bands.length - 1 ? W - x : Math.round(W * share);
+    for (let n = 0; n < w; n++) line.push(...rgb);
+    x += w;
+  });
+  return pngOf(W, H, () => line);
+}
+
+/* Something an encoder has to work at. Flat bands compress to almost nothing
+   whatever quality is asked for, so they cannot show a quality setting doing
+   anything — a picture needs detail in it for that. The wobble comes off a
+   fixed sequence rather than `Math.random`, because a compressor test that
+   measures a different picture every run measures luck. */
+function noisePng(W = 800, H = 600) {
+  let seed = 12345;
+  const next = () => {
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+    return seed / 0x7fffffff;
+  };
+  return pngOf(W, H, (y) => {
+    const line = [];
+    for (let x = 0; x < W; x++) {
+      const v = Math.sin(x / 9) * 60 + Math.sin(y / 13) * 60 + 128 + next() * 70;
+      line.push(v & 255, (v * 0.7 + 40) & 255, (v * 0.4 + 90) & 255);
+    }
+    return line;
+  });
+}
+
+/* What a file says it is in its own first bytes. Not a decoder — the page is
+   the only decoder in this repository and the checks below use it as one —
+   just enough to catch a WebP written under a name ending in .jpg. */
+function magic(file) {
+  const head = fs.readFileSync(file).subarray(0, 12);
+  if (head.subarray(0, 3).equals(Buffer.from([0xff, 0xd8, 0xff]))) return "jpeg";
+  if (head.subarray(0, 4).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47]))) return "png";
+  if (head.subarray(0, 4).toString("latin1") === "RIFF"
+      && head.subarray(8, 12).toString("latin1") === "WEBP") return "webp";
+  return "something else";
+}
+
 const BANDS = [
   [[224, 58, 62], 0.4],
   [[47, 110, 180], 0.3],
@@ -64,6 +103,8 @@ const BANDS = [
 const HEXES = ["#e03a3e", "#2f6eb4", "#f2c94c", "#1e1e22"];
 const PICTURE = path.join(WORK, "cli-bands.png");
 fs.writeFileSync(PICTURE, bandsPng(BANDS));
+const PHOTO = path.join(WORK, "cli-photo.png");
+fs.writeFileSync(PHOTO, noisePng());
 
 /* ------------------------------------------------------------- running it -- */
 
@@ -87,7 +128,8 @@ const json = async (...args) => {
 {
   const got = await run();
   ok("with nothing asked for it lists what has a command line",
-    got.code === 0 && /color-picker/.test(got.out), got.out.slice(0, 200));
+    got.code === 0 && /color-picker/.test(got.out)
+      && /image-compressor/.test(got.out), got.out.slice(0, 300));
   const help = await run("color-picker", "--help");
   ok("a tool's --help names its commands",
     ["convert", "palette", "pixel", "contrast", "gradient", "match"]
@@ -252,6 +294,128 @@ const json = async (...args) => {
     nope.code === 1 && /no thread chart called/.test(nope.err), nope.err.trim());
 }
 
+/* ----------------------------------------------------- image-compressor -- */
+
+/* The first tool here that writes a file, so there are two things to prove
+   rather than one: that the arithmetic is right, and that the bytes left on
+   disk are a real picture of the size claimed for them.
+
+   The second is checked by handing the saved file back to the page. The page
+   is the only image decoder in this repository, and a WebP reader written
+   here to check a WebP written there would be precisely the second tool this
+   whole arrangement exists to avoid. */
+{
+  const photoBytes = fs.statSync(PHOTO).size;
+
+  const d = await json("image-compressor", PHOTO);
+  ok("a bare run is the page's own defaults: WebP at 78, and the full size",
+    d.compressed.ext === "webp" && d.quality === 78 && d.cap === 800
+      && d.compressed.width === 800 && d.compressed.height === 600,
+    `${d.compressed.ext} q${d.quality} cap ${d.cap} `
+      + `${d.compressed.width}×${d.compressed.height}`);
+  ok("and it is reading the file that is actually on disk",
+    d.original.bytes === photoBytes, `${d.original.bytes} vs ${photoBytes}`);
+  ok("the tally subtracts what it says it subtracts",
+    d.saved.bytes === d.original.bytes - d.compressed.bytes
+      && Math.abs(d.saved.percent - (d.saved.bytes / d.original.bytes) * 100) < 0.06,
+    `${d.saved.bytes} bytes, ${d.saved.percent}%`);
+  ok("and with no --out nothing is written at all",
+    d.wrote === null, String(d.wrote));
+
+  const small = await json("image-compressor", PHOTO, "--max", "400");
+  ok("--max caps the longest side and the short one follows it down",
+    small.compressed.width === 400 && small.compressed.height === 300,
+    `${small.compressed.width}×${small.compressed.height}`);
+
+  /* The slider is the page's only way of saying how big, and it moves in
+     forties from 240 — so 300 is not a size this page can be asked for, and
+     the thing that must not happen is the command line quietly reporting the
+     300 it was given rather than the 320 it got. */
+  const snapped = await json("image-compressor", PHOTO, "--max", "300");
+  ok("a cap the slider cannot express lands where the slider lands, and says so",
+    snapped.asked === 300 && snapped.cap === 320
+      && snapped.compressed.width === 320 && snapped.compressed.height === 240,
+    `asked ${snapped.asked}, got ${snapped.cap}, `
+      + `${snapped.compressed.width}×${snapped.compressed.height}`);
+
+  const rough = await json("image-compressor", PHOTO, "--format", "jpeg", "--quality", "30");
+  const fine = await json("image-compressor", PHOTO, "--format", "jpeg", "--quality", "90");
+  ok("a lower quality is a smaller file",
+    rough.compressed.bytes < fine.compressed.bytes,
+    `${rough.compressed.bytes} at 30 vs ${fine.compressed.bytes} at 90`);
+  const frac = await json("image-compressor", PHOTO, "--format", "jpeg", "--quality", "0.3");
+  ok("and a fraction is the same ask as the percentage, to the byte",
+    frac.quality === 30 && frac.compressed.bytes === rough.compressed.bytes,
+    `q${frac.quality}, ${frac.compressed.bytes} vs ${rough.compressed.bytes}`);
+
+  /* -------------------------------------------------- and out to a file -- */
+
+  const out = path.join(WORK, "cli-small.webp");
+  fs.rmSync(out, { force: true });
+  const wrote = await json("image-compressor", PHOTO, "--max", "400", "--out", out);
+  ok("--out writes the file, exactly as big as the tally said it would be",
+    fs.existsSync(out) && fs.statSync(out).size === wrote.compressed.bytes,
+    `${fs.existsSync(out) ? fs.statSync(out).size : "missing"} `
+      + `vs ${wrote.compressed.bytes}`);
+  ok("and what it wrote is really a WebP", magic(out) === "webp", magic(out));
+
+  const back = await json("image-compressor", out);
+  ok("and the page, handed the saved file back, opens it at 400×300",
+    back.original.width === 400 && back.original.height === 300
+      && back.original.bytes === wrote.compressed.bytes,
+    `${back.original.width}×${back.original.height}, ${back.original.bytes} bytes`);
+
+  const asJpeg = path.join(WORK, "cli-small.jpg");
+  fs.rmSync(asJpeg, { force: true });
+  const jpg = await json("image-compressor", PHOTO, "--max", "400", "--out", asJpeg);
+  ok("the ending of an --out name picks the encoder with no --format at all",
+    jpg.compressed.ext === "jpg" && magic(asJpeg) === "jpeg",
+    `${jpg.compressed.ext} on disk is ${magic(asJpeg)}`);
+
+  const into = path.join(WORK, "cli-out");
+  fs.rmSync(into, { recursive: true, force: true });
+  const dir = await json("image-compressor", PHOTO, "--format", "png",
+                         "--out", into + path.sep);
+  ok("--out on a directory takes the name the page's own Save button gives",
+    dir.name === "cli-photo-small.png"
+      && fs.existsSync(path.join(into, "cli-photo-small.png"))
+      && magic(path.join(into, "cli-photo-small.png")) === "png",
+    `${dir.name}, written: ${fs.existsSync(path.join(into, "cli-photo-small.png"))}`);
+
+  const formats = await json("image-compressor", "formats");
+  ok("formats says what this browser will write, and marks the default",
+    formats.formats.length >= 2 && formats.formats.filter((f) => f.default).length === 1
+      && formats.quality.default === 78 && formats.longestSide.step === 40,
+    formats.formats.map((f) => f.ext + (f.default ? "*" : "")).join(" "));
+
+  /* ------------------------------------------- and what goes wrong here -- */
+
+  const tiff = await run("image-compressor", PHOTO, "--format", "tiff");
+  ok("a format the page cannot write lists the three it can",
+    tiff.code === 1 && /--format is one of jpeg, webp, png/.test(tiff.err),
+    tiff.err.trim());
+  const clash = await run("image-compressor", PHOTO,
+                          "--out", path.join(WORK, "clash.jpg"), "--format", "webp");
+  ok("an --out ending that contradicts --format is refused, not resolved",
+    clash.code === 1 && /disagree about the format/.test(clash.err)
+      && !fs.existsSync(path.join(WORK, "clash.jpg")), clash.err.trim());
+  const thin = await run("image-compressor", PHOTO, "--quality", "5");
+  ok("a quality off the end of the page's slider is a sentence",
+    thin.code === 1 && /--quality is 20 to 100/.test(thin.err), thin.err.trim());
+  const tiny = await run("image-compressor", PHOTO, "--max", "100");
+  ok("and so is a cap below the smallest size the page offers",
+    tiny.code === 1 && /240 pixels/.test(tiny.err), tiny.err.trim());
+  const pile = await run("image-compressor", PHOTO, PHOTO);
+  ok("two pictures at once says which page is the one that takes a pile",
+    pile.code === 1 && /one picture at a time/.test(pile.err), pile.err.trim());
+  const notPicture = path.join(WORK, "cli-not-a-picture.txt");
+  fs.writeFileSync(notPicture, "this is not a picture");
+  const refused = await run("image-compressor", notPicture);
+  ok("and a file that is not a picture comes back as the page's own complaint",
+    refused.code === 1 && /not an image this page can open/.test(refused.err),
+    refused.err.trim());
+}
+
 /* ------------------------------------------------------- what goes wrong -- */
 
 {
@@ -319,6 +483,94 @@ const json = async (...args) => {
     onScreen.join(" ") === printed.join(" "), `${onScreen.join(" ")} vs ${printed.join(" ")}`);
 
   ok("no page errors", errs.length === 0, errs.join(" | "));
+  await browser.close();
+}
+
+/* ------------------------------ the same answer as the tab, compressing -- */
+
+/* image-compressor.html driven by hand: the real file input, the real Save as
+   box, the real sliders, and then the real Save button.
+
+   The last of those is what makes this the strongest check in the file. The
+   colour checks above compare two readings of a number; this compares two
+   files. A download triggered by clicking the page's own button, and the file
+   `--out` wrote at the same three settings, have to be byte for byte the same
+   thing — which they can only be if the command line is pressing the page's
+   own buttons rather than a copy of them. */
+{
+  const browser = await chromium.launch({ executablePath: CHROMIUM_BIN });
+  const ctx = await browser.newContext({
+    viewport: { width: 1280, height: 1200 }, acceptDownloads: true });
+  const page = await ctx.newPage();
+  const errs = [];
+  page.on("pageerror", (e) => errs.push("pageerror: " + e.message));
+  page.on("console", (m) => {
+    if (m.type() === "error" && !/favicon|404/.test(m.text())) errs.push(m.text());
+  });
+
+  await page.goto(`file://${path.join(REPO, "image-compressor.html")}`);
+  await page.setInputFiles("#fileInput", PHOTO);
+  await page.waitForFunction(() => window.CLI.image().ready, null, { timeout: 30000 });
+
+  /* Save as is a real select, so it is really selected. The two sliders are
+     set and then told they moved, which is all a drag amounts to as far as
+     the page is concerned — there is no way to drag a range input to an
+     exact figure, and 400 is the figure the arithmetic above is about. */
+  await page.selectOption("#formatSel", "image/jpeg");
+  await page.evaluate(() => {
+    for (const [id, value] of [["quality", "40"], ["scale", "400"]]) {
+      const slider = document.getElementById(id);
+      slider.value = value;
+      slider.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+  });
+  /* Waiting on the answer rather than on a stopwatch: the page debounces its
+     encode, so the tally saying 400×300 is what means it has caught up. */
+  await page.waitForFunction(() => {
+    const cell = document.querySelectorAll("#tally .cell")[1];
+    return cell && cell.querySelector(".sub").textContent === "400×300 · jpeg";
+  }, null, { timeout: 30000 });
+
+  const inTab = await page.evaluate(() => ({
+    cells: [...document.querySelectorAll("#tally .cell")].map((c) => ({
+      cap: c.querySelector(".cap").textContent,
+      n: c.querySelector(".n").textContent,
+      sub: c.querySelector(".sub").textContent,
+    })),
+    status: document.getElementById("status").textContent.trim(),
+  }));
+
+  const sameAgain = path.join(WORK, "cli-same-again.jpg");
+  fs.rmSync(sameAgain, { force: true });
+  const onCli = await json("image-compressor", PHOTO, "--format", "jpeg",
+                           "--quality", "40", "--max", "400", "--out", sameAgain);
+
+  const parts = [onCli.original, onCli.compressed, onCli.saved];
+  ok("the three figures on screen are the three the command line prints",
+    inTab.cells.length === 3 && inTab.cells.every((c, i) => c.n === parts[i].human),
+    `${inTab.cells.map((c) => c.n).join(" / ")} vs `
+      + `${parts.map((x) => x.human).join(" / ")}`);
+  ok("and so are the captions and the lines under them",
+    inTab.cells.every((c, i) => c.cap === parts[i].cap && c.sub === parts[i].sub),
+    `${inTab.cells.map((c) => c.cap + " " + c.sub).join(" / ")}`);
+  ok("and the page's own status line came back with them",
+    inTab.status === onCli.status, `${inTab.status} vs ${onCli.status}`);
+
+  const [download] = await Promise.all([
+    page.waitForEvent("download"),
+    page.click("#saveBtn"),
+  ]);
+  const byHand = path.join(WORK, "cli-by-hand.jpg");
+  await download.saveAs(byHand);
+  ok("the Save button's own name for the file is the name --out uses on a directory",
+    download.suggestedFilename() === onCli.name,
+    `${download.suggestedFilename()} vs ${onCli.name}`);
+  ok("and the file saved by hand is byte for byte the file --out wrote",
+    Buffer.compare(fs.readFileSync(byHand), fs.readFileSync(sameAgain)) === 0,
+    `${fs.statSync(byHand).size} by hand vs ${fs.statSync(sameAgain).size} `
+      + "from the command line");
+
+  ok("no page errors from image-compressor.html", errs.length === 0, errs.join(" | "));
   await browser.close();
 }
 

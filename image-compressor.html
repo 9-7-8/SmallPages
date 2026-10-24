@@ -374,33 +374,68 @@ async function encode() {
   }
 }
 
-function showTally(blob, w, h) {
+/* The tally as data, before any of it is a cell on the screen. The three
+   figures are wanted in two places — painted here, printed by the command
+   line — and a second copy of the subtraction is a second answer waiting to
+   disagree with this one, so `showTally` draws whatever this says and
+   `window.CLI` returns it. */
+function tallyOf(blob, w, h) {
+  const f = format();
   const saved = source.size - blob.size;
   const pct = (saved / source.size) * 100;
+  return {
+    original: {
+      cap: "Original",
+      bytes: source.size, width: source.w, height: source.h,
+      type: source.type, name: source.name,
+      human: humanBytes(source.size),
+      sub: `${source.w}×${source.h} · ${source.type.replace("image/", "")}`,
+    },
+    compressed: {
+      cap: "Compressed",
+      bytes: blob.size, width: w, height: h,
+      type: f.type, format: f.name, ext: f.ext,
+      human: humanBytes(blob.size),
+      sub: `${w}×${h} · ${f.name.toLowerCase()}`,
+    },
+    saved: {
+      cap: saved >= 0 ? "Saved" : "Added",
+      bytes: saved, percent: Number(pct.toFixed(1)), smaller: saved >= 0,
+      human: `${saved >= 0 ? "" : "+"}${humanBytes(Math.abs(saved))}`,
+      sub: `${pct >= 0 ? "" : "+"}${Math.abs(pct).toFixed(1)}% ${saved >= 0 ? "smaller" : "bigger"}`,
+    },
+    // How much of the original the new file takes up, for the bar.
+    share: Math.max(2, Math.min(100, (blob.size / source.size) * 100)),
+  };
+}
+
+/* What the page would call the file if you pressed Save. Wanted by the button
+   and by a `--out` that names a directory rather than a file, so it is said
+   once. */
+function saveName() {
+  const base = (source.name || "image").replace(/\.[^.]+$/, "").replace(/[^\w.-]+/g, "-");
+  return `${(base || "image").slice(0, 60)}-small.${format().ext}`;
+}
+
+function showTally(blob, w, h) {
+  const tally = tallyOf(blob, w, h);
 
   tallyEl.textContent = "";
-  const cells = [
-    ["Original", humanBytes(source.size), `${source.w}×${source.h} · ${source.type.replace("image/", "")}`],
-    ["Compressed", humanBytes(blob.size), `${w}×${h} · ${format().name.toLowerCase()}`],
-    [saved >= 0 ? "Saved" : "Added",
-      `${saved >= 0 ? "" : "+"}${humanBytes(Math.abs(saved))}`,
-      `${pct >= 0 ? "" : "+"}${Math.abs(pct).toFixed(1)}% ${saved >= 0 ? "smaller" : "bigger"}`],
-  ];
-  for (const [cap, n, sub] of cells) {
+  for (const part of [tally.original, tally.compressed, tally.saved]) {
     const cell = document.createElement("div");
-    cell.className = "cell" + (cap === "Saved" ? " win" : "");
-    const c = document.createElement("div"); c.className = "cap"; c.textContent = cap;
-    const v = document.createElement("div"); v.className = "n"; v.textContent = n;
-    const s = document.createElement("div"); s.className = "sub"; s.textContent = sub;
+    cell.className = "cell" + (part.cap === "Saved" ? " win" : "");
+    const c = document.createElement("div"); c.className = "cap"; c.textContent = part.cap;
+    const v = document.createElement("div"); v.className = "n"; v.textContent = part.human;
+    const s = document.createElement("div"); s.className = "sub"; s.textContent = part.sub;
     cell.append(c, v, s);
     tallyEl.appendChild(cell);
   }
 
-  barFill.style.width = `${Math.max(2, Math.min(100, (blob.size / source.size) * 100))}%`;
+  barFill.style.width = `${tally.share}%`;
 
-  setStatus(saved >= 0
-    ? `${humanBytes(blob.size)} — ${pct.toFixed(1)}% off the original.`
-    : `${humanBytes(blob.size)} — bigger than the original. ${
+  setStatus(tally.saved.smaller
+    ? `${tally.compressed.human} — ${tally.saved.percent.toFixed(1)}% off the original.`
+    : `${tally.compressed.human} — bigger than the original. ${
         format().lossy ? "Try a lower quality." : "PNG from a canvas usually is; try WebP."}`);
 }
 
@@ -450,10 +485,9 @@ scaleIn.addEventListener("input", () => { syncScale(); later(); });
 
 el("saveBtn").addEventListener("click", () => {
   if (!outBlob) return;
-  const base = (source.name || "image").replace(/\.[^.]+$/, "").replace(/[^\w.-]+/g, "-");
   const link = document.createElement("a");
   link.href = outUrl;
-  link.download = `${(base || "image").slice(0, 60)}-small.${format().ext}`;
+  link.download = saveName();
   document.body.appendChild(link);
   try { link.click(); } finally { link.remove(); }
   setStatus(`Saved ${link.download} · ${humanBytes(outBlob.size)}.`);
@@ -465,6 +499,117 @@ window.addEventListener("pagehide", () => {
   if (sourceUrl) URL.revokeObjectURL(sourceUrl);
   if (outUrl) URL.revokeObjectURL(outUrl);
 });
+
+/* ------------------------------------------------------- the command line -- */
+
+/* `cli/tools/image-compressor.mjs` drives this page in a headless browser
+   rather than re-encoding anything in Node, so the file written in a terminal
+   is the file the Save button would have handed you. Every job below sets the
+   page's own controls and calls the page's own `encode`; none of them knows
+   anything about compression that the page above does not. */
+window.CLI = {
+  page: "image-compressor",
+
+  /* Whether a picture has been handed in and encoded once. The runner puts
+     the file into `#fileInput`, which is the path a dropped file takes, and
+     then waits on this. `failed` is the page's own error state, so a file the
+     browser will not decode comes back as the sentence on screen rather than
+     as a timeout. */
+  image() {
+    return {
+      ready: !!source && !!outBlob && !busy,
+      failed: statusEl.classList.contains("error"),
+      width: source ? source.w : null,
+      height: source ? source.h : null,
+      note: statusEl.textContent.trim(),
+    };
+  },
+
+  jobs: {
+    /* What this browser will actually write, asked rather than assumed, plus
+       the limits of the two sliders — so a terminal is told the same three
+       formats and the same floor and step the Save as box is. */
+    formats() {
+      return {
+        formats: FORMATS.map((f) => ({
+          name: f.name, ext: f.ext, type: f.type, lossy: f.lossy, note: f.note,
+          default: f.type === formatSel.value,
+        })),
+        quality: {
+          min: Number(qualityIn.min), max: Number(qualityIn.max),
+          default: Number(qualityIn.defaultValue),
+        },
+        longestSide: { min: Number(scaleIn.min), step: Number(scaleIn.step) },
+      };
+    },
+
+    /* The picture re-encoded, and the tally the page shows for it. The bytes
+       come back only when they are asked for, so a sweep over the quality
+       slider does not shift a megabyte out of the tab on every step. */
+    async compress(o) {
+      if (!source) throw new Error("no picture has been opened to compress");
+
+      if (o.format) {
+        const want = FORMATS.find((f) => f.type === o.format);
+        if (!want) {
+          throw new Error("this browser will write "
+            + FORMATS.map((f) => f.ext).join(", ") + " — not " + o.format);
+        }
+        formatSel.value = want.type;
+      }
+
+      if (o.quality != null) {
+        const q = Number(o.quality);
+        if (!Number.isFinite(q) || q < Number(qualityIn.min) || q > Number(qualityIn.max)) {
+          throw new Error("the quality slider runs from " + qualityIn.min
+            + " to " + qualityIn.max + ", so " + o.quality + " is off the end of it");
+        }
+        qualityIn.value = String(q);
+      }
+
+      /* The slider is the page's only way of saying how big, so its floor is
+         the command line's floor too and asking for less is refused. Off its
+         forty-pixel step, or past the picture's own longest side, the value
+         lands where the slider lands and the `cap` returned below says where
+         that was — the one thing a caller must not be left to assume. */
+      if (o.cap != null) {
+        const c = Number(o.cap);
+        if (!Number.isFinite(c) || c < Number(scaleIn.min)) {
+          throw new Error("the shortest the longest side goes is "
+            + scaleIn.min + " pixels");
+        }
+        scaleIn.value = String(c);
+      }
+
+      syncFormat();
+      syncScale();
+      clearTimeout(settle);        /* nothing half-dragged is owed an encode */
+      await encode();
+
+      /* `encode` reports what went wrong by putting it on screen rather than
+         by throwing, and leaves the last good blob where it was — so the
+         status line is what says whether this answer is about this run. */
+      if (statusEl.classList.contains("error")) {
+        throw new Error(statusEl.textContent.trim());
+      }
+      if (!outBlob) throw new Error("the encoder gave nothing back");
+
+      const { w, h } = targetSize();
+      return {
+        ...tallyOf(outBlob, w, h),
+        lossy: format().lossy,
+        quality: format().lossy ? Number(qualityIn.value) : null,
+        cap: Number(scaleIn.value),
+        asked: o.cap == null ? null : Number(o.cap),
+        name: saveName(),
+        status: statusEl.textContent.trim(),
+        /* A blob cannot survive the trip out of the tab, so the file leaves
+           as the numbers in it and the tool module is what writes them. */
+        bytes: o.bytes ? Array.from(new Uint8Array(await outBlob.arrayBuffer())) : null,
+      };
+    },
+  },
+};
 </script>
 </body>
 </html>

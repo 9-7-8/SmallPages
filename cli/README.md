@@ -9,6 +9,7 @@ node cli/run.mjs                                  what has one so far
 node cli/run.mjs color-picker --help              what that one takes
 node cli/run.mjs color-picker convert "#4f8fd0"
 node cli/run.mjs color-picker palette photo.jpg --count 6 --json
+node cli/run.mjs image-compressor photo.jpg --out small.webp --quality 70
 ```
 
 Games are not in this. A game is something you play.
@@ -74,7 +75,7 @@ the tab is the one people see.
 Expose it unconditionally, the way a game exposes `window.GAME`. It adds no
 capability a page did not already have.
 
-### 2. Files in through the page's own inputs
+### 2. Files in, and files back out
 
 A tool that takes a file does not read it in Node and hand the bytes over. It
 puts the file into the page's file input with `setInputFiles`, which is the
@@ -88,6 +89,24 @@ await handle.tab.waitForFunction(() => window.CLI.image().ready);
 So the hook also wants a small "are you ready" reader for whatever the page
 has to load. A tool that *saves* a file goes the other way: the job returns
 the bytes, and the tool module writes them where `--out` says.
+
+`image-compressor.html` was the first of those, so it settled what `--out`
+means for every page behind it. Three rules:
+
+| | |
+| --- | --- |
+| `--out <file>` | written there. Where the page can write more than one format the ending picks it &mdash; and an ending contradicting an explicit `--format` is **refused**, because a WebP under a name ending in `.jpg` is a file that lies about itself. |
+| `--out <dir>/` | written into that directory, under the name the page's own save would have given it. So a job that saves something returns that name, which means lifting it out of the download handler into a function of its own. |
+| no `--out` | **nothing is written**, and you get the answer for the file that would have been saved. |
+
+That last one is the page rather than caution. Opening a picture in
+`image-compressor.html` shows you the tally before you have pressed anything,
+and Save is a separate click &mdash; so the bare command is the open and
+`--out` is the button. It also makes a sweep over `--quality` cost nothing but
+time, which is most of what anybody wants a compressor in a terminal for.
+
+A page that writes several files at once takes `--out <dir>` and nothing else.
+Nothing has needed that yet; `split-sheet.html` is where it gets decided.
 
 ### 3. A module in `tools/`, named after the page
 
@@ -108,7 +127,8 @@ the second tool having used the first:
 - `--json` on everything, printing the whole answer rather than a summary of
   it. `lib/out.mjs` has `emit`, which takes the data and a function that makes
   the readable version, so the two cannot describe different runs.
-- `--out <file>` for anything that produces a file.
+- `--out <file>` for anything that produces a file, under the three rules
+  just above. A command with no `--out` writes nothing.
 - A flag with a fixed set of answers uses `oneOf`, so a typo lists the
   answers instead of falling through to the default.
 - Default to whatever the page defaults to. Where the page has a button that
@@ -146,7 +166,7 @@ that make it work; the rest are what make it look like the tool next to it.
 - [ ] `--json` on every command, through `emit`, so prose and JSON cannot
       describe different runs
 - [ ] `--out <file>` wherever the page saves something, `--out <dir>` where it
-      saves several
+      saves several, and nothing written at all without one
 - [ ] Flags with a fixed set of answers go through `oneOf`; numbers through
       `number` with a range
 - [ ] Defaults are the page's defaults, and the bare command is whatever the
@@ -172,6 +192,24 @@ picking a default.
 nothing.** So does a missing option name. `wantOption` in `color-picker.html`
 throws with the list of real names instead; copy it rather than assigning to
 `.value` and hoping.
+
+**A range input silently rounds to its own step, and clamps to its own ends.**
+`image-compressor.html` caps the longest side with a slider that starts at 240
+and moves in 40, so `--max 300` is not a size that page can be asked for: the
+value lands on 320 and the input says nothing about it. `--max 100` lands on
+240 and `--max 9000` lands on the picture's own width. So a job that sets a
+slider reads the value back off it and returns *that*, and the tool prints the
+difference when there is one. Echoing the number the caller typed would have
+been wrong on three of those four and unfalsifiable on all of them.
+
+**A page that reports trouble on screen has not thrown.** `encode()` in
+`image-compressor.html` catches its own errors, puts them in the status line
+and leaves the last good blob where it was &mdash; which is right for someone
+watching the page and a trap for a job, because `await encode()` comes back
+perfectly happily with an answer about the *previous* run. The job checks the
+status line's error class before trusting what it is holding. Any page whose
+failure path ends in `setStatus(..., true)` rather than a `throw` wants the
+same look.
 
 **Anything a reader needs wants an attribute, not prose.** The shade ramp's
 colours were only in each chip's `title`, as `#4f8fd0 — the colour itself`.
@@ -199,8 +237,11 @@ location.
 
 - [x] **`color-picker.html`** &mdash; `convert`, `palette`, `pixel`,
       `contrast`, `gradient`, `match`, `charts`
+- [x] **`image-compressor.html`** &mdash; `<picture> --out --format --quality
+      --max`, and `formats`. The first one that writes a file, so it is the
+      one to copy the `--out` rules off rather than inventing them again.
 
-One of the forty-six pages in the index. The rest are below, grouped by the
+Two of the forty-six pages in the index. The rest are below, grouped by the
 shape of the work rather than by where they sit in the hub, because pages of
 the same shape are the same job twice and the second one is an afternoon.
 
@@ -208,13 +249,12 @@ the same shape are the same job twice and the second one is an afternoon.
 
 ### A file in, a file out
 
-The commonest shape, and the one nothing has done yet, so **the first of these
-written is the one that settles the `--out` convention** for everything after
-it. Start with `image-compressor.html` rather than the biggest: it is the
-smallest page in the repo that saves a file, which makes it the cheapest place
-to get that wrong.
+The commonest shape. `image-compressor.html` is done, which is what settled
+the `--out` rules above, so these are now a matter of following them rather
+than deciding anything: a job that returns bytes and a name, a tool module
+that writes them, and a check that reads the saved file back through the page
+rather than through a parser written to check it.
 
-- [ ] `image-compressor.html` &mdash; `photo.jpg --out small.webp --quality 0.7 --max 2000`
 - [ ] `anything-to-image.html` &mdash; `cells.xlsx --out sheet.png`; a whole
       workbook is a page per visible tab, so this one wants `--out <dir>` too
 - [ ] `image-to-svg.html` &mdash; `logo.png --out logo.svg --trace flat|centreline --colours 8`
