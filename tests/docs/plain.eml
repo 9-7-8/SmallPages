@@ -1,0 +1,27 @@
+Return-Path: <ada@example.test>
+Received: from post.example.test (post.example.test [203.0.113.7])
+	by mx.example.test with ESMTP id 4Qk8;
+	Tue, 14 Oct 2025 09:12:04 +0000 (UTC)
+Message-ID: <7f31-plain@example.test>
+Date: Tue, 14 Oct 2025 09:12:01 +0000
+From: Ada Lovelace <ada@example.test>
+To: Charles Babbage <charles@example.test>
+Subject: The engine weaves algebraic patterns
+MIME-Version: 1.0
+Content-Type: text/plain; charset=us-ascii
+
+Charles,
+
+The Analytical Engine weaves algebraic patterns just as the Jacquard
+loom weaves flowers and leaves. Write back at ada@example.test, or see
+https://example.test/notes for the rest of it.
+
+> Do you mean it could compose music?
+>
+>> Only if it is told the rules of harmony.
+>
+> I should like to hear that.
+
+Not music it understands. Music it is told the rules of.
+
+Ada

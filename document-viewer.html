@@ -167,6 +167,59 @@
   .prose th > p, .prose td > p, .prose li > p { margin: 0; }
   .prose .task { list-style: none; }
 
+  /* --------------------------------------------------------------- mail -- */
+
+  .mailhead { border-bottom: 1px solid var(--line-soft); padding-bottom: 1rem; margin-bottom: 1.4rem; }
+  .mailhead h1 { margin: 0 0 0.8rem; }
+  /* The labels in a narrow column of their own, so the addresses line up and
+     the block reads as the slip at the top of a message rather than as prose. */
+  .mailhead dl {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 0.2rem 0.9rem;
+    margin: 0;
+    font-size: 0.86rem;
+  }
+  .mailhead dt { color: var(--text-faint); letter-spacing: 0.03em; }
+  .mailhead dd { margin: 0; color: var(--text-dim); overflow-wrap: anywhere; }
+
+  .mailtext { white-space: pre-wrap; overflow-wrap: break-word; }
+  .mailtext blockquote {
+    white-space: pre-wrap;
+    border-left: 2px solid var(--line);
+    padding-left: 0.9rem;
+    margin: 0.3rem 0;
+    color: var(--text-dim);
+  }
+  .mailbody { overflow-wrap: break-word; }
+  .mailbody table { font-size: 0.92em; }
+  /* A picture that was not fetched still takes a line, so the shape of the
+     message survives and it is obvious something is being held back. */
+  .held {
+    display: inline-block;
+    font-size: 0.8rem;
+    color: var(--text-faint);
+    border: 1px dashed var(--line);
+    padding: 0.1rem 0.45rem;
+  }
+
+  .atts { border-top: 1px solid var(--line-soft); margin-top: 2rem; padding-top: 1rem; }
+  .atts h2 { font-size: 0.8rem; letter-spacing: 0.06em; text-transform: uppercase;
+             color: var(--text-faint); margin: 0 0 0.7rem; }
+  .atts ul { list-style: none; padding: 0; margin: 0; }
+  .atts li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .atts li:last-child { border-bottom: none; }
+  .atts .name { overflow-wrap: anywhere; }
+  .atts .meta { color: var(--text-faint); font-size: 0.78rem; margin-right: auto; }
+  .atts button { font-size: 0.74rem; padding: 0.22rem 0.55rem; }
+
   /* --------------------------------------------------------------- pdf -- */
 
   .pdfpage { margin: 0 auto 1.1rem; width: fit-content; max-width: 100%; position: relative; border: 1px solid var(--line-soft); }
@@ -186,7 +239,10 @@
   <a class="home" href="index.html">&larr; index</a>
   <h1>Document Viewer</h1>
   <p class="lede">Drop in a document and read it here &mdash; logs, plain text and Markdown,
-  config and data files like JSON, XML, TOML, CSV and TSV, with PDF and Word files too. Find walks
+  config and data files like JSON, XML, TOML, CSV and TSV, with PDF, Word and saved email too. An
+  <code>.eml</code> opens as the message: its headers, its text or its HTML with the pictures that
+  came inside it, and its attachments to save or open here &mdash; pictures hosted elsewhere stay
+  unfetched until you ask, since that is what tells the sender you read it. Find walks
   the matches one at a time; the line filters keep only the lines that match a string or a regular
   expression, or drop the ones that do, with as many lines either side as you want. A big file is
   read a chunk at a time and drawn a screen at a time, so size isn't the thing that stops it.</p>
@@ -194,7 +250,7 @@
   <div class="card">
     <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Choose a document to open">
       <div class="big">Drop a document here, or click to choose one</div>
-      <div class="hint"><code>.log</code> <code>.txt</code> <code>.md</code> <code>.json</code> <code>.xml</code> <code>.toml</code> <code>.csv</code> <code>.tsv</code> <code>.config</code> <code>.settings</code> &mdash; any text at all &mdash; plus <code>.pdf</code> and <code>.docx</code> &middot; opened in your browser, never uploaded</div>
+      <div class="hint"><code>.log</code> <code>.txt</code> <code>.md</code> <code>.json</code> <code>.xml</code> <code>.toml</code> <code>.csv</code> <code>.tsv</code> <code>.config</code> <code>.settings</code> &mdash; any text at all &mdash; plus <code>.pdf</code>, <code>.docx</code> and <code>.eml</code> &middot; opened in your browser, never uploaded</div>
       <input type="file" id="fileInput">
     </div>
     <div class="status" id="status"></div>
@@ -465,6 +521,7 @@ async function openDocument(file) {
   try {
     if (kind === "pdf") await openPdf(file, token);
     else if (kind === "docx") await openDocx(file, token);
+    else if (kind === "email") await openEmail(file, token);
     else if (kind === "zip") openStrayZip(file);
     else if (kind === "binary") await openHex(file, token);
     else await openText(file, token, kind === "markdown");
@@ -488,8 +545,10 @@ async function sniff(file, ext) {
     return ext === "docx" || ext === "docm" || ext === "dotx" ? "docx" : "zip";
   }
   if (ext === "pdf") return "pdf";
+  if (ext === "eml" || ext === "mbox") return "email";
   if (MARKDOWN_EXT.has(ext)) return "markdown";
   if (TEXT_EXT.has(ext)) return "text";
+  if (looksLikeEmail(head)) return "email";
   return looksLikeText(head) ? "text" : "binary";
 }
 
@@ -537,6 +596,7 @@ function reset() {
   highlights = [];
   rules = [];
   rulesEl.textContent = "";
+  mailState = null;
   for (const url of blobUrls) URL.revokeObjectURL(url);
   blobUrls = [];
   if (pdfDoc) { pdfDoc.destroy?.(); pdfDoc = null; }
@@ -1456,12 +1516,23 @@ function setLines(arr, ending = "\n") {
 }
 
 function showProse(html) {
+  showProseIn((box) => { box.innerHTML = html; });
+}
+
+/* The same frame, filled with elements rather than with a string of markup.
+   The .eml reader builds its own, because the only safe way to show someone
+   else's HTML is to never let this document parse it. */
+function showProseNode(node) {
+  showProseIn((box) => box.append(node));
+}
+
+function showProseIn(fill) {
   viewport.classList.remove("on");
   toolsEl.classList.remove("on");
   renderEl.innerHTML = "";
   const box = document.createElement("div");
   box.className = "prose";
-  box.innerHTML = html;
+  fill(box);
   renderEl.appendChild(box);
   renderEl.classList.add("on");
   renderEl.scrollTop = 0;
@@ -2078,6 +2149,617 @@ function docxTable(tbl, ctx) {
     html += "</tr>";
   }
   return `${html}</table>`;
+}
+
+/* ---------------------------------------------------------------- .eml -- */
+
+/* An .eml is RFC 5322: a block of headers, a blank line, and a body that is
+   either the message or a tree of MIME parts holding the plain-text version,
+   the HTML version, the pictures inside it and whatever was attached.
+
+   Everything here works on a binary string — one character per byte — rather
+   than on decoded text, because the boundaries have to be found before the
+   charset is known, and because an attachment is bytes and has to come out of
+   the file as the bytes it went in as. */
+
+const binaryString = (bytes) => {
+  let out = "";
+  for (let at = 0; at < bytes.length; at += 0x8000) {
+    out += String.fromCharCode.apply(null, bytes.subarray(at, at + 0x8000));
+  }
+  return out;
+};
+
+const binaryBytes = (text) => Uint8Array.from(text, (ch) => ch.charCodeAt(0) & 0xff);
+
+function base64Bytes(text) {
+  const clean = text.replace(/[^A-Za-z0-9+/]/g, "");
+  const padded = clean + "=".repeat((4 - (clean.length % 4)) % 4);
+  try { return binaryBytes(atob(padded)); } catch { return new Uint8Array(0); }
+}
+
+function qpBytes(text) {
+  const joined = text.replace(/=[ \t]*\r?\n/g, "");       // soft line breaks
+  const out = [];
+  for (let i = 0; i < joined.length; i++) {
+    if (joined[i] === "=" && /^[0-9A-Fa-f]{2}$/.test(joined.substr(i + 1, 2))) {
+      out.push(parseInt(joined.substr(i + 1, 2), 16));
+      i += 2;
+    } else {
+      out.push(joined.charCodeAt(i) & 0xff);
+    }
+  }
+  return new Uint8Array(out);
+}
+
+// An unknown or misspelt charset is not a reason to show nothing: fall back
+// rather than throw, since a mail client would have shown something.
+function decodeBytes(bytes, charset) {
+  for (const name of [charset, "utf-8"]) {
+    if (!name) continue;
+    try { return new TextDecoder(name).decode(bytes); } catch { /* try the next */ }
+  }
+  return new TextDecoder("windows-1252").decode(bytes);
+}
+
+/* A header is ASCII, so anything that is not goes in as an encoded word:
+   =?UTF-8?B?...?= or =?UTF-8?Q?...?=. Whitespace between two adjacent ones is
+   not part of the text — it is there so the line can be folded — and dropping
+   it is what keeps a split-up subject from coming back with gaps in it. */
+function decodeWords(text) {
+  if (!text.includes("=?")) return text;
+  const word = /=\?([^?]+)\?([BbQq])\?([^?]*)\?=/g;
+  return text
+    .replace(/(\?=)[ \t]+(?==\?)/g, "$1")
+    .replace(word, (all, charset, how, body) => {
+      const bytes = how.toLowerCase() === "b" ? base64Bytes(body) : qpBytes(body.replace(/_/g, " "));
+      return decodeBytes(bytes, charset.split("*")[0].trim());
+    });
+}
+
+// Splitting on the semicolons that are not inside a quoted string, which is
+// how a filename with a semicolon in it survives.
+function splitParams(text) {
+  const bits = [];
+  let at = 0;
+  let quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === "\\" && quoted) { i++; continue; }
+    if (ch === '"') { quoted = !quoted; continue; }
+    if (ch === ";" && !quoted) { bits.push(text.slice(at, i)); at = i + 1; }
+  }
+  bits.push(text.slice(at));
+  return bits;
+}
+
+/* A long or non-ASCII parameter is split and percent-encoded across
+   filename*0*, filename*1 and so on (RFC 2231); the pieces are joined before
+   anything is decoded, because one character can straddle two of them. */
+function gatherParams(pairs) {
+  const plain = new Map();
+  const runs = new Map();
+
+  for (const [key, value] of pairs) {
+    const split = /^([^*]+)\*(\d+)?(\*)?$/.exec(key);
+    if (!split) { if (!plain.has(key)) plain.set(key, value); continue; }
+    const run = runs.get(split[1]) || [];
+    run[split[2] === undefined ? 0 : Number(split[2])] = { value, extended: !!split[3] };
+    runs.set(split[1], run);
+  }
+
+  for (const [name, run] of runs) {
+    let charset = "utf-8";
+    let joined = "";
+    let encoded = false;
+    run.forEach((piece, n) => {
+      if (!piece) return;
+      let text = piece.value;
+      if (piece.extended) {
+        encoded = true;
+        const label = n === 0 ? /^([^']*)'([^']*)'([^]*)$/.exec(text) : null;
+        if (label) { charset = label[1] || "utf-8"; text = label[3]; }
+      }
+      joined += text;
+    });
+    plain.set(name, encoded
+      ? decodeBytes(binaryBytes(joined.replace(/%([0-9A-Fa-f]{2})/g,
+          (all, hex) => String.fromCharCode(parseInt(hex, 16)))), charset)
+      : decodeWords(joined));
+  }
+  return plain;
+}
+
+function headerParts(raw) {
+  const bits = splitParams(raw);
+  const pairs = [];
+  for (const bit of bits.slice(1)) {
+    const eq = bit.indexOf("=");
+    if (eq === -1) continue;
+    let value = bit.slice(eq + 1).trim();
+    if (value.startsWith('"')) {
+      const shut = value.lastIndexOf('"');
+      value = (shut > 0 ? value.slice(1, shut) : value.slice(1)).replace(/\\(.)/g, "$1");
+    }
+    pairs.push([bit.slice(0, eq).trim().toLowerCase(), value]);
+  }
+  return { value: bits[0].trim(), params: gatherParams(pairs) };
+}
+
+/* A header runs on over as many lines as it likes as long as the ones after
+   the first start with a space or a tab, so they are put back together before
+   anything reads them. */
+function parseHeaders(block) {
+  const headers = [];
+  for (const line of block.split(/\r?\n/)) {
+    if (/^[ \t]/.test(line) && headers.length) { headers[headers.length - 1][1] += " " + line.trim(); continue; }
+    const colon = line.indexOf(":");
+    if (colon > 0) headers.push([line.slice(0, colon).trim(), line.slice(colon + 1).trim()]);
+  }
+  return headers;
+}
+
+// Only a --boundary sitting on a line of its own counts; one in the middle of
+// a line is just text that happens to look like one.
+function partsBetween(body, boundary) {
+  const marker = `--${boundary}`;
+  const edges = [];
+  let at = 0;
+  while ((at = body.indexOf(marker, at)) !== -1) {
+    const tail = /^(--)?[ \t]*\r?(?:\n|$)/.exec(body.slice(at + marker.length));
+    if ((at === 0 || body[at - 1] === "\n") && tail) {
+      edges.push({ at, from: at + marker.length + tail[0].length, last: tail[1] === "--" });
+      if (tail[1] === "--") break;
+    }
+    at += marker.length;
+  }
+
+  const out = [];
+  for (let i = 0; i < edges.length - 1; i++) {
+    if (edges[i].last) break;
+    out.push(body.slice(edges[i].from, edges[i + 1].at).replace(/\r?\n$/, ""));
+  }
+  return out;
+}
+
+function parseMessage(raw) {
+  const split = /\r?\n\r?\n/.exec(raw);
+  const headers = parseHeaders(split ? raw.slice(0, split.index) : raw);
+  const body = split ? raw.slice(split.index + split[0].length) : "";
+
+  const node = { headers, body, parts: [] };
+  const get = (name) => {
+    const found = headers.find(([key]) => key.toLowerCase() === name);
+    return found ? found[1] : "";
+  };
+  node.get = get;
+
+  const content = headerParts(get("content-type") || "text/plain");
+  node.type = (content.value || "text/plain").toLowerCase();
+  node.charset = content.params.get("charset") || "";
+  node.encoding = (get("content-transfer-encoding") || "7bit").trim().toLowerCase();
+
+  const disp = headerParts(get("content-disposition"));
+  node.disposition = disp.value.toLowerCase();
+  node.filename = decodeWords(disp.params.get("filename") || content.params.get("name") || "");
+  node.cid = (get("content-id") || "").trim().replace(/^<|>$/g, "");
+
+  if (node.type.startsWith("multipart/")) {
+    const boundary = content.params.get("boundary");
+    if (boundary) node.parts = partsBetween(body, boundary).map(parseMessage);
+    // A multipart that names no boundary, or whose boundary never appears, is
+    // not a tree at all. Showing the body as it stands is worse than it should
+    // be and better than showing nothing, which is the other option.
+    if (!node.parts.length) node.type = "text/plain";
+  }
+  return node;
+}
+
+function partBytes(node) {
+  if (node.encoding === "base64") return base64Bytes(node.body);
+  if (node.encoding === "quoted-printable") return qpBytes(node.body);
+  return binaryBytes(node.body);
+}
+
+const partText = (node) => decodeBytes(partBytes(node), node.charset);
+
+/* Which part is the message and which is luggage. A mail is usually the same
+   words twice — once as text and once as HTML — with the pictures inside it
+   and the attachments beside them, so all four are collected in one walk and
+   the rendering picks from what it got. */
+function sortParts(node, found = { text: null, html: null, inline: new Map(), attachments: [] }) {
+  if (node.type.startsWith("multipart/")) {
+    for (const part of node.parts) sortParts(part, found);
+    return found;
+  }
+
+  // A picture with a Content-ID is one the HTML asks for by name, even though
+  // it has a filename and is not text — which is every other part's signature
+  // for being luggage. Said to be an attachment, it is one anyway.
+  const luggage = node.disposition === "attachment" || node.type === "message/rfc822";
+  if (node.cid && !luggage) found.inline.set(node.cid, node);
+
+  if (luggage || (node.filename && !node.type.startsWith("text/") && !node.cid)) {
+    found.attachments.push(node);
+    return found;
+  }
+  if (node.type === "text/plain" && !node.filename) { found.text = found.text || node; return found; }
+  if (node.type === "text/html" && !node.filename) { found.html = found.html || node; return found; }
+  if (node.cid) return found;                    // a picture the HTML will ask for by name
+  if (node.type.startsWith("text/") && !found.text) { found.text = node; return found; }
+  found.attachments.push(node);
+  return found;
+}
+
+/* ------------------------------------------------------- showing the mail -- */
+
+/* What of someone else's HTML is allowed through. The element is built here
+   rather than handed to innerHTML, so nothing in the message is ever parsed
+   as markup by this document: the tags below are made from scratch and the
+   text is set as text.
+
+   No style attribute and no colour: this page has its own type and its own
+   black, and a message pasted into it in the sender's greys would read as
+   broken rather than as designed. Structure comes through — headings, lists,
+   tables, quotes, links, pictures — and that is what there is to read. */
+const MAIL_TAGS = new Set([
+  "p", "div", "span", "br", "hr", "h1", "h2", "h3", "h4", "h5", "h6",
+  "b", "strong", "i", "em", "u", "s", "strike", "del", "ins", "sub", "sup", "small",
+  "blockquote", "pre", "code", "kbd", "samp", "var", "abbr", "cite", "q", "address", "time", "mark",
+  "ul", "ol", "li", "dl", "dt", "dd",
+  "table", "thead", "tbody", "tfoot", "tr", "td", "th", "caption",
+  "a", "img", "figure", "figcaption", "center", "font",
+]);
+
+// These take their subtree with them. Everything else unknown is unwrapped,
+// so the words inside a <section> or a <main> are not lost with the tag.
+const MAIL_DROP = new Set([
+  "script", "style", "head", "title", "meta", "link", "base", "noscript",
+  "iframe", "frame", "frameset", "object", "embed", "applet", "param",
+  "form", "input", "button", "select", "option", "textarea", "label", "svg", "math",
+]);
+
+const SWAPS = { center: "div", font: "span", strike: "s" };
+
+const mailLink = (url) => /^(https?:|mailto:|tel:)/i.test(url.trim()) ? url.trim() : "";
+
+function cleanInto(source, into, ctx) {
+  for (const kid of source.childNodes) {
+    if (kid.nodeType === Node.TEXT_NODE) { into.append(kid.data); continue; }
+    if (kid.nodeType !== Node.ELEMENT_NODE) continue;        // comments and the rest
+
+    const tag = kid.localName;
+    if (MAIL_DROP.has(tag)) continue;
+    if (!MAIL_TAGS.has(tag)) { cleanInto(kid, into, ctx); continue; }
+
+    if (tag === "img") { into.append(mailImage(kid, ctx)); continue; }
+
+    // A target this page will not follow leaves nothing worth keeping the tag
+    // for: the words stay, underlined in the accent colour they would not be.
+    const href = tag === "a" ? mailLink(kid.getAttribute("href") || "") : "";
+    if (tag === "a" && !href) { cleanInto(kid, into, ctx); continue; }
+
+    const made = document.createElement(SWAPS[tag] || tag);
+    const title = kid.getAttribute("title");
+    if (title) made.title = title;
+    if (href) {
+      made.href = href;
+      made.rel = "noopener noreferrer";
+      made.target = "_blank";
+    }
+    if (tag === "td" || tag === "th") {
+      for (const span of ["colspan", "rowspan"]) {
+        const n = parseInt(kid.getAttribute(span) || "", 10);
+        if (n > 1 && n < 1000) made.setAttribute(span, String(n));
+      }
+    }
+    cleanInto(kid, made, ctx);
+    into.append(made);
+  }
+}
+
+/* A picture inside the message comes out of the message. A picture somewhere
+   on the web is left alone unless it is asked for, because fetching it tells
+   whoever sent the mail that it was opened, at what time, from where — which
+   is what most of them are there for. */
+function mailImage(img, ctx) {
+  const raw = (img.getAttribute("src") || "").trim();
+  const alt = img.getAttribute("alt") || "";
+
+  if (/^cid:/i.test(raw)) {
+    const cid = decodeURIComponent(raw.slice(4)).replace(/^<|>$/g, "");
+    const part = ctx.inline.get(cid);
+    if (part) {
+      ctx.used.add(cid);
+      const made = document.createElement("img");
+      made.src = blobUrl(new Blob([partBytes(part)], { type: part.type }));
+      made.alt = alt;
+      return made;
+    }
+  } else if (/^https?:/i.test(raw)) {
+    if (ctx.remote) {
+      const made = document.createElement("img");
+      made.src = raw;
+      made.alt = alt;
+      made.loading = "lazy";
+      return made;
+    }
+    const held = document.createElement("span");
+    held.className = "held remote";
+    let host = "somewhere";
+    try { host = new URL(raw).host; } catch { /* leave it vague */ }
+    held.textContent = alt ? `[${alt} — image from ${host}]` : `[image from ${host}]`;
+    return held;
+  }
+
+  const gone = document.createElement("span");
+  gone.className = "held";
+  gone.textContent = alt ? `[${alt}]` : "[image]";
+  return gone;
+}
+
+/* Hard-wrapped text with a reply quoted under it is most of email. The angle
+   brackets are counted and then dropped: the rule down the side says the same
+   thing, and a line carrying both reads as though somebody typed the marker
+   by hand. Counting rather than flagging is what makes a reply to a reply sit
+   inside the quote it is answering. A bare address is made clickable, since
+   nothing else in a plain-text message is. */
+function quoteDepth(line) {
+  let depth = 0;
+  let at = 0;
+  while (at < line.length && at < 3 && (line[at] === " " || line[at] === "\t")) at++;
+  while (line[at] === ">") {
+    depth++;
+    at++;
+    if (line[at] === " ") at++;
+  }
+  return { depth, rest: depth ? line.slice(at) : line };
+}
+
+function plainBody(text) {
+  const box = document.createElement("div");
+  box.className = "mailtext";
+  const stack = [box];
+
+  for (const line of text.replace(/\r\n?/g, "\n").split("\n")) {
+    const { depth, rest } = quoteDepth(line);
+    while (stack.length - 1 > depth) stack.pop();
+    while (stack.length - 1 < depth) {
+      const quote = document.createElement("blockquote");
+      stack[stack.length - 1].append(quote);
+      stack.push(quote);
+    }
+    linkify(rest + "\n", stack[stack.length - 1]);
+  }
+  return box;
+}
+
+function linkify(text, into) {
+  const finder = /\b(?:https?:\/\/|www\.)[^\s<>"')\]]+[^\s<>"')\].,;:!?]|[^\s<>"'()[\]]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
+  let at = 0;
+  for (const hit of text.matchAll(finder)) {
+    if (hit.index > at) into.append(text.slice(at, hit.index));
+    const link = document.createElement("a");
+    link.href = hit[0].includes("@") && !/^https?:/i.test(hit[0]) ? `mailto:${hit[0]}`
+      : /^www\./i.test(hit[0]) ? `https://${hit[0]}` : hit[0];
+    link.rel = "noopener noreferrer";
+    link.target = "_blank";
+    link.textContent = hit[0];
+    into.append(link);
+    at = hit.index + hit[0].length;
+  }
+  if (at < text.length) into.append(text.slice(at));
+}
+
+const MAIL_FIELDS = [["from", "From"], ["reply-to", "Reply to"], ["to", "To"],
+  ["cc", "Cc"], ["bcc", "Bcc"], ["date", "Date"]];
+
+function mailHeader(message) {
+  const head = document.createElement("div");
+  head.className = "mailhead";
+
+  const subject = document.createElement("h1");
+  subject.textContent = decodeWords(message.get("subject")) || "(no subject)";
+  head.append(subject);
+
+  const list = document.createElement("dl");
+  for (const [name, label] of MAIL_FIELDS) {
+    const raw = message.get(name);
+    if (!raw) continue;
+    const term = document.createElement("dt");
+    term.textContent = label;
+    const value = document.createElement("dd");
+    if (name === "date") {
+      const when = new Date(raw);
+      value.textContent = isNaN(when) ? raw : when.toLocaleString();
+      value.title = raw;
+    } else {
+      value.textContent = decodeWords(raw);
+    }
+    list.append(term, value);
+  }
+  head.append(list);
+  return head;
+}
+
+function mailAttachments(parts, holder) {
+  if (!parts.length) return null;
+
+  const box = document.createElement("div");
+  box.className = "atts";
+  const title = document.createElement("h2");
+  title.textContent = parts.length === 1 ? "1 attachment" : `${parts.length} attachments`;
+  box.append(title);
+
+  const list = document.createElement("ul");
+  parts.forEach((part, n) => {
+    const bytes = partBytes(part);
+    const name = part.filename
+      || (part.type === "message/rfc822" ? `attached-message-${n + 1}.eml` : `part-${n + 1}`);
+    const row = document.createElement("li");
+
+    const label = document.createElement("span");
+    label.className = "name";
+    label.textContent = name;
+    const meta = document.createElement("span");
+    meta.className = "meta";
+    meta.textContent = `${part.type} · ${fmtSize(bytes.length)}`;
+
+    const file = () => new File([bytes], name, { type: part.type });
+    const open = ghostButton("Open here", () => openDocument(file()));
+    const keep = ghostButton("Save", () => save(new Blob([bytes], { type: part.type }), name));
+
+    row.append(label, meta, open, keep);
+    list.append(row);
+  });
+
+  box.append(list);
+  holder.append(box);
+  return box;
+}
+
+/* The rendered message carries buttons for its attachments, and innerText
+   would copy their labels along with the words. This writes the message out
+   as a message instead: the fields that are filled in, the body as it reads
+   on screen, and what came with it. */
+function copyMail() {
+  return ghostButton("Copy all", async () => {
+    const { message } = mailState;
+    const out = [];
+    const subject = decodeWords(message.get("subject"));
+    if (subject) out.push(`Subject: ${subject}`);
+    for (const [name, label] of MAIL_FIELDS) {
+      const raw = message.get(name);
+      if (raw) out.push(`${label}: ${decodeWords(raw)}`);
+    }
+    const body = renderEl.querySelector(".mailbody, .mailtext");
+    out.push("", (body ? body.innerText : "").replace(/\n{3,}/g, "\n\n").trim());
+
+    const kept = [...renderEl.querySelectorAll(".atts li")].map((row) =>
+      `${row.querySelector(".name").textContent} (${row.querySelector(".meta").textContent})`);
+    if (kept.length) out.push("", `Attachments: ${kept.join(", ")}`);
+
+    const text = out.join("\n");
+    const ok = await copyText(text);
+    setStatus(ok ? `Copied the message — ${fmtNum(text.split("\n").length)} lines.`
+                 : "The browser wouldn't give the page the clipboard.", !ok);
+  });
+}
+
+let mailState = null;
+
+async function openEmail(file, token) {
+  setStatus("Reading the message…");
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  if (token !== openToken) return;
+
+  const raw = binaryString(bytes);
+  const message = parseMessage(raw);
+  const found = sortParts(message);
+
+  mailState = {
+    message, found, raw,
+    remote: false,
+    // The HTML version is the one a mail client would show; the text one is
+    // there when there is no HTML, and on the switch when there is.
+    mode: found.html ? "html" : "text",
+  };
+  showMail();
+
+  const words = (renderEl.textContent.match(/\S+/g) || []).length;
+  const kinds = [];
+  if (found.html) kinds.push("HTML");
+  if (found.text) kinds.push("plain text");
+  if (!kinds.length) kinds.push("no readable body");
+  const also = [];
+  const count = (n, one) => `${n} ${one}${n === 1 ? "" : "s"}`;
+  if (found.attachments.length) also.push(count(found.attachments.length, "attachment"));
+  if (found.inline.size) also.push(count(found.inline.size, "inline image"));
+  setStatus(`Opened as an email — ${kinds.join(" and ")}, ${fmtNum(words)} words`
+    + (also.length ? `, ${also.join(" and ")}.` : "."));
+}
+
+function showMail() {
+  const { message, found } = mailState;
+
+  const body = document.createElement("div");
+  body.append(mailHeader(message));
+
+  const used = new Set();
+  if (mailState.mode === "html" && found.html) {
+    const inert = new DOMParser().parseFromString(partText(found.html), "text/html");
+    const clean = document.createElement("div");
+    clean.className = "mailbody";
+    cleanInto(inert.body, clean, { inline: found.inline, remote: mailState.remote, used });
+    body.append(clean);
+  } else if (found.text) {
+    body.append(plainBody(partText(found.text)));
+  } else if (!found.attachments.length) {
+    const none = document.createElement("p");
+    none.textContent = "There is no text in this message — only its headers.";
+    body.append(none);
+  }
+
+  // A picture the body never asked for is not inline, whatever it said about
+  // itself — in the plain-text view that is all of them, and they should still
+  // be reachable rather than locked inside the file.
+  const spare = [...found.inline].filter(([cid]) => !used.has(cid)).map(([, part]) => part);
+  mailAttachments([...found.attachments, ...spare], body);
+  showProseNode(body);
+  mailActions();
+}
+
+function mailActions() {
+  const { found } = mailState;
+  docactsEl.textContent = "";
+
+  const views = [["message", "message"], ["source", "source"]];
+  docactsEl.appendChild(segControl(views, "message", (mode) => {
+    if (mode !== "source") { showMail(); return; }
+    setLines(mailState.raw.replace(/\r\n?/g, "\n").split("\n").map(dropBinary));
+    showText();
+  }));
+
+  if (found.html && found.text) {
+    docactsEl.appendChild(segControl(
+      [["html", "HTML"], ["text", "plain"]],
+      mailState.mode,
+      (mode) => { mailState.mode = mode; showMail(); }
+    ));
+  }
+
+  // Only offered when there is something held back, and only once: the whole
+  // point is that nothing goes out to the sender unless it is asked for.
+  if (mailState.mode === "html" && !mailState.remote
+      && renderEl.querySelector(".mailbody .held.remote")) {
+    docactsEl.appendChild(ghostButton("Load remote images", () => {
+      mailState.remote = true;
+      showMail();
+    }));
+  }
+  docactsEl.appendChild(copyMail());
+}
+
+// The raw source is bytes, and the ones that are not text would otherwise be
+// drawn as whatever the font makes of them.
+const dropBinary = (line) => line.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, ".");
+
+// An .eml has no magic bytes, so it is recognised by shape: header lines, one
+// of the ones every message carries, and a blank line after them.
+function looksLikeEmail(head) {
+  const text = binaryString(head);
+  const split = /\r?\n\r?\n/.exec(text);
+  if (!split && text.length < 4096) return false;
+  const lines = text.slice(0, split ? split.index : 2048).split(/\r?\n/);
+  let shaped = 0;
+  let known = false;
+  for (const line of lines) {
+    if (/^[ \t]/.test(line) && shaped) continue;
+    if (!/^[A-Za-z][A-Za-z0-9-]*:/.test(line)) return false;
+    shaped++;
+    if (/^(from|to|subject|date|message-id|received|mime-version|return-path|content-type):/i.test(line)) known = true;
+  }
+  return shaped >= 2 && known;
 }
 
 /* ------------------------------------------------------------------ pdf -- */

@@ -1,0 +1,28 @@
+Message-ID: <fwd-77aa@example.test>
+Date: Mon, 20 Oct 2025 09:00:00 +0000
+From: Grégoire <gregoire@example.test>
+To: Accounts <accounts@example.test>
+Subject: Fwd: The frequency hopping paper
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="FWD-1a2b"
+
+--FWD-1a2b
+Content-Type: text/plain; charset=utf-8
+
+Passing this on — see below.
+
+--FWD-1a2b
+Content-Type: message/rfc822
+Content-Disposition: attachment
+
+Message-ID: <inner-5b10@example.test>
+Date: Mon, 20 Oct 2025 08:30:00 +0000
+From: Hedy Lamarr <hedy@example.test>
+To: Grégoire <gregoire@example.test>
+Subject: The frequency hopping paper
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+Attached to the one you are reading. The patent number is 2,292,387.
+
+--FWD-1a2b--

@@ -1,0 +1,75 @@
+Message-ID: <9a02-rich@example.test>
+Date: Thu, 06 Nov 2025 16:40:00 +0100
+From: =?UTF-8?Q?Gr=C3=A9goire_No=C3=ABl?= <gregoire@example.test>
+To: "Accounts, Payable" <accounts@example.test>
+Cc: =?UTF-8?B?w4VzYSBCZXJn?= <asa@example.test>
+Subject: =?UTF-8?Q?Quarterly_notes_=E2=80=94_?= =?UTF-8?Q?brass_=26_cards?=
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="OUTER-4f2a"
+
+This is a MIME message. Any reader that says so is not showing it properly.
+
+--OUTER-4f2a
+Content-Type: multipart/related; boundary="REL-91bc"; type="multipart/alternative"
+
+--REL-91bc
+Content-Type: multipart/alternative; boundary="ALT-27de"
+
+--ALT-27de
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+Quarterly notes =E2=80=94 brass =26 cards
+
+The figures are settled and the ledger balances. Caf=C3=A9 receipts are in=
+ the attachment, which has a name only a Swede could love.
+
+--ALT-27de
+Content-Type: text/html; charset=utf-8
+Content-Transfer-Encoding: base64
+
+PGh0bWw+PGhlYWQ+Cjx0aXRsZT5zaG91bGQgbm90IHNob3c8L3RpdGxlPgo8c3R5bGU+Ym9keSB7
+IGRpc3BsYXk6IG5vbmUgfTwvc3R5bGU+CjxzY3JpcHQ+d2luZG93Ll9fcHduZWQgPSAxOzwvc2Ny
+aXB0Pgo8L2hlYWQ+PGJvZHkgc3R5bGU9ImJhY2tncm91bmQ6I2ZmZmZmZiI+CjxkaXYgc3R5bGU9
+ImNvbG9yOiMxMTExMTE7IGZvbnQtZmFtaWx5OiBHZW9yZ2lhIj4KPGgxPlF1YXJ0ZXJseSBub3Rl
+czwvaDE+CjxwPlRoZSBmaWd1cmVzIGFyZSA8c3Ryb25nPnNldHRsZWQ8L3N0cm9uZz4gYW5kIHRo
+ZSA8ZW0+bGVkZ2VyPC9lbT4gYmFsYW5jZXMuCkZ1bGwgd29ya2luZyBpbiA8YSBocmVmPSJodHRw
+czovL2V4YW1wbGUudGVzdC9sZWRnZXIiPnRoZSBsZWRnZXI8L2E+LjwvcD4KPGltZyBzcmM9ImNp
+ZDpsb2dvQGV4YW1wbGUudGVzdCIgYWx0PSJEaWZmZXJlbmNlIEVuZ2luZSI+CjxpbWcgc3JjPSJo
+dHRwczovL3RyYWNrZXIuZXhhbXBsZS50ZXN0L29wZW4uZ2lmP2lkPTQyIiBhbHQ9IiIgd2lkdGg9
+IjEiIGhlaWdodD0iMSI+Cjx1bD48bGk+YnJhc3MgZ2VhcnM8L2xpPjxsaT5wdW5jaCBjYXJkczwv
+bGk+PC91bD4KPHRhYmxlIGJvcmRlcj0iMSIgYmdjb2xvcj0iI2VlZWVlZSI+Cjx0cj48dGg+SXRl
+bTwvdGg+PHRoIGNvbHNwYW49IjIiPkNvc3Q8L3RoPjwvdHI+Cjx0cj48dGQ+R2VhcnM8L3RkPjx0
+ZD4xNC41MDwvdGQ+PHRkPnBhaWQ8L3RkPjwvdHI+CjwvdGFibGU+CjxwPjxhIGhyZWY9ImphdmFz
+Y3JpcHQ6d2luZG93Ll9fcHduZWQ9MiI+ZG8gbm90IHByZXNzIHRoaXM8L2E+PC9wPgo8aW1nIHNy
+Yz0ieCIgb25lcnJvcj0id2luZG93Ll9fcHduZWQ9MyIgYWx0PSJicm9rZW4iPgo8aWZyYW1lIHNy
+Yz0iaHR0cHM6Ly9leGFtcGxlLnRlc3QvZnJhbWUiPjwvaWZyYW1lPgo8Zm9ybT48aW5wdXQgbmFt
+ZT0iY2FyZCI+PGJ1dHRvbj5TZW5kPC9idXR0b24+PC9mb3JtPgo8c2VjdGlvbj48cD5LZXB0LCB0
+aG91Z2ggdGhlIHNlY3Rpb24gdGFnIGlzIG5vdC48L3A+PC9zZWN0aW9uPgo8L2Rpdj48L2JvZHk+
+PC9odG1sPg==
+
+--ALT-27de--
+
+--REL-91bc
+Content-Type: image/png
+Content-Transfer-Encoding: base64
+Content-ID: <logo@example.test>
+Content-Disposition: inline; filename="logo.png"
+
+iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAIAAADZF8uwAAAAE0lEQVR4nGO4FGBDEDGMKhqMigAa
+YcThxiIS1wAAAABJRU5ErkJggg==
+
+--REL-91bc--
+
+--OUTER-4f2a
+Content-Type: text/csv; charset=utf-8
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment;
+	filename*0*=UTF-8''%C3%85rsr;
+	filename*1*=%C3%A4kning;
+	filename*2=".csv"
+
+ZGF0ZSxpdGVtLGNvc3QNCjIwMjUtMTAtMDIsYnJhc3MgZ2VhcnMsMTQuNTANCjIwMjUtMTAtMDks
+cHVuY2ggY2FyZHMsMy4yNQ0K
+
+--OUTER-4f2a--
