@@ -23,12 +23,16 @@ the four suites that need it and the relay stub for the one that does, runs
 each suite in turn and adds up the result. Nothing is left running afterwards.
 Running a suite by hand means starting those yourself — `test-caps-relay.mjs`
 with nothing on 8787 fails with the page's Chrome local-network hint, which
-reads like a browser problem and is really an empty port.
+reads like a browser problem and is really an empty port. `test-cli.mjs` is
+the one that needs nothing started: the command line it is testing serves the
+checkout itself, on whatever port is going.
 
 ## What it needs
 
-Playwright and a Chromium. `lib/env.mjs` finds them in this order, so an
-ordinary checkout and a container that provides its own both work:
+Playwright and a Chromium. `lib/env.mjs` takes both from
+[`cli/lib/browser.mjs`](../cli/lib/browser.mjs), which the command line needs
+them for too, and they are looked for in this order, so an ordinary checkout
+and a container that provides its own both work:
 
 | | Playwright | Chromium |
 | --- | --- | --- |
@@ -96,6 +100,18 @@ Suites are named for the page they exercise. The ones worth knowing about:
   read off the deck rather than off the screen: hearts red, spades black,
   tarot suits following the suits they are, each Uno colour the colour it
   says, a major arcanum with no colour of its own.
+- **`test-cli.mjs`** — the command line in [`cli/`](../cli/), run as a
+  subprocess the way a person runs it. The picture it reads is painted here in
+  flat bands of known width, so a palette's shares are arithmetic rather than
+  opinion, and the colour readings, the contrast gradings, the gradient CSS
+  and the nearest thread are all checked against known answers. Then the half
+  that is the point of the arrangement: it opens `color-picker.html` in a
+  browser, types into the hex field and presses *Build a palette from this*,
+  and holds what the page shows against what the command printed. A command
+  line that grew colour maths of its own would pass everything above and fail
+  that. What goes wrong is checked too — a colour the page cannot read, a
+  pixel off the edge of the picture, a chart that does not exist and a page
+  with no command line yet each exit non-zero with a sentence.
 - **`test-dice.mjs`** — the dice roller, where the claim worth checking is that
   the die on the table is showing what the page says was rolled. It reads each
   die's quaternion back out and works out which labelled face is pointing at

@@ -83,6 +83,29 @@ that runs it rather than reading it. `tests/test-applets.mjs` serves a stub of
 the site the applet is for, runs the applet against it, and checks what came
 out the other end.
 
+## The command line
+
+Every tool has to run from a terminal as well as in a tab, through
+[`cli/`](cli/) &mdash; `node cli/run.mjs <page> <command>`. Games are
+excluded: a game is something you play.
+
+A command never works the answer out itself. It opens the real page in a
+headless Chromium and calls one of the jobs the page exposes on `window.CLI`,
+so there is one copy of what the tool knows and the terminal cannot disagree
+with the tab. Where a page's logic is tangled up in its drawing, split the
+answer out into a function that returns data and have the drawing call that
+too &mdash; never write the job a second way.
+
+Files go in through the page's own file input, not read in Node and handed
+over, because that is the path a dropped file takes. `--json` on everything.
+Default to whatever the page defaults to.
+
+[`cli/README.md`](cli/README.md) is the whole procedure, the conventions a
+second tool should match, and the list of pages still to do. The one suite for
+all of it is `tests/test-cli.mjs`, and a new tool's block in it has to check
+the page by hand as well as the command, because that is the only check that
+catches a command line quietly growing arithmetic of its own.
+
 ## Tests
 
 Suites live in [`tests/`](tests/) and run with `node tests/run.mjs`, which starts

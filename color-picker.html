@@ -1288,6 +1288,7 @@ function chipButton(hex, title, cls) {
   const b = document.createElement('button');
   b.type = 'button';
   b.style.background = hex;
+  b.dataset.hex = hex;          /* the colour, for anything reading the page back */
   b.title = title || hex;
   if (cls) b.className = cls;
   b.addEventListener('click', () => { setHex(hex, { commit: true }); });
@@ -2678,46 +2679,56 @@ async function saveChip(entry, book) {
   }
 }
 
-function renderMatches() {
+/* The search with no drawing in it: which charts are in play, the shortlist
+   out of each, and the whole lot ranked together. `renderMatches` paints what
+   this returns and the command line prints it, so neither of them has a
+   search of its own to get wrong. */
+function matchHits(lab, q, want) {
   const data = loadBooks();
+  if (!data) return null;
+  const pass = e => !q || (e.code + ' ' + e.name).toLowerCase().indexOf(q) >= 0;
+  const chosen = (list, pick) => (pick === '*' ? list : list.filter(b => b.name === pick));
+  const gather = books => {
+    const hits = [];
+    books.forEach(b => {
+      topK(b.list, lab, want, pass).forEach(h => hits.push({ h: h, book: b }));
+    });
+    hits.sort((a, b) => a.h.de - b.h.de);
+    return hits.slice(0, want);
+  };
+  return {
+    threads: gather(chosen(data.threads, $('brand').value)),
+    pantone: gather(chosen(data.pantone, $('pbook').value)),
+    nThread: data.threads.reduce((n, b) => n + b.list.length, 0),
+    nPantone: data.pantone.reduce((n, b) => n + b.list.length, 0),
+    charts: data.threads.length,
+    books: data.pantone.length
+  };
+}
+
+function renderMatches() {
   const threadHost = $('thread-hits'), panHost = $('pantone-hits');
   threadHost.textContent = ''; panHost.textContent = '';
-  if (!data) {
+  const c = cur(), lab = rgbToLab(c.r, c.g, c.b);
+  const q = $('match-search').value.trim().toLowerCase();
+  const found = matchHits(lab, q, q ? 14 : 8);
+  if (!found) {
     setStatus('match-note', 'vendor/swatch-books.js did not load, so there is nothing to match against.', true);
     return;
   }
-  const c = cur(), lab = rgbToLab(c.r, c.g, c.b);
-  const q = $('match-search').value.trim().toLowerCase();
-  const pass = e => !q || (e.code + ' ' + e.name).toLowerCase().indexOf(q) >= 0;
-  const want = q ? 14 : 8;
 
-  const brandPick = $('brand').value;
-  const threadBooks = brandPick === '*' ? data.threads : data.threads.filter(b => b.name === brandPick);
-  let threadHits = [];
-  threadBooks.forEach(b => {
-    topK(b.list, lab, want, pass).forEach(h => threadHits.push({ h: h, book: b.name }));
-  });
-  threadHits.sort((a, b) => a.h.de - b.h.de);
-  threadHits.slice(0, want).forEach(x => threadHost.appendChild(hitRow(x.h.e, x.book, x.h.de)));
+  found.threads.forEach(x => threadHost.appendChild(hitRow(x.h.e, x.book.name, x.h.de)));
+  found.pantone.forEach(x => panHost.appendChild(pantoneChip(x.h.e, x.book, x.h.de)));
 
-  const bookPick = $('pbook').value;
-  const panBooks = bookPick === '*' ? data.pantone : data.pantone.filter(b => b.name === bookPick);
-  let panHits = [];
-  panBooks.forEach(b => {
-    topK(b.list, lab, want, pass).forEach(h => panHits.push({ h: h, book: b }));
-  });
-  panHits.sort((a, b) => a.h.de - b.h.de);
-  panHits.slice(0, want).forEach(x => panHost.appendChild(pantoneChip(x.h.e, x.book, x.h.de)));
+  if (!found.threads.length) threadHost.appendChild(emptyNote('Nothing in that chart matches "' + q + '".'));
+  if (!found.pantone.length) panHost.appendChild(emptyNote('No Pantone chip matches "' + q + '".'));
 
-  if (!threadHits.length) threadHost.appendChild(emptyNote('Nothing in that chart matches "' + q + '".'));
-  if (!panHits.length) panHost.appendChild(emptyNote('No Pantone chip matches "' + q + '".'));
-
-  const nThread = data.threads.reduce((n, b) => n + b.list.length, 0);
-  const nPan = data.pantone.reduce((n, b) => n + b.list.length, 0);
+  const brandPick = $('brand').value, bookPick = $('pbook').value;
+  const nThread = found.nThread, nPan = found.nPantone;
   $('thread-head').textContent = 'Thread — ' + (brandPick === '*' ? 'every chart' : brandPick);
   $('pantone-head').textContent = 'Pantone — ' + (bookPick === '*' ? 'both books' : bookPick.toLowerCase());
   $('match-note').innerHTML = nThread.toLocaleString() + ' thread colours across '
-    + data.threads.length + ' charts and ' + nPan.toLocaleString() + ' Pantone chips, ranked by '
+    + found.charts + ' charts and ' + nPan.toLocaleString() + ' Pantone chips, ranked by '
     + 'CIEDE2000 &mdash; the distance measure that tries to match how different two '
     + 'colours <em>look</em>, rather than how far apart their numbers are. A &Delta;E '
     + 'under about 2 is a difference you would struggle to see side by side. '
@@ -2740,6 +2751,257 @@ function emptyNote(text) {
 $('brand').addEventListener('change', renderMatches);
 $('pbook').addEventListener('change', renderMatches);
 $('match-search').addEventListener('input', renderMatches);
+
+/* ════════════════════════════════════════════════════════════════════════
+   the command line
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* What `cli/tools/color-picker.mjs` drives, and the only part of this page it
+   is allowed to touch. Every job is this page doing its own work: the same
+   parseColor, the same press search, the same buildPalette reading the same
+   two controls, the same renderMatches shortlist. A job that answered out of
+   its own arithmetic would be a second colour picker sharing a file with this
+   one, and the two would part company the first time either was touched.
+
+   What comes back has to survive the trip out of the tab, so a job returns
+   plain data — no canvas, no blob, no node. `cli/README.md` is the whole
+   convention. */
+
+const nextFrame = () => new Promise(go => requestAnimationFrame(() => go()));
+
+function wantColour(str, what) {
+  const c = parseColor(str);
+  if (!c) throw new Error('not a colour this page can read: ' + (what || str));
+  return c;
+}
+
+/* A select that has to land on one of its own options, because setting it to
+   anything else leaves it quietly where it was. */
+function wantOption(el, value, what) {
+  if (!value || value === '*') { el.value = '*'; return '*'; }
+  const opts = Array.from(el.options).map(o => o.value);
+  const hit = opts.find(v => v.toLowerCase() === String(value).toLowerCase());
+  if (!hit) {
+    throw new Error('no ' + what + ' called "' + value + '" — there is '
+      + opts.filter(v => v !== '*').join(', '));
+  }
+  el.value = hit;
+  return hit;
+}
+
+/* The whole of the pick tab for whatever colour is current: every reading,
+   the press verdict in the page's own words, the shade ramp, the harmonies. */
+async function pickTab() {
+  const said = strings(true);
+  await nextFrame();                  /* scheduleHeavy writes the gamut note */
+  return {
+    hex: said.hex, rgb: said.rgb, hsv: said.hsv, hsl: said.hsl,
+    oklch: said.oklch, lab: said.lab, cmyk: said.cmyk, css: said.css,
+    cmykMode: cmykMode,
+    gamut: $('gamut').textContent.trim(),
+    shades: Array.from(document.querySelectorAll('#ramp button'))
+      .map(b => b.dataset.hex),
+    harmony: Array.from(document.querySelectorAll('#harmony .harm-row')).map(row => ({
+      rule: row.querySelector('.name').textContent,
+      colors: Array.from(row.querySelectorAll('button')).map(b => b.dataset.hex)
+    }))
+  };
+}
+
+window.CLI = {
+  page: 'color-picker',
+
+  /* Whether an image has been handed to the image tab yet, and what the page
+     made of it. The runner puts the file in through `#file`, which is the
+     same path a dropped file takes, then waits on this. */
+  image() {
+    return {
+      ready: haveImage && !!imgData,
+      width: imgData ? imgData.width : null,
+      height: imgData ? imgData.height : null,
+      note: $('img-status').textContent.trim()
+    };
+  },
+
+  jobs: {
+    /* One colour, said every way the page can say it. */
+    async convert(o) {
+      cmykMode = o.cmyk === 'straight' ? 'straight' : 'coated';
+      const c = wantColour(o.color);
+      setRgb(c.r, c.g, c.b, { commit: true });
+      return await pickTab();
+    },
+
+    /* The colours that are in a picture, or grown from one colour when there
+       is no picture — the image tab's button and the palette tab's two
+       controls, with nothing between them and the answer. */
+    palette(o) {
+      palSrc = o.from === 'current' ? 'current' : 'image';
+      if (o.color) { const c = wantColour(o.color); setRgb(c.r, c.g, c.b, {}); }
+      wantOption($('pal-rule'), o.rule || 'dominant', 'rule');
+      $('pal-count').value = o.count == null ? '' : String(o.count);
+      buildPalette();
+      return {
+        rule: palMeta.rule,
+        asked: o.count == null ? null : Number(o.count),
+        from: palSrc === 'image' && haveImage && !!imgData ? 'image' : 'colour',
+        colors: palette.map(p => ({
+          hex: p.hex,
+          origin: p.origin,
+          share: p.share == null ? null : rnd(p.share, 4),
+          shades: p.parts == null ? null : p.parts,
+          turnedBy: p.turn == null ? null : p.turn,
+          step: p.step == null ? null : p.step + ' of ' + p.of
+        })),
+        note: $('pal-status').textContent.trim()
+      };
+    },
+
+    /* The loupe, without the mouse: one pixel of a loaded picture, or the
+       average of the box around it. */
+    async pixel(o) {
+      if (!imgData) throw new Error('no picture has been loaded to read a pixel from');
+      $('sample').value = String(o.sample == null ? 3 : o.sample);
+      const x = Number(o.x), y = Number(o.y);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) {
+        throw new Error('a pixel needs an x and a y');
+      }
+      if (x < 0 || y < 0 || x >= imgData.width || y >= imgData.height) {
+        throw new Error('that pixel is outside the picture, which is '
+          + imgData.width + ' by ' + imgData.height);
+      }
+      const got = sampleAt(x, y);
+      if (!got) throw new Error('nothing but transparent pixels there');
+      setRgb(got.r, got.g, got.b, { commit: true });
+      return {
+        at: { x: x, y: y },
+        sample: Number($('sample').value),
+        picture: { width: imgData.width, height: imgData.height },
+        ...(await pickTab())
+      };
+    },
+
+    /* The contrast tab: the ratio, the four gradings, APCA, and the walk to
+       the nearest lightness that passes. */
+    contrast(o) {
+      conFollow = null;
+      const fg = wantColour(o.fg, 'the text colour "' + o.fg + '"');
+      const bg = wantColour(o.bg, 'the background colour "' + o.bg + '"');
+      conFg = rgbToHex(fg.r, fg.g, fg.b);
+      conBg = rgbToHex(bg.r, bg.g, bg.b);
+      paintContrast();
+
+      let moved = null;
+      if (o.fix === 'fg' || o.fix === 'bg') {
+        /* Whether it moved is not whether it had to: a pair already over
+           4.5:1 leaves the walk with nowhere to go, and so does a colour no
+           lightness of which ever gets there. Those are opposite answers. */
+        const was = o.fix === 'fg' ? conFg : conBg;
+        const already = wcagRatio(parseColor(conFg), parseColor(conBg)) >= 4.5;
+        fixSide(o.fix);
+        const now = o.fix === 'fg' ? conFg : conBg;
+        moved = {
+          side: o.fix, from: was, to: now,
+          moved: now !== was, needed: !already
+        };
+      }
+
+      const l = parseColor(conFg), d = parseColor(conBg);
+      return {
+        fg: conFg, bg: conBg,
+        ratio: rnd(wcagRatio(l, d), 2),
+        lc: rnd(Math.abs(apcaLc(l, d)), 1),
+        grades: Array.from(document.querySelectorAll('#grades .grade')).map(g => ({
+          what: g.querySelector('.lab').textContent,
+          verdict: g.querySelector('.res').textContent,
+          pass: g.classList.contains('pass')
+        })),
+        apca: $('apca').textContent.trim(),
+        fix: moved
+      };
+    },
+
+    /* The gradient tab: the stops, the space they are blended in, and the CSS
+       the page would put on your clipboard. */
+    gradient(o) {
+      const list = o.colors || [];
+      if (list.length < 2) throw new Error('a gradient wants at least two colours');
+      const at = o.at && o.at.length === list.length ? o.at : null;
+      stops = list.map((str, i) => {
+        const c = wantColour(str);
+        return {
+          hex: rgbToHex(c.r, c.g, c.b),
+          pos: at ? clamp(Number(at[i]), 0, 100) : i / (list.length - 1) * 100
+        };
+      });
+      gradKind = o.shape || 'linear';
+      $('grad-space').value = o.space || 'oklab';
+      $('grad-angle').value = String(o.angle == null ? 90 : o.angle);
+      drawGradient();
+      return {
+        shape: gradKind,
+        space: $('grad-space').value,
+        angle: Number($('grad-angle').value),
+        stops: stops.map(s => ({ hex: s.hex, pos: rnd(s.pos, 2) })),
+        css: $('grad-css').textContent
+      };
+    },
+
+    /* The nearest real thread and the nearest Pantone chip, ranked by how
+       different they look rather than how far apart their numbers are. */
+    match(o) {
+      const c = wantColour(o.color);
+      setRgb(c.r, c.g, c.b, { commit: true });
+      const chart = wantOption($('brand'), o.chart, 'thread chart');
+      const book = wantOption($('pbook'), o.book, 'Pantone book');
+      const find = (o.find || '').trim();
+      $('match-search').value = find;
+      renderMatches();                /* so the page shows what this answers */
+
+      const want = clamp(o.count == null ? (find ? 14 : 8) : Number(o.count), 1, 60);
+      const here = cur();
+      const found = matchHits(rgbToLab(here.r, here.g, here.b),
+                              find.toLowerCase(), want);
+      if (!found) {
+        throw new Error('vendor/swatch-books.js did not load, so there is '
+          + 'nothing to match against');
+      }
+      const say = x => ({
+        code: x.h.e.code,
+        name: x.h.e.name || null,
+        hex: x.h.e.hex,
+        book: x.book.name,
+        de: rnd(x.h.de, 2),
+        nearness: nearness(x.h.de)
+      });
+      return {
+        color: curHex(),
+        chart: chart, book: book, find: find || null,
+        threads: found.threads.map(say),
+        pantone: found.pantone.map(say),
+        totals: {
+          threads: found.nThread, pantone: found.nPantone,
+          charts: found.charts, books: found.books
+        }
+      };
+    },
+
+    /* What there is to match against, so a name can be checked before it is
+       asked for. */
+    charts() {
+      const data = loadBooks();
+      if (!data) return { threads: [], pantone: [] };
+      return {
+        threads: data.threads.map(b => ({
+          name: b.name, fibre: b.fibre, colors: b.list.length
+        })),
+        pantone: data.pantone.map(b => ({
+          name: b.name, suffix: b.suffix, colors: b.list.length
+        }))
+      };
+    }
+  }
+};
 
 /* ════════════════════════════════════════════════════════════════════════
    start
