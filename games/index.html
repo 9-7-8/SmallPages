@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Games &mdash; SmallPages</title>
+<link rel="stylesheet" href="../theme.css">
+<style>
+  /* Layout and sizing only. Colour, type and component styling live in
+     theme.css. The tiles are the ones from the hub, at the same measurements,
+     because this is the same list one level down. */
+
+  body { margin: 0; padding: 4rem 1.5rem 5rem; min-height: 100vh; }
+  main { max-width: 1000px; margin: 0 auto; }
+  h1 { margin-bottom: 0.4rem; }
+  p.lede { margin: 0 0 2.6rem; max-width: 46ch; }
+
+  nav ul {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(216px, 1fr));
+    grid-auto-rows: 1fr;
+    border-top: 1px solid var(--line-soft);
+    border-left: 1px solid var(--line-soft);
+  }
+  nav li {
+    border-right: 1px solid var(--line-soft);
+    border-bottom: 1px solid var(--line-soft);
+  }
+  nav a {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.6rem;
+    height: 100%;
+    min-height: 9.1rem;
+    padding: 1.2rem 1.15rem 1.3rem;
+    border-bottom: none;
+    color: var(--text);
+  }
+  nav a:hover, nav a:focus-visible {
+    background: hsl(var(--tint) / 0.06);
+    color: var(--neon-hot);
+    text-shadow: none;
+    outline-offset: -1px;
+  }
+  .ico {
+    width: 26px; height: 26px; display: block; flex: none;
+    color: var(--neon-deep);
+    fill: none; stroke: currentColor; stroke-width: 1.25;
+    stroke-linecap: square; stroke-linejoin: miter;
+    transition: color 0.15s ease, filter 0.15s ease;
+  }
+  nav a:hover .ico, nav a:focus-visible .ico {
+    color: var(--neon);
+    filter: drop-shadow(0 0 6px hsl(var(--tint) / 0.5));
+  }
+  nav .name { font-weight: 400; letter-spacing: 0.01em; }
+  nav .what { font-size: 0.76rem; line-height: 1.5; color: var(--text-faint); }
+  nav a:hover .what, nav a:focus-visible .what { color: var(--text-dim); }
+
+  @media (max-width: 520px) {
+    body { padding: 2.5rem 1.2rem 4rem; }
+    nav a { padding: 1rem; min-height: 0; }
+  }
+</style>
+</head>
+<body>
+<svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
+  <symbol id="i-roads" viewBox="0 0 24 24">
+    <path d="M2.5 9.5h19M2.5 14.5h19"/>
+    <path d="M9.5 2.5v19M14.5 2.5v19"/>
+    <circle cx="6" cy="6" r="2.4" fill="currentColor" stroke="none" opacity=".4"/>
+    <circle cx="6" cy="6" r="2.4"/>
+    <circle cx="18" cy="18" r="2.4"/>
+  </symbol>
+</svg>
+
+<main>
+  <a class="home" href="../index.html">&larr; index</a>
+  <h1>Games</h1>
+  <p class="lede">Small ones, the same way round as the rest: a single page that runs in the
+  tab, keeps nothing and asks for nothing.</p>
+
+  <nav>
+    <ul>
+      <li>
+        <a href="gridlock/">
+          <svg class="ico" aria-hidden="true"><use href="#i-roads"/></svg>
+          <span class="name">Gridlock</span>
+          <span class="what">One-way roads between blobs that make cars and blobs that eat them</span>
+        </a>
+      </li>
+    </ul>
+  </nav>
+</main>
+</body>
+</html>

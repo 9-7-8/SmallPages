@@ -1,0 +1,1371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gridlock</title>
+<link rel="stylesheet" href="../../theme.css">
+<style>
+  /* Layout and sizing only. Colour, type and component styling live in
+     theme.css — including here, with one exception that is the whole game:
+     the blobs and the cars are told apart by colour, so they carry five
+     saturated hues of their own. Those live in the script, next to the
+     shapes that repeat the same information for anyone who cannot tell the
+     hues apart, and nothing else on the page is coloured: the chrome stays
+     at the theme's default white glow, so colour on this page always means
+     "which blob does this belong to" and never anything else. */
+
+  body {
+    margin: 0;
+    padding: 2.6rem 1.5rem 5rem;
+    min-height: 100vh;
+  }
+
+  main { max-width: 1040px; margin: 0 auto; }
+
+  h1 { margin-bottom: 0.4rem; }
+  p.lede { margin: 0 0 1.8rem; max-width: 52ch; }
+
+  /* --------------------------------------------------------- level bar -- */
+
+  .bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.6rem 1rem;
+    padding-bottom: 0.9rem;
+    margin-bottom: 1.1rem;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .bar select { min-width: 15rem; }
+  .bar .goal { font-size: 0.82rem; color: var(--text-dim); }
+  .bar .done {
+    font-size: 0.72rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--neon);
+  }
+
+  /* ------------------------------------------------------------- board -- */
+
+  .board {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    width: 100%;
+    background: var(--sunken);
+    border: 1px solid var(--line-soft);
+  }
+  /* The canvas is drawn at a whole number of pixels per cell and shown at
+     exactly that size, rather than stretched to the column: a grid upscaled
+     by a fraction is a grid with some lines fatter than others. A map with
+     few cells across is therefore a little narrower than the page, which is
+     the honest way round. */
+  #cv {
+    display: block;
+    max-width: 100%;
+    touch-action: none;      /* a drag on the board draws, it does not scroll */
+    cursor: crosshair;
+  }
+
+  /* Win and loss both land here, over the board rather than beside it, so
+     the thing that just happened is where you were already looking. */
+  .banner {
+    position: absolute;
+    inset: auto 0 0 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 1rem;
+    padding: 0.9rem 1.1rem;
+    background: hsl(0 0% 0% / 0.82);
+    border-top: 1px solid var(--line);
+  }
+  .banner[hidden] { display: none; }
+  .banner.win { border-top-color: var(--neon); box-shadow: inset 0 1px 18px hsl(var(--tint) / 0.25); }
+  .banner .head { font-weight: 500; letter-spacing: 0.04em; color: var(--neon); }
+  .banner .why { font-size: 0.82rem; color: var(--text-dim); flex: 1 1 14rem; }
+  .banner button { padding: 0.35rem 0.8rem; font-size: 0.8rem; }
+
+  /* ---------------------------------------------------------- controls -- */
+
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.7rem;
+    margin: 1rem 0 1.2rem;
+  }
+  .controls .seg button { padding: 0.5rem 0.85rem; font-size: 0.82rem; }
+  .controls .seg button b { font-weight: 400; opacity: 0.6; margin-left: 0.4em; }
+  .controls .seg button[disabled] b { opacity: 0.35; }
+  .controls .spacer { flex: 1; }
+
+  /* ------------------------------------------------------------- stats -- */
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    border-top: 1px solid var(--line-soft);
+    border-left: 1px solid var(--line-soft);
+  }
+  .stats div {
+    padding: 0.7rem 0.9rem 0.8rem;
+    border-right: 1px solid var(--line-soft);
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .stats span {
+    display: block;
+    font-size: 0.66rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+  }
+  .stats b {
+    display: block;
+    margin-top: 0.25rem;
+    font-weight: 300;
+    font-size: 1.15rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--text);
+  }
+  .stats .meter {
+    margin-top: 0.5rem;
+    height: 2px;
+    background: var(--line-soft);
+  }
+  .stats .meter i { display: block; height: 100%; width: 0; background: var(--neon); }
+  .stats .over b, .stats .over .meter i { color: var(--neon-hot); }
+
+  #say { min-height: 1.5rem; margin: 0.9rem 0 0; font-size: 0.85rem; }
+
+  /* ------------------------------------------------------------ legend -- */
+
+  .key {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem 1.4rem;
+    margin: 1rem 0 0;
+    padding: 0;
+    list-style: none;
+    font-size: 0.8rem;
+    color: var(--text-dim);
+  }
+  .key li { display: flex; align-items: center; gap: 0.35rem; }
+  .key li + li { margin-left: -0.5rem; }
+  .key svg { width: 15px; height: 15px; flex: none; }
+  .key svg + svg { margin-left: -0.15rem; margin-right: 0.15rem; }
+
+  /* -------------------------------------------------------------- prose -- */
+
+  .notes { margin-top: 2.6rem; display: grid; gap: 1.2rem; }
+  .notes h2 { margin: 0 0 0.5rem; }
+  .notes p, .notes li { font-size: 0.86rem; }
+  .notes p { margin: 0 0 0.7rem; max-width: 66ch; }
+  .notes ul { margin: 0; padding-left: 1.1rem; max-width: 66ch; }
+  .notes li { margin-bottom: 0.4rem; }
+  .notes kbd {
+    font-family: var(--mono);
+    font-size: 0.78em;
+    border: 1px solid var(--line);
+    padding: 0 0.3em;
+  }
+
+  @media (max-width: 560px) {
+    body { padding: 1.8rem 1rem 4rem; }
+    .controls .seg button { padding: 0.45rem 0.6rem; font-size: 0.76rem; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <a class="home" href="../index.html">&larr; games</a>
+  <h1>Gridlock</h1>
+  <p class="lede">Blobs make cars; blobs of the same colour eat them. Draw the one-way roads
+  in between and keep the whole thing moving &mdash; a loop of cars all waiting on each
+  other is the end of the run.</p>
+
+  <div class="bar">
+    <select id="levelSel" aria-label="Level"></select>
+    <span class="goal" id="goal"></span>
+    <span class="done" id="done" hidden>Cleared</span>
+  </div>
+
+  <div class="board" id="board">
+    <canvas id="cv" width="900" height="600" role="img" aria-label="The board"></canvas>
+    <div class="banner" id="banner" hidden>
+      <span class="head" id="bHead"></span>
+      <span class="why" id="bWhy"></span>
+      <button id="bAgain">Try again</button>
+      <button id="bNext" class="ghost" hidden>Next level</button>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="seg" id="tools">
+      <button type="button" data-tool="draw" aria-pressed="true">Draw</button>
+      <button type="button" data-tool="erase" aria-pressed="false">Erase</button>
+      <button type="button" data-tool="stop" aria-pressed="false">Stop sign <b id="nstop">0</b></button>
+      <button type="button" data-tool="light" aria-pressed="false">Lights <b id="nlight">0</b></button>
+      <button type="button" data-tool="round" aria-pressed="false">Roundabout <b id="nround">0</b></button>
+    </div>
+    <div class="seg">
+      <button type="button" id="play">Play</button>
+      <button type="button" id="restart">Restart</button>
+    </div>
+    <div class="seg">
+      <button type="button" id="undo" class="ghost">Undo</button>
+      <button type="button" id="wipe" class="ghost">Clear roads</button>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div id="stDeliv"><span>Delivered</span><b>0 / 0</b><div class="meter"><i></i></div></div>
+    <div id="stRoad"><span>Road</span><b>0 / 0</b><div class="meter"><i></i></div></div>
+    <div id="stFlow"><span>Flow</span><b>&mdash;</b><div class="meter"><i></i></div></div>
+    <div id="stCars"><span>On the road</span><b>0</b><div class="meter"><i></i></div></div>
+  </div>
+
+  <p class="status" id="say"></p>
+
+  <ul class="key" id="key"></ul>
+
+  <div class="notes">
+    <section class="card">
+      <h2>How it goes</h2>
+      <p>Drag across the board to lay road. Road is <em>one-way</em>, in the direction you
+      dragged: drag back along the same cells to make it two-way, which costs twice as much
+      and gives you a lane each way. Start a drag on a blob to get cars out of it, finish one
+      on a blob to get cars in. Right-click, or the eraser, takes a cell's roads away again.</p>
+      <p>A car leaves its blob, finds the shortest road to a blob of its own colour, and
+      drives. One car fits in a lane of a cell at a time, so a junction &mdash; any cell two
+      roads arrive at from directions that are not opposite &mdash; holds exactly one car,
+      and everybody else queues. That is where the game is.</p>
+      <ul>
+        <li><b>Uncontrolled junction.</b> A car crossing one while another arm is waiting
+        creeps over it, and while it creeps nobody else can be on it. One busy arm and one
+        quiet one is fine; two busy arms carry about half what they should.</li>
+        <li><b>Stop sign.</b> Goes on the cell <em>before</em> the junction. Cars there stop,
+        then give way to anything on an arm without one. The other arm stops creeping and
+        gets the junction at full speed; the signed arm waits for a gap, pays for getting
+        going again, and will starve outright if no gap ever comes.</li>
+        <li><b>Lights.</b> Go on the junction itself, which needs at least two arms. Each arm
+        gets the junction to itself in turn, so nobody creeps and nobody starves &mdash; but an
+        arm with a green and no car on it wastes the whole phase.</li>
+        <li><b>Roundabout.</b> Goes on the junction. Two cars fit on it at once and neither
+        creeps, so it carries more than lights can. It is also the only piece that can jam
+        solid, because two cars on it that both cannot get off is a ring of waiting.</li>
+      </ul>
+      <p>You lose if a blob's queue of waiting cars overflows, if a car spends too long with
+      no road to its colour at all, or if cars form a closed ring of waiting &mdash; each one
+      held up by the next, all the way round. That last one is the gridlock.</p>
+      <p><kbd>1</kbd>&ndash;<kbd>5</kbd> pick a tool, <kbd>Space</kbd> starts and stops,
+      <kbd>R</kbd> restarts the run, <kbd>Z</kbd> undoes the last thing you drew.</p>
+    </section>
+    <section class="card">
+      <h2>What it is not</h2>
+      <p>A toy, and it leaves out most of traffic engineering on purpose. There is one car
+      length per cell and every car drives at the same speed, so there is no acceleration, no
+      following distance and no queue discharge rate &mdash; a green light here empties a
+      queue at exactly one car per cell-time. Cars take the shortest road to their colour and
+      recompute it the moment you change the road, so nobody is ever lost, nobody avoids a
+      jam they can see, and nobody keeps going the way they were already going. Turns cost
+      nothing, left turns cost no more than right ones, and nothing yields on a turn except
+      at a stop sign. A blob swallows one car at a time and never fills up. Lights are fixed
+      time, not actuated, and there is no amber.</p>
+      <p>Drawing road needs a pointer: there is no way to lay a road from the keyboard, which
+      the keys the tools and the clock are on do not make up for. The board animates whenever a
+      run is going, so a level starts paused and stays that way until you ask for it.</p>
+      <p>The simulation is a fixed step of a sixtieth of a second with nothing random in it
+      anywhere &mdash; blobs emit on a timer and ties go to whoever has waited longest &mdash;
+      so the same roads and the same tools give the same run twice. Nothing is uploaded;
+      which levels you have cleared is kept in this browser.</p>
+    </section>
+  </div>
+</main>
+
+<script>
+"use strict";
+
+/* ========================================================== the pieces === */
+
+const DX = [0, 1, 0, -1], DY = [-1, 0, 1, 0];          // north, east, south, west
+const BIT = [1, 2, 4, 8];
+
+/* A kind is a hue and a shape saying the same thing twice, so the board still
+   reads for anyone who cannot tell the hues apart. Filled means the blob makes
+   cars, hollow means it takes them. */
+const KINDS = [
+  { key: "amber", name: "Amber", hue: 38,  shape: "circle" },
+  { key: "cyan",  name: "Cyan",  hue: 190, shape: "square" },
+  { key: "pink",  name: "Pink",  hue: 330, shape: "triangle" },
+  { key: "green", name: "Green", hue: 148, shape: "diamond" },
+  { key: "lilac", name: "Lilac", hue: 272, shape: "hexagon" },
+];
+const hue = (k, l = 62, s = 80) => `hsl(${KINDS[k].hue} ${s}% ${l}%)`;
+
+/* Everything the simulation is made of, in seconds and cells. Nothing here is
+   random: the same roads and the same tools give the same run every time. */
+const STEP      = 1 / 60;
+const MOVE      = 0.42;   // to cross one cell
+const DWELL     = 0.5;    // a stop sign holds you this long before you may look
+const PULLAWAY  = 0.38;   // and getting going again from a dead stop costs this
+const CREEP     = 0.62;   // extra seconds to cross a junction nobody is directing
+const GREEN     = 2.6;    // one arm's share of a light
+const QUEUE_CAP = 4;      // cars a blob will hold before it has had enough
+const LOST_CAP  = 7;      // seconds with no road to your colour at all
+
+/* ============================================================== levels === */
+
+/* walls are rectangles of blocked cells, open rectangles are cut back out of
+   them afterwards, which is how a plus-shaped gap through a solid band gets
+   written in two lines. A blob is [x, y, kind, "src", seconds] or
+   [x, y, kind, "dst"]. */
+const LEVELS = [
+  {
+    id: "first-light", name: "First Light", w: 9, h: 7, goal: 8, budget: 26,
+    blobs: [[1, 3, 0, "src", 3.0], [7, 3, 0, "dst"]],
+    hint: "Drag from the filled blob to the hollow one. The road only runs the way you dragged.",
+  },
+  {
+    id: "merge", name: "Merge", w: 11, h: 8, goal: 14, budget: 30,
+    walls: [[5, 0, 5, 7]], open: [[5, 3, 5, 3]],
+    blobs: [[1, 1, 1, "src", 3.4], [1, 6, 1, "src", 3.4], [9, 3, 1, "dst"]],
+    hint: "Two blobs, one gap in the wall. Two roads that join cost less than two that do not.",
+  },
+  {
+    id: "crossing", name: "Crossing", w: 11, h: 9, goal: 18, budget: 36,
+    walls: [[3, 2, 7, 6]], open: [[5, 2, 5, 6], [3, 4, 7, 4]],
+    blobs: [[1, 1, 0, "src", 3.6], [9, 7, 0, "dst"], [9, 1, 1, "src", 3.6], [1, 7, 1, "dst"]],
+    hint: "Both roads have to pass through the middle. At this traffic they can share it.",
+  },
+  {
+    id: "the-fork", name: "The Fork", w: 12, h: 8, goal: 20, budget: 34,
+    walls: [[6, 0, 6, 7]], open: [[6, 3, 6, 3]],
+    blobs: [[1, 2, 1, "src", 3.0], [10, 1, 1, "dst"], [1, 4, 0, "src", 3.0], [10, 6, 0, "dst"]],
+    hint: "One gap, two colours. Share the trunk and let the fork beyond it sort them out.",
+  },
+  {
+    id: "give-way", name: "Give Way", w: 11, h: 11, goal: 30, budget: 26,
+    walls: [[0, 0, 10, 10]], open: [[5, 0, 5, 10], [0, 5, 10, 5]],
+    kit: { stop: 2 },
+    blobs: [[0, 5, 0, "src", 1.3], [10, 5, 0, "dst"], [5, 0, 1, "src", 3.5], [5, 10, 1, "dst"]],
+    hint: "One busy road, one quiet one. Creeping over the crossing every time is what the busy one cannot afford.",
+  },
+  {
+    id: "signals", name: "Signals", w: 13, h: 13, goal: 36, budget: 30,
+    walls: [[0, 0, 12, 12]], open: [[6, 0, 6, 12], [0, 6, 12, 6]],
+    kit: { stop: 2, light: 1 },
+    blobs: [[0, 6, 0, "src", 1.5], [12, 6, 0, "dst"], [6, 0, 1, "src", 1.5], [6, 12, 1, "dst"]],
+    hint: "Both roads are busy now. A stop sign only moves the problem onto the arm that has it.",
+  },
+  {
+    id: "the-roundabout", name: "The Roundabout", w: 13, h: 13, goal: 42, budget: 70,
+    walls: [[4, 0, 8, 12]], open: [[6, 0, 6, 12], [4, 6, 8, 6]],
+    kit: { stop: 2, light: 1, round: 1 },
+    blobs: [[0, 1, 0, "src", 2.6], [12, 11, 0, "dst"], [12, 1, 1, "src", 2.6], [0, 11, 1, "dst"],
+            [6, 0, 2, "src", 2.6], [6, 12, 2, "dst"]],
+    hint: "Three roads, one hole in the wall. Lights give everyone a turn; a roundabout gives everyone room.",
+  },
+  {
+    id: "interchange", name: "Interchange", w: 15, h: 11, goal: 40, budget: 54,
+    walls: [[7, 0, 7, 10]], open: [[7, 2, 7, 2], [7, 8, 7, 8]],
+    kit: { stop: 3, light: 2, round: 1 },
+    blobs: [[0, 0, 0, "src", 2.0], [14, 10, 0, "dst"], [14, 0, 1, "src", 2.0], [0, 10, 1, "dst"],
+            [0, 5, 2, "src", 2.0], [14, 5, 2, "dst"]],
+    hint: "Two ways through the wall and three colours wanting them. Whose road joins whose, and who keeps the junction in order.",
+  },
+  {
+    id: "rush-hour", name: "Rush Hour", w: 15, h: 15, goal: 52, budget: 84,
+    walls: [[7, 0, 7, 14], [0, 7, 14, 7]],
+    open: [[7, 3, 7, 3], [7, 11, 7, 11], [3, 7, 3, 7], [11, 7, 11, 7]],
+    kit: { stop: 4, light: 3, round: 2 },
+    blobs: [[0, 0, 0, "src", 2.2], [14, 14, 0, "dst"], [14, 0, 1, "src", 2.2], [0, 14, 1, "dst"],
+            [0, 10, 2, "src", 2.2], [14, 4, 2, "dst"], [14, 10, 3, "src", 2.2], [0, 4, 3, "dst"]],
+    hint: "Four quarters, four ways between them, and every colour has to get to the far corner.",
+  },
+];
+
+/* ================================================================ state === */
+
+let S = null;                       // the whole board and run, rebuilt per level
+
+function blank(lvl) {
+  const n = lvl.w * lvl.h;
+  const st = {
+    lvl, W: lvl.w, H: lvl.h, n,
+    wall: new Uint8Array(n),
+    blob: new Map(),                // cell -> { kind, k, rate, acc, queue, wait, lost }
+    out: Array.from({ length: n }, () => []),
+    inn: Array.from({ length: n }, () => []),
+    stop: new Uint8Array(n),
+    round: new Uint8Array(n),
+    lights: new Map(),              // cell -> { arms, i, t }
+    street: new Uint8Array(n),
+    dist: new Map(),                // kind -> Int32Array
+    occ: Array.from({ length: n }, () => []),
+    cars: [], nextId: 1,
+    kit: Object.assign({ stop: 0, light: 0, round: 0 }, lvl.kit || {}),
+    links: 0, t: 0, delivered: 0, running: false, over: null,
+    moveSum: 0, carSum: 0, dlAcc: 0, jam: null, creeps: 0,
+  };
+  for (const [x0, y0, x1, y1] of lvl.walls || []) {
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) st.wall[y * lvl.w + x] = 1;
+  }
+  for (const [x0, y0, x1, y1] of lvl.open || []) {
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) st.wall[y * lvl.w + x] = 0;
+  }
+  for (const [x, y, k, kind, rate] of lvl.blobs) {
+    st.wall[y * lvl.w + x] = 0;
+    st.blob.set(y * lvl.w + x, { kind, k, rate: rate || 0, acc: 0, queue: 0, wait: 0, lost: 0 });
+  }
+  return st;
+}
+
+const cx = (c) => c % S.W, cy = (c) => (c / S.W) | 0;
+const inside = (x, y) => x >= 0 && y >= 0 && x < S.W && y < S.H;
+const dirBetween = (a, b) => {
+  const dx = cx(b) - cx(a), dy = cy(b) - cy(a);
+  for (let d = 0; d < 4; d++) if (DX[d] === dx && DY[d] === dy) return d;
+  return -1;
+};
+
+/* ======================================================== the road graph == */
+
+/* A blob is a terminus, never a through road: nothing may leave a blob that
+   takes cars and nothing may enter one that makes them. That is also what
+   keeps a route from ever being drawn straight through somebody's doorstep. */
+function canLink(a, b) {
+  if (a === b || dirBetween(a, b) < 0) return false;
+  if (S.wall[a] || S.wall[b]) return false;
+  const ba = S.blob.get(a), bb = S.blob.get(b);
+  if (ba && ba.kind === "dst") return false;
+  if (bb && bb.kind === "src") return false;
+  return true;
+}
+
+function hasLink(a, b) { return S.out[a].includes(b); }
+
+function addLink(a, b) {
+  if (!canLink(a, b) || hasLink(a, b)) return false;
+  S.out[a].push(b); S.out[a].sort((p, q) => p - q);
+  S.inn[b].push(a); S.inn[b].sort((p, q) => p - q);
+  S.links++;
+  return true;
+}
+
+function dropLink(a, b) {
+  const i = S.out[a].indexOf(b);
+  if (i < 0) return false;
+  S.out[a].splice(i, 1);
+  S.inn[b].splice(S.inn[b].indexOf(a), 1);
+  S.links--;
+  return true;
+}
+
+/* Every road out of and into a cell, plus whatever was standing on it. */
+function clearCell(c) {
+  for (const v of S.out[c].slice()) dropLink(c, v);
+  for (const u of S.inn[c].slice()) dropLink(u, c);
+  S.stop[c] = 0; S.round[c] = 0; S.lights.delete(c);
+}
+
+/* A cell whose roads all arrive along one axis is a street and has a lane each
+   way; anything else is a junction and holds one car at a time, whichever way
+   it came. This is the whole reason a crossroads is hard and a straight run of
+   two-way road is not. */
+function classify() {
+  for (let c = 0; c < S.n; c++) {
+    let mask = 0;
+    for (const u of S.inn[c]) mask |= BIT[dirBetween(u, c)];
+    const bits = (mask & 1) + ((mask >> 1) & 1) + ((mask >> 2) & 1) + ((mask >> 3) & 1);
+    S.street[c] = (bits <= 1 || mask === 5 || mask === 10) ? 1 : 0;
+  }
+  // A light or a roundabout stops making sense if the junction under it goes.
+  for (const c of [...S.lights.keys()]) {
+    if (armsAt(c).length < 2) S.lights.delete(c);
+  }
+  for (let c = 0; c < S.n; c++) if (S.round[c] && armsAt(c).length < 2) S.round[c] = 0;
+  for (const [c, L] of S.lights) {
+    L.arms = armsAt(c);
+    if (L.i >= L.arms.length) L.i = 0;
+  }
+}
+
+function armsAt(c) {
+  const arms = [];
+  for (const u of S.inn[c]) arms.push(dirBetween(u, c));
+  arms.sort((a, b) => a - b);
+  return arms;
+}
+
+/* How far every cell is from a blob of each colour, counted backwards along
+   the one-way roads. A car reads the field rather than searching, so changing
+   the road changes where everyone is going on the very next step. */
+function reroute() {
+  classify();
+  S.dist.clear();
+  const kinds = new Set();
+  for (const b of S.blob.values()) kinds.add(b.k);
+  for (const k of kinds) {
+    const dist = new Int32Array(S.n).fill(-1);
+    const q = [];
+    for (const [c, b] of S.blob) if (b.kind === "dst" && b.k === k) { dist[c] = 0; q.push(c); }
+    for (let i = 0; i < q.length; i++) {
+      const v = q[i];
+      for (const u of S.inn[v]) if (dist[u] < 0) { dist[u] = dist[v] + 1; q.push(u); }
+    }
+    S.dist.set(k, dist);
+  }
+}
+
+function nextCell(from, k) {
+  const dist = S.dist.get(k);
+  if (!dist) return -1;
+  let best = -1, far = Infinity;
+  for (const v of S.out[from]) {
+    const d = dist[v];
+    if (d >= 0 && d < far) { far = d; best = v; }
+  }
+  return best;
+}
+
+/* ========================================================= the traffic === */
+
+function roomFor(v, d) {
+  const occ = S.occ[v];
+  if (S.blob.has(v)) return occ.length === 0;
+  if (S.round[v]) return occ.length < 2;
+  if (S.street[v]) return !occ.some((c) => c.dir === d);
+  return occ.length === 0;
+}
+
+function unocc(c, car) {
+  const i = S.occ[c].indexOf(car);
+  if (i >= 0) S.occ[c].splice(i, 1);
+}
+
+function lose(head, why) { if (!S.over) S.over = { win: false, head, why }; }
+
+function step(dt) {
+  if (S.over) return;
+  S.t += dt;
+
+  for (const L of S.lights.values()) {
+    if (L.arms.length < 2) continue;
+    L.t += dt;
+    if (L.t >= GREEN) { L.t -= GREEN; L.i = (L.i + 1) % L.arms.length; }
+  }
+
+  // --- everyone already rolling ---
+  for (let i = S.cars.length - 1; i >= 0; i--) {
+    const car = S.cars[i];
+    if (!car.moving) { car.wait += dt; continue; }
+    car.p += dt / car.cross;
+    if (car.p < 1) continue;
+    car.p = 1; car.moving = false; car.wait = 0;
+    if (car.a >= 0) unocc(car.a, car);
+    car.a = -1;
+    const b = S.blob.get(car.b);
+    if (b && b.kind === "dst" && b.k === car.k) {
+      unocc(car.b, car);
+      S.cars.splice(i, 1);
+      S.delivered++;
+    }
+  }
+
+  // --- the blobs that make cars ---
+  for (const [c, b] of S.blob) {
+    if (b.kind !== "src") continue;
+    b.acc += dt;
+    if (b.acc >= b.rate) { b.acc -= b.rate; b.queue++; }
+    if (b.queue > QUEUE_CAP) {
+      lose("Backed up", `${KINDS[b.k].name} has ${QUEUE_CAP + 1} cars waiting at one blob`
+        + " and nowhere to put them.");
+    }
+    b.wait = b.queue > 0 ? b.wait + dt : 0;
+  }
+
+  // --- who wants to go where ---
+  const reqs = new Map();
+  const want = (v, e) => { const l = reqs.get(v); if (l) l.push(e); else reqs.set(v, [e]); };
+
+  for (const car of S.cars) {
+    if (car.moving) continue;
+    const v = nextCell(car.b, car.k);
+    if (v < 0) {
+      car.lost += dt;
+      if (car.lost > LOST_CAP) {
+        lose("Nowhere to go", `${KINDS[car.k].name} cars are sitting on a road that does not`
+          + " reach a blob of their colour.");
+      }
+      continue;
+    }
+    car.lost = 0;
+    const signed = S.stop[car.b] === 1;
+    if (signed && car.wait < DWELL) continue;          // still coming to a stop
+    want(v, { id: car.id, car, v, d: dirBetween(car.b, v), wait: car.wait, signed });
+  }
+  for (const [c, b] of S.blob) {
+    if (b.kind !== "src" || b.queue === 0) continue;
+    const v = nextCell(c, b.k);
+    if (v < 0) {
+      b.lost += dt;
+      if (b.lost > LOST_CAP) {
+        lose("Nowhere to go", `${KINDS[b.k].name} has cars waiting at a blob and no road from`
+          + " it that reaches a blob of their colour.");
+      }
+      continue;
+    }
+    b.lost = 0;
+    want(v, { id: -c - 1, src: b, cell: c, v, d: dirBetween(c, v), wait: b.wait, signed: false });
+  }
+
+  // --- and who actually gets to ---
+  for (const [v, list] of reqs) {
+    const L = S.lights.get(v);
+    let cand = list;
+    if (L && L.arms.length > 1) cand = list.filter((e) => e.d === L.arms[L.i]);
+    if (!cand.length) continue;
+    const signed = cand.filter((e) => e.signed);
+    const plain = cand.filter((e) => !e.signed);
+    // A stop sign means waiting for a gap, not waiting your turn: a car at one
+    // gives way to anything on an arm without one that is already there or
+    // one cell off it. Which is why a sign on a road that never has a gap is
+    // a road that never moves.
+    const yielding = signed.length > 0 && (plain.length > 0 || closing(v));
+    const allowed = yielding ? plain : cand;
+    const loose = !S.street[v] && !S.blob.has(v) && !L && !S.round[v] && !yielding;
+    allowed.sort((a, b) => b.wait - a.wait || a.id - b.id);
+    for (const e of allowed) {
+      if (!roomFor(v, e.d)) continue;
+      /* Nobody is directing this junction and there is something on another
+         arm, so whoever goes has to look first and creeps across — and while
+         they creep nobody else can be on it. That is the whole cost of
+         leaving a junction alone, and it is why an uncontrolled crossroads
+         carries about half what one with somebody in charge does. */
+      const creep = loose && nearing(v, e.d);
+      if (creep) S.creeps++;
+      // A car that has actually stopped has to get going again, which is what
+      // makes a junction signed on every arm cost more than one with lights.
+      commit(e, MOVE + (creep ? CREEP : 0) + (e.signed ? PULLAWAY : 0));
+    }
+  }
+
+  // --- the books ---
+  let rolling = 0;
+  for (const car of S.cars) if (car.moving) rolling++;
+  S.carSum += S.cars.length * dt;
+  S.moveSum += rolling * dt;
+
+  S.dlAcc += dt;
+  if (S.dlAcc >= 0.35) {
+    S.dlAcc = 0;
+    const ring = findJam();
+    if (ring) {
+      S.jam = new Set(ring);
+      lose("Gridlock", `${ring.length} cars in a closed ring, each one waiting for the next.`
+        + " Nothing in it can move again.");
+    }
+  }
+
+  if (!S.over && S.delivered >= S.lvl.goal) S.over = { win: true };
+}
+
+/* Is there a car on any arm of v other than the one coming in along d, close
+   enough to have to be looked at? An arm with a stop sign on it does not
+   count: the point of the sign is that the other road stops looking. */
+function nearing(v, except) {
+  for (const car of S.cars) {
+    const at = car.b;
+    if (S.stop[at]) continue;
+    const d = dirBetween(at, v);
+    if (d < 0 || d === except || !S.out[at].includes(v)) continue;
+    if (nextCell(at, car.k) === v) return true;
+  }
+  return false;
+}
+
+/* Is anything bearing down on this junction from an arm without a sign? */
+function closing(v) {
+  for (const car of S.cars) {
+    if (!car.moving || S.stop[car.b]) continue;
+    if (!S.inn[v].includes(car.b)) continue;
+    if (nextCell(car.b, car.k) === v) return true;
+  }
+  return false;
+}
+
+function commit(e, cross) {
+  if (e.src) {
+    const car = {
+      id: S.nextId++, k: e.src.k, a: e.cell, b: e.v, cross,
+      dir: e.d, pdir: e.d, p: 0, moving: true, wait: 0, lost: 0,
+    };
+    S.cars.push(car);
+    S.occ[e.v].push(car);
+    e.src.queue--; e.src.wait = 0;
+  } else {
+    const car = e.car;
+    car.a = car.b; car.pdir = car.dir; car.b = e.v; car.cross = cross;
+    car.dir = e.d; car.p = 0; car.moving = true; car.wait = 0;
+    S.occ[e.v].push(car);
+  }
+}
+
+/* A jam is not a long queue: a long queue drains from the far end. It is a ring
+   of cars where each one is held up by the next, all the way round to the
+   first, and none of them is waiting on anything that clears by itself. */
+function findJam() {
+  const held = new Map();
+  for (const car of S.cars) {
+    if (car.moving) continue;
+    const v = nextCell(car.b, car.k);
+    if (v < 0) continue;
+    const d = dirBetween(car.b, v);
+    if (roomFor(v, d)) continue;
+    const L = S.lights.get(v);
+    if (L && L.arms.length > 1 && L.arms[L.i] !== d) continue;   // the light will change
+    if (S.stop[car.b] && car.wait < DWELL) continue;             // it is only stopping
+    let blocker = null;
+    const lane = !S.blob.has(v) && !S.round[v] && S.street[v];
+    for (const c of S.occ[v]) {
+      if (c.moving) continue;
+      if (lane && c.dir !== d) continue;
+      blocker = c; break;
+    }
+    if (blocker) held.set(car.id, blocker.id);
+  }
+  const done = new Set();
+  for (const start of held.keys()) {
+    if (done.has(start)) continue;
+    const path = [], seen = new Map();
+    let x = start;
+    while (x !== undefined && !done.has(x)) {
+      if (seen.has(x)) return path.slice(seen.get(x));
+      seen.set(x, path.length); path.push(x);
+      x = held.get(x);
+    }
+    for (const y of path) done.add(y);
+  }
+  return null;
+}
+
+/* =============================================================== paint === */
+
+const cv = document.getElementById("cv");
+const ctx = cv.getContext("2d");
+const board = document.getElementById("board");
+
+/* Canvas cannot read a stylesheet, so the chrome is pulled out of the theme
+   once and painted with. Only the kinds bring colour of their own. */
+let INK = {}, HATCH = null;
+function readTheme() {
+  const cs = getComputedStyle(document.body);
+  const pick = (name, fallback) => (cs.getPropertyValue(name) || "").trim() || fallback;
+  INK = {
+    line: pick("--line", "#2a2a2a"),
+    soft: pick("--line-soft", "#1a1a1a"),
+    raised: pick("--raised", "#0f0f0f"),
+    faint: pick("--text-faint", "#616161"),
+    dim: pick("--text-dim", "#949494"),
+    text: pick("--text", "#f0f0f0"),
+    neon: pick("--neon", "#fafafa"),
+    deep: pick("--neon-deep", "#9e9e9e"),
+  };
+  /* Ground you cannot build on, hatched rather than merely a darker grey:
+     on a page this black, a darker grey is no grey at all. */
+  const tile = document.createElement("canvas");
+  tile.width = tile.height = 8;
+  const g = tile.getContext("2d");
+  g.fillStyle = INK.raised; g.fillRect(0, 0, 8, 8);
+  g.strokeStyle = INK.line; g.lineWidth = 1;
+  g.beginPath();
+  g.moveTo(-2, 6); g.lineTo(6, -2);
+  g.moveTo(2, 10); g.lineTo(10, 2);
+  g.stroke();
+  HATCH = ctx.createPattern(tile, "repeat");
+}
+
+const px = (c) => (cx(c) + 0.5) * S.unit;
+const py = (c) => (cy(c) + 0.5) * S.unit;
+function lanePt(c, d) {
+  const off = S.unit * 0.155;
+  return [px(c) - DY[d] * off, py(c) + DX[d] * off];
+}
+
+function shapePath(g, shape, x, y, r, rot = 0) {
+  g.beginPath();
+  if (shape === "circle") { g.arc(x, y, r, 0, Math.PI * 2); return; }
+  const sides = { square: 4, triangle: 3, diamond: 4, hexagon: 6 }[shape];
+  const turn = shape === "square" ? Math.PI / 4 : shape === "diamond" ? 0 : -Math.PI / 2;
+  const grow = shape === "triangle" ? 1.18 : 1;
+  for (let i = 0; i < sides; i++) {
+    const a = rot + turn + (i * 2 * Math.PI) / sides;
+    const vx = x + Math.cos(a) * r * grow, vy = y + Math.sin(a) * r * grow;
+    if (i) g.lineTo(vx, vy); else g.moveTo(vx, vy);
+  }
+  g.closePath();
+}
+
+function fit() {
+  /* Sized to fit the window as well as the column: a tall map at the width of
+     the page would push the tools and the counters off the bottom, and a game
+     you have to scroll to play is not one you can watch. */
+  const wide = Math.max(240, board.clientWidth || 720);
+  const tall = Math.max(220, Math.round((window.innerHeight || 900) * 0.62));
+  const unit = Math.max(18, Math.min(72, Math.floor(wide / S.W), Math.floor(tall / S.H)));
+  const dpr = Math.min(3, window.devicePixelRatio || 1);
+  S.unit = unit;
+  cv.width = Math.round(unit * S.W * dpr);
+  cv.height = Math.round(unit * S.H * dpr);
+  cv.style.width = `${unit * S.W}px`;
+  cv.style.height = `${unit * S.H}px`;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+let hover = -1, dirty = true;
+const repaint = () => { dirty = true; };
+
+function draw() {
+  if (!S) return;
+  const u = S.unit;
+  ctx.save();
+  ctx.clearRect(0, 0, S.W * u, S.H * u);
+
+  // graph paper, then the ground you cannot build on
+  ctx.save();
+  ctx.globalAlpha = 0.6;
+  ctx.strokeStyle = INK.soft; ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let x = 1; x < S.W; x++) { ctx.moveTo(x * u + 0.5, 0); ctx.lineTo(x * u + 0.5, S.H * u); }
+  for (let y = 1; y < S.H; y++) { ctx.moveTo(0, y * u + 0.5); ctx.lineTo(S.W * u, y * u + 0.5); }
+  ctx.stroke();
+  ctx.restore();
+  for (let c = 0; c < S.n; c++) {
+    if (!S.wall[c]) continue;
+    ctx.fillStyle = HATCH || INK.raised;
+    ctx.fillRect(cx(c) * u, cy(c) * u, u, u);
+  }
+
+  /* Road, one capsule per one-way link, each in the lane its cars will use.
+     Every casing goes down before any surface, so a two-way street comes out
+     as two lanes with a hairline of ground between them rather than one wide
+     grey band, and a road over hatched ground reads as a road. */
+  ctx.lineCap = "round"; ctx.lineJoin = "round";
+  const lanes = [];
+  for (let a = 0; a < S.n; a++) {
+    for (const b of S.out[a]) {
+      const d = dirBetween(a, b);
+      lanes.push([...lanePt(a, d), ...lanePt(b, d), d]);
+    }
+  }
+  for (const pass of [0, 1]) {
+    ctx.strokeStyle = pass ? INK.line : "#000";
+    ctx.lineWidth = u * (pass ? 0.28 : 0.36);
+    ctx.beginPath();
+    for (const [ax, ay, bx, by] of lanes) { ctx.moveTo(ax, ay); ctx.lineTo(bx, by); }
+    ctx.stroke();
+  }
+  // which way each one runs
+  ctx.strokeStyle = INK.faint; ctx.lineWidth = Math.max(1, u * 0.045);
+  ctx.beginPath();
+  for (const [ax, ay, bx, by, d] of lanes) {
+    const mx = (ax + bx) / 2, my = (ay + by) / 2, k = u * 0.08;
+    const fx = DX[d], fy = DY[d], sx = -fy, sy = fx;
+    ctx.moveTo(mx - fx * k - sx * k, my - fy * k - sy * k);
+    ctx.lineTo(mx + fx * k, my + fy * k);
+    ctx.lineTo(mx - fx * k + sx * k, my - fy * k + sy * k);
+  }
+  ctx.stroke();
+
+  // what is standing at the junctions
+  for (let c = 0; c < S.n; c++) {
+    if (S.round[c]) {
+      ctx.strokeStyle = INK.deep; ctx.lineWidth = Math.max(1.5, u * 0.05);
+      ctx.beginPath(); ctx.arc(px(c), py(c), u * 0.30, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = INK.raised;
+      ctx.beginPath(); ctx.arc(px(c), py(c), u * 0.13, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = INK.line; ctx.lineWidth = 1; ctx.stroke();
+    }
+    if (S.stop[c]) {
+      // a line painted across every way out, and the sign itself on the box
+      ctx.strokeStyle = INK.text; ctx.lineWidth = Math.max(1.5, u * 0.05);
+      ctx.beginPath();
+      for (const v of S.out[c]) {
+        const d = dirBetween(c, v);
+        const [lx, ly] = lanePt(c, d);
+        const ex = lx + DX[d] * u * 0.34, ey = ly + DY[d] * u * 0.34;
+        const sx = -DY[d], sy = DX[d];
+        ctx.moveTo(ex - sx * u * 0.13, ey - sy * u * 0.13);
+        ctx.lineTo(ex + sx * u * 0.13, ey + sy * u * 0.13);
+      }
+      ctx.stroke();
+      ctx.fillStyle = INK.text;
+      shapePath(ctx, "hexagon", px(c), py(c), u * 0.11);
+      ctx.fill();
+    }
+    const L = S.lights.get(c);
+    if (L) {
+      for (const d of L.arms) {
+        const lit = d === L.arms[L.i];
+        const ex = px(c) - DX[d] * u * 0.36, ey = py(c) - DY[d] * u * 0.36;
+        const sx = -DY[d], sy = DX[d];
+        ctx.strokeStyle = lit ? INK.neon : INK.faint;
+        ctx.lineWidth = Math.max(2, u * (lit ? 0.08 : 0.05));
+        ctx.shadowBlur = lit ? u * 0.3 : 0; ctx.shadowColor = INK.neon;
+        ctx.beginPath();
+        ctx.moveTo(ex - sx * u * 0.24, ey - sy * u * 0.24);
+        ctx.lineTo(ex + sx * u * 0.24, ey + sy * u * 0.24);
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+      }
+    }
+  }
+
+  // the blobs: filled makes cars, hollow takes them
+  for (const [c, b] of S.blob) {
+    const kind = KINDS[b.k], r = u * 0.33;
+    ctx.shadowBlur = u * 0.5; ctx.shadowColor = hue(b.k, 55);
+    if (b.kind === "src") {
+      ctx.fillStyle = hue(b.k, 58);
+      shapePath(ctx, kind.shape, px(c), py(c), r); ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = hue(b.k, 80); ctx.lineWidth = Math.max(1, u * 0.035);
+      shapePath(ctx, kind.shape, px(c), py(c), r); ctx.stroke();
+    } else {
+      ctx.fillStyle = hue(b.k, 16, 55);
+      shapePath(ctx, kind.shape, px(c), py(c), r); ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = hue(b.k, 66); ctx.lineWidth = Math.max(2, u * 0.08);
+      shapePath(ctx, kind.shape, px(c), py(c), r * 0.9); ctx.stroke();
+    }
+    ctx.shadowBlur = 0;
+    // what it is holding, one pip a car, going round as it fills
+    for (let i = 0; i < b.queue; i++) {
+      const a = -Math.PI / 2 + (i - (b.queue - 1) / 2) * 0.42;
+      const rx = px(c) + Math.cos(a) * u * 0.5, ry = py(c) + Math.sin(a) * u * 0.5;
+      ctx.fillStyle = hue(b.k, b.queue > QUEUE_CAP - 2 ? 82 : 60);
+      ctx.beginPath(); ctx.arc(rx, ry, u * 0.062, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
+  // the cars
+  for (const car of S.cars) {
+    const [bx, by] = lanePt(car.b, car.dir);
+    let x = bx, y = by;
+    if (car.moving && car.a >= 0) {
+      const [ax, ay] = lanePt(car.a, car.pdir);
+      x = ax + (bx - ax) * car.p; y = ay + (by - ay) * car.p;
+    }
+    const rot = Math.atan2(DY[car.dir], DX[car.dir]) + Math.PI / 2;
+    ctx.fillStyle = hue(car.k, 66);
+    ctx.shadowBlur = u * 0.22; ctx.shadowColor = hue(car.k, 55);
+    shapePath(ctx, KINDS[car.k].shape, x, y, u * 0.145, rot);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    if (S.jam && S.jam.has(car.id)) {
+      ctx.strokeStyle = INK.neon; ctx.lineWidth = Math.max(1.5, u * 0.05);
+      ctx.beginPath(); ctx.arc(x, y, u * 0.26, 0, Math.PI * 2); ctx.stroke();
+    }
+  }
+
+  if (hover >= 0 && !S.over) {
+    ctx.strokeStyle = INK.deep; ctx.lineWidth = 1;
+    ctx.strokeRect(cx(hover) * u + 0.5, cy(hover) * u + 0.5, u - 1, u - 1);
+  }
+  ctx.restore();
+}
+
+/* =============================================================== tools === */
+
+let tool = "draw";
+const undos = [];
+
+function snapshot() {
+  const links = [];
+  for (let a = 0; a < S.n; a++) for (const b of S.out[a]) links.push(a, b);
+  return {
+    links,
+    stop: S.stop.slice(), round: S.round.slice(),
+    lights: [...S.lights.keys()],
+  };
+}
+
+function restore(snap) {
+  S.out = Array.from({ length: S.n }, () => []);
+  S.inn = Array.from({ length: S.n }, () => []);
+  S.links = 0;
+  for (let i = 0; i < snap.links.length; i += 2) addLink(snap.links[i], snap.links[i + 1]);
+  S.stop = snap.stop.slice(); S.round = snap.round.slice();
+  S.lights = new Map(snap.lights.map((c) => [c, { arms: armsAt(c), i: 0, t: 0 }]));
+  reroute();
+}
+
+function pushUndo(before) {
+  undos.push(before);
+  if (undos.length > 60) undos.shift();
+}
+
+const used = {
+  stop: () => S.stop.reduce((a, b) => a + b, 0),
+  light: () => S.lights.size,
+  round: () => S.round.reduce((a, b) => a + b, 0),
+};
+
+function place(c, what) {
+  if (S.wall[c] || S.blob.has(c)) return say("That square is not road.");
+  if (what === "stop") {
+    if (S.stop[c]) { S.stop[c] = 0; return say("Stop sign taken away."); }
+    if (!S.out[c].length) return say("A stop sign goes on a cell with a road out of it.");
+    if (used.stop() >= S.kit.stop) return say("No stop signs left on this level.");
+    S.stop[c] = 1;
+    return say("Stop sign down. Cars here stop, then give way to any arm without one.");
+  }
+  if (what === "light") {
+    if (S.lights.has(c)) { S.lights.delete(c); return say("Lights taken away."); }
+    if (armsAt(c).length < 2) return say("Lights go on a junction — two roads arriving, at least.");
+    if (used.light() >= S.kit.light) return say("No lights left on this level.");
+    S.round[c] = 0;
+    S.lights.set(c, { arms: armsAt(c), i: 0, t: 0 });
+    return say(`Lights down, ${armsAt(c).length} arms taking turns.`);
+  }
+  if (what === "round") {
+    if (S.round[c]) { S.round[c] = 0; return say("Roundabout taken away."); }
+    if (armsAt(c).length < 2) return say("A roundabout goes on a junction — two roads arriving, at least.");
+    if (used.round() >= S.kit.round) return say("No roundabouts left on this level.");
+    S.lights.delete(c);
+    S.round[c] = 1;
+    return say("Roundabout down. Two cars fit on it and neither has to creep.");
+  }
+}
+
+/* --------------------------------------------------------------- input -- */
+
+let dragging = false, lastCell = -1, erasing = false, drew = false;
+
+function cellFrom(ev) {
+  const r = cv.getBoundingClientRect();
+  const x = Math.floor(((ev.clientX - r.left) / r.width) * S.W);
+  const y = Math.floor(((ev.clientY - r.top) / r.height) * S.H);
+  return inside(x, y) ? y * S.W + x : -1;
+}
+
+cv.addEventListener("pointerdown", (ev) => {
+  const c = cellFrom(ev);
+  if (c < 0) return;
+  ev.preventDefault();
+  cv.setPointerCapture(ev.pointerId);
+  const before = snapshot();
+  erasing = tool === "erase" || ev.button === 2;
+  if (!erasing && (tool === "stop" || tool === "light" || tool === "round")) {
+    place(c, tool);
+    reroute(); pushUndo(before); refresh(); repaint();
+    return;
+  }
+  dragging = true; drew = false; lastCell = c;
+  if (erasing) { clearCell(c); drew = true; reroute(); }
+  pendingUndo = before;
+  refresh(); repaint();
+});
+
+let pendingUndo = null;
+
+cv.addEventListener("pointermove", (ev) => {
+  const c = cellFrom(ev);
+  if (c !== hover) { hover = c; repaint(); }
+  if (!dragging || c < 0 || c === lastCell) return;
+  if (erasing) {
+    clearCell(c); drew = true; lastCell = c; reroute(); refresh(); repaint();
+    return;
+  }
+  const d = dirBetween(lastCell, c);
+  if (d < 0) { lastCell = c; return; }      // a diagonal flick: pick up again there
+  if (!hasLink(lastCell, c)) {
+    if (S.links >= S.lvl.budget) { say("Out of road. Erase something, or find a shorter way."); }
+    else if (!canLink(lastCell, c)) {
+      const bb = S.blob.get(c), ba = S.blob.get(lastCell);
+      if (bb && bb.kind === "src") say("Nothing goes into a blob that makes cars.");
+      else if (ba && ba.kind === "dst") say("Nothing comes out of a blob that takes cars.");
+      else say("No road there.");
+    } else if (addLink(lastCell, c)) { drew = true; reroute(); }
+  }
+  lastCell = c;
+  refresh(); repaint();
+});
+
+function endDrag() {
+  if (!dragging) return;
+  dragging = false;
+  if (drew && pendingUndo) pushUndo(pendingUndo);
+  pendingUndo = null;
+  refresh(); repaint();
+}
+cv.addEventListener("pointerup", endDrag);
+cv.addEventListener("pointercancel", endDrag);
+cv.addEventListener("pointerleave", () => { hover = -1; repaint(); });
+cv.addEventListener("contextmenu", (ev) => ev.preventDefault());
+
+/* ============================================================== chrome === */
+
+const el = (id) => document.getElementById(id);
+const sel = el("levelSel"), goalEl = el("goal"), doneEl = el("done"), sayEl = el("say");
+const banner = el("banner"), bHead = el("bHead"), bWhy = el("bWhy");
+const bAgain = el("bAgain"), bNext = el("bNext");
+const playBtn = el("play"), keyEl = el("key");
+
+const STORE = "gridlock.cleared";
+function cleared() {
+  try { return new Set(JSON.parse(localStorage.getItem(STORE)) || []); }
+  catch { return new Set(); }
+}
+function markCleared(id) {
+  const set = cleared(); set.add(id);
+  try { localStorage.setItem(STORE, JSON.stringify([...set])); } catch { /* private window */ }
+}
+
+function say(words) { sayEl.textContent = words || ""; }
+
+let at = 0;                         // which level we are on
+
+function fillLevelSelect() {
+  const done = cleared();
+  sel.innerHTML = "";
+  LEVELS.forEach((l, i) => {
+    const o = document.createElement("option");
+    o.value = String(i);
+    o.textContent = `${i + 1}. ${l.name}${done.has(l.id) ? "  ✓" : ""}`;
+    sel.append(o);
+  });
+  sel.value = String(at);
+}
+
+function glyph(k, filled) {
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("viewBox", "-10 -10 20 20");
+  svg.setAttribute("aria-hidden", "true");
+  const shape = KINDS[k].shape;
+  const r = filled ? 7.5 : 6.2;
+  let node;
+  if (shape === "circle") {
+    node = document.createElementNS(NS, "circle");
+    node.setAttribute("r", String(r));
+  } else {
+    const sides = { square: 4, triangle: 3, diamond: 4, hexagon: 6 }[shape];
+    const turn = shape === "square" ? Math.PI / 4 : shape === "diamond" ? 0 : -Math.PI / 2;
+    const grow = shape === "triangle" ? 1.18 : 1;
+    const pts = [];
+    for (let i = 0; i < sides; i++) {
+      const a = turn + (i * 2 * Math.PI) / sides;
+      pts.push(`${(Math.cos(a) * r * grow).toFixed(2)},${(Math.sin(a) * r * grow).toFixed(2)}`);
+    }
+    node = document.createElementNS(NS, "polygon");
+    node.setAttribute("points", pts.join(" "));
+  }
+  if (filled) node.setAttribute("fill", hue(k, 58));
+  else {
+    node.setAttribute("fill", "none");
+    node.setAttribute("stroke", hue(k, 66));
+    node.setAttribute("stroke-width", "3");
+  }
+  svg.append(node);
+  return svg;
+}
+
+/* One line a colour, both glyphs on it, because which blob does what is the
+   first thing you need off the board and the shapes say it as well as the
+   hues do. */
+function fillKey() {
+  keyEl.innerHTML = "";
+  const lead = document.createElement("li");
+  lead.textContent = "Filled makes cars, hollow takes them:";
+  keyEl.append(lead);
+  const seen = new Set();
+  for (const b of S.blob.values()) seen.add(b.k);
+  for (const k of [...seen].sort((a, b) => a - b)) {
+    const li = document.createElement("li");
+    li.append(glyph(k, true), glyph(k, false), document.createTextNode(KINDS[k].name));
+    keyEl.append(li);
+  }
+}
+
+function resetRun() {
+  S.cars = []; S.nextId = 1;
+  S.occ = Array.from({ length: S.n }, () => []);
+  for (const b of S.blob.values()) { b.acc = 0; b.queue = 0; b.wait = 0; b.lost = 0; }
+  for (const L of S.lights.values()) { L.i = 0; L.t = 0; }
+  S.t = 0; S.delivered = 0; S.moveSum = 0; S.carSum = 0; S.dlAcc = 0; S.creeps = 0;
+  S.over = null; S.jam = null; S.announced = false; S.running = false;
+  banner.hidden = true;
+  playBtn.textContent = "Play";
+  refresh(); repaint();
+}
+
+function load(which) {
+  at = typeof which === "string" ? LEVELS.findIndex((l) => l.id === which) : which;
+  if (at < 0) at = 0;
+  const lvl = LEVELS[at];
+  S = blank(lvl);
+  undos.length = 0;
+  reroute();
+  fit();
+  sel.value = String(at);
+  goalEl.textContent = `${lvl.goal} cars home · ${lvl.budget} road · ${lvl.hint}`;
+  doneEl.hidden = !cleared().has(lvl.id);
+  fillKey();
+  resetRun();
+  say("");
+}
+
+function refresh() {
+  if (!S) return;
+  const l = S.lvl;
+  const bar = (box, now, max, text) => {
+    const node = el(box);
+    node.querySelector("b").textContent = text;
+    node.querySelector(".meter i").style.width = `${Math.min(100, (now / max) * 100)}%`;
+    node.classList.toggle("over", now > max);
+  };
+  bar("stDeliv", S.delivered, l.goal, `${S.delivered} / ${l.goal}`);
+  bar("stRoad", S.links, l.budget, `${S.links} / ${l.budget}`);
+  const flow = S.carSum > 0 ? Math.round((S.moveSum / S.carSum) * 100) : null;
+  bar("stFlow", flow || 0, 100, flow === null ? "—" : `${flow}%`);
+  bar("stCars", S.cars.length, Math.max(1, S.cars.length), String(S.cars.length));
+  for (const [what, id] of [["stop", "nstop"], ["light", "nlight"], ["round", "nround"]]) {
+    const left = S.kit[what] - used[what]();
+    el(id).textContent = String(left);
+    const btn = document.querySelector(`#tools [data-tool="${what}"]`);
+    btn.disabled = S.kit[what] === 0;
+    if (btn.disabled && tool === what) setTool("draw");
+  }
+  cv.setAttribute("aria-label",
+    `${l.name}: ${S.delivered} of ${l.goal} cars home, ${S.links} of ${l.budget} road laid,`
+    + ` ${S.cars.length} on the road.`);
+}
+
+function setTool(t) {
+  tool = t;
+  for (const b of document.querySelectorAll("#tools button")) {
+    b.setAttribute("aria-pressed", String(b.dataset.tool === t));
+  }
+}
+
+document.getElementById("tools").addEventListener("click", (ev) => {
+  const b = ev.target.closest("button");
+  if (b && !b.disabled) setTool(b.dataset.tool);
+});
+
+playBtn.addEventListener("click", () => {
+  if (S.over) return;
+  S.running = !S.running;
+  playBtn.textContent = S.running ? "Pause" : "Play";
+  say(S.running ? "" : "Paused. You can keep drawing.");
+});
+
+el("restart").addEventListener("click", () => { resetRun(); say("Back to the start. The road stays."); });
+el("wipe").addEventListener("click", () => {
+  pushUndo(snapshot());
+  for (let c = 0; c < S.n; c++) clearCell(c);
+  reroute(); resetRun(); say("Road cleared.");
+});
+el("undo").addEventListener("click", () => {
+  const snap = undos.pop();
+  if (!snap) return say("Nothing to undo.");
+  restore(snap); refresh(); repaint(); say("Undone.");
+});
+
+bAgain.addEventListener("click", () => resetRun());
+bNext.addEventListener("click", () => { if (at + 1 < LEVELS.length) load(at + 1); });
+sel.addEventListener("change", () => load(Number(sel.value)));
+
+document.addEventListener("keydown", (ev) => {
+  if (ev.target.matches("input, select, textarea")) return;
+  const tools = { 1: "draw", 2: "erase", 3: "stop", 4: "light", 5: "round" };
+  if (tools[ev.key]) {
+    const btn = document.querySelector(`#tools [data-tool="${tools[ev.key]}"]`);
+    if (!btn.disabled) setTool(tools[ev.key]);
+    ev.preventDefault();
+  } else if (ev.code === "Space") { playBtn.click(); ev.preventDefault(); }
+  else if (ev.key === "r" || ev.key === "R") { resetRun(); }
+  else if (ev.key === "z" || ev.key === "Z") { el("undo").click(); }
+});
+
+function finish() {
+  S.announced = true;
+  S.running = false;
+  playBtn.textContent = "Play";
+  banner.hidden = false;
+  banner.classList.toggle("win", !!S.over.win);
+  const flow = S.carSum > 0 ? Math.round((S.moveSum / S.carSum) * 100) : 0;
+  if (S.over.win) {
+    bHead.textContent = "Level clear";
+    bWhy.textContent = `${S.lvl.goal} cars home on ${S.links} road, ${flow}% of the time moving.`;
+    bNext.hidden = at + 1 >= LEVELS.length;
+    bAgain.textContent = "Run it again";
+    markCleared(S.lvl.id);
+    doneEl.hidden = false;
+    fillLevelSelect();
+  } else {
+    bHead.textContent = S.over.head;
+    bWhy.textContent = S.over.why;
+    bNext.hidden = true;
+    bAgain.textContent = "Try again";
+  }
+  refresh();
+}
+
+/* ================================================================ loop === */
+
+let last = null, acc = 0, statAcc = 0;
+
+/* A paused board is a still picture, so it is painted once and left alone
+   rather than sixty times a second for no reason. */
+function frame(now) {
+  requestAnimationFrame(frame);
+  const dt = last === null ? 0 : Math.min(0.1, (now - last) / 1000);
+  last = now;
+  const live = S && S.running && !S.over;
+  if (live) {
+    acc += dt;
+    let guard = 12;
+    while (acc >= STEP && guard-- > 0) { acc -= STEP; step(STEP); if (S.over) break; }
+    dirty = true;
+  }
+  if (dirty) { draw(); dirty = false; }
+  if (S && S.over && !S.announced) finish();
+  statAcc += dt;
+  if (live && statAcc > 0.15) { statAcc = 0; refresh(); }
+}
+
+let sizer = null;
+window.addEventListener("resize", () => {
+  clearTimeout(sizer);
+  sizer = setTimeout(() => { fit(); repaint(); }, 80);
+});
+
+readTheme();
+fillLevelSelect();
+load(0);
+requestAnimationFrame(frame);
+
+/* What the test suite drives. The page is the same page either way: this only
+   lets a run be stepped without waiting for a real sixtieth of a second. */
+window.GL = {
+  get S() { return S; },
+  LEVELS, KINDS, STEP, MOVE, DWELL, CREEP, PULLAWAY, GREEN, QUEUE_CAP,
+  load, step, reroute, addLink, dropLink, canLink, place, resetRun, refresh, draw,
+  nextCell, armsAt, findJam, dirBetween,
+  cell: (x, y) => y * S.W + x,
+  xy: (c) => [cx(c), cy(c)],
+  fast(seconds) {
+    const n = Math.round(seconds / STEP);
+    for (let i = 0; i < n && !S.over; i++) step(STEP);
+    if (S.over && !S.announced) finish();
+    refresh(); draw();
+    return S.over;
+  },
+  start() { S.running = true; playBtn.textContent = "Pause"; },
+};
+</script>
+</body>
+</html>

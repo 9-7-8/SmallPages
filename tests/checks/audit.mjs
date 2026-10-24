@@ -1,7 +1,13 @@
 import { chromium, CHROMIUM_BIN, WORK } from "../lib/env.mjs";
 import fs from "fs"; import path from "path";
 const browser = await chromium.launch({ executablePath: CHROMIUM_BIN });
-const files = fs.readdirSync(".").filter(f => f.endsWith(".html")).sort();
+/* Every page: the ones in the root, and the games, which are a folder each. */
+const files = [
+  ...fs.readdirSync(".").filter(f => f.endsWith(".html")),
+  ...(fs.existsSync("games") ? fs.readdirSync("games", { withFileTypes: true })
+        .filter(d => d.isDirectory() && fs.existsSync(`games/${d.name}/index.html`))
+        .map(d => `games/${d.name}/index.html`) : []),
+].sort();
 for (const f of files) {
   const page = await browser.newPage();
   const errs = [];

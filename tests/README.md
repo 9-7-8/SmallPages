@@ -89,6 +89,21 @@ Suites are named for the page they exercise. The ones worth knowing about:
   reads the Markdown: every cue sorted by time rather than by the order it sat
   in the page, every comment with the likes the page displayed, and the export
   notes saying what it could not vouch for.
+- **`test-gridlock.mjs`** — the traffic game. Drawing is done with real
+  pointer drags and checked as road: one-way the way it was dragged, two-way
+  only after a drag back over it, refused into a blob that makes cars or out
+  of one that takes them, and stopped dead by the budget. The rest is the run,
+  stepped a sixtieth at a time with the board watched as it goes — a junction
+  never holding more than one car whichever way it came, a two-way street
+  holding one each way, no car ever entering a junction on somebody else's
+  green, every car at a stop sign having actually stopped first, two cars on a
+  roundabout at once. Then the levels. Each is wired by a deliberately stupid
+  router to prove it can be wired inside its budget at all, and the three that
+  exist to teach a piece are played through twice, once without it and once
+  with: a level the bare run wins teaches nothing, so the suite fails if one
+  does. The gridlock itself is caught the way a player meets it — lights on a
+  junction three busy roads meet at, which seizes — and the banner's ring is
+  checked car by car for a car still moving.
 - **`test-palette.mjs`** — the colour picker's palette builder. Every image in
   it is painted by the suite in flat bands of known colour and known width, so
   the right answer is arithmetic rather than opinion: a band that is three
