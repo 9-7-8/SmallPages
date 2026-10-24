@@ -1,5 +1,6 @@
 import { chromium, CHROMIUM_BIN, WORK } from './lib/env.mjs';
 import fs from 'node:fs';
+import { execFileSync } from 'node:child_process';
 const URL = 'http://127.0.0.1:8099/blank-page.html';
 const SCR = WORK + '';
 const browser = await chromium.launch({ executablePath: CHROMIUM_BIN });
@@ -72,17 +73,169 @@ await page.waitForTimeout(300);
 ok('switching back brings the first one up', await page.inputValue('#sheet') === 'the quick brown fox', await page.inputValue('#sheet'));
 
 // ---- downloads ----
-const grab = async (sel, name) => {
-  const dl = page.waitForEvent('download', { timeout: 15000 });
-  await page.click(sel);
+// The bar has to be down for the pointer to reach the Save button, and resting
+// on it holds it there.
+await page.mouse.move(600, 4);
+await page.waitForTimeout(300);
+
+const grab = async (kind, name) => {
+  await page.selectOption('#saveSel', kind);
+  const dl = page.waitForEvent('download', { timeout: 20000 });
+  await page.click('#saveBtn');
+  const got = await dl;
   const p = `${SCR}/${name}`;
-  await (await dl).saveAs(p);
-  return { body: fs.readFileSync(p, 'utf8'), file: (await dl).suggestedFilename() };
+  await got.saveAs(p);
+  return { path: p, file: got.suggestedFilename() };
 };
-let got = await grab('#mdBtn', 'bp.md');
-ok('saves a .md named after the document', got.file === 'My Draft.md' && got.body === 'the quick brown fox', JSON.stringify(got));
-got = await grab('#txtBtn', 'bp.txt');
-ok('saves a .txt too', got.file === 'My Draft.txt' && got.body === 'the quick brown fox', JSON.stringify(got));
+
+let got = await grab('md', 'bp.md');
+ok('saves a .md named after the document',
+   got.file === 'My Draft.md' && fs.readFileSync(got.path, 'utf8') === 'the quick brown fox', JSON.stringify(got));
+got = await grab('txt', 'bp.txt');
+ok('saves a .txt too',
+   got.file === 'My Draft.txt' && fs.readFileSync(got.path, 'utf8') === 'the quick brown fox', JSON.stringify(got));
+
+// Something with every shape in it, so the rich formats have something to lose.
+const SAMPLE = [
+  '# Title One', '',
+  'A **bold** word, an *italic* one and a [link](https://example.test).', '',
+  '## Smaller', '',
+  '- first', '- second', '',
+  '1. one', '2. two', '',
+  '> quoted line', '',
+  '```', '  code  line', '```', '',
+  '---', '',
+  'last — with a dash',
+].join('\n');
+
+await page.fill('#sheet', SAMPLE);
+await page.waitForTimeout(700);
+await page.mouse.move(600, 4);
+await page.waitForTimeout(300);
+
+const saved = {};
+for (const kind of ['html', 'rtf', 'docx', 'odt']) saved[kind] = (await grab(kind, `bp.${kind}`)).path;
+ok('the picker saves one of each', Object.values(saved).every(p => fs.statSync(p).size > 200),
+   JSON.stringify(Object.fromEntries(Object.entries(saved).map(([k, p]) => [k, fs.statSync(p).size]))));
+
+// ---- the zips are zips, and are the documents they claim to be ----
+const py = (code, ...args) => execFileSync('python3', ['-I', '-c', code, ...args], { encoding: 'utf8' }).trim();
+
+const PEEK = `
+import sys, zipfile
+from xml.etree import ElementTree as ET
+z = zipfile.ZipFile(sys.argv[1])
+bad = z.testzip()
+names = z.namelist()
+first = z.infolist()[0]
+texts = []
+for n in names:
+    if n.endswith('.xml'):
+        ET.fromstring(z.read(n))          # every part has to parse
+print(repr(bad))
+print('|'.join(names))
+print(first.filename, first.compress_type)
+print(z.read(sys.argv[2]).decode('utf-8'))
+`;
+
+// A .docx
+let out = py(PEEK, saved.docx, 'word/document.xml').split('\n');
+const docxXml = out.slice(3).join('\n');
+ok('the .docx is a sound zip of XML that parses',
+   out[0] === 'None' && out[1].split('|').includes('word/document.xml')
+   && out[1].split('|').includes('[Content_Types].xml') && out[1].split('|').includes('word/styles.xml'), out.slice(0, 2).join(' '));
+ok('its headings are headings rather than a line in bold',
+   /<w:pStyle w:val="Heading1"\/>/.test(docxXml) && /<w:pStyle w:val="Heading2"\/>/.test(docxXml), '');
+ok('bold and italic survive as runs', /<w:b\/>/.test(docxXml) && /<w:i\/>/.test(docxXml), '');
+ok('the list items are numbered by Word, not by hand',
+   /<w:numId w:val="1"\/>/.test(docxXml) && /<w:numId w:val="10\d"\/>/.test(docxXml)
+   && !/<w:t[^>]*>1\.<\/w:t>/.test(docxXml), '');
+ok('and the link is a real hyperlink with a relationship behind it',
+   /<w:hyperlink r:id="(rId\d+)">/.test(docxXml)
+   && py(PEEK, saved.docx, 'word/_rels/document.xml.rels').includes('https://example.test'), '');
+const numbering = py(PEEK, saved.docx, 'word/numbering.xml');
+ok('the numbering it points at is actually in the file',
+   /<w:num w:numId="1">/.test(numbering) && /<w:num w:numId="10\d">/.test(numbering), '');
+
+// An .odt
+out = py(PEEK, saved.odt, 'content.xml').split('\n');
+const odtXml = out.slice(3).join('\n');
+ok('the .odt is a sound zip of XML that parses',
+   out[0] === 'None' && out[1].split('|').includes('content.xml')
+   && out[1].split('|').includes('META-INF/manifest.xml'), out.slice(0, 2).join(' '));
+ok('its mimetype entry is first and stored, as the format requires',
+   out[2] === 'mimetype 0', out[2]);
+ok('headings carry their outline level',
+   /text:outline-level="1"/.test(odtXml) && /text:outline-level="2"/.test(odtXml), '');
+ok('a numbered list is one list rather than four lists of one',
+   (odtXml.match(/<text:list /g) || []).length === 2
+   && (odtXml.match(/<text:list-item>/g) || []).length === 4,
+   JSON.stringify([(odtXml.match(/<text:list /g) || []).length, (odtXml.match(/<text:list-item>/g) || []).length]));
+ok('the indent inside a code block is kept rather than collapsed',
+   /<text:s text:c="2"\/>/.test(odtXml), '');
+ok('and the link is a link', /<text:a[^>]+xlink:href="https:\/\/example.test"/.test(odtXml), '');
+
+// ---- read back by something else: pdf-builder's own readers ----
+const pb = await browser.newPage();
+await pb.goto('http://127.0.0.1:8099/pdf-builder.html');
+const reread = (kind) => pb.evaluate(async ({ bytes, kind }) => {
+  const file = new File([new Uint8Array(bytes)], `x.${kind}`);
+  if (kind === 'docx') return readDocx(file);
+  if (kind === 'odt') return readOdt(file);
+  return readRtf(await file.text());
+}, { bytes: [...fs.readFileSync(saved[kind])], kind });
+
+for (const kind of ['docx', 'odt', 'rtf']) {
+  const blocks = (await reread(kind)).filter(b => b.text);
+  // Spaces are collapsed before comparing: a reader that takes the text and
+  // nothing else does not expand an .odt's <text:s/>, and the run of spaces
+  // inside the code block is checked against the XML itself further up.
+  const text = blocks.map(b => b.text).join('\n').replace(/ {2,}/g, ' ');
+  const levelOf = (want) => (blocks.find(b => b.text === want) || {}).level;
+  ok(`another program reads the .${kind} back`,
+     ['Title One', 'Smaller', 'first', 'second', 'one', 'two', 'quoted line', 'code line']
+       .every(w => text.includes(w)) && /last .*with a dash/.test(text),
+     JSON.stringify(text).slice(0, 220));
+  // The space on either side of an emphasised word is its own run, and an
+  // .odt lost it to a <text:s/> that the reader threw away.
+  ok(`the .${kind} keeps the spaces around an emphasised word`,
+     /A bold word, an italic one and a link\./.test(text), JSON.stringify(text).slice(0, 160));
+  ok(`and the .${kind} still has its headings`,
+     kind === 'rtf' ? !/^#/m.test(text) : levelOf('Title One') === 1 && levelOf('Smaller') === 2,
+     JSON.stringify(blocks).slice(0, 220));
+  ok(`the .${kind} carries no leftover markdown punctuation`,
+     !/\*\*|\]\(|^- /m.test(text), JSON.stringify(text).slice(0, 220));
+}
+await pb.close();
+
+// ---- the .html is a page a browser reads ----
+const hp = await browser.newPage();
+await hp.goto('file://' + saved.html);
+ok('the .html opens as a document of its own',
+   await hp.textContent('h1') === 'Title One' && await hp.textContent('h2') === 'Smaller', '');
+ok('with real emphasis, a list and a link',
+   await hp.textContent('strong') === 'bold' && await hp.textContent('em') === 'italic'
+   && await hp.$$eval('li', n => n.length) === 4
+   && await hp.getAttribute('a', 'href') === 'https://example.test', '');
+ok('and it stands alone — nothing is fetched from anywhere',
+   !/<link|src=|@import/i.test(fs.readFileSync(saved.html, 'utf8')), '');
+await hp.close();
+
+// ---- the chosen format is the one ctrl-S uses, and it is remembered ----
+await page.reload();
+await page.waitForTimeout(400);
+ok('the picker comes back where it was left', await page.inputValue('#saveSel') === 'odt',
+   await page.inputValue('#saveSel'));
+await page.selectOption('#saveSel', 'rtf');
+await page.click('#sheet');
+const viaKey = page.waitForEvent('download', { timeout: 20000 });
+await page.keyboard.press('Control+s');
+ok('ctrl-S saves in the format that is chosen', (await viaKey).suggestedFilename().endsWith('.rtf'),
+   (await viaKey).suggestedFilename());
+
+// Back to where the rest of the suite expects to be.
+await page.fill('#sheet', 'the quick brown fox');
+await page.waitForTimeout(700);
 
 // ---- the bar ----
 await page.mouse.move(600, 500);   // off the bar: resting on it rightly holds it open
@@ -101,6 +254,18 @@ ok('and stays open when the pointer moves onto a button in it', await openNow(),
 await page.mouse.move(600, 500);
 await page.waitForTimeout(450);
 ok('it leaves again once the pointer does', !(await openNow()), '');
+// The bar gained a format to pick; it must still be one row on a laptop,
+// and a long document name must not be able to shove it onto two.
+await page.fill('#titleIn', 'A document with a rather long name indeed');
+await page.waitForTimeout(700);
+await page.setViewportSize({ width: 1280, height: 820 });
+await page.mouse.move(600, 4);
+await page.waitForTimeout(300);
+const rows = await page.$eval('#bar', b => b.getBoundingClientRect().height);
+ok('everything in it stays on one line at a laptop width', rows < 60, `${rows}px tall`);
+await page.setViewportSize({ width: 1200, height: 820 });
+await page.fill('#titleIn', 'My Draft');
+await page.waitForTimeout(700);
 
 // ---- preferences persist ----
 await page.mouse.move(600, 4); await page.waitForTimeout(300);

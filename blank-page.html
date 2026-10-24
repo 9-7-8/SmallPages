@@ -130,8 +130,8 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 0.35rem;
-    padding: 0.5rem 0.8rem;
+    gap: 0.3rem;
+    padding: 0.5rem 0.7rem;
     background: var(--bg);
     border-bottom: 1px solid var(--line-soft);
     transform: translateY(-110%);
@@ -144,12 +144,17 @@
   /* Tabbing into it must bring it down too, or the controls are unreachable. */
   #bar:focus-within { transform: translateY(0); opacity: 1; }
 
+  /* Tight, because the whole set has to stay on one line: a bar that wraps
+     to a second row on a laptop is twice the thing to look past. */
   #bar button, #bar select {
     font-size: 0.74rem;
-    padding: 0.3rem 0.5rem;
+    padding: 0.3rem 0.4rem;
     letter-spacing: 0.02em;
   }
   #bar select { font-family: var(--sans); }
+  /* A select is as wide as its longest option, so without this one long
+     document name shoves everything after it onto a second row. */
+  #docsSel { max-width: 9rem; }
   #titleIn {
     flex: 1 1 6rem;
     min-width: 4.5rem;
@@ -213,8 +218,15 @@
   <select id="docsSel" aria-label="Open a document"></select>
   <button type="button" id="openBtn">Open</button>
   <input type="file" id="fileIn" accept=".md,.markdown,.txt,.text" hidden>
-  <button type="button" id="mdBtn">.md</button>
-  <button type="button" id="txtBtn">.txt</button>
+  <select id="saveSel" aria-label="Save as">
+    <option value="md">.md</option>
+    <option value="txt">.txt</option>
+    <option value="html">.html</option>
+    <option value="rtf">.rtf</option>
+    <option value="docx">.docx</option>
+    <option value="odt">.odt</option>
+  </select>
+  <button type="button" id="saveBtn">Save</button>
 
   <span class="gap"></span>
 
@@ -318,7 +330,7 @@ const FONTS = {
 
 const prefs = Object.assign({
   paper: "dark", font: "sans", size: "17", width: "38",
-  focus: false, typewriter: false, tally: true,
+  focus: false, typewriter: false, tally: true, save: "md",
 }, load(PREFS, {}));
 
 function applyPrefs() {
@@ -333,6 +345,7 @@ function applyPrefs() {
   el("fontSel").value = prefs.font;
   el("sizeSel").value = String(prefs.size);
   el("widthSel").value = String(prefs.width);
+  el("saveSel").value = SAVE_AS[prefs.save] ? prefs.save : "md";
   el("focusBtn").setAttribute("aria-pressed", String(!!prefs.focus));
   el("typerBtn").setAttribute("aria-pressed", String(!!prefs.typewriter));
   el("tallyBtn").setAttribute("aria-pressed", String(!!prefs.tally));
@@ -558,20 +571,683 @@ function typewriter() {
 
 /* -------------------------------------------------------------- the files -- */
 
-function download(extension, type) {
+/* Six ways out. `.md` and `.txt` are the writing exactly as it was typed —
+   Markdown is plain text, so the only difference between them is the name a
+   program will open the file with. The other four are the preview rather than
+   the source: the same `toHtml` the preview uses is parsed back into a tree
+   and walked once, so a heading, a list or a bold word reaches Word, LibreOffice
+   or a browser as a heading, a list or a bold word rather than as asterisks.
+
+   One document model, four writers. Nothing is fetched and nothing is uploaded:
+   a `.docx` and an `.odt` are zips of XML, and the zip is written here. */
+
+const SAVE_AS = {
+  md:   { name: "Markdown", type: "text/markdown;charset=utf-8" },
+  txt:  { name: "plain text", type: "text/plain;charset=utf-8" },
+  html: { name: "a web page", type: "text/html;charset=utf-8" },
+  rtf:  { name: "rich text", type: "application/rtf" },
+  docx: { name: "a Word document", type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" },
+  odt:  { name: "an OpenDocument", type: "application/vnd.oasis.opendocument.text" },
+};
+
+/* ------------------------------------------------------- what is written -- */
+
+const xmlEsc = (text) => String(text)
+  .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
+  // Control characters are not legal in XML at all, and a stray one makes the
+  // whole file unopenable rather than slightly wrong.
+  .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, "");
+
+const MARKS = { strong: "b", b: "b", em: "i", i: "i", u: "u", del: "s", s: "s", code: "code" };
+
+// The preview's own HTML, parsed in a document of its own so that nothing is
+// loaded and nothing is run: this is the same tree the reader will see.
+function renderedTree() {
+  const doc = document.implementation.createHTMLDocument("");
+  doc.body.innerHTML = toHtml(sheet.value);
+  return doc.body;
+}
+
+// A flat list of pieces of text, each carrying the marks it sits under, which
+// is the shape every one of the four writers wants.
+function runsOf(node, carried = {}) {
+  const out = [];
+  for (const child of node.childNodes) {
+    if (child.nodeType === Node.TEXT_NODE) {
+      if (child.data) out.push({ ...carried, text: child.data });
+      continue;
+    }
+    if (child.nodeType !== Node.ELEMENT_NODE) continue;
+    const tag = child.localName;
+    if (tag === "br") { out.push({ ...carried, br: true, text: "" }); continue; }
+    // A picture cannot come along: its source is a URL this page has not
+    // fetched and may not be allowed to. The alt text and the link go instead,
+    // which is at least a true account of what was there.
+    if (tag === "img") {
+      const alt = (child.getAttribute("alt") || "").trim();
+      out.push({ ...carried, href: child.getAttribute("src") || carried.href, text: `[${alt || "image"}]` });
+      continue;
+    }
+    const marks = { ...carried };
+    if (MARKS[tag]) marks[MARKS[tag]] = true;
+    if (tag === "a") marks.href = child.getAttribute("href") || "";
+    out.push(...runsOf(child, marks));
+  }
+  return out;
+}
+
+// Each list gets a number of its own so that a second numbered list starts at
+// one again instead of carrying on from where the first stopped.
+function blocksOf(root, lists = { n: 0 }, depth = 0) {
+  const out = [];
+  for (const node of root.children) {
+    const tag = node.localName;
+    const heading = /^h([1-6])$/.exec(tag);
+    if (heading) { out.push({ kind: "heading", level: Number(heading[1]), runs: runsOf(node), depth }); continue; }
+    if (tag === "hr") { out.push({ kind: "rule", runs: [], depth }); continue; }
+    if (tag === "pre") { out.push({ kind: "code", text: node.textContent.replace(/\n+$/, ""), runs: [], depth }); continue; }
+    if (tag === "blockquote") {
+      for (const inner of blocksOf(node, lists, depth + 1)) out.push({ ...inner, quote: true });
+      continue;
+    }
+    if (tag === "ul" || tag === "ol") {
+      const list = ++lists.n;
+      let index = 0;
+      for (const item of node.children) {
+        if (item.localName !== "li") continue;
+        out.push({ kind: "item", ordered: tag === "ol", list, index: ++index, runs: runsOf(item), depth });
+      }
+      continue;
+    }
+    out.push({ kind: "para", runs: runsOf(node), depth });
+  }
+  return out;
+}
+
+/* --------------------------------------------------------------- a page -- */
+
+// Styled, because a browser's default serif at full window width is not a
+// document; self-contained, because a saved page that wants a stylesheet off
+// this site is a page that stops working the moment it is moved.
+function asHtml(title) {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${escapeHtml(title)}</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    margin: 0 auto; padding: 4rem 1.5rem 6rem; max-width: 38rem;
+    font: 17px/1.75 Georgia, 'Iowan Old Style', Palatino, serif;
+    background: #fdfcfa; color: #26241f;
+  }
+  h1, h2, h3, h4, h5, h6 { line-height: 1.25; margin: 1.8em 0 0.6em; font-weight: 600; }
+  h1 { font-size: 1.7em; } h2 { font-size: 1.38em; } h3 { font-size: 1.15em; }
+  h4, h5, h6 { font-size: 1em; }
+  p, ul, ol, blockquote, pre { margin: 0 0 1.1em; }
+  ul, ol { padding-left: 1.4em; } li { margin: 0.2em 0; }
+  blockquote { margin-left: 0; padding-left: 1em; border-left: 2px solid #c9c4b8; color: #57524a; }
+  code { font: 0.88em/1.6 ui-monospace, 'SF Mono', Consolas, monospace; background: #efece6; padding: 0.1em 0.35em; }
+  pre { background: #efece6; padding: 0.9em 1em; overflow-x: auto; }
+  pre code { background: none; padding: 0; }
+  hr { border: 0; border-top: 1px solid #c9c4b8; margin: 2em 0; }
+  img { max-width: 100%; height: auto; }
+  @media print { body { background: #fff; padding: 0; max-width: none; } }
+  @media (prefers-color-scheme: dark) {
+    body { background: #16151a; color: #ddd8d0; }
+    blockquote { border-color: #3c3a42; color: #9c968c; }
+    code, pre { background: #22212a; }
+    hr { border-color: #3c3a42; }
+  }
+</style>
+</head>
+<body>
+${toHtml(sheet.value)}
+</body>
+</html>
+`;
+}
+
+/* ----------------------------------------------------------- rich text -- */
+
+/* RTF is ASCII with a brace language over it, which is why it opens anywhere:
+   anything outside ASCII goes out as `\uN?` escapes, one per UTF-16 unit, so
+   an em dash or an emoji survives a reader that has never heard of Unicode. */
+
+function rtfText(text) {
+  let out = "";
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    const code = text.charCodeAt(i);
+    if (ch === "\\" || ch === "{" || ch === "}") out += "\\" + ch;
+    else if (ch === "\n") out += "\\line ";
+    else if (ch === "\t") out += "\\tab ";
+    else if (code >= 32 && code < 127) out += ch;
+    else if (code < 32) continue;
+    else out += `\\u${code > 32767 ? code - 65536 : code}?`;
+  }
+  return out;
+}
+
+function rtfRuns(runs) {
+  let out = "";
+  for (const run of runs) {
+    if (run.br) { out += "\\line "; continue; }
+    let on = "", off = "";
+    if (run.b) { on += "\\b"; off = "\\b0" + off; }
+    if (run.i) { on += "\\i"; off = "\\i0" + off; }
+    if (run.u) { on += "\\ul"; off = "\\ulnone" + off; }
+    if (run.s) { on += "\\strike"; off = "\\strike0" + off; }
+    if (run.code) { on += "\\f1"; off = "\\f0" + off; }
+    if (run.href) { on += "\\cf1\\ul"; off = "\\ulnone\\cf0" + off; }
+    // The space after a control word is what ends it and is swallowed, so it
+    // goes in only where there is a control word in front of it: added to a
+    // bare run it is a space in the text that nobody typed.
+    const body = (on ? `${on} ` : "") + rtfText(run.text) + (off ? `${off} ` : "");
+    /* A field, so the link is clickable in a reader that understands one and
+       is plain underlined text in a reader that does not. The instruction is
+       left flat rather than wrapped in a group of its own: both are legal,
+       and the flat one is what a reader that skips `{\*...}` groups whole
+       can skip, instead of spilling the URL into the text. */
+    out += run.href
+      ? `{\\field{\\*\\fldinst HYPERLINK "${rtfText(run.href)}"}{\\fldrslt{${body}}}}`
+      : body;
+  }
+  return out;
+}
+
+const RTF_HEAD = [0, 34, 28, 24, 22, 21, 20];   // half-points, h1 down to h6
+
+function asRtf() {
+  const lines = [];
+  for (const block of blocksOf(renderedTree())) {
+    const indent = (block.quote ? 567 : 0) + (block.kind === "item" ? 360 : 0);
+    const left = indent ? `\\li${indent}` : "";
+    const edge = block.quote ? "\\brdrl\\brdrs\\brdrw10\\brsp80" : "";
+
+    if (block.kind === "rule") {
+      lines.push(`{\\pard${left}\\brdrb\\brdrs\\brdrw10\\brsp20\\sa180\\par}`);
+    } else if (block.kind === "code") {
+      const rows = block.text.split("\n");
+      rows.forEach((row, i) => {
+        lines.push(`\\pard${edge}\\li${indent + 360}\\sa${i === rows.length - 1 ? 180 : 0}`
+          + `\\f1\\fs20 ${rtfText(row)}\\f0\\fs22\\par`);
+      });
+    } else if (block.kind === "heading") {
+      lines.push(`\\pard${edge}${left}\\sb240\\sa120\\keepn\\outlinelevel${block.level - 1}`
+        + `\\b\\fs${RTF_HEAD[block.level]} `
+        + `${rtfRuns(block.runs)}\\b0\\fs22\\par`);
+    } else if (block.kind === "item") {
+      const marker = block.ordered ? `${block.index}.` : "\\bullet";
+      lines.push(`\\pard${edge}\\li${indent + 360}\\fi-360\\sa60 ${marker}\\tab ${rtfRuns(block.runs)}\\par`);
+    } else {
+      lines.push(`\\pard${edge}${left}\\sa180 ${rtfRuns(block.runs)}\\par`);
+    }
+  }
+  if (!lines.length) lines.push("\\pard\\sa180\\par");
+
+  return "{\\rtf1\\ansi\\ansicpg1252\\deff0\\uc1\n"
+    + "{\\fonttbl{\\f0\\fswiss\\fcharset0 Calibri;}{\\f1\\fmodern\\fcharset0 Consolas;}}\n"
+    + "{\\colortbl;\\red17\\green85\\blue204;}\n"
+    + "\\fs22\\f0\n" + lines.join("\n") + "\n}";
+}
+
+/* ----------------------------------------------------------------- zips -- */
+
+/* A .docx and an .odt are both a zip of XML, and pdf-builder.html already
+   reads one with DecompressionStream; this is the same trade going the other
+   way. Entries are deflated where the browser will do it and stored where it
+   will not, which costs nothing but size — except for an .odt's `mimetype`,
+   which the format requires be stored, uncompressed, and first. */
+
+const CRC_TABLE = (() => {
+  const table = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    table[n] = c >>> 0;
+  }
+  return table;
+})();
+
+function crc32(bytes) {
+  let c = 0xffffffff;
+  for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xff] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+}
+
+// The time in the shape MS-DOS used in 1980, which is what a zip still carries.
+function dosStamp(when) {
+  const year = Math.max(1980, when.getFullYear());
+  return {
+    time: (when.getHours() << 11) | (when.getMinutes() << 5) | (when.getSeconds() >> 1),
+    date: ((year - 1980) << 9) | ((when.getMonth() + 1) << 5) | when.getDate(),
+  };
+}
+
+async function deflateRaw(bytes) {
+  if (typeof CompressionStream !== "function") return null;
+  try {
+    const packed = new Response(new Blob([bytes]).stream()
+      .pipeThrough(new CompressionStream("deflate-raw")));
+    const out = new Uint8Array(await packed.arrayBuffer());
+    return out.length < bytes.length ? out : null;
+  } catch { return null; }
+}
+
+async function zipUp(entries, type) {
+  const when = dosStamp(new Date());
+  const encoder = new TextEncoder();
+  const parts = [];
+  const directory = [];
+  let offset = 0;
+
+  for (const entry of entries) {
+    const name = encoder.encode(entry.name);
+    const body = typeof entry.body === "string" ? encoder.encode(entry.body) : entry.body;
+    const packed = entry.store ? null : await deflateRaw(body);
+    const bytes = packed || body;
+    const crc = crc32(body);
+
+    const local = new DataView(new ArrayBuffer(30));
+    local.setUint32(0, 0x04034b50, true);
+    local.setUint16(4, 20, true);
+    local.setUint16(6, 0x0800, true);              // the name is UTF-8
+    local.setUint16(8, packed ? 8 : 0, true);      // deflated, or stored
+    local.setUint16(10, when.time, true);
+    local.setUint16(12, when.date, true);
+    local.setUint32(14, crc, true);
+    local.setUint32(18, bytes.length, true);
+    local.setUint32(22, body.length, true);
+    local.setUint16(26, name.length, true);
+    local.setUint16(28, 0, true);
+
+    parts.push(new Uint8Array(local.buffer), name, bytes);
+    directory.push({ name, crc, packed: !!packed, size: bytes.length, full: body.length, offset });
+    offset += 30 + name.length + bytes.length;
+  }
+
+  const central = [];
+  let centralSize = 0;
+  for (const item of directory) {
+    const head = new DataView(new ArrayBuffer(46));
+    head.setUint32(0, 0x02014b50, true);
+    head.setUint16(4, 20, true);
+    head.setUint16(6, 20, true);
+    head.setUint16(8, 0x0800, true);
+    head.setUint16(10, item.packed ? 8 : 0, true);
+    head.setUint16(12, when.time, true);
+    head.setUint16(14, when.date, true);
+    head.setUint32(16, item.crc, true);
+    head.setUint32(20, item.size, true);
+    head.setUint32(24, item.full, true);
+    head.setUint16(28, item.name.length, true);
+    head.setUint32(42, item.offset, true);
+    central.push(new Uint8Array(head.buffer), item.name);
+    centralSize += 46 + item.name.length;
+  }
+
+  const end = new DataView(new ArrayBuffer(22));
+  end.setUint32(0, 0x06054b50, true);
+  end.setUint16(8, directory.length, true);
+  end.setUint16(10, directory.length, true);
+  end.setUint32(12, centralSize, true);
+  end.setUint32(16, offset, true);
+
+  return new Blob([...parts, ...central, new Uint8Array(end.buffer)], { type });
+}
+
+/* ------------------------------------------------------ a Word document -- */
+
+const W_NS = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" '
+  + 'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"';
+
+function docxRuns(runs, links) {
+  let out = "";
+  for (const run of runs) {
+    if (run.br) { out += "<w:r><w:br/></w:r>"; continue; }
+    const props = [];
+    if (run.b) props.push("<w:b/>");
+    if (run.i) props.push("<w:i/>");
+    if (run.u || run.href) props.push('<w:u w:val="single"/>');
+    if (run.s) props.push("<w:strike/>");
+    if (run.code) props.push('<w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:cs="Consolas"/>');
+    if (run.href) props.push('<w:color w:val="1155CC"/>');
+    const rPr = props.length ? `<w:rPr>${props.join("")}</w:rPr>` : "";
+    const body = run.text.split("\n")
+      .map((piece) => `<w:t xml:space="preserve">${xmlEsc(piece)}</w:t>`)
+      .join("<w:br/>");
+    const r = `<w:r>${rPr}${body}</w:r>`;
+    out += run.href ? `<w:hyperlink r:id="${links.id(run.href)}">${r}</w:hyperlink>` : r;
+  }
+  return out;
+}
+
+async function asDocx(title) {
+  // Relationship ids are handed out as the links are met, and the same target
+  // twice gets the same id rather than two.
+  const seen = new Map();
+  const links = {
+    id(href) {
+      if (!seen.has(href)) seen.set(href, `rId${seen.size + 10}`);
+      return seen.get(href);
+    },
+  };
+
+  const numbered = new Set();
+  const body = [];
+  for (const block of blocksOf(renderedTree())) {
+    const ind = block.quote ? '<w:ind w:left="567"/>' : "";
+    const edge = block.quote
+      ? '<w:pBdr><w:left w:val="single" w:sz="12" w:space="8" w:color="C9C4B8"/></w:pBdr>' : "";
+
+    if (block.kind === "rule") {
+      body.push('<w:p><w:pPr><w:pBdr><w:bottom w:val="single" w:sz="6" w:space="1" w:color="auto"/>'
+        + "</w:pBdr></w:pPr></w:p>");
+    } else if (block.kind === "code") {
+      const rows = block.text.split("\n");
+      for (const row of rows) {
+        body.push('<w:p><w:pPr><w:pStyle w:val="SourceCode"/>' + edge + ind + "</w:pPr>"
+          + `<w:r><w:t xml:space="preserve">${xmlEsc(row)}</w:t></w:r></w:p>`);
+      }
+    } else if (block.kind === "heading") {
+      body.push(`<w:p><w:pPr><w:pStyle w:val="Heading${block.level}"/>${edge}${ind}</w:pPr>`
+        + `${docxRuns(block.runs, links)}</w:p>`);
+    } else if (block.kind === "item") {
+      if (block.ordered) numbered.add(block.list);
+      const numId = block.ordered ? 100 + block.list : 1;
+      body.push('<w:p><w:pPr><w:pStyle w:val="ListParagraph"/>'
+        + `<w:numPr><w:ilvl w:val="0"/><w:numId w:val="${numId}"/></w:numPr>${edge}</w:pPr>`
+        + `${docxRuns(block.runs, links)}</w:p>`);
+    } else {
+      body.push(`<w:p>${edge || ind ? `<w:pPr>${edge}${ind}</w:pPr>` : ""}`
+        + `${docxRuns(block.runs, links)}</w:p>`);
+    }
+  }
+  if (!body.length) body.push("<w:p/>");
+
+  const lvl = (format, text, extra = "") =>
+    `<w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="${format}"/>`
+    + `<w:lvlText w:val="${text}"/><w:lvlJc w:val="left"/>`
+    + '<w:pPr><w:ind w:left="720" w:hanging="360"/></w:pPr>' + extra + "</w:lvl>";
+
+  const numbering = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:numbering ${W_NS}>
+<w:abstractNum w:abstractNumId="0"><w:multiLevelType w:val="hybridMultilevel"/>${lvl("bullet", "•")}</w:abstractNum>
+${[...numbered].map((list) =>
+  `<w:abstractNum w:abstractNumId="${list}"><w:multiLevelType w:val="hybridMultilevel"/>${lvl("decimal", "%1.")}</w:abstractNum>`).join("")}
+<w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num>
+${[...numbered].map((list) => `<w:num w:numId="${100 + list}"><w:abstractNumId w:val="${list}"/></w:num>`).join("")}
+</w:numbering>`;
+
+  const heading = (level, size, before) =>
+    `<w:style w:type="paragraph" w:styleId="Heading${level}">`
+    + `<w:name w:val="heading ${level}"/><w:basedOn w:val="Normal"/><w:qFormat/>`
+    + `<w:pPr><w:keepNext/><w:spacing w:before="${before}" w:after="120"/><w:outlineLvl w:val="${level - 1}"/></w:pPr>`
+    + `<w:rPr><w:b/><w:sz w:val="${size}"/></w:rPr></w:style>`;
+
+  const styles = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:styles ${W_NS}>
+<w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:cs="Calibri"/><w:sz w:val="22"/></w:rPr></w:rPrDefault>
+<w:pPrDefault><w:pPr><w:spacing w:after="180" w:line="276" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults>
+<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/></w:style>
+${[1, 2, 3, 4, 5, 6].map((level) => heading(level, RTF_HEAD[level], level === 1 ? 0 : 240)).join("")}
+<w:style w:type="paragraph" w:styleId="ListParagraph"><w:name w:val="List Paragraph"/><w:basedOn w:val="Normal"/><w:qFormat/>
+<w:pPr><w:spacing w:after="60"/><w:contextualSpacing/></w:pPr></w:style>
+<w:style w:type="paragraph" w:styleId="SourceCode"><w:name w:val="Source Code"/><w:basedOn w:val="Normal"/>
+<w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/><w:ind w:left="360"/></w:pPr>
+<w:rPr><w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:cs="Consolas"/><w:sz w:val="20"/></w:rPr></w:style>
+</w:styles>`;
+
+  const rels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>
+${[...seen].map(([href, id]) =>
+  `<Relationship Id="${id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink"`
+  + ` Target="${xmlEsc(href)}" TargetMode="External"/>`).join("\n")}
+</Relationships>`;
+
+  return zipUp([
+    { name: "[Content_Types].xml", body: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+<Default Extension="xml" ContentType="application/xml"/>
+<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+<Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>
+<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
+</Types>` },
+    { name: "_rels/.rels", body: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>
+</Relationships>` },
+    { name: "docProps/core.xml", body: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties"
+ xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/"
+ xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<dc:title>${xmlEsc(title)}</dc:title>
+<dcterms:created xsi:type="dcterms:W3CDTF">${new Date().toISOString().replace(/\.\d+/, "")}</dcterms:created>
+</cp:coreProperties>` },
+    { name: "word/_rels/document.xml.rels", body: rels },
+    { name: "word/styles.xml", body: styles },
+    { name: "word/numbering.xml", body: numbering },
+    { name: "word/document.xml", body: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document ${W_NS}><w:body>
+${body.join("\n")}
+<w:sectPr><w:pgSz w:w="12240" w:h="15840"/>
+<w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="720" w:footer="720" w:gutter="0"/>
+</w:sectPr></w:body></w:document>` },
+  ], SAVE_AS.docx.type);
+}
+
+/* -------------------------------------------------------- an OpenDocument -- */
+
+const O_NS = [
+  'xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"',
+  'xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"',
+  'xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"',
+  'xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0"',
+  'xmlns:xlink="http://www.w3.org/1999/xlink"',
+].join(" ");
+
+/* OpenDocument throws away all but the first of a run of spaces, and the
+   first one too at the start of a line, unless it is told not to with a
+   <text:s/> — which is what keeps indented code indented. Only the start of
+   a line counts as the start: the space after a bold word is in the middle
+   of the paragraph however many spans it is split across, and writing that
+   one as an element loses it in any reader that takes the text content and
+   leaves it at that. */
+function odfText(text, lineStart) {
+  return text.split("\n").map((line, i) => {
+    const begins = lineStart || i > 0;
+    return line.split("\t").map((piece, j) => xmlEsc(piece).replace(/ +/g, (run, at) => {
+      if (at === 0 && begins && j === 0) {
+        return run.length === 1 ? "<text:s/>" : `<text:s text:c="${run.length}"/>`;
+      }
+      return run.length === 1 ? " " : ` <text:s text:c="${run.length - 1}"/>`;
+    })).join("<text:tab/>");
+  }).join("<text:line-break/>");
+}
+
+function odfRuns(runs, spans) {
+  let out = "";
+  let lineStart = true;
+  for (const run of runs) {
+    if (run.br) { out += "<text:line-break/>"; lineStart = true; continue; }
+    const style = spans.id(run);
+    const text = odfText(run.text, lineStart);
+    if (run.text) lineStart = /\n\s*$/.test(run.text);
+    const body = style ? `<text:span text:style-name="${style}">${text}</text:span>` : text;
+    out += run.href
+      ? `<text:a xlink:type="simple" xlink:href="${xmlEsc(run.href)}">${body}</text:a>`
+      : body;
+  }
+  return out;
+}
+
+async function asOdt(title) {
+  // One automatic style per combination of marks actually used, named as it is
+  // first met, rather than a span nested inside a span inside a span.
+  const made = new Map();
+  const spans = {
+    id(run) {
+      const key = ["b", "i", "u", "s", "code"].filter((mark) => run[mark]).join("");
+      if (!key) return "";
+      if (!made.has(key)) {
+        const props = [];
+        if (run.b) props.push('fo:font-weight="bold" style:font-weight-asian="bold"');
+        if (run.i) props.push('fo:font-style="italic" style:font-style-asian="italic"');
+        if (run.u) props.push('style:text-underline-style="solid" style:text-underline-width="auto"'
+          + ' style:text-underline-color="font-color"');
+        if (run.s) props.push('style:text-line-through-style="solid" style:text-line-through-type="single"');
+        if (run.code) props.push('style:font-name="Consolas" fo:font-family="Consolas, monospace" fo:font-size="10pt"');
+        made.set(key, { name: `T${made.size + 1}`, props: props.join(" ") });
+      }
+      return made.get(key).name;
+    },
+  };
+
+  const lists = new Map();
+  const body = [];
+  for (const block of blocksOf(renderedTree())) {
+    const style = block.quote ? "Quotation" : "Standard";
+    if (block.kind === "rule") {
+      body.push('<text:p text:style-name="Rule"/>');
+    } else if (block.kind === "code") {
+      for (const row of block.text.split("\n")) {
+        body.push(`<text:p text:style-name="Preformatted_20_Text">${odfText(row, true)}</text:p>`);
+      }
+    } else if (block.kind === "heading") {
+      body.push(`<text:h text:style-name="Heading_20_${block.level}" text:outline-level="${block.level}">`
+        + `${odfRuns(block.runs, spans)}</text:h>`);
+    } else if (block.kind === "item") {
+      // Items of one list have to sit inside one <text:list>, or every item is
+      // a list of one and a numbered list reads 1. 1. 1.
+      let open = lists.get(block.list);
+      if (!open) {
+        open = { ordered: block.ordered, items: [], at: body.length };
+        lists.set(block.list, open);
+        body.push(open);
+      }
+      open.items.push(`<text:list-item><text:p text:style-name="List_20_Paragraph">`
+        + `${odfRuns(block.runs, spans)}</text:p></text:list-item>`);
+    } else {
+      body.push(`<text:p text:style-name="${style}">${odfRuns(block.runs, spans)}</text:p>`);
+    }
+  }
+
+  const flat = body.map((part) => typeof part === "string" ? part
+    : `<text:list text:style-name="${part.ordered ? "LNumber" : "LBullet"}">${part.items.join("")}</text:list>`);
+  if (!flat.length) flat.push('<text:p text:style-name="Standard"/>');
+
+  const listStyle = (name, ordered) =>
+    `<text:list-style style:name="${name}">`
+    + [1, 2, 3].map((level) => ordered
+      ? `<text:list-level-style-number text:level="${level}" style:num-suffix="." style:num-format="1">`
+        + `<style:list-level-properties text:space-before="${level * 0.6}cm" text:min-label-width="0.6cm"/>`
+        + "</text:list-level-style-number>"
+      : `<text:list-level-style-bullet text:level="${level}" text:bullet-char="•">`
+        + `<style:list-level-properties text:space-before="${level * 0.6}cm" text:min-label-width="0.6cm"/>`
+        + "</text:list-level-style-bullet>").join("")
+    + "</text:list-style>";
+
+  const content = `<?xml version="1.0" encoding="UTF-8"?>
+<office:document-content ${O_NS} office:version="1.2">
+<office:automatic-styles>
+${[...made.values()].map((span) =>
+  `<style:style style:name="${span.name}" style:family="text"><style:text-properties ${span.props}/></style:style>`).join("\n")}
+${listStyle("LBullet", false)}
+${listStyle("LNumber", true)}
+</office:automatic-styles>
+<office:body><office:text>
+${flat.join("\n")}
+</office:text></office:body>
+</office:document-content>`;
+
+  const heading = (level, size) =>
+    `<style:style style:name="Heading_20_${level}" style:display-name="Heading ${level}"`
+    + ' style:family="paragraph" style:parent-style-name="Standard">'
+    + `<style:paragraph-properties fo:margin-top="${level === 1 ? "0cm" : "0.42cm"}" fo:margin-bottom="0.21cm" fo:keep-with-next="always"/>`
+    + `<style:text-properties fo:font-size="${size}pt" fo:font-weight="bold"/></style:style>`;
+
+  const styles = `<?xml version="1.0" encoding="UTF-8"?>
+<office:document-styles ${O_NS} office:version="1.2">
+<office:styles>
+<style:style style:name="Standard" style:family="paragraph" style:class="text">
+<style:paragraph-properties fo:margin-bottom="0.32cm" fo:line-height="140%"/>
+<style:text-properties style:font-name="Calibri" fo:font-family="Calibri" fo:font-size="11pt"/></style:style>
+${[[1, 17], [2, 14], [3, 12], [4, 11], [5, 11], [6, 11]].map(([level, size]) => heading(level, size)).join("\n")}
+<style:style style:name="List_20_Paragraph" style:display-name="List Paragraph" style:family="paragraph" style:parent-style-name="Standard">
+<style:paragraph-properties fo:margin-bottom="0.11cm"/></style:style>
+<style:style style:name="Quotation" style:family="paragraph" style:parent-style-name="Standard">
+<style:paragraph-properties fo:margin-left="1cm" fo:padding-left="0.3cm" fo:border-left="0.06cm solid #c9c4b8"/>
+<style:text-properties fo:font-style="italic"/></style:style>
+<style:style style:name="Preformatted_20_Text" style:display-name="Preformatted Text" style:family="paragraph" style:parent-style-name="Standard">
+<style:paragraph-properties fo:margin-left="0.6cm" fo:margin-bottom="0cm" fo:line-height="100%"/>
+<style:text-properties style:font-name="Consolas" fo:font-family="Consolas, monospace" fo:font-size="10pt"/></style:style>
+<style:style style:name="Rule" style:family="paragraph" style:parent-style-name="Standard">
+<style:paragraph-properties fo:border-bottom="0.02cm solid #c9c4b8" fo:margin-top="0.5cm" fo:margin-bottom="0.5cm"/></style:style>
+</office:styles>
+</office:document-styles>`;
+
+  return zipUp([
+    // First, stored, uncompressed: the format says so, and an unzipper that
+    // sniffs the type reads it straight out of the front of the file.
+    { name: "mimetype", body: SAVE_AS.odt.type, store: true },
+    { name: "META-INF/manifest.xml", body: `<?xml version="1.0" encoding="UTF-8"?>
+<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.2">
+<manifest:file-entry manifest:full-path="/" manifest:version="1.2" manifest:media-type="${SAVE_AS.odt.type}"/>
+<manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>
+<manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"/>
+<manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>
+</manifest:manifest>` },
+    { name: "meta.xml", body: `<?xml version="1.0" encoding="UTF-8"?>
+<office:document-meta ${O_NS} xmlns:dc="http://purl.org/dc/elements/1.1/" office:version="1.2">
+<office:meta><dc:title>${xmlEsc(title)}</dc:title>
+<dc:date>${new Date().toISOString().replace(/\.\d+/, "")}</dc:date></office:meta>
+</office:document-meta>` },
+    { name: "styles.xml", body: styles },
+    { name: "content.xml", body: content },
+  ], SAVE_AS.odt.type);
+}
+
+/* -------------------------------------------------------- handing it over -- */
+
+async function bodyFor(kind, title) {
+  if (kind === "docx") return asDocx(title);
+  if (kind === "odt") return asOdt(title);
+  const text = kind === "html" ? asHtml(title) : kind === "rtf" ? asRtf() : sheet.value;
+  return new Blob([text], { type: SAVE_AS[kind].type });
+}
+
+async function download(kind) {
+  const format = SAVE_AS[kind] ? kind : "md";
   const name = (nameOf(current()) || "page").replace(/[^\w .-]+/g, " ").trim().slice(0, 60) || "page";
-  const blob = new Blob([sheet.value], { type });
+  let blob;
+  try {
+    blob = await bodyFor(format, nameOf(current()));
+  } catch (err) {
+    flash(`That would not save as .${format} — ${err.message}`);
+    return;
+  }
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `${name}.${extension}`;
+  link.download = `${name}.${format}`;
   link.click();
   setTimeout(() => URL.revokeObjectURL(url), 10000);
   flash(`Saved ${link.download}`);
 }
 
-el("mdBtn").addEventListener("click", () => download("md", "text/markdown"));
-el("txtBtn").addEventListener("click", () => download("txt", "text/plain"));
+el("saveBtn").addEventListener("click", () => download(prefs.save));
+el("saveSel").addEventListener("change", () => {
+  prefs.save = el("saveSel").value;
+  applyPrefs();
+});
 
 el("openBtn").addEventListener("click", () => el("fileIn").click());
 el("fileIn").addEventListener("change", async (e) => {
@@ -655,7 +1331,7 @@ el("fullBtn").addEventListener("click", async () => {
 
 document.addEventListener("keydown", (e) => {
   const meta = e.metaKey || e.ctrlKey;
-  if (meta && e.key.toLowerCase() === "s") { e.preventDefault(); download("md", "text/markdown"); }
+  if (meta && e.key.toLowerCase() === "s") { e.preventDefault(); download(prefs.save); }
   else if (meta && e.key.toLowerCase() === "p") { e.preventDefault(); togglePreview(); }
   else if (e.key === "Escape") {
     if (!preview.hidden) togglePreview(false);
