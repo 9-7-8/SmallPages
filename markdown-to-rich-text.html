@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<!-- Markdown → Rich Text, from SmallPages <https://github.com/9-7-8/SmallPages>
+     Copyright (C) 2026 Ixora. SPDX-License-Identifier: GPL-3.0-or-later
+     Free software with no warranty, under the GNU General Public License,
+     version 3 or later: see LICENSE in the repository, or
+     <https://www.gnu.org/licenses/>. -->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Markdown &rarr; Rich Text</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  /* Layout and sizing only. Colour, type and component styling live in theme.css. */
+
+  /* A definite height all the way down, which is what makes each half scroll
+     inside itself. Leave it at min-height and the grid row sizes to the
+     preview instead, so the whole page grows and neither half ever scrolls. */
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    padding: 2.4rem 1.5rem 1.6rem;
+    display: flex;
+    flex-direction: column;
+  }
+  main {
+    width: 100%;
+    max-width: 1400px;
+    margin: 0 auto;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  p.lede { margin: 0 0 1.2rem; max-width: 88ch; }
+
+  /* --------------------------------------------------------------- bar -- */
+
+  .bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.9rem;
+  }
+  .bar .spacer { flex: 1 1 0; }
+  #tally {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.72rem;
+    color: var(--text-faint);
+  }
+  #said {
+    font-size: 0.76rem;
+    color: var(--neon);
+    opacity: 0;
+    transition: opacity 0.25s ease;
+  }
+  #said.show { opacity: 1; }
+
+  /* ------------------------------------------------------------- panes -- */
+
+  /* One hairline between them rather than two borders meeting, which is why
+     the grid itself carries the line colour. */
+  .panes {
+    flex: 1;
+    min-height: 20rem;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-auto-rows: minmax(0, 1fr);
+    gap: 1px;
+    background: var(--line-soft);
+  }
+  .pane {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+  }
+  .pane .cap {
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 0.5rem 0.9rem;
+    border-bottom: 1px solid var(--line-soft);
+    flex: none;
+  }
+
+  #src {
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    border: 0;
+    background: transparent;
+    resize: none;
+    font-family: var(--mono);
+    font-size: 0.86rem;
+    line-height: 1.7;
+    padding: 0.9rem 1rem 3rem;
+    tab-size: 4;
+  }
+  #src:focus { box-shadow: none; border: 0; outline: 0; }
+
+  #out {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 0.9rem 1.2rem 3rem;
+    font-size: 0.95rem;
+    line-height: 1.7;
+    overflow-wrap: break-word;
+  }
+  #out.empty { color: var(--text-faint); font-style: italic; }
+
+  /* ----------------------------------------------------- the rendering -- */
+
+  #out > :first-child { margin-top: 0; }
+  #out h1, #out h2, #out h3, #out h4, #out h5, #out h6 {
+    line-height: 1.3;
+    margin: 1.6em 0 0.55em;
+    color: var(--text);
+    text-shadow: none;
+  }
+  #out h1 { font-size: 1.55em; font-weight: 400; letter-spacing: 0.01em; }
+  #out h2 { font-size: 1.28em; font-weight: 400; }
+  #out h3 { font-size: 1.1em; font-weight: 500; }
+  #out h4, #out h5, #out h6 { font-size: 1em; font-weight: 500; color: var(--text-dim); }
+  #out p, #out ul, #out ol, #out blockquote, #out pre, #out table { margin: 0 0 1em; }
+  #out ul, #out ol { padding-left: 1.5em; }
+  /* Longhands, so a loose list opening its items up does not also reset the
+     pull-back that lines a task box up with the bullets above it. */
+  #out li { margin: 0.15em 0; }
+  #out ul.loose > li, #out ol.loose > li { margin-top: 0.6em; margin-bottom: 0.6em; }
+  #out li > ul, #out li > ol { margin-top: 0.15em; margin-bottom: 0.15em; }
+  #out li.task { list-style: none; margin-left: -1.15em; }
+  #out li.task .box { color: var(--neon-deep); margin-right: 0.35em; }
+  #out blockquote {
+    margin-left: 0;
+    padding-left: 1em;
+    border-left: 2px solid var(--line);
+    color: var(--text-dim);
+  }
+  #out code {
+    font-family: var(--mono);
+    font-size: 0.86em;
+    background: hsl(var(--tint) / 0.1);
+    padding: 0.1em 0.35em;
+  }
+  #out pre {
+    background: hsl(var(--tint) / 0.07);
+    border-left: 2px solid var(--line-soft);
+    padding: 0.8rem 1rem;
+    overflow-x: auto;
+    font-size: 0.86em;
+    line-height: 1.6;
+  }
+  #out pre code { background: none; padding: 0; font-size: 1em; }
+  #out hr { border: 0; border-top: 1px solid var(--line); margin: 1.8em 0; }
+  #out img { max-width: 100%; height: auto; }
+  #out table { border-collapse: collapse; font-size: 0.92em; }
+  #out th, #out td { border: 1px solid var(--line-soft); padding: 0.35em 0.7em; text-align: left; }
+  #out th { color: var(--text); font-weight: 500; background: hsl(var(--tint) / 0.06); }
+  #out del { opacity: 0.55; }
+
+  /* -------------------------------------------------------------- foot -- */
+
+  .note {
+    margin: 0.9rem 0 0;
+    max-width: 96ch;
+    font-size: 0.8rem;
+    line-height: 1.6;
+  }
+  .note code { font-family: var(--mono); font-size: 0.92em; }
+
+  /* Stacked, and the page scrolls rather than the two halves being squeezed
+     into half a phone screen each. */
+  @media (max-width: 820px) {
+    html, body { height: auto; min-height: 100%; }
+    body { padding: 1.8rem 1rem 1.4rem; }
+    .panes { grid-template-columns: 1fr; grid-auto-rows: minmax(18rem, auto); }
+  }
+</style>
+</head>
+<body>
+
+<main>
+  <a class="home" href="index.html">&larr; index</a>
+  <h1>Markdown &rarr; Rich Text</h1>
+  <p class="lede">Paste Markdown on the left and watch it set itself on the right. The
+    <em>Copy</em> button puts the formatted version on the clipboard &mdash; paste it into
+    Word, Google Docs, an email or anywhere else that takes rich text and the headings,
+    lists, tables and bold arrive as headings, lists, tables and bold rather than as the
+    characters you typed round them. Or take it away as a file.</p>
+
+  <div class="bar">
+    <button type="button" id="copyBtn">Copy rich text</button>
+    <button type="button" class="ghost" id="mdBtn">Download .md</button>
+    <button type="button" class="ghost" id="txtBtn">Download .txt</button>
+    <span id="said" role="status" aria-live="polite"></span>
+    <span class="spacer"></span>
+    <span id="tally"></span>
+  </div>
+
+  <div class="panes">
+    <div class="pane">
+      <div class="cap">Markdown</div>
+      <textarea id="src" spellcheck="false" autocomplete="off" aria-label="Markdown"
+        placeholder="# Paste your Markdown here&#10;&#10;Headings, **bold**, *italic*, `code`, [links](https://example.com),&#10;lists, > quotes, tables and ``` fenced blocks.&#10;&#10;- a list&#10;- another item&#10;  - and one tucked under it&#10;&#10;| A table | works too |&#10;|---------|-----------|&#10;| like    | this      |"></textarea>
+    </div>
+    <div class="pane">
+      <div class="cap">Preview</div>
+      <article id="out" class="empty"></article>
+    </div>
+  </div>
+
+  <p class="note">The preview is built from the characters you typed and never runs them:
+    HTML written in the Markdown shows as the tags themselves, and a link whose target is
+    anything but an ordinary address is dropped rather than carried along to wherever the
+    text is pasted. <em>Download .md</em> is the source exactly as it stands; <em>.txt</em>
+    is the preview flattened &mdash; no asterisks, bullets as bullets, tables lined up in
+    columns &mdash; which is the same plain text the clipboard carries alongside the
+    formatted version, so pasting into a plain box gives you that rather than the markup.
+    Two things it cannot do: a <code>|</code> inside a code span splits the table cell it
+    is in, and copying needs the page served rather than opened off the filesystem on some
+    browsers &mdash; it falls back to selecting the preview for you, and says so if even
+    that is refused.</p>
+</main>
+
+<script>
+"use strict";
+
+const el = (id) => document.getElementById(id);
+const src = el("src");
+const out = el("out");
+
+/* ============================================================== markdown == */
+
+const escapeHtml = (text) => text
+  .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+/* The preview is going to be pasted somewhere else, which is the whole point
+   of the page, so a link has to be an address and nothing else. `javascript:`
+   and `data:` are dropped and the label is kept, rather than handing someone
+   a document with a trap in it that they then forward on. */
+function safeUrl(raw) {
+  const url = raw.trim().replace(/[\u0000-\u001f]/g, "");
+  if (/^(https?|mailto|tel|ftp|sms):/i.test(url)) return url;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(url)) return "";    // some other scheme — no
+  return url;                                         // a path, an anchor, a filename
+}
+
+// Escaped before anything else touches it, so what is rendered is what was
+// typed. Code spans are lifted out first and put back last, or the characters
+// inside them get read as markup.
+function inline(text) {
+  const spans = [];
+  let work = escapeHtml(text)
+    .replace(/(`+)([^]+?)\1/g, (all, ticks, body) => `\u0000${spans.push(body.trim()) - 1}\u0000`);
+
+  work = work
+    .replace(/!\[([^\]]*)\]\(\s*([^()\s]+)(?:\s+"[^"]*")?\s*\)/g, (all, alt, source) => {
+      const url = safeUrl(source);
+      return url ? `<img src="${escapeHtml(url)}" alt="${alt}">` : `[${alt}]`;
+    })
+    .replace(/\[([^\]]*)\]\(\s*([^()\s]*)(?:\s+"[^"]*")?\s*\)/g, (all, label, target) => {
+      const url = safeUrl(target);
+      return url ? `<a href="${escapeHtml(url)}" rel="noopener noreferrer" target="_blank">${label}</a>` : label;
+    })
+    .replace(/&lt;((?:https?:\/\/|mailto:)[^\s&]+)&gt;/g,
+      (all, url) => `<a href="${escapeHtml(url)}" rel="noopener noreferrer" target="_blank">${url}</a>`)
+    .replace(/\*\*\*([^*]+)\*\*\*/g, "<strong><em>$1</em></strong>")
+    .replace(/___([^_]+)___/g, "<strong><em>$1</em></strong>")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/__([^_]+)__/g, "<strong>$1</strong>")
+    .replace(/(^|[^*\w])\*([^*\n]+)\*/g, "$1<em>$2</em>")
+    .replace(/(^|[^_\w])_([^_\n]+)_/g, "$1<em>$2</em>")
+    .replace(/~~([^~]+)~~/g, "<del>$1</del>")
+    .replace(/ {2,}\n/g, "<br>\n");
+
+  return work.replace(/\u0000(\d+)\u0000/g, (all, i) => `<code>${spans[Number(i)]}</code>`);
+}
+
+const HR      = /^ {0,3}([-*_])[ \t]*(?:\1[ \t]*){2,}$/;
+const HEADING = /^ {0,3}(#{1,6})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$/;
+const FENCE   = /^ {0,3}(`{3,}|~{3,})[ \t]*(\S*).*$/;
+const ITEM    = /^( *)([-*+]|\d{1,9}[.)])([ \t]+)(.*)$/;
+const QUOTE   = /^ {0,3}>[ \t]?(.*)$/;
+const RULEROW = /^[ \t]*\|?[ \t]*:?-+:?[ \t]*(\|[ \t]*:?-+:?[ \t]*)*\|?[ \t]*$/;
+
+const indentOf = (line) => /^ */.exec(line)[0].length;
+const opens = (line) => HR.test(line) || HEADING.test(line) || FENCE.test(line)
+  || QUOTE.test(line) || ITEM.test(line);
+
+function toHtml(source) {
+  return blocks(source.replace(/\r\n?/g, "\n").replace(/\t/g, "    ").split("\n")).join("\n");
+}
+
+function blocks(lines) {
+  const out = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    const line = lines[i];
+    if (!line.trim()) { i++; continue; }
+
+    const fence = FENCE.exec(line);
+    if (fence) {
+      const close = new RegExp(`^ {0,3}${fence[1][0] === "`" ? "`" : "~"}{${fence[1].length},}[ \\t]*$`);
+      const body = [];
+      i++;
+      while (i < lines.length && !close.test(lines[i])) body.push(lines[i++]);
+      i++;                                   // the closing fence, if there was one
+      const lang = fence[2].replace(/[^\w.+-]/g, "");
+      out.push(`<pre><code${lang ? ` class="lang-${lang}"` : ""}>${escapeHtml(body.join("\n"))}</code></pre>`);
+      continue;
+    }
+
+    if (HR.test(line)) { out.push("<hr>"); i++; continue; }
+
+    const head = HEADING.exec(line);
+    if (head) {
+      const level = head[1].length;
+      out.push(`<h${level}>${inline(head[2])}</h${level}>`);
+      i++;
+      continue;
+    }
+
+    if (QUOTE.test(line)) {
+      const inner = [];
+      // A quote runs on through lines that carry the marker and through the
+      // plain ones that continue a sentence inside it, and stops at a blank.
+      while (i < lines.length && lines[i].trim()) {
+        const quoted = QUOTE.exec(lines[i]);
+        if (!quoted && opens(lines[i])) break;
+        inner.push(quoted ? quoted[1] : lines[i].trim());
+        i++;
+      }
+      out.push(`<blockquote>${blocks(inner).join("\n")}</blockquote>`);
+      continue;
+    }
+
+    const table = tableAt(lines, i);
+    if (table) { out.push(table.html); i = table.next; continue; }
+
+    if (ITEM.test(line)) {
+      const list = listAt(lines, i);
+      out.push(list.html);
+      i = list.next;
+      continue;
+    }
+
+    if (/^ {4,}\S/.test(line)) {
+      const body = [];
+      while (i < lines.length && (/^ {4,}/.test(lines[i]) || !lines[i].trim())) body.push(lines[i++].slice(4));
+      while (body.length && !body[body.length - 1].trim()) body.pop();
+      out.push(`<pre><code>${escapeHtml(body.join("\n"))}</code></pre>`);
+      continue;
+    }
+
+    const para = [];
+    while (i < lines.length && lines[i].trim() && !tableAt(lines, i)) {
+      // Only a list that starts at one may interrupt a paragraph, or a year at
+      // the start of a line — "1984. It was a year" — turns into a list.
+      const item = ITEM.exec(lines[i]);
+      const interrupts = item && (!/\d/.test(item[2]) || /^1[.)]$/.test(item[2]));
+      if (para.length && (interrupts || HR.test(lines[i]) || HEADING.test(lines[i])
+          || FENCE.test(lines[i]) || QUOTE.test(lines[i]))) break;
+      para.push(lines[i]);
+      i++;
+    }
+    out.push(`<p>${inline(para.join("\n")).replace(/<br>\n/g, "<br>").replace(/\n/g, "<br>")}</p>`);
+  }
+
+  return out;
+}
+
+/* ------------------------------------------------------------- the lists -- */
+
+/* Items are gathered with everything indented under them, then that is parsed
+   as a document in its own right — which is what makes a list inside a list,
+   or a paragraph and a code block inside one item, come out right without a
+   separate rule for each shape. */
+function listAt(lines, start) {
+  const first = ITEM.exec(lines[start]);
+  const base = first[1].length;
+  const ordered = /\d/.test(first[2]);
+  const from = ordered ? parseInt(first[2], 10) : 1;
+  const items = [];
+  let loose = false;
+  let blanks = 0;
+  let i = start;
+
+  while (i < lines.length) {
+    if (!lines[i].trim()) { blanks++; i++; continue; }
+
+    const here = indentOf(lines[i]);
+    const item = ITEM.exec(lines[i]);
+    if (!item || here < base || here > base + 3 || /\d/.test(item[2]) !== ordered) break;
+    if (blanks && items.length) loose = true;
+    blanks = 0;
+
+    const inset = item[1].length + item[2].length + item[3].length;
+    const body = [item[4]];
+    i++;
+
+    while (i < lines.length) {
+      if (!lines[i].trim()) {
+        // A blank line belongs to the item only if the item carries on under
+        // it; otherwise it is the end of the item and maybe of the list.
+        let look = i;
+        while (look < lines.length && !lines[look].trim()) look++;
+        if (look >= lines.length || indentOf(lines[look]) < inset) break;
+        while (i < look) { body.push(""); i++; }
+        loose = true;
+        continue;
+      }
+      if (indentOf(lines[i]) >= inset) { body.push(lines[i].slice(inset)); i++; continue; }
+      if (ITEM.test(lines[i]) || opens(lines[i])) break;
+      body.push(lines[i].trim());            // a sentence carrying on, unindented
+      i++;
+    }
+    items.push(body);
+  }
+
+  const rendered = items.map((body) => {
+    let lines = body;
+    let box = "";
+    const task = /^\[([ xX])\][ \t]+/.exec(lines[0] || "");
+    if (task) {
+      // A character rather than a checkbox input: this is copied into other
+      // programs, and a box they all draw beats a form control most drop.
+      box = `<span class="box">${task[1] === " " ? "☐" : "☑"}</span> `;
+      lines = [lines[0].slice(task[0].length), ...lines.slice(1)];
+    }
+    // Tight or loose is a property of the whole list, so an item carrying a
+    // list under it still has its own line set as a line rather than wrapped
+    // in a paragraph of its own.
+    const parts = blocks(lines).map((part) =>
+      !loose && /^<p>[^]*<\/p>$/.test(part) ? part.slice(3, -4) : part);
+    let inner = parts.join("\n");
+    // The box goes inside the first paragraph rather than in front of it: a
+    // loose item keeps its <p>, and a block put beside one lands on its own
+    // line with the words underneath.
+    if (box) inner = /^<p>/.test(inner) ? inner.replace("<p>", `<p>${box}`) : box + inner;
+    return `<li${box ? ' class="task"' : ""}>${inner}</li>`;
+  });
+
+  const tag = ordered ? "ol" : "ul";
+  const attrs = (ordered && from !== 1 ? ` start="${from}"` : "") + (loose ? ' class="loose"' : "");
+  return { html: `<${tag}${attrs}>\n${rendered.join("\n")}\n</${tag}>`, next: i };
+}
+
+/* ------------------------------------------------------------ the tables -- */
+
+const cellsOf = (row) => row.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => c.trim());
+
+function tableAt(lines, at) {
+  const header = lines[at];
+  const rule = lines[at + 1];
+  if (!header || !rule || !header.includes("|") || !RULEROW.test(rule) || !rule.includes("-")) return null;
+
+  const heads = cellsOf(header);
+  const marks = cellsOf(rule);
+  if (marks.length !== heads.length || heads.length < 1) return null;
+
+  const align = marks.map((mark) =>
+    /^:-+:$/.test(mark) ? "center" : /^:-/.test(mark) ? "left" : /-:$/.test(mark) ? "right" : "");
+  const cell = (tag, text, i) =>
+    `<${tag}${align[i] ? ` style="text-align:${align[i]}"` : ""}>${inline(text)}</${tag}>`;
+
+  const rows = [];
+  let i = at + 2;
+  while (i < lines.length && lines[i].trim() && lines[i].includes("|") && !opens(lines[i])) {
+    const got = cellsOf(lines[i]);
+    // Short rows are padded and long ones trimmed, so one stray pipe cannot
+    // make the rest of the table ragged.
+    rows.push(Array.from({ length: heads.length }, (_, n) => got[n] === undefined ? "" : got[n]));
+    i++;
+  }
+
+  const html = "<table>\n<thead><tr>"
+    + heads.map((text, n) => cell("th", text, n)).join("") + "</tr></thead>\n<tbody>\n"
+    + rows.map((row) => "<tr>" + row.map((text, n) => cell("td", text, n)).join("") + "</tr>").join("\n")
+    + "\n</tbody>\n</table>";
+  return { html, next: i };
+}
+
+/* ========================================================== plain text ==== */
+
+/* The preview read back out as text, rather than the Markdown with its
+   punctuation stripped: that way what lands in a plain box is what the
+   formatted version says, in the order it says it. */
+
+function textOf(node) {
+  let text = "";
+  for (const kid of node.childNodes) {
+    if (kid.nodeType === Node.TEXT_NODE) { text += kid.data; continue; }
+    if (kid.nodeType !== Node.ELEMENT_NODE) continue;
+    const tag = kid.localName;
+    if (tag === "br") { text += "\n"; continue; }
+    if (tag === "img") { text += `[${kid.getAttribute("alt") || "image"}]`; continue; }
+    if (tag === "a") {
+      const label = textOf(kid);
+      const href = kid.getAttribute("href") || "";
+      text += !href || href === label ? label : `${label} (${href})`;
+      continue;
+    }
+    text += textOf(kid);
+  }
+  return text;
+}
+
+const shift = (text, pad) => text.split("\n").map((line) => (line ? pad + line : line)).join("\n");
+
+const BLOCKS = /^(p|pre|blockquote|table|ul|ol|hr|h[1-6])$/;
+
+function flatten(root, pad = "") {
+  const parts = [];
+  for (const node of root.children) {
+    const tag = node.localName;
+    if (tag === "hr") { parts.push(pad + "—".repeat(30)); continue; }
+    if (tag === "pre") { parts.push(shift(node.textContent.replace(/\n+$/, ""), pad + "    ")); continue; }
+    if (tag === "blockquote") { parts.push(flatten(node, pad + "    ")); continue; }
+    if (tag === "ul" || tag === "ol") { parts.push(listText(node, pad)); continue; }
+    if (tag === "table") { parts.push(tableText(node, pad)); continue; }
+    parts.push(shift(textOf(node), pad));
+  }
+  return parts.filter((part) => part.trim()).join("\n\n");
+}
+
+function listText(list, pad) {
+  const ordered = list.localName === "ol";
+  let number = Number(list.getAttribute("start") || 1);
+  const rows = [];
+
+  for (const item of list.children) {
+    if (item.localName !== "li") continue;
+    const marker = ordered ? `${number++}. ` : "• ";
+    const under = " ".repeat(marker.length);
+
+    const copy = item.cloneNode(true);
+    const nested = [...copy.children].filter((kid) => kid.localName === "ul" || kid.localName === "ol");
+    for (const kid of nested) kid.remove();
+
+    const blocky = [...copy.children].some((kid) => BLOCKS.test(kid.localName));
+    const body = blocky ? flatten(copy) : textOf(copy).trim();
+    rows.push(shift(body, under).replace(under, marker));
+    for (const kid of [...item.children].filter((k) => k.localName === "ul" || k.localName === "ol")) {
+      rows.push(listText(kid, under));
+    }
+  }
+  return shift(rows.join("\n"), pad);
+}
+
+// Lined up in columns, because a table read back as one cell per line is not
+// a table any more.
+function tableText(table, pad) {
+  const rows = [...table.querySelectorAll("tr")]
+    .map((tr) => [...tr.children].map((cell) => textOf(cell).replace(/\s+/g, " ").trim()));
+  if (!rows.length) return "";
+
+  const width = [];
+  for (const row of rows) row.forEach((cell, n) => { width[n] = Math.max(width[n] || 0, cell.length); });
+  const line = (row) => row.map((cell, n) => cell.padEnd(width[n])).join("  ").replace(/ +$/, "");
+
+  const drawn = [line(rows[0]), width.map((w) => "-".repeat(w)).join("  ")];
+  for (const row of rows.slice(1)) drawn.push(line(row));
+  return shift(drawn.join("\n"), pad);
+}
+
+const plainText = () => flatten(out).replace(/\n{3,}/g, "\n\n").trim();
+
+/* ============================================================ the page ==== */
+
+function render() {
+  const text = src.value;
+  out.innerHTML = text.trim() ? toHtml(text) : "";
+  out.classList.toggle("empty", !text.trim());
+  if (!text.trim()) out.textContent = "Nothing yet — the preview appears here as you type.";
+  count();
+}
+
+function count() {
+  const words = (plainText().match(/\S+/g) || []).length;
+  el("tally").textContent = src.value.trim()
+    ? `${words.toLocaleString()} words · ${src.value.length.toLocaleString()} characters of Markdown`
+    : "";
+}
+
+function say(words) {
+  const note = el("said");
+  note.textContent = words;
+  note.classList.add("show");
+  clearTimeout(say.timer);
+  say.timer = setTimeout(() => note.classList.remove("show"), 2600);
+}
+
+/* --------------------------------------------------------- the clipboard -- */
+
+// No styles ride along: the page is white on black and a document pasted out
+// of it should not be. Bare tags let whatever it lands in style them its way.
+const richHtml = () => `<meta charset="utf-8">${out.innerHTML}`;
+
+/* Selecting an off-screen copy and letting the browser do the copying is the
+   way that works with no secure context — a page opened straight off the
+   filesystem has no clipboard API at all. It is off-screen rather than hidden
+   because a selection cannot be made in something that is not laid out. */
+function copyBySelecting(html) {
+  const stage = document.createElement("div");
+  stage.setAttribute("aria-hidden", "true");
+  stage.style.cssText = "position:fixed;left:-10000px;top:0;width:40rem;"
+    + "color:#000;background:#fff;font-family:Calibri,Arial,sans-serif;";
+  stage.innerHTML = html;
+  document.body.append(stage);
+
+  const range = document.createRange();
+  range.selectNodeContents(stage);
+  const selection = getSelection();
+  selection.removeAllRanges();
+  selection.addRange(range);
+
+  let done = false;
+  try { done = document.execCommand("copy"); } catch { done = false; }
+  selection.removeAllRanges();
+  stage.remove();
+  return done;
+}
+
+async function copyRich() {
+  if (!src.value.trim()) { say("Nothing to copy yet"); return; }
+  const html = richHtml();
+  const text = plainText();
+
+  // Both flavours go on at once, so a rich target gets the formatting and a
+  // plain one gets the same words rather than the Markdown behind them.
+  try {
+    if (window.isSecureContext && navigator.clipboard && window.ClipboardItem) {
+      await navigator.clipboard.write([new ClipboardItem({
+        "text/html": new Blob([html], { type: "text/html" }),
+        "text/plain": new Blob([text], { type: "text/plain" }),
+      })]);
+      say("Copied — paste it anywhere that takes formatting");
+      return;
+    }
+  } catch { /* fall through and do it the old way */ }
+
+  if (copyBySelecting(html)) { say("Copied — paste it anywhere that takes formatting"); return; }
+  say("This browser would not let the page copy — select the preview and press ctrl-C");
+}
+
+/* -------------------------------------------------------------- the files -- */
+
+// Named after the first heading, or the first line, because that is what you
+// would call the thing yourself when it turns up in a downloads folder.
+function fileName() {
+  const first = (src.value.split("\n").find((line) => line.trim()) || "")
+    .replace(/^\s*#+\s*/, "").replace(/[*_`~[\]()]/g, "");
+  const clean = first.replace(/[^\w .-]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 60);
+  return clean || "markdown";
+}
+
+function download(extension, type, body) {
+  if (!src.value.trim()) { say("Nothing to save yet"); return; }
+  const blob = new Blob([body], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${fileName()}.${extension}`;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  say(`Saved ${link.download}`);
+}
+
+el("copyBtn").addEventListener("click", copyRich);
+el("mdBtn").addEventListener("click", () => download("md", "text/markdown;charset=utf-8", src.value));
+el("txtBtn").addEventListener("click", () => download("txt", "text/plain;charset=utf-8", plainText() + "\n"));
+
+/* ------------------------------------------------------------- the wiring -- */
+
+src.addEventListener("input", render);
+
+/* The two halves scroll together, each one's position read as a fraction of
+   what it has to scroll rather than in pixels, since the same document is a
+   different height set as it is typed. The flag stops the pane being moved
+   from reporting that move back and the two fighting each other. */
+let steering = null;
+function follow(from, to) {
+  if (steering && steering !== from) return;
+  steering = from;
+  const room = from.scrollHeight - from.clientHeight;
+  const there = to.scrollHeight - to.clientHeight;
+  if (room > 4 && there > 4) to.scrollTop = (from.scrollTop / room) * there;
+  clearTimeout(follow.timer);
+  follow.timer = setTimeout(() => { steering = null; }, 120);
+}
+src.addEventListener("scroll", () => follow(src, out));
+out.addEventListener("scroll", () => follow(out, src));
+
+document.addEventListener("keydown", (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "c") {
+    e.preventDefault();
+    copyRich();
+  }
+});
+
+render();
+</script>
+</body>
+</html>
