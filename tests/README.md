@@ -51,6 +51,31 @@ Suites are named for the page they exercise. The ones worth knowing about:
   made it sound reversed), that the crack sits at a sane fraction of the body
   at both 160 m and 2.6 km, and that drops are scheduled on the audio clock
   far enough ahead to survive a stalled frame.
+
+  The page is full of `Math.random`, as a rain machine should be, and for a
+  while six of these checks were measuring a random variable against a line
+  drawn from a single good run. Four of them were caught failing; the other
+  two only turned up when every figure was measured a few hundred times to
+  see where it really sits. Between them they lost about one run in six.
+
+  The fix was not to move the lines until they went quiet. Each figure was
+  measured over hundreds of renders, and then the *measurement* was made
+  steadier wherever it could be — only one line actually moved, and it has
+  the spread it was derived from written down beside it, along with a null
+  measurement showing what the same figure reads when there is genuinely
+  nothing to find, so the check is known to still be able to fail.
+
+  The lever is repeating a render, but **how** you combine the repeats is
+  the whole thing, and getting it wrong here made one check worse rather
+  than better. Averaging envelopes only works when the feature under test is
+  time-locked: the swell test applies the same fixed envelope every time and
+  only the noise beneath it differs, so the mean of six envelopes is that
+  envelope with the wobble taken off. A thunder strike is not like that —
+  only its first segment arrives at a predictable moment and the rest land
+  where the generator puts them — so averaging those envelopes sharpens the
+  first arrival, smears everything after it, drags the peak back towards the
+  onset and reports the opposite of what is there. Those checks take the
+  median of each figure measured on its own render instead.
 - **`test-noise*.mjs`, `test-breath.mjs`** — the noise machine's nine lanes.
   Loop seams measured as a sample step against the signal's own typical step,
   isochronic envelopes against the formula they claim to implement, breath

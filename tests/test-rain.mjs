@@ -25,9 +25,16 @@ ok('four places to stand', (await page.$$('#where button')).length === 4, (await
 await page.fill('#rainLo', '30'); await page.dispatchEvent('#rainLo', 'input');
 await page.fill('#rainHi', '80'); await page.dispatchEvent('#rainHi', 'input');
 ok('the bar reads as a band', /30–80%/.test(await page.textContent('#rainOut')), await page.textContent('#rainOut'));
+/* Long enough that the walk has to have gone somewhere. The weather picks a
+   new aim only now and then, so over forty steps it can sit almost still:
+   three hundred tries of forty put the spread under the 0.04 line about one
+   time in eighty, and once at nothing at all. Over a hundred and sixty the
+   smallest spread in three hundred tries was 0.215, five times the line —
+   and the band it must stay inside gets four times as many chances to be
+   broken, so the check above it is the stronger for it too. */
 const inside = await page.evaluate(async () => {
   const seen = [];
-  for (let i = 0; i < 40; i++) { drift(0.6); seen.push(BANDS.rain.now); }
+  for (let i = 0; i < 160; i++) { drift(0.6); seen.push(BANDS.rain.now); }
   return { min: Math.min(...seen), max: Math.max(...seen), spread: Math.max(...seen) - Math.min(...seen) };
 });
 ok('the weather stays inside its band', inside.min >= 0.2999 && inside.max <= 0.8001,
@@ -181,50 +188,79 @@ ok('no resonance is sharp enough to chime', bankInfo.maxQ <= 18, bankInfo.maxQ.t
 
 /* ---- thunder, measured rather than described ---- */
 
-// Rendered offline and read as an envelope: the complaint was that it was
-// too brief — a punch rather than a rumble — so the thing to measure is how
-// long it actually lasts and where its energy sits.
-const roll = (metres) => page.evaluate(async (m) => {
+/* Rendered offline and read as an envelope: the complaint was that it was
+   too brief — a punch rather than a rumble — so the thing to measure is how
+   long it actually lasts and where its energy sits.
+
+   Seven renders, and the median of each figure across them. Not the mean,
+   and emphatically not the mean of the seven envelopes: a strike is four to
+   seven segments at distances the generator picks for itself, so only the
+   first one arrives at a time you can predict. Averaging the envelopes
+   therefore sharpens the first segment, which is time-locked, and smears
+   every later one, which is not — it pulls the peak back towards the
+   arrival and reports the opposite of what is there. That was tried here
+   first and it made this worse. Measuring each render on its own terms and
+   taking the middle one leaves every render's shape intact.
+
+   Over a hundred and fifty single renders at 1.5 km the peak lands anywhere
+   from 0.10 s to 4.15 s after the first sound, and under the 0.15 s line on
+   four per cent of them; the median of seven never went under it in four
+   hundred tries, the lowest being 0.25 s. The same move carries two other
+   checks that were sitting just as close to their lines: the back-half
+   energy, whose single-render minimum was 0.14 against a line of 0.15, and
+   how long a close strike rolls, whose minimum was 2.35 s against 3 s. */
+const ROLL_RENDERS = 7;
+const roll = (metres) => page.evaluate(async ([m, renders]) => {
   const RATE = 24000;
-  const off = new OfflineAudioContext(1, RATE * 22, RATE);
-  ctx = off;
-  bank.clear();
-  outdoors = off.createGain();
-  outdoors.gain.value = 1;
-  outdoors.connect(off.destination);
-  thunder(0, m);
-  const buf = await off.startRendering();
-  const d = buf.getChannelData(0);
-
   const win = Math.floor(RATE * 0.05);
-  const rms = [];
-  for (let i = 0; i + win < d.length; i += win) {
-    let sum = 0;
-    for (let j = i; j < i + win; j++) sum += d[j] * d[j];
-    rms.push(Math.sqrt(sum / win));
+  const got = [];
+
+  for (let r = 0; r < renders; r++) {
+    const off = new OfflineAudioContext(1, RATE * 22, RATE);
+    ctx = off;
+    bank.clear();
+    outdoors = off.createGain();
+    outdoors.gain.value = 1;
+    outdoors.connect(off.destination);
+    thunder(0, m);
+    const buf = await off.startRendering();
+    const d = buf.getChannelData(0);
+
+    const rms = [];
+    for (let i = 0; i + win < d.length; i += win) {
+      let sum = 0;
+      for (let j = i; j < i + win; j++) sum += d[j] * d[j];
+      rms.push(Math.sqrt(sum / win));
+    }
+    const peak = Math.max(...rms);
+    const loud = rms.map((v, i) => ({ v, t: i * 0.05 })).filter(x => x.v > peak * 0.05);
+    const total = rms.reduce((a, b) => a + b, 0);
+    const first = loud.length ? loud[0].t : 0;
+    const last = loud.length ? loud[loud.length - 1].t : 0;
+    const peakAt = rms.indexOf(peak) * 0.05;
+    const half = first + (last - first) / 2;
+    const lateEnergy = rms.reduce((a, v, i) => a + (i * 0.05 > half ? v : 0), 0);
+
+    // What makes a close strike sharp is the tearing onset, so measure the
+    // brightness of the first fifth of a second rather than when the body
+    // happens to peak — that is several overlapping swells and lands where
+    // chance puts it.
+    const from = Math.floor(first * RATE);
+    const to = Math.min(d.length, from + Math.floor(RATE * 0.2));
+    let diff = 0, level = 0;
+    for (let i = from + 1; i < to; i++) { diff += Math.abs(d[i] - d[i - 1]); level += Math.abs(d[i]); }
+
+    got.push({ first, last, span: last - first, peakAt, peakLag: peakAt - first,
+               late: total > 0 ? lateEnergy / total : 0, peak,
+               onsetBright: level > 0 ? diff / level : 0 });
   }
-  const peak = Math.max(...rms);
-  const loud = rms.map((v, i) => ({ v, t: i * 0.05 })).filter(x => x.v > peak * 0.05);
-  const total = rms.reduce((a, b) => a + b, 0);
-  const first = loud.length ? loud[0].t : 0;
-  const last = loud.length ? loud[loud.length - 1].t : 0;
-  const peakAt = rms.indexOf(peak) * 0.05;
-  const half = first + (last - first) / 2;
-  const lateEnergy = rms.reduce((a, v, i) => a + (i * 0.05 > half ? v : 0), 0);
 
-  // What makes a close strike sharp is the tearing onset, so measure the
-  // brightness of the first fifth of a second rather than when the body
-  // happens to peak — that is several overlapping swells and lands where
-  // chance puts it.
-  const from = Math.floor(first * RATE);
-  const to = Math.min(d.length, from + Math.floor(RATE * 0.2));
-  let diff = 0, level = 0;
-  for (let i = from + 1; i < to; i++) { diff += Math.abs(d[i] - d[i - 1]); level += Math.abs(d[i]); }
-  const onsetBright = level > 0 ? diff / level : 0;
-
-  return { first, last, span: last - first, peakAt, peakLag: peakAt - first,
-           late: total > 0 ? lateEnergy / total : 0, peak, onsetBright };
-}, metres);
+  const middle = (key) => {
+    const v = got.map((g) => g[key]).sort((a, b) => a - b);
+    return v[(v.length - 1) >> 1];
+  };
+  return Object.fromEntries(Object.keys(got[0]).map((k) => [k, middle(k)]));
+}, [metres, ROLL_RENDERS]);
 
 const far = await roll(1500);
 ok('a strike at a kilometre and a half rolls for seconds, not a moment',
@@ -244,35 +280,49 @@ console.log(`      1.5 km: arrives ${far.first.toFixed(1)}s, rolls ${far.span.to
    peak. With a swell per segment staggered across a strike, that is what it
    sounded like. Measured as how much of a sound's length is spent climbing
    to half its peak — and against a control built the old way, so the measure
-   is known to be able to fail. */
-const climb = await page.evaluate(async () => {
+   is known to be able to fail.
+
+   Six renders averaged, not one. The envelope under test is the same every
+   time and only the brown noise beneath it differs, so averaging the RMS
+   curve across renders leaves the shape untouched and takes the wobble out
+   of it: measured over twenty tries, one render put the forward figure
+   anywhere from 2.2% to 10.6% and tripped the 10% line about one run in
+   twenty, where six renders at a 10 ms window hold it inside 2.3–4.3%. */
+const CLIMB_RENDERS = 6, CLIMB_WIN = 0.01;
+const climb = await page.evaluate(async ([renders, win]) => {
   const RATE = 12000;
   const one = async (reverse) => {
-    const off = new OfflineAudioContext(1, RATE * 8, RATE);
-    ctx = off; bank.clear();
-    const out = off.createGain(); out.gain.value = 1; out.connect(off.destination);
-    const src = looping(noise('brown'));
-    const env = off.createGain();
-    const rise = reverse ? 0.9 : 0.09, fall = 3.0, peak = 0.6;
-    env.gain.setValueAtTime(0.0001, 0);
-    if (reverse) env.gain.exponentialRampToValueAtTime(peak, rise);
-    else env.gain.linearRampToValueAtTime(peak, rise);
-    env.gain.exponentialRampToValueAtTime(peak * 0.3, rise + fall * 0.4);
-    env.gain.exponentialRampToValueAtTime(0.0001, rise + fall);
-    src.connect(env).connect(out); src.start(0); src.stop(rise + fall + 0.1);
-    const d = (await off.startRendering()).getChannelData(0);
-    const w = Math.floor(RATE * 0.02); const rms = [];
-    for (let i = 0; i + w < d.length; i += w) {
-      let a = 0; for (let j = i; j < i + w; j++) a += d[j] * d[j];
-      rms.push(Math.sqrt(a / w));
+    const w = Math.floor(RATE * win);
+    let curve = null;
+    for (let r = 0; r < renders; r++) {
+      const off = new OfflineAudioContext(1, RATE * 8, RATE);
+      ctx = off; bank.clear();
+      const out = off.createGain(); out.gain.value = 1; out.connect(off.destination);
+      const src = looping(noise('brown'));
+      const env = off.createGain();
+      const rise = reverse ? 0.9 : 0.09, fall = 3.0, peak = 0.6;
+      env.gain.setValueAtTime(0.0001, 0);
+      if (reverse) env.gain.exponentialRampToValueAtTime(peak, rise);
+      else env.gain.linearRampToValueAtTime(peak, rise);
+      env.gain.exponentialRampToValueAtTime(peak * 0.3, rise + fall * 0.4);
+      env.gain.exponentialRampToValueAtTime(0.0001, rise + fall);
+      src.connect(env).connect(out); src.start(0); src.stop(rise + fall + 0.1);
+      const d = (await off.startRendering()).getChannelData(0);
+      const rms = [];
+      for (let i = 0; i + w < d.length; i += w) {
+        let a = 0; for (let j = i; j < i + w; j++) a += d[j] * d[j];
+        rms.push(Math.sqrt(a / w));
+      }
+      if (!curve) curve = rms.map(() => 0);
+      for (let i = 0; i < curve.length; i++) curve[i] += rms[i] / renders;
     }
-    const pk = Math.max(...rms);
-    const t50 = rms.findIndex(v => v > pk * 0.5) * 0.02;
-    const last = (rms.length - 1 - [...rms].reverse().findIndex(v => v > pk * 0.05)) * 0.02;
+    const pk = Math.max(...curve);
+    const t50 = curve.findIndex(v => v > pk * 0.5) * win;
+    const last = (curve.length - 1 - [...curve].reverse().findIndex(v => v > pk * 0.05)) * win;
     return t50 / last;
   };
   return { now: await one(false), was: await one(true) };
-});
+}, [CLIMB_RENDERS, CLIMB_WIN]);
 ok('a swell arrives rather than creeping up on you', climb.now < 0.1,
    `${(climb.now * 100).toFixed(1)}% of its length spent climbing`);
 ok('and the shape it had really did creep, so this can fail',
@@ -313,7 +363,7 @@ const bands = await page.evaluate(async () => {
   const out = {};
   for (const m of [160, 2600]) {
     let hi = 0, lo = 0;
-    for (let run = 0; run < 5; run++) {
+    for (let run = 0; run < 12; run++) {
       const RATE = 24000;
       const off = new OfflineAudioContext(1, RATE * 12, RATE);
       ctx = off; bank.clear();
@@ -321,7 +371,7 @@ const bands = await page.evaluate(async () => {
       thunder(0, m);
       const d = (await off.startRendering()).getChannelData(0);
       const s = split(d, RATE, 1200);
-      hi += s.hiPk / 5; lo += s.loPk / 5;
+      hi += s.hiPk / 12; lo += s.loPk / 12;
     }
     out[m] = { crack: hi, body: lo, ratio: hi / lo };
   }
@@ -331,9 +381,22 @@ ok('the crack sits well under the body it belongs to',
    bands[160].ratio < 0.35, `${(bands[160].ratio * 100).toFixed(0)}% of the body at 160 m`);
 ok('but is not so far under that it has gone',
    bands[160].ratio > 0.08, `${(bands[160].ratio * 100).toFixed(0)}%`);
+/* Where the line sits, and why it is not tighter. A single strike's crack
+   peak is a wild thing — sixty renders at 160 m put the crack/body ratio
+   anywhere between 0.08 and 0.25 — but the renders really are independent
+   (the mean of five blocks scatters exactly as much as independence
+   predicts), so averaging works. Twelve of them put the separation at
+   2.16 with a standard deviation of 0.21, measured over thirty-six tries.
+   The old line at 1.8 sat 1.7 of those below the mean and went under on two
+   of the thirty-six, which is the flake; 1.5 sits 3.1 below and went under
+   on none. It keeps its teeth either way: measured against itself — 160 m
+   against another 160 m, where there is no difference to find — the same
+   figure comes out at 1.01 and never above 1.21, so anything that stopped
+   the distance filtering working would still be caught well short of 1.5. */
 ok('and a distant strike has far less of it',
-   bands[2600].ratio < bands[160].ratio / 1.8,
-   `${(bands[2600].ratio * 100).toFixed(0)}% at 2.6 km against ${(bands[160].ratio * 100).toFixed(0)}% at 160 m`);
+   bands[2600].ratio < bands[160].ratio / 1.5,
+   `${(bands[2600].ratio * 100).toFixed(0)}% at 2.6 km against ${(bands[160].ratio * 100).toFixed(0)}% at 160 m`
+   + ` — ${(bands[160].ratio / bands[2600].ratio).toFixed(2)}× apart, wanted 1.5`);
 ok('nothing clips', bands[160].body < 0.95 && bands[2600].body < 0.95,
    `peaks ${bands[160].body.toFixed(2)} and ${bands[2600].body.toFixed(2)}`);
 console.log(`      crack/body ${(bands[160].ratio * 100).toFixed(0)}% at 160 m, ${(bands[2600].ratio * 100).toFixed(0)}% at 2.6 km`);
