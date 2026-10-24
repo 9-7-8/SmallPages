@@ -101,7 +101,8 @@ over, because that is the path a dropped file takes. `--json` on everything.
 Default to whatever the page defaults to.
 
 [`cli/README.md`](cli/README.md) is the whole procedure, the conventions a
-second tool should match, and the list of pages still to do. The one suite for
+second tool should match, the checklist to run down before calling one
+finished, and the list of pages still to do with the command each one wants. The one suite for
 all of it is `tests/test-cli.mjs`, and a new tool's block in it has to check
 the page by hand as well as the command, because that is the only check that
 catches a command line quietly growing arithmetic of its own.

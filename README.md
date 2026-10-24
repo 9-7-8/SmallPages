@@ -111,11 +111,13 @@ python3 -m http.server
 
 Then visit `http://localhost:8000`.
 
-Four tools need the network the first time they run — `gifuct-js` for GIF decoding
-and `gif.js` for encoding, both pulled from a CDN, the ONNX weights behind
+Three tools need the network the first time they run — `gifuct-js`, which
+`gif-to-mcmeta.html` pulls from a CDN to decode a GIF, the ONNX weights behind
 `remove-background.html`, and `pdf.js`, which `document-viewer.html` fetches only
 when you actually open a PDF. Everything else works offline, `document-viewer.html`
-included for every other kind of file it opens.
+included for every other kind of file it opens — GIF *encoding* among them, since
+`png-to-swirl-gif.html` and `video-to-animation.html` write theirs with the copy
+of `gifenc` in [`vendor/`](vendor/).
 
 Three pages have to be served rather than opened off the filesystem, because a
 browser will not start a worker from a `file://` folder: the two that read words
