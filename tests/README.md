@@ -112,6 +112,16 @@ Suites are named for the page they exercise. The ones worth knowing about:
   that. What goes wrong is checked too — a colour the page cannot read, a
   pixel off the edge of the picture, a chart that does not exist and a page
   with no command line yet each exit non-zero with a sentence.
+
+  `image-compressor` is the second tool in it and the first that writes a
+  file, so its half ends in a stronger version of the same idea: the page is
+  driven by hand through its real format box, its real sliders and its real
+  Save button, and the downloaded file is compared *byte for byte* with what
+  `--out` wrote at the same three settings. Two files rather than two readings
+  of a number. It also pins the thing the page does quietly — the cap slider
+  moves in forties from 240, so `--max 300` is not a size that page can be
+  asked for, and the command line has to report the 320 it got rather than the
+  300 it was given.
 - **`test-dice.mjs`** — the dice roller, where the claim worth checking is that
   the die on the table is showing what the page says was rolled. It reads each
   die's quaternion back out and works out which labelled face is pointing at
@@ -196,6 +206,43 @@ Suites are named for the page they exercise. The ones worth knowing about:
   otherwise orphan the first. Every picture in it is a few dozen pixels
   across, because a container has a software rasteriser where a GPU should be
   and each tile costs seconds there.
+- **`test-imgc.mjs`** — the image compressor, where the tally adding up is the
+  least of it. The page promises four things it could stop doing without any
+  label on screen changing: that a lower quality is a smaller *file* and not
+  just a smaller number beside a slider, that the cap on the longest side
+  never enlarges anything, that a JPEG — which has no alpha — comes back with
+  white where the transparency was rather than the black a canvas would
+  otherwise give it, and that the EXIF block does not survive the trip. So
+  almost every check here opens the saved file again, and opens it by handing
+  it back to the page, which is the only image decoder in the repository; only
+  the first few bytes are ever read in node, and only to catch a WebP wearing
+  a `.jpg` name.
+
+  The EXIF one is the page's privacy claim and the one thing on it a reader
+  cannot check by looking, so the fixture is built in the suite: a picture the
+  browser encodes, with an APP1 block spliced in after the SOI carrying an
+  orientation flag and a marker string standing in for the camera, the
+  timestamp and the coordinates. A photograph with real EXIF in it would be
+  somebody's photograph. The check is that the marker is nowhere in what came
+  out &mdash; paired with one that it was in what went in, so the detector is
+  known to work &mdash; and the orientation rides along to answer the other
+  half, that a picture stored on its side comes out the way the page showed
+  it, in the size reported and in the saved pixels both.
+
+  Every one of these passed the first time it was run, which is the point at
+  which this repository has learned to be suspicious, so the suite was run
+  again against the page broken seven ways on purpose: the white fill taken
+  out, the quality slider ignored, the enlargement clamp removed, the seam
+  clipped the other way, the saved name changed, the tally's subtraction
+  broken, and the picture drawn upside down. Six were caught by exactly the
+  check that should catch them. The seventh is written up beside the check that
+  cannot see it: taking away the argument that asks the decoder to read the
+  orientation changes nothing, because Chromium reads it by default now, so
+  that check is about the page's end-to-end behaviour rather than about the
+  flag. One check exists only because of that exercise &mdash; the clamp that
+  refuses to enlarge cannot be reached through the slider at all, whose ceiling
+  is the picture itself, so the suite lifts the ceiling to get at it. Without
+  that it could stop refusing and nothing here would notice.
 - **`test-pdfb.mjs`** — saves a PDF, reloads it through pdf.js, and reads the
   text back out, which is the only way to prove a copied page stayed a page
   rather than becoming a picture of one.
