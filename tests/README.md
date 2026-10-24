@@ -94,6 +94,20 @@ Suites are named for the page they exercise. The ones worth knowing about:
   reads the Markdown: every cue sorted by time rather than by the order it sat
   in the page, every comment with the likes the page displayed, and the export
   notes saying what it could not vouch for.
+- **`games/test-approach.mjs`** — the air traffic one, where nearly every
+  rule is about the middle of a run rather than the end of it. It drags a
+  route with a real pointer and flies the aircraft down it; puts one exactly
+  over a threshold and turns it a degree at a time to find where the heading
+  tolerance stops; watches every aircraft every step and fails if one ever
+  turns faster than it is allowed to; holds one in a tight circle and sends
+  another into it to prove two touching ends the shift, and that they light
+  up before they do. The one worth the most is the fairness check: an arrival
+  is only accepted if nothing comes near it for eleven seconds, so the suite
+  plays all three fields on twenty-five seeds each with nobody at the console
+  and fails if anything hits anything. An earlier version of that guard
+  sampled every half second, which is not often enough for two darts closing
+  head-on, and let a pair through that collided nine seconds into a shift the
+  player had not touched.
 - **`games/test-gridlock.mjs`** — the traffic game. Drawing is done with real
   pointer drags and checked as road: one-way the way it was dragged, two-way
   only after a drag back over it, refused into a blob that makes cars or out

@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<!-- Approach, from SmallPages <https://github.com/9-7-8/SmallPages>
+     Copyright (C) 2026 Ixora. SPDX-License-Identifier: GPL-3.0-or-later
+     Free software with no warranty, under the GNU General Public License,
+     version 3 or later: see LICENSE in the repository, or
+     <https://www.gnu.org/licenses/>. -->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Approach</title>
+<link rel="stylesheet" href="../../theme.css">
+<style>
+  /* Layout and sizing only. Colour, type and component styling live in
+     theme.css — with the one exception this game is built on: an aircraft
+     and the place it is allowed to land are matched by colour, so the three
+     kinds carry three hues of their own. They live in the script, next to
+     the shapes that repeat the same information for anyone who cannot tell
+     the hues apart, and nothing else on the page is coloured: the chrome
+     stays at the theme's white glow, so colour here only ever means "these
+     two belong together". */
+
+  body { margin: 0; padding: 2.6rem 1.5rem 5rem; min-height: 100vh; }
+  main { max-width: 1040px; margin: 0 auto; }
+  h1 { margin-bottom: 0.4rem; }
+  p.lede { margin: 0 0 1.8rem; max-width: 54ch; }
+
+  /* ---------------------------------------------------------- field bar -- */
+
+  .bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.6rem 1rem;
+    padding-bottom: 0.9rem;
+    margin-bottom: 1.1rem;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .bar select { min-width: 13rem; }
+  .bar .goal { font-size: 0.82rem; color: var(--text-dim); }
+  .bar .seed {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    color: var(--text-faint);
+  }
+
+  /* -------------------------------------------------------------- scope -- */
+
+  .scope {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    width: 100%;
+    background: var(--sunken);
+    border: 1px solid var(--line-soft);
+  }
+  /* Drawn at a whole number of pixels and shown at that size, so the rings
+     and the runway edges stay one pixel wide wherever the window is. */
+  #cv {
+    display: block;
+    max-width: 100%;
+    touch-action: none;      /* a drag on the scope routes, it does not scroll */
+    cursor: crosshair;
+  }
+
+  .banner {
+    position: absolute;
+    inset: auto 0 0 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 1rem;
+    padding: 0.9rem 1.1rem;
+    background: hsl(0 0% 0% / 0.82);
+    border-top: 1px solid var(--line);
+  }
+  .banner[hidden] { display: none; }
+  .banner .head { font-weight: 500; letter-spacing: 0.04em; color: var(--neon); }
+  .banner .why { font-size: 0.82rem; color: var(--text-dim); flex: 1 1 14rem; }
+  .banner button { padding: 0.35rem 0.8rem; font-size: 0.8rem; }
+
+  /* ----------------------------------------------------------- controls -- */
+
+  .controls { display: flex; flex-wrap: wrap; gap: 0.7rem; margin: 1rem 0 1.2rem; }
+  .controls button { padding: 0.5rem 0.9rem; font-size: 0.82rem; }
+
+  /* -------------------------------------------------------------- stats -- */
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    border-top: 1px solid var(--line-soft);
+    border-left: 1px solid var(--line-soft);
+  }
+  .stats div {
+    padding: 0.7rem 0.9rem 0.8rem;
+    border-right: 1px solid var(--line-soft);
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .stats span {
+    display: block;
+    font-size: 0.66rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+  }
+  .stats b {
+    display: block;
+    margin-top: 0.25rem;
+    font-weight: 300;
+    font-size: 1.15rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--text);
+  }
+  .stats .hot b { color: var(--neon-hot); text-shadow: var(--text-glow); }
+
+  #say { min-height: 1.5rem; margin: 0.9rem 0 0; font-size: 0.85rem; }
+
+  /* ------------------------------------------------------------- legend -- */
+
+  .key {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem 1.4rem;
+    margin: 1rem 0 0;
+    padding: 0;
+    list-style: none;
+    font-size: 0.8rem;
+    color: var(--text-dim);
+  }
+  .key li { display: flex; align-items: center; gap: 0.4rem; }
+  .key svg { width: 17px; height: 17px; flex: none; }
+
+  /* -------------------------------------------------------------- prose -- */
+
+  .notes { margin-top: 2.6rem; display: grid; gap: 1.2rem; }
+  .notes h2 { margin: 0 0 0.5rem; }
+  .notes p, .notes li { font-size: 0.86rem; }
+  .notes p { margin: 0 0 0.7rem; max-width: 66ch; }
+  .notes ul { margin: 0 0 0.7rem; padding-left: 1.1rem; max-width: 66ch; }
+  .notes li { margin-bottom: 0.4rem; }
+  .notes kbd { font-family: var(--mono); font-size: 0.78em; border: 1px solid var(--line); padding: 0 0.3em; }
+
+  @media (max-width: 560px) {
+    body { padding: 1.8rem 1rem 4rem; }
+    .controls button { padding: 0.45rem 0.7rem; font-size: 0.78rem; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <a class="home" href="../index.html">&larr; games</a>
+  <h1>Approach</h1>
+  <p class="lede">Aircraft arrive from every edge and will fly straight on until you say
+  otherwise. Drag a line from one to the strip of its own colour and it will follow it
+  down. Let two of them touch and the shift is over.</p>
+
+  <div class="bar">
+    <select id="fieldSel" aria-label="Field"></select>
+    <span class="goal" id="goal"></span>
+    <span class="seed" id="seed"></span>
+  </div>
+
+  <div class="scope" id="scope">
+    <canvas id="cv" width="1000" height="680" role="img" aria-label="The scope"></canvas>
+    <div class="banner" id="banner" hidden>
+      <span class="head" id="bHead"></span>
+      <span class="why" id="bWhy"></span>
+      <button type="button" id="bAgain">Same traffic again</button>
+      <button type="button" id="bFresh" class="ghost">New traffic</button>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="seg">
+      <button type="button" id="play">Start</button>
+      <button type="button" id="again">Restart</button>
+    </div>
+    <div class="seg">
+      <button type="button" id="fresh" class="ghost">New traffic</button>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div id="stDown"><span>Landed</span><b>0</b></div>
+    <div id="stAir"><span>In the air</span><b>0</b></div>
+    <div id="stGone"><span>Diverted</span><b>0</b></div>
+    <div id="stNear"><span>Closest</span><b>&mdash;</b></div>
+    <div id="stBest"><span>Best here</span><b>0</b></div>
+  </div>
+
+  <p class="status" id="say"></p>
+
+  <ul class="key" id="key"></ul>
+
+  <div class="notes">
+    <section class="card">
+      <h2>How it goes</h2>
+      <p>Drag from an aircraft to draw its route. It turns onto the line as fast as its own
+      wings will let it, follows it to the end, and then carries straight on for ever. Drag
+      again to replace a route; tap an aircraft without dragging to tear its route up and
+      leave it flying straight.</p>
+      <ul>
+        <li><b>Land it on its own colour.</b> A dart wants the runway marked with a dart, a
+        cross wants the cross, a rotor wants the pad. Nothing lands anywhere else.</li>
+        <li><b>A runway only works one way round.</b> You have to cross the near end of it
+        pointing roughly the way it points &mdash; the dashed line out in front of the
+        threshold is the approach, and arriving across it at an angle means going round
+        again. A pad takes a helicopter from any direction.</li>
+        <li><b>Turning costs room.</b> A dart is quick and turns like a bus; a rotor is slow
+        and turns on the spot. Line a dart up early or it will sail past the threshold.</li>
+        <li><b>Keep them apart.</b> Two aircraft closing to within the warning ring light up.
+        Let them touch and that is the shift over.</li>
+        <li><b>Leaving is not crashing.</b> Anything that flies out of the sector is diverted
+        &mdash; no harm done, but it is one you did not land.</li>
+      </ul>
+      <p>Traffic builds the longer you last. The seed in the corner picks the whole sequence,
+      so <em>Same traffic again</em> replays the exact shift you just lost and
+      <em>New traffic</em> deals a different one.</p>
+      <p><kbd>Space</kbd> starts and pauses, <kbd>R</kbd> restarts the shift, <kbd>N</kbd>
+      deals new traffic.</p>
+    </section>
+    <section class="card">
+      <h2>What it is not</h2>
+      <p>Not air traffic control. Everything here is one flat layer, so there is no altitude,
+      and the single thing a real controller does most &mdash; put one aircraft a thousand
+      feet above another and let them cross &mdash; cannot be done at all. There is no
+      vertical separation, no speed control, no holding stack, no wake turbulence, no
+      go-around that climbs away and rejoins, no fuel and so no diversion you have to accept.
+      Aircraft fly at exactly one speed each and turn at exactly one rate, nothing drifts off
+      a heading, and the wind does not blow. Separation is a plain distance between two dots
+      rather than anything anyone would recognise as a standard, and the only thing on the
+      ground is the runway you are aiming at.</p>
+      <p>The simulation is a fixed step of a sixtieth of a second and the only randomness is
+      one seeded generator deciding who arrives, when and from where, so the same seed deals
+      the same shift every time. Pausing stops the clock and you can still draw while it is
+      stopped, which makes the game easier; nothing here knows or cares that you did.
+      Nothing is uploaded; your best on each field is kept in this browser.</p>
+    </section>
+  </div>
+</main>
+
+<script>
+"use strict";
+
+/* ========================================================== the pieces === */
+
+/* The sector, in its own units. The canvas is scaled to this, so nothing
+   below has to know how big the window is. */
+const FW = 1000, FH = 680;
+
+/* Three kinds, each a hue and a shape saying the same thing, and each with a
+   place it is allowed to land and nowhere else. Named for the shape rather
+   than for any real aircraft, because none of these fly like one. */
+const KINDS = [
+  { key: "dart",  name: "Dart",  hue: 38,  speed: 112, turn: 1.15, land: "runway" },
+  { key: "cross", name: "Cross", hue: 190, speed: 84,  turn: 1.45, land: "runway" },
+  { key: "rotor", name: "Rotor", hue: 330, speed: 56,  turn: 2.00, land: "pad" },
+];
+const hue = (k, l = 62, s = 80) => `hsl(${KINDS[k].hue} ${s}% ${l}%)`;
+
+const STEP      = 1 / 60;
+const CATCH     = 24;    // how near the threshold counts as crossing it
+const TOL       = 0.50;  // ~29°, how far off the runway heading you may cross
+const PAD_CATCH = 26;
+const WARN      = 78;    // closer than this and both light up
+const CRASH     = 34;    // closer than this and the shift is over
+const ROLL      = 0.85;  // seconds on the ground before it is away
+const GRAB      = 36;    // how near an aircraft a drag has to start
+const SPACING   = 11;    // how far apart a drag drops its waypoints
+const REACH     = 13;    // how near a waypoint counts as reaching it
+const INSIDE    = 40;    // how far in it must get before leaving counts
+const GRACE     = 11;    // seconds of clear air an arrival is guaranteed
+const CLEAR     = 52;    // and how far it must stay from anybody over them
+
+/* ============================================================== fields === */
+
+const FIELDS = [
+  {
+    id: "coast", name: "Coast",
+    spots: [
+      { k: 0, type: "runway", x: 480, y: 540, hdg: 0, len: 240 },
+      { k: 2, type: "pad", x: 770, y: 150 },
+    ],
+    mix: [[0, 0.56], [2, 0.44]],
+    from: 8.5, to: 4.4, ramp: 180, floor: 2.2,
+    hint: "One runway and one pad. Line a dart up long before the threshold.",
+  },
+  {
+    id: "crosswind", name: "Crosswind",
+    spots: [
+      { k: 0, type: "runway", x: 520, y: 330, hdg: 0, len: 230 },
+      { k: 1, type: "runway", x: 330, y: 250, hdg: -Math.PI / 2, len: 180 },
+      { k: 2, type: "pad", x: 830, y: 545 },
+    ],
+    mix: [[0, 0.36], [1, 0.36], [2, 0.28]],
+    from: 7.4, to: 3.5, ramp: 200, floor: 1.9,
+    hint: "Two runways at right angles, and the two approaches cross. The routes must not.",
+  },
+  {
+    id: "hub", name: "Hub",
+    spots: [
+      { k: 0, type: "runway", x: 340, y: 520, hdg: -0.209, len: 250 },
+      { k: 1, type: "runway", x: 690, y: 200, hdg: 2.059, len: 215 },
+      { k: 2, type: "pad", x: 840, y: 560 },
+    ],
+    mix: [[0, 0.40], [1, 0.34], [2, 0.26]],
+    from: 6.0, to: 2.6, ramp: 220, floor: 1.6,
+    hint: "Everything at once, arriving twice as often. Keep the sector tidy early.",
+  },
+];
+
+/* ============================================================== state === */
+
+/* One seeded generator decides who arrives, when and from where, and nothing
+   else in here is random at all, so a seed is a whole shift and the same one
+   deals it again exactly. */
+function seeded(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+
+let S = null;
+
+function begin(field, seed) {
+  S = {
+    field, seed,
+    rand: seeded(seed),
+    craft: [], nextId: 1,
+    t: 0, due: 1.2,
+    landed: 0, diverted: 0,
+    closest: Infinity,
+    running: false, over: null, announced: false,
+    unit: 1, hit: null,
+  };
+  return S;
+}
+
+/* ========================================================== the traffic === */
+
+function pickKind() {
+  const r = S.rand();
+  let run = 0;
+  for (const [k, w] of S.field.mix) { run += w; if (r <= run) return k; }
+  return S.field.mix[S.field.mix.length - 1][0];
+}
+
+/* Traffic builds quickly to the field's working rate and then keeps
+   tightening, slowly, for ever. A rate that levels off is a rate a careful
+   player never loses to, and a shift that cannot end is not a score. */
+function gap() {
+  const f = S.field;
+  const along = Math.min(1, S.t / f.ramp);
+  const settled = f.from + (f.to - f.from) * along;
+  const creep = 0.3 * Math.max(0, S.t - f.ramp) / 60;
+  return Math.max(f.floor, settled - creep);
+}
+
+function arrive() {
+  const r = S.rand;
+  const edge = Math.floor(r() * 4);
+  const u = 0.1 + r() * 0.8;
+  let x, y, hdg;
+  if (edge === 0) { x = u * FW; y = 0; hdg = Math.PI / 2; }
+  else if (edge === 1) { x = FW; y = u * FH; hdg = Math.PI; }
+  else if (edge === 2) { x = u * FW; y = FH; hdg = -Math.PI / 2; }
+  else { x = 0; y = u * FH; hdg = 0; }
+  hdg = wrap(hdg + (r() - 0.5) * 0.7);
+  const k = pickKind();
+  /* Nobody arrives into a conflict that was already unavoidable. An arrival
+     is only taken if, flying straight on and with everybody else flying
+     straight on too, nothing comes near it for the next GRACE seconds — so
+     however bad the sector gets, it got that way under your hand, and you
+     had at least that long to see it coming. */
+  const speed = KINDS[k].speed;
+  const vx = Math.cos(hdg) * speed, vy = Math.sin(hdg) * speed;
+  for (const c of S.craft) {
+    if (c.down) continue;
+    if (nearest(x, y, vx, vy, c.x, c.y, Math.cos(c.hdg) * c.speed,
+                Math.sin(c.hdg) * c.speed, GRACE) < CLEAR) return false;
+  }
+  S.craft.push({
+    id: S.nextId++, k, x, y, hdg,
+    speed: KINDS[k].speed, turn: KINDS[k].turn,
+    path: [], down: null, inside: false, near: false,
+  });
+  return true;
+}
+
+/* How close two aircraft holding their present headings would ever get
+   within the next `window` seconds. Solved rather than sampled: two darts
+   closing head-on cover a hundred units between half-second samples, which
+   is how a sampled version of this let a pair through that then hit. */
+function nearest(ax, ay, avx, avy, bx, by, bvx, bvy, window) {
+  const dx = ax - bx, dy = ay - by;
+  const dvx = avx - bvx, dvy = avy - bvy;
+  const spread = dvx * dvx + dvy * dvy;
+  let t = spread < 1e-9 ? 0 : -(dx * dvx + dy * dvy) / spread;
+  t = Math.max(0, Math.min(window, t));
+  return Math.hypot(dx + dvx * t, dy + dvy * t);
+}
+
+function step(dt) {
+  if (S.over) return;
+  S.t += dt;
+
+  S.due -= dt;
+  if (S.due <= 0 && arrive()) S.due = gap();
+  else if (S.due <= 0) S.due = 0.4;             // sky too busy: try again shortly
+
+  for (let i = S.craft.length - 1; i >= 0; i--) {
+    const c = S.craft[i];
+
+    if (c.down) {                                // on the ground and rolling
+      c.down.t += dt;
+      if (c.down.t >= ROLL) { S.craft.splice(i, 1); S.landed++; }
+      continue;
+    }
+
+    /* Steer toward the next waypoint, as fast as this one's wings allow —
+       dropping any it has reached, and any it has gone past. That second
+       rule is what makes a drawn line behave like a route rather than a
+       set of hoops: a dart cannot turn inside ninety-odd units, so a corner
+       drawn tighter than that gets overshot, and without this it would wheel
+       round to collect the point it missed and fly off the way it came. */
+    while (c.path.length) {
+      const wp = c.path[0];
+      const dx = wp.x - c.x, dy = wp.y - c.y;
+      const d = Math.hypot(dx, dy);
+      if (d < REACH) { c.path.shift(); continue; }
+      const ahead = dx * Math.cos(c.hdg) + dy * Math.sin(c.hdg);
+      if (ahead < 0 && d < 2 * (c.speed / c.turn)) { c.path.shift(); continue; }
+      break;
+    }
+    if (c.path.length) {
+      const want = Math.atan2(c.path[0].y - c.y, c.path[0].x - c.x);
+      const off = wrap(want - c.hdg);
+      const most = c.turn * dt;
+      c.hdg = wrap(c.hdg + Math.max(-most, Math.min(most, off)));
+    }
+    c.x += Math.cos(c.hdg) * c.speed * dt;
+    c.y += Math.sin(c.hdg) * c.speed * dt;
+
+    const spot = touchdown(c);
+    if (spot) { c.down = { spot, t: 0 }; c.path.length = 0; continue; }
+
+    if (!c.inside && c.x > INSIDE && c.y > INSIDE && c.x < FW - INSIDE && c.y < FH - INSIDE) {
+      c.inside = true;
+    }
+    if (c.inside && (c.x < 0 || c.y < 0 || c.x > FW || c.y > FH)) {
+      S.craft.splice(i, 1); S.diverted++;
+    }
+  }
+
+  // --- separation ---
+  const air = S.craft.filter((c) => !c.down);
+  for (const c of air) c.near = false;
+  for (let i = 0; i < air.length; i++) {
+    for (let j = i + 1; j < air.length; j++) {
+      const d = dist(air[i], air[j]);
+      if (d < S.closest) S.closest = d;
+      if (d < WARN) { air[i].near = true; air[j].near = true; }
+      if (d < CRASH && !S.over) {
+        S.hit = { x: (air[i].x + air[j].x) / 2, y: (air[i].y + air[j].y) / 2 };
+        S.over = {
+          head: "Loss of separation",
+          why: `A ${KINDS[air[i].k].name.toLowerCase()} and a ${KINDS[air[j].k].name.toLowerCase()}`
+            + ` came together after ${S.landed} landing${S.landed === 1 ? "" : "s"}.`,
+        };
+      }
+    }
+  }
+}
+
+/* Has it crossed the near end of somewhere it is allowed to land, pointing
+   roughly the right way? A pad does not care which way; a runway cares a
+   great deal, which is the whole of lining an approach up. */
+function touchdown(c) {
+  for (const s of S.field.spots) {
+    if (s.k !== c.k) continue;
+    const d = dist(c, s);
+    if (s.type === "pad") { if (d < PAD_CATCH) return s; continue; }
+    if (d < CATCH && Math.abs(wrap(c.hdg - s.hdg)) < TOL) return s;
+  }
+  return null;
+}
+
+/* =============================================================== paint === */
+
+const cv = document.getElementById("cv");
+const ctx = cv.getContext("2d");
+const scope = document.getElementById("scope");
+
+/* Canvas cannot read a stylesheet, so the chrome is pulled out of the theme
+   once and painted with. Only the three kinds bring colour of their own. */
+let INK = {};
+function readTheme() {
+  const cs = getComputedStyle(document.body);
+  const pick = (n, f) => (cs.getPropertyValue(n) || "").trim() || f;
+  INK = {
+    line: pick("--line", "#2a2a2a"),
+    soft: pick("--line-soft", "#1a1a1a"),
+    raised: pick("--raised", "#0f0f0f"),
+    faint: pick("--text-faint", "#616161"),
+    dim: pick("--text-dim", "#949494"),
+    text: pick("--text", "#f0f0f0"),
+    neon: pick("--neon", "#fafafa"),
+    hot: pick("--neon-hot", "#ffffff"),
+    deep: pick("--neon-deep", "#9e9e9e"),
+  };
+}
+
+function fit() {
+  const wide = Math.max(240, scope.clientWidth || 900);
+  const tall = Math.max(220, Math.round((window.innerHeight || 900) * 0.66));
+  const scale = Math.min(1, wide / FW, tall / FH);
+  const dpr = Math.min(3, window.devicePixelRatio || 1);
+  S.unit = scale;
+  cv.width = Math.round(FW * scale * dpr);
+  cv.height = Math.round(FH * scale * dpr);
+  cv.style.width = `${Math.round(FW * scale)}px`;
+  cv.style.height = `${Math.round(FH * scale)}px`;
+  ctx.setTransform(dpr * scale, 0, 0, dpr * scale, 0, 0);
+}
+
+function shape(g, k, x, y, hdg, r) {
+  g.save();
+  g.translate(x, y);
+  g.rotate(hdg);
+  g.beginPath();
+  const key = KINDS[k].key;
+  if (key === "dart") {
+    g.moveTo(r * 1.55, 0);
+    g.lineTo(-r * 0.95, r * 0.9);
+    g.lineTo(-r * 0.4, 0);
+    g.lineTo(-r * 0.95, -r * 0.9);
+    g.closePath();
+  } else if (key === "cross") {
+    // two bars in one path: the union is a plus, pointing the way it flies
+    g.rect(-r * 1.1, -r * 0.22, r * 2.2, r * 0.44);
+    g.rect(-r * 0.22, -r * 0.95, r * 0.44, r * 1.9);
+  } else {
+    g.arc(0, 0, r * 0.62, 0, Math.PI * 2);
+    g.rect(-r * 0.16, -r * 1.25, r * 0.32, r * 2.5);
+  }
+  g.restore();
+}
+
+let dirty = true;
+const repaint = () => { dirty = true; };
+
+function draw() {
+  if (!S) return;
+  ctx.clearRect(0, 0, FW, FH);
+
+  // the ground, such as it is
+  ctx.save();
+  ctx.globalAlpha = 0.55;
+  ctx.strokeStyle = INK.soft;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let x = 100; x < FW; x += 100) { ctx.moveTo(x + 0.5, 0); ctx.lineTo(x + 0.5, FH); }
+  for (let y = 100; y < FH; y += 100) { ctx.moveTo(0, y + 0.5); ctx.lineTo(FW, y + 0.5); }
+  ctx.stroke();
+  ctx.restore();
+
+  for (const s of S.field.spots) {
+    const c = hue(s.k, 58), dim = hue(s.k, 30, 60);
+    if (s.type === "runway") {
+      const ex = s.x + Math.cos(s.hdg) * s.len, ey = s.y + Math.sin(s.hdg) * s.len;
+      // the approach: where you have to come from, and how far off you may be
+      ctx.save();
+      ctx.setLineDash([7, 9]);
+      ctx.strokeStyle = dim;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(s.x, s.y);
+      ctx.lineTo(s.x - Math.cos(s.hdg) * 150, s.y - Math.sin(s.hdg) * 150);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      for (const sgn of [-1, 1]) {
+        const a = s.hdg + Math.PI + sgn * TOL;
+        ctx.globalAlpha = 0.5;
+        ctx.beginPath();
+        ctx.moveTo(s.x, s.y);
+        ctx.lineTo(s.x + Math.cos(a) * 96, s.y + Math.sin(a) * 96);
+        ctx.stroke();
+      }
+      ctx.restore();
+      // the strip
+      ctx.strokeStyle = INK.raised; ctx.lineWidth = 20; ctx.lineCap = "butt";
+      ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(ex, ey); ctx.stroke();
+      ctx.strokeStyle = dim; ctx.lineWidth = 16;
+      ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(ex, ey); ctx.stroke();
+      // the threshold you have to cross
+      const px = -Math.sin(s.hdg), py = Math.cos(s.hdg);
+      ctx.strokeStyle = c; ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(s.x + px * 12, s.y + py * 12);
+      ctx.lineTo(s.x - px * 12, s.y - py * 12);
+      ctx.stroke();
+      ctx.fillStyle = c;
+      shape(ctx, s.k, s.x - Math.cos(s.hdg) * 26 + px * 26, s.y - Math.sin(s.hdg) * 26 + py * 26,
+            s.hdg, 8);
+      ctx.fill();
+    } else {
+      ctx.strokeStyle = dim; ctx.lineWidth = 14;
+      ctx.beginPath(); ctx.arc(s.x, s.y, 20, 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = c; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(s.x, s.y, 27, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = c;
+      shape(ctx, s.k, s.x, s.y, -Math.PI / 2, 9);
+      ctx.fill();
+    }
+  }
+
+  // routes already given
+  for (const c of S.craft) {
+    if (c.down || !c.path.length) continue;
+    ctx.save();
+    ctx.globalAlpha = 0.4;
+    ctx.strokeStyle = hue(c.k, 62);
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(c.x, c.y);
+    for (const p of c.path) ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // the one being drawn now
+  if (S.draw && S.draw.pts.length > 1) {
+    ctx.save();
+    ctx.strokeStyle = hue(S.draw.c.k, 76);
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(S.draw.pts[0].x, S.draw.pts[0].y);
+    for (const p of S.draw.pts.slice(1)) ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  for (const c of S.craft) {
+    const fade = c.down ? Math.max(0, 1 - c.down.t / ROLL) : 1;
+    let x = c.x, y = c.y, h = c.hdg;
+    if (c.down && c.down.spot.type === "runway") {
+      const s = c.down.spot;
+      const along = s.len * (1 - (1 - c.down.t / ROLL) ** 2);
+      x = s.x + Math.cos(s.hdg) * along;
+      y = s.y + Math.sin(s.hdg) * along;
+      h = s.hdg;
+    }
+    ctx.save();
+    ctx.globalAlpha = fade;
+    if (!c.down) {
+      // where it will be in a few seconds, which is the thing you steer by
+      ctx.strokeStyle = hue(c.k, 40, 60);
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + Math.cos(h) * c.speed * 0.55, y + Math.sin(h) * c.speed * 0.55);
+      ctx.stroke();
+    }
+    ctx.fillStyle = hue(c.k, c.near ? 80 : 64);
+    ctx.shadowBlur = c.near ? 22 : 10;
+    ctx.shadowColor = hue(c.k, 60);
+    shape(ctx, c.k, x, y, h, 10);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    if (c.near) {
+      ctx.strokeStyle = INK.hot;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(x, y, WARN / 2, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  if (S.hit) {
+    ctx.strokeStyle = INK.hot;
+    ctx.lineWidth = 2.5;
+    for (const r of [16, 30, 46]) {
+      ctx.beginPath();
+      ctx.arc(S.hit.x, S.hit.y, r, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
+}
+
+/* =============================================================== input === */
+
+function at(ev) {
+  const r = cv.getBoundingClientRect();
+  return {
+    x: ((ev.clientX - r.left) / r.width) * FW,
+    y: ((ev.clientY - r.top) / r.height) * FH,
+  };
+}
+
+function grab(p) {
+  let best = null, near = GRAB;
+  for (const c of S.craft) {
+    if (c.down) continue;
+    const d = dist(c, p);
+    if (d < near) { near = d; best = c; }
+  }
+  return best;
+}
+
+cv.addEventListener("pointerdown", (ev) => {
+  if (!S || S.over) return;
+  ev.preventDefault();
+  const p = at(ev);
+  const c = grab(p);
+  if (!c) { say("Start the line on an aircraft."); return; }
+  cv.setPointerCapture(ev.pointerId);
+  S.draw = { c, pts: [p] };
+  say("");
+  repaint();
+});
+
+cv.addEventListener("pointermove", (ev) => {
+  if (!S || !S.draw) return;
+  const p = at(ev);
+  const last = S.draw.pts[S.draw.pts.length - 1];
+  if (Math.hypot(p.x - last.x, p.y - last.y) < SPACING) return;
+  S.draw.pts.push(p);
+  repaint();
+});
+
+function release() {
+  if (!S || !S.draw) return;
+  const { c, pts } = S.draw;
+  S.draw = null;
+  if (!S.craft.includes(c)) return;             // it landed or left mid-drag
+  if (pts.length < 2) { c.path = []; say("Route cleared; it will fly straight on."); }
+  else c.path = pts.slice(1);
+  repaint();
+}
+cv.addEventListener("pointerup", release);
+cv.addEventListener("pointercancel", release);
+cv.addEventListener("contextmenu", (ev) => ev.preventDefault());
+
+/* ============================================================== chrome === */
+
+const el = (id) => document.getElementById(id);
+const sel = el("fieldSel"), goalEl = el("goal"), seedEl = el("seed"), sayEl = el("say");
+const banner = el("banner"), bHead = el("bHead"), bWhy = el("bWhy");
+const playBtn = el("play"), keyEl = el("key");
+
+const STORE = "approach.best";
+function bests() {
+  try { return JSON.parse(localStorage.getItem(STORE)) || {}; } catch { return {}; }
+}
+function remember(id, score) {
+  const all = bests();
+  if (score <= (all[id] || 0)) return;
+  all[id] = score;
+  try { localStorage.setItem(STORE, JSON.stringify(all)); } catch { /* private window */ }
+}
+
+function say(words) { sayEl.textContent = words || ""; }
+
+let at_ = 0;                                     // which field
+
+function fillFields() {
+  const best = bests();
+  sel.innerHTML = "";
+  FIELDS.forEach((f, i) => {
+    const o = document.createElement("option");
+    o.value = String(i);
+    o.textContent = `${i + 1}. ${f.name}${best[f.id] ? `  · best ${best[f.id]}` : ""}`;
+    sel.append(o);
+  });
+  sel.value = String(at_);
+}
+
+function glyph(k) {
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("viewBox", "-12 -12 24 24");
+  svg.setAttribute("aria-hidden", "true");
+  const g = document.createElementNS(NS, "g");
+  g.setAttribute("fill", hue(k, 62));
+  const key = KINDS[k].key;
+  if (key === "dart") {
+    const p = document.createElementNS(NS, "polygon");
+    p.setAttribute("points", "10.5,0 -6.5,6 -2.5,0 -6.5,-6");
+    g.append(p);
+  } else if (key === "cross") {
+    for (const d of [[-8, -1.6, 16, 3.2], [-1.6, -7, 3.2, 14]]) {
+      const r = document.createElementNS(NS, "rect");
+      r.setAttribute("x", d[0]); r.setAttribute("y", d[1]);
+      r.setAttribute("width", d[2]); r.setAttribute("height", d[3]);
+      g.append(r);
+    }
+  } else {
+    const c = document.createElementNS(NS, "circle");
+    c.setAttribute("r", "4.4");
+    const r = document.createElementNS(NS, "rect");
+    r.setAttribute("x", "-1.2"); r.setAttribute("y", "-9");
+    r.setAttribute("width", "2.4"); r.setAttribute("height", "18");
+    g.append(c, r);
+  }
+  svg.append(g);
+  return svg;
+}
+
+function fillKey() {
+  keyEl.innerHTML = "";
+  const seen = [...new Set(S.field.spots.map((s) => s.k))].sort((a, b) => a - b);
+  for (const k of seen) {
+    const li = document.createElement("li");
+    const where = KINDS[k].land === "pad" ? "pad, any direction"
+      : "runway, crossing the near end the way it points";
+    li.append(glyph(k), document.createTextNode(`${KINDS[k].name} — ${where}`));
+    keyEl.append(li);
+  }
+}
+
+function load(which, seed) {
+  at_ = typeof which === "string" ? FIELDS.findIndex((f) => f.id === which) : (which | 0);
+  if (at_ < 0) at_ = 0;
+  const field = FIELDS[at_];
+  begin(field, seed === undefined ? (Math.random() * 0xffffffff) >>> 0 : seed >>> 0);
+  fit();
+  sel.value = String(at_);
+  goalEl.textContent = field.hint;
+  seedEl.textContent = `Seed ${S.seed.toString(36)}`;
+  fillKey();
+  banner.hidden = true;
+  playBtn.textContent = "Start";
+  say("");
+  refresh();
+  repaint();
+  return S;
+}
+
+function refresh() {
+  if (!S) return;
+  const set = (id, text, hot) => {
+    const node = el(id);
+    node.querySelector("b").textContent = text;
+    node.classList.toggle("hot", !!hot);
+  };
+  set("stDown", String(S.landed));
+  set("stAir", String(S.craft.filter((c) => !c.down).length));
+  set("stGone", String(S.diverted), S.diverted > 0);
+  set("stNear", S.closest === Infinity ? "—" : String(Math.round(S.closest)),
+      S.closest < WARN);
+  if (S.landed > (S.kept || 0)) { S.kept = S.landed; remember(S.field.id, S.landed); }
+  set("stBest", String(bests()[S.field.id] || 0));
+  cv.setAttribute("aria-label",
+    `${S.field.name}: ${S.landed} landed, ${S.craft.filter((c) => !c.down).length} in the air,`
+    + ` ${S.diverted} diverted.`);
+}
+
+function finish() {
+  S.announced = true;
+  S.running = false;
+  playBtn.textContent = "Start";
+  remember(S.field.id, S.landed);
+  fillFields();
+  banner.hidden = false;
+  bHead.textContent = S.over.head;
+  bWhy.textContent = S.over.why;
+  refresh();
+  repaint();
+}
+
+playBtn.addEventListener("click", () => {
+  if (!S || S.over) return;
+  S.running = !S.running;
+  playBtn.textContent = S.running ? "Pause" : "Resume";
+  say(S.running ? "" : "Paused. The clock is stopped, but you can still draw.");
+});
+el("again").addEventListener("click", () => { load(at_, S.seed); say("The same traffic again."); });
+el("fresh").addEventListener("click", () => { load(at_); say("New traffic."); });
+el("bAgain").addEventListener("click", () => load(at_, S.seed));
+el("bFresh").addEventListener("click", () => load(at_));
+sel.addEventListener("change", () => load(Number(sel.value)));
+
+document.addEventListener("keydown", (ev) => {
+  if (ev.target.matches("input, select, textarea")) return;
+  if (ev.code === "Space") { playBtn.click(); ev.preventDefault(); }
+  else if (ev.key === "r" || ev.key === "R") load(at_, S.seed);
+  else if (ev.key === "n" || ev.key === "N") load(at_);
+});
+
+/* ================================================================ loop === */
+
+let last = null, acc = 0, statAcc = 0;
+
+function frame(now) {
+  requestAnimationFrame(frame);
+  const dt = last === null ? 0 : Math.min(0.1, (now - last) / 1000);
+  last = now;
+  const live = S && S.running && !S.over;
+  if (live) {
+    acc += dt;
+    let guard = 12;
+    while (acc >= STEP && guard-- > 0) { acc -= STEP; step(STEP); if (S.over) break; }
+    dirty = true;
+  }
+  if (dirty) { draw(); dirty = false; }
+  if (S && S.over && !S.announced) finish();
+  statAcc += dt;
+  if (live && statAcc > 0.15) { statAcc = 0; refresh(); }
+}
+
+let sizer = null;
+window.addEventListener("resize", () => {
+  clearTimeout(sizer);
+  sizer = setTimeout(() => { fit(); repaint(); }, 80);
+});
+
+readTheme();
+fillFields();
+load(0, 1);
+requestAnimationFrame(frame);
+
+/* What the test suite drives. The same step() the page runs, called without
+   waiting for a real sixtieth of a second. */
+window.GAME = {
+  get S() { return S; },
+  FIELDS, KINDS, FW, FH, STEP, WARN, CRASH, CATCH, TOL, PAD_CATCH, GRAB, ROLL,
+  load, step, draw, refresh, touchdown, dist, wrap,
+  start() { S.running = true; playBtn.textContent = "Pause"; },
+  fast(seconds, watch) {
+    const n = Math.round(seconds / STEP);
+    for (let i = 0; i < n && !S.over; i++) { step(STEP); if (watch) watch(); }
+    if (S.over && !S.announced) finish();
+    refresh(); draw();
+    return S.over;
+  },
+};
+</script>
+</body>
+</html>

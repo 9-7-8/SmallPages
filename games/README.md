@@ -12,6 +12,7 @@ a timer.
 
 | | |
 | --- | --- |
+| [`approach/`](approach/) | Air traffic. Drag each aircraft a route down to the strip of its own colour, and keep any two of them apart. |
 | [`gridlock/`](gridlock/) | Traffic puzzle. Blobs make cars, blobs eat them, you draw the one-way roads in between. |
 
 ## To build
@@ -24,6 +25,8 @@ If you want somewhere to start: `sudoku`, `one-button`, `pegboard` and
 `liars-dice` are one from each group and between them settle every pattern the
 rest will copy — a board held in the DOM, a fixed-step loop against a clock,
 hand-rolled collisions, and hidden information passed round one device.
+`approach` is done, so the arcade group already has a fixed-step loop and a
+seeded stream of arrivals to copy from.
 
 ### Puzzles
 
@@ -53,7 +56,6 @@ Something is coming at you and the clock does not stop.
 | `reeling` | Hold a bar over a fish that will not stay still. | Small. Stardew's version is a spring under the player's thumb; getting that feel right is the whole game. |
 | `lockpick` | Feel for the sweet spot before the pick snaps. | Small. Skyrim's, and it needs the controls to be analogue — slow rotation, audible feedback — or it is just a guess. |
 | `small-fry` | Eat the smaller fish, grow, avoid the bigger ones. | Medium. Needs flocking that is cheap enough for a few hundred fish, and a growth curve that keeps the danger real. |
-| `approach` | Draw flight paths; keep the planes apart and land them. | Medium. Path-following plus separation checking. The original's genius is that you cause your own disasters a minute in advance. |
 
 ### Machines
 
