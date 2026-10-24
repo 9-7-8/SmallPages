@@ -160,6 +160,26 @@ Suites are named for the page they exercise. The ones worth knowing about:
   that are not. The OKLab arithmetic it measures distances with is written out
   again in the suite rather than read off the page, so a mistake in the page
   cannot agree with itself.
+- **`test-upscale.mjs`** — the image upscaler, where the claim worth checking
+  is that the picture coming out is *sharper* than the same picture stretched
+  rather than merely bigger. It draws a figure of bars and a disc, shrinks it
+  by four, hands that over, and measures both the model's answer and the
+  browser's own stretch against the original they both came from — a model
+  that had quietly failed to load would come out level with the stretch. Then
+  the tiling, which is the bug in an upscaler that everybody sees: the models
+  take a fixed 64 px patch, so anything wider is walked in overlapping tiles,
+  and a blend a hair out leaves a grid down the picture. A dead-straight ramp
+  goes in, and the second difference along the middle row comes out, which
+  puts a number on the kink at a tile join against the kinks everywhere else.
+  The rest is what a size control is easy to get wrong in — 2× and 8× to the
+  pixel, a target size that keeps its proportions, a reduction that runs no
+  model at all, a size past the sixteen-megapixel ceiling that starts nothing
+  and says why — and one check for a state bug rather than a picture: asking
+  for the quality model while the fast one is still going has to hand the GPU
+  over, because both run through the same worker and the second would
+  otherwise orphan the first. Every picture in it is a few dozen pixels
+  across, because a container has a software rasteriser where a GPU should be
+  and each tile costs seconds there.
 - **`test-pdfb.mjs`** — saves a PDF, reloads it through pdf.js, and reads the
   text back out, which is the only way to prove a copied page stayed a page
   rather than becoming a picture of one.

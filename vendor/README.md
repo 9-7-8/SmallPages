@@ -122,3 +122,59 @@ an IIFE exposing a `WebMMuxer` global, so it is vendored as it comes.
 ```
 npm pack gifenc@1.0.3 webm-muxer@5.1.4
 ```
+
+---
+
+`tfjs/tf.min.js` is [TensorFlow.js](https://github.com/tensorflow/tfjs) 4.22.0, the
+runtime the two super-resolution models in
+[`../image-upscaler.html`](../image-upscaler.html) run under. Apache 2.0; the licence is
+beside it and its banner is in the file. The UMD bundle rather than the ES module,
+because the page's worker reaches it with `importScripts`, and the plain `@tensorflow/tfjs`
+build rather than a hand-picked set of packages, because it already carries the layers
+and graph-model loaders plus the CPU and WebGL backends, which is exactly what is wanted
+and nothing has to be resolved at run time.
+
+```
+npm pack @tensorflow/tfjs@4.22.0
+```
+
+No WebGPU backend: it is a separate package, and WebGL is what every browser that can
+run this at all already has. The page asks for WebGL and lets TensorFlow.js fall back to
+the CPU on its own, and says in the status line which one answered.
+
+---
+
+`upscaler/` is the upscaling half of the same page: a tiling wrapper and three
+converted models.
+
+`upscaler.js` is [@plotdb/upscaler](https://www.npmjs.com/package/@plotdb/upscaler)
+0.0.5, ISC licensed, taken as it comes — it ships unminified and commented, so it is
+vendored readable rather than built. It is the part that walks a picture through a
+fixed-size model in overlapping tiles and feathers them back together, carries the alpha
+channel past models that only see colour, and keeps a compiled model in IndexedDB so the
+second run of a session starts straight away. It expects a `tf` global, which is why the
+file above is loaded first. Its own README is kept beside it as `UPSTREAM-README.md`.
+
+`models/` holds three of the TensorFlow.js conversions that package ships, which are its
+author's own, made from the official PyTorch weights and keeping those weights' licences:
+
+| Directory | Original weights | Licence |
+| --- | --- | --- |
+| `realesrgan/general_fast-64` | `realesr-general-x4v3` interpolated with `realesr-general-wdn-x4v3`, from [Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN) | BSD-3-Clause, `models/realesrgan/LICENSE` |
+| `realcugan/4x-conservative-64` | `up4x-latest-conservative.pth`, from [Real-CUGAN](https://github.com/bilibili/ailab/tree/main/Real-CUGAN) | MIT, `models/realcugan/LICENSE` |
+| `realcugan/2x-conservative-64` | `up2x-latest-conservative.pth`, same | MIT, same |
+
+The `-64` is the patch size each one was converted at: the graph has a fixed 64 × 64
+input, which is why the page tiles rather than handing over a whole picture. Weights are
+float16, so the three come to 7.8 MB between them.
+
+```
+npm pack @plotdb/upscaler@0.0.5
+```
+
+The package carries five more Real-CUGAN denoise variants and an anime-tuned
+Real-ESRGAN; they are left out because the page offers one of each model rather than a
+menu. The two it does not carry at all are `general_plus` and `anime_plus` — the
+RRDBNet-architecture quality models, about 32 MB and 9 MB converted —
+and `models/README.md`, kept beside the weights, says where the original `.pth` files
+are and what to run to convert them.

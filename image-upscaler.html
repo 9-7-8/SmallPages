@@ -1,0 +1,1382 @@
+<!DOCTYPE html>
+<!-- Image Upscaler, from SmallPages <https://github.com/9-7-8/SmallPages>
+     Copyright (C) 2026 Ixora. SPDX-License-Identifier: GPL-3.0-or-later
+     Free software with no warranty, under the GNU General Public License,
+     version 3 or later: see LICENSE in the repository, or
+     <https://www.gnu.org/licenses/>. -->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Image Upscaler</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  /* Layout and sizing only. Colour, type and component styling live in theme.css. */
+
+  body { margin: 0; padding: 3rem 1.5rem 5rem; }
+
+  main { max-width: 860px; margin: 0 auto; }
+
+  p.lede { margin: 0 0 2.2rem; max-width: 54ch; }
+
+  .card { margin-bottom: 1.5rem; }
+
+  .dropzone {
+    padding: 2.5rem 1.5rem;
+    text-align: center;
+    cursor: pointer;
+  }
+  .dropzone input { display: none; }
+  .dropzone .hint { font-size: 0.85rem; margin-top: 0.4rem; }
+
+  .status { font-size: 0.85rem; margin-top: 0.8rem; min-height: 1.2em; }
+
+  /* The working panel stands where the drop zone was, at the same height, so
+     the card doesn't jump the moment a file lands. The quality model runs
+     after the fast one has already landed, and that run is nobody's
+     bottleneck, so it sits under the drop zone instead — quieter, out of the
+     way, and leaving room to drop another picture while it works. */
+  .working {
+    display: none;
+    align-items: center;
+    gap: 1.1rem;
+    padding: 2.5rem 1.5rem;
+    border: 1px dashed var(--line);
+  }
+  body.busy .working { display: flex; }
+  body.busy:not(.behind) .dropzone { display: none; }
+  body.behind .working {
+    margin-top: 1rem;
+    padding: 0.9rem 1.1rem;
+    border-style: dotted;
+    gap: 0.9rem;
+  }
+  body.behind .spinner { width: 22px; height: 22px; }
+  body.behind .step { font-size: 0.85rem; }
+
+  .spinner {
+    flex: none;
+    width: 34px;
+    height: 34px;
+    border: 2px solid var(--line);
+    border-top-color: var(--neon);
+    border-radius: 50%;
+    box-shadow: var(--glow-soft);
+    animation: spin 0.9s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .step { font-size: 0.95rem; }
+  .step-detail { font-size: 0.8rem; margin-top: 0.15rem; }
+
+  .bar {
+    height: 2px;
+    margin-top: 0.7rem;
+    background: var(--line-soft);
+    display: none;
+    overflow: hidden;
+  }
+  .bar.on { display: block; }
+  .bar i {
+    display: block;
+    height: 100%;
+    width: 0;
+    background: var(--neon);
+    box-shadow: var(--glow-soft);
+    transition: width 0.2s ease;
+  }
+  /* Fetching the weights reports bytes, and the tiles report tiles, but the
+     stretch in between — compiling the model onto the GPU — reports nothing,
+     so the bar sweeps rather than sitting still at whatever it reached. */
+  .bar.waiting i {
+    width: 32%;
+    transition: none;
+    animation: sweep 1.5s ease-in-out infinite;
+  }
+  @keyframes sweep {
+    0%   { transform: translateX(-100%); }
+    100% { transform: translateX(412%); }
+  }
+
+  .out { display: none; }
+  .out.ready { display: block; }
+
+  /* --------------------------------------------------------- the compare -- */
+
+  /* The two pictures are stacked and the top one is clipped at a seam you
+     drag, because the only comparison that means anything for an upscale is
+     the same part of the same picture at the same size, one made by the
+     model and one by the browser's own stretch. Side by side at half the
+     width each, you would be comparing two things you cannot see. */
+  .stage {
+    padding: 0;
+    overflow: auto;
+    max-height: 70vh;
+    line-height: 0;
+  }
+  .wipe {
+    position: relative;
+    width: 100%;
+    cursor: ew-resize;
+    touch-action: none;             /* the drag is ours, not the scroller's */
+    user-select: none;
+  }
+  /* 1:1 stops the output being fitted to the card and lets the stage scroll
+     it instead, which is the only way to see what the model actually did to
+     a pixel. The wrapper then takes its width from the canvas. */
+  .stage.actual .wipe { width: max-content; }
+  .wipe .base { position: relative; display: block; }
+  .wipe .base canvas { display: block; width: 100%; height: auto; }
+  .stage.actual .wipe .base canvas { width: auto; }
+  .wipe .layer {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+  }
+  .wipe .layer img {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .wipe .seam {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    margin-left: -0.5px;
+  }
+  .wipe .seam::after {
+    content: "";
+    position: absolute;
+    left: -6px; top: 50%;
+    width: 13px; height: 13px;
+    margin-top: -6.5px;
+    border-radius: 50%;
+  }
+  /* No answer to compare against — a size nothing can reach, or a run that
+     failed — so the original stands there on its own and the seam goes away. */
+  .wipe.bare { cursor: default; }
+  .wipe.bare .layer, .wipe.bare .seam, .wipe.bare .tag.right { display: none; }
+
+  .wipe .seam:focus-visible { outline: none; }
+  .wipe .seam:focus-visible::after {
+    outline: 1px solid var(--neon-hot);
+    outline-offset: 3px;
+  }
+
+  /* Which side is which, said on the picture, because at a glance one
+     upscale looks much like another. */
+  .tag {
+    position: absolute;
+    top: 0.5rem;
+    font-size: 0.7rem;
+    line-height: 1.5;
+    letter-spacing: 0.06em;
+    padding: 0.1rem 0.45rem;
+    background: #000000cc;
+    color: var(--text-dim);
+    pointer-events: none;
+    white-space: nowrap;
+    max-width: 45%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .tag.left { left: 0.5rem; }
+  .tag.right { right: 0.5rem; }
+
+  /* -------------------------------------------------------- the controls -- */
+
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.2rem;
+    align-items: flex-end;
+    margin-top: 1.2rem;
+  }
+  .field { display: flex; flex-direction: column; gap: 0.35rem; }
+  .field label { font-size: 0.8rem; }
+  .field.off { display: none; }
+
+  .target-row { display: flex; align-items: center; gap: 0.4rem; }
+  .target-row input { width: 6.2rem; }
+  .target-row .by { font-size: 0.8rem; color: var(--text-faint); }
+
+  .acts { display: flex; gap: 0.6rem; margin-left: auto; }
+
+  .meta-line { font-size: 0.8rem; margin-top: 0.9rem; }
+
+  .note { font-size: 0.78rem; margin-top: 1.2rem; max-width: 64ch; }
+
+  @media (max-width: 620px) {
+    body { padding: 2rem 1rem 4rem; }
+    .acts { margin-left: 0; width: 100%; }
+    .acts button { flex: 1; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <a class="home" href="index.html">&larr; index</a>
+  <h1>Image Upscaler</h1>
+  <p class="lede">Drop in a picture and it comes back bigger, with the detail guessed by a super-resolution network rather than smeared by a stretch. The small fast model runs the moment the picture lands; the heavier one carries on behind it and takes the view when it finishes. Drag the seam to put the browser's own stretch next to what the model made. Both models and the runtime are in this repository, so after the first load it needs no connection, and the picture never leaves the tab.</p>
+
+  <div class="card">
+    <div class="dropzone" id="dropzone" tabindex="0">
+      <div>Drop an image here, or click to choose one</div>
+      <div class="hint">You can paste one too &mdash; the fast model starts straight away, the quality model behind it</div>
+      <input type="file" id="fileInput" accept="image/*">
+    </div>
+
+    <div class="working" id="working" role="status" aria-live="polite">
+      <div class="spinner" aria-hidden="true"></div>
+      <div>
+        <div class="step" id="stepLabel">Starting</div>
+        <div class="step-detail" id="stepDetail"></div>
+      </div>
+    </div>
+
+    <div class="bar" id="bar"><i id="barFill"></i></div>
+    <div class="status" id="status"></div>
+  </div>
+
+  <div class="out" id="out">
+    <div class="card">
+      <div class="stage" id="stage">
+        <div class="wipe" id="wipe">
+          <div class="base" id="afterLayer"></div>
+          <div class="layer" id="beforeLayer"></div>
+          <div class="seam" id="seam" role="slider" tabindex="0"
+               aria-label="Comparison seam: left of it the original stretched, right of it the upscale"
+               aria-valuemin="0" aria-valuemax="100" aria-valuenow="50" aria-valuetext="half and half"></div>
+          <div class="tag left" id="tagLeft">Stretched</div>
+          <div class="tag right" id="tagRight">Upscaled</div>
+        </div>
+      </div>
+
+      <div class="controls">
+        <div class="field">
+          <label>Size</label>
+          <div class="seg" id="sizeSeg">
+            <button data-size="2" aria-pressed="false">2&times;</button>
+            <button data-size="4" aria-pressed="true">4&times;</button>
+            <button data-size="8" aria-pressed="false">8&times;</button>
+            <button data-size="target" aria-pressed="false">Target&hellip;</button>
+          </div>
+        </div>
+
+        <div class="field off" id="targetField">
+          <label for="targetW">Target size</label>
+          <div class="target-row">
+            <input type="number" id="targetW" min="1" step="1" aria-label="Target width in pixels">
+            <span class="by">&times;</span>
+            <input type="number" id="targetH" min="1" step="1" aria-label="Target height in pixels">
+            <span class="by">px</span>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Model</label>
+          <div class="seg" id="modelSeg">
+            <button data-model="fast" aria-pressed="true">Fast</button>
+            <button data-model="best" aria-pressed="false">High quality</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Shown at</label>
+          <div class="seg" id="zoomSeg">
+            <button data-zoom="fit" aria-pressed="true">Fit</button>
+            <button data-zoom="actual" aria-pressed="false">1:1</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Format</label>
+          <div class="seg" id="fmtSeg">
+            <button data-fmt="image/png" aria-pressed="true">PNG</button>
+            <button data-fmt="image/webp" aria-pressed="false">WebP</button>
+            <button data-fmt="image/jpeg" aria-pressed="false">JPEG</button>
+          </div>
+        </div>
+
+        <div class="acts">
+          <button id="copyBtn">Copy</button>
+          <button id="saveBtn">Download</button>
+        </div>
+      </div>
+
+      <div class="meta-line" id="meta"></div>
+    </div>
+  </div>
+
+  <p class="note"><strong>Fast</strong> is <a href="https://github.com/xinntao/Real-ESRGAN">Real-ESRGAN</a>'s <code>realesr-general-x4v3</code>, the small general-purpose network its authors ship for exactly this &mdash; about a megabyte and a half of weights, and the one that answers while you are still looking at the page. It is a 4&times; model, and it is what runs on every picture the moment it lands.</p>
+
+  <p class="note"><strong>High quality</strong> is <a href="https://github.com/bilibili/ailab/tree/main/Real-CUGAN">Real-CUGAN</a>, a heavier network from bilibili with its own 2&times; and 4&times; weights, in the <em>conservative</em> variant &mdash; the one that does the least to the picture beyond enlarging it. It costs two to three times the fast model's time, so it starts only once the fast answer is on screen, and it takes the view when it arrives unless you have picked a side yourself. It holds a hard edge and a flat area better, which is what it was trained for; on a photograph the two are closer than the labels suggest, and the seam is there to settle it rather than take our word for it. <a href="vendor/">Both are in this repo</a>, converted to TensorFlow.js by <a href="https://www.npmjs.com/package/@plotdb/upscaler">@plotdb/upscaler</a> from the official weights, and they run on your GPU through WebGL where the browser offers it and on the CPU where it does not.</p>
+
+  <p class="note"><strong>The sizes.</strong> A model enlarges by the factor it was trained for and nothing else, so the other sizes are reached around it. 4&times; is one pass of the 4&times; weights and nothing more. 2&times; runs the 4&times; pass and then halves the result, which is better than a 2&times; model would be on its own, because every output pixel is an average of four the network drew &mdash; except on the quality model, which has real 2&times; weights and uses them. 8&times; is two passes with a resample in between. <strong>Target&hellip;</strong> takes any size at all: the two boxes stay in proportion, the smallest pass that covers the gap runs, and the last step down to the exact figure is an ordinary resample. Ask for something smaller than the original and you get that resample on its own, because no model can add detail to a picture you are shrinking.</p>
+
+  <p class="note"><strong>Tiles.</strong> The converted models take a fixed 64&nbsp;&times;&nbsp;64 patch, so a picture is walked in overlapping tiles and the overlaps are feathered back together: a tile's edge is where a network knows least, and butting them up unfeathered leaves a grid you cannot unsee. That is also why the work is counted in tiles rather than in seconds, and why a big picture takes a while &mdash; the cost is per pixel of the <em>output</em>, so every step up doubles the width and quadruples the work. Sixteen megapixels is the ceiling here; past that the accumulators alone are a quarter of a gigabyte, so a size that would overshoot it is turned off rather than attempted.</p>
+
+  <p class="note"><strong>Served, not opened.</strong> The models run in a worker so that a few hundred tiles of arithmetic don't take the page down with them, and a browser will not start a worker from a <code>file://</code> folder. So this is one of the pages here that has to be served &mdash; <code>python3 -m http.server</code> in the repo and open it over http. It says so if you open it the other way. After that first load nothing else is fetched: the runtime and both sets of weights are in the repo, and your browser keeps the compiled models in its own storage besides.</p>
+
+  <p class="note"><strong>What you are comparing.</strong> The left of the seam is the original drawn at the output's size by the browser itself, which is the same smooth stretch you would get from an image editor's default &mdash; not the original at its own size, which would be a comparison of two different pictures. The right is the model's answer. Set it to 1:1 and the stage scrolls rather than fits, which is where the difference stops being a feeling. Transparency is carried through, but the models only see colour: an alpha channel rides along as a plain resize, so a hard-edged cutout comes back with a soft edge.</p>
+</main>
+
+<script>
+"use strict";
+
+const dropzone = document.getElementById("dropzone");
+const fileInput = document.getElementById("fileInput");
+const statusEl = document.getElementById("status");
+const barEl = document.getElementById("bar");
+const barFill = document.getElementById("barFill");
+const stepLabel = document.getElementById("stepLabel");
+const stepDetail = document.getElementById("stepDetail");
+const outEl = document.getElementById("out");
+const stageEl = document.getElementById("stage");
+const wipeEl = document.getElementById("wipe");
+const afterLayer = document.getElementById("afterLayer");
+const beforeLayer = document.getElementById("beforeLayer");
+const seamEl = document.getElementById("seam");
+const tagLeft = document.getElementById("tagLeft");
+const tagRight = document.getElementById("tagRight");
+const sizeSeg = document.getElementById("sizeSeg");
+const targetField = document.getElementById("targetField");
+const targetW = document.getElementById("targetW");
+const targetH = document.getElementById("targetH");
+const modelSeg = document.getElementById("modelSeg");
+const zoomSeg = document.getElementById("zoomSeg");
+const fmtSeg = document.getElementById("fmtSeg");
+const copyBtn = document.getElementById("copyBtn");
+const saveBtn = document.getElementById("saveBtn");
+const metaEl = document.getElementById("meta");
+
+/* ------------------------------------------------------------- the models -- */
+
+/* Two super-resolution networks, both converted to TensorFlow.js from the
+   weights their authors published, both sitting in this repo. They answer the
+   same question — what would this picture look like with four times as many
+   pixels — and differ in how much arithmetic they spend on it.
+
+   `native` is the enlargement each one has weights for, largest first. It is
+   the whole reason the sizes below are not simply "multiply by n": a network
+   cannot be asked for 3×, and asking for 2× means running the 4× it has and
+   coming back down. */
+const MODELS = {
+  fast: {
+    label: "Fast",
+    title: "Real-ESRGAN general x4v3",
+    modelType: "realesrgan",
+    model: "general_fast",
+  },
+  best: {
+    label: "High quality",
+    title: "Real-CUGAN conservative",
+    modelType: "realcugan",
+    denoise: "conservative",
+  },
+};
+
+/* Which passes get you from 1× to the ratio asked for, per model. A pass is
+   one run of one set of weights; anything between two passes, and anything
+   left over at the end, is an ordinary resample. The fast model has only 4×
+   weights, so every size it makes costs a 4× pass; the quality model has 2×
+   as well and uses it where it fits. */
+const PASSES = {
+  fast: [{ upTo: 4, passes: [4] }, { upTo: 16, passes: [4, 4] }],
+  best: [{ upTo: 2, passes: [2] }, { upTo: 4, passes: [4] },
+         { upTo: 8, passes: [4, 2] }, { upTo: 16, passes: [4, 4] }],
+};
+
+const MAX_RATIO = 16;        // two passes of 4× is as far as the plans go
+
+/* The ceiling, and it is about memory rather than patience: the tile blender
+   keeps a float accumulator and a weight plane over the whole output, which
+   is sixteen bytes a pixel, so sixteen megapixels is already a quarter of a
+   gigabyte before the picture itself. It is checked against every pass, not
+   just the last one, because the 4×-then-down route for a small enlargement
+   is at its widest in the middle. */
+const MAX_PIXELS = 16e6;
+
+const TILE = 64;             // what the converted models take, not a choice
+const OVERLAP = 12;          // of those 64 px, feathered into the neighbour
+
+/* ---------------------------------------------------------------- state --- */
+
+let source = null;        // { canvas, width, height, name, url }
+let sizeMode = "4";       // "2" | "4" | "8" | "target"
+let target = null;        // { w, h } while sizeMode is "target"
+let model = "fast";       // which result is on screen, or being waited for
+let chosenByHand = false; // whether they have picked a model themselves
+let awaiting = null;      // the model someone is actually waiting on
+let zoom = "fit";
+let format = "image/png";
+let seamPos = 50;
+let beforeImg = null;     // the dropped file itself, for the left of the seam
+let runToken = 0;         // bumps on every new picture or size, ageing out runs
+let resultStamp = 0;      // bumps on every new result, so saved files age out
+
+const results = { fast: blank(), best: blank() };
+
+function blank() {
+  return { state: "idle", canvas: null, message: "", fault: "", plan: null };
+}
+
+const EXT = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" };
+const READBACK = { willReadFrequently: true };
+
+/* --------------------------------------------------------------- status --- */
+
+function setStatus(message, isError = false) {
+  statusEl.textContent = message;
+  statusEl.classList.toggle("error", isError);
+}
+
+function setProgress(fraction) {
+  if (fraction === null) {
+    barEl.classList.remove("on", "waiting");
+    return;
+  }
+  barEl.classList.add("on");
+  barEl.classList.remove("waiting");
+  barFill.style.width = `${Math.max(0, Math.min(1, fraction)) * 100}%`;
+}
+
+function setWaiting() {
+  barEl.classList.add("on", "waiting");
+  barFill.style.width = "";
+}
+
+function beginWork(behind) {
+  document.body.classList.add("busy");
+  document.body.classList.toggle("behind", behind);
+  document.body.dataset.state = "working";
+}
+
+function endWork() {
+  document.body.classList.remove("busy", "behind");
+  setProgress(null);
+  document.body.dataset.state = source ? "ready" : "idle";
+}
+
+// The same step reads differently depending on whether anyone is waiting on
+// it, so what it says is kept and rewritten whenever that changes rather than
+// written once.
+let lastStep = { text: "Starting", detail: "" };
+
+function setStep(text, detail = "") {
+  lastStep = { text, detail };
+  renderStep();
+}
+
+function renderStep() {
+  stepLabel.textContent = lastStep.text
+    + (document.body.classList.contains("behind") ? ", in the background" : "");
+  stepDetail.textContent = lastStep.detail;
+}
+
+// A background run is quiet; a run someone has asked for takes the card.
+function renderWorkPanel() {
+  if (!inFlight) return;
+  document.body.classList.toggle("behind", awaiting !== inFlight.key);
+  renderStep();
+}
+
+function humanSeconds(s) {
+  if (!isFinite(s) || s < 0) return null;
+  if (s < 1) return `${Math.round(s * 1000)}ms`;
+  if (s < 60) return `${s.toFixed(1)}s`;
+  return `${Math.floor(s / 60)}m ${String(Math.round(s % 60)).padStart(2, "0")}s`;
+}
+
+function megapixels(n) {
+  return n >= 1e6 ? `${(n / 1e6).toFixed(n < 1e7 ? 1 : 0)} megapixels` : `${Math.round(n / 1000)}k pixels`;
+}
+
+function capitalise(text) {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/* ----------------------------------------------------------- the planning -- */
+
+// What the current size setting asks for, in output pixels.
+function wantedSize() {
+  if (!source) return null;
+  if (sizeMode === "target") {
+    if (!target) return null;
+    return { w: target.w, h: target.h };
+  }
+  const n = Number(sizeMode);
+  return { w: Math.round(source.width * n), h: Math.round(source.height * n) };
+}
+
+// The enlargement that size amounts to. Width and height are kept in
+// proportion everywhere, so either axis would do; the larger is taken in case
+// rounding has pulled them a pixel apart.
+function wantedRatio(size) {
+  return Math.max(size.w / source.width, size.h / source.height);
+}
+
+// The passes a model would run to get there, with what it would cost at its
+// widest moment. `passes` empty means no model at all: the picture is being
+// made smaller, and nothing a network knows can help with that.
+function planFor(key, size) {
+  const ratio = wantedRatio(size);
+  const targetPx = size.w * size.h;
+  if (ratio <= 1) return { passes: [], ratio, peak: targetPx, fits: targetPx <= MAX_PIXELS };
+  if (ratio > MAX_RATIO + 1e-9) return null;
+  const row = PASSES[key].find((r) => ratio <= r.upTo + 1e-9);
+  const first = row.passes[0];
+  const peak = Math.max(source.width * source.height * first * first, targetPx);
+  return { passes: row.passes, ratio, peak, fits: peak <= MAX_PIXELS };
+}
+
+// Which models could actually produce the size asked for. Usually both; a
+// picture that is already large runs out of room on the fast model first,
+// because every size it makes costs a 4× pass whatever was asked for.
+function modelsFor(size) {
+  return Object.keys(MODELS).filter((key) => {
+    const plan = planFor(key, size);
+    return plan && plan.fits;
+  });
+}
+
+// The preset buttons that would overshoot the ceiling on every model are
+// turned off rather than left to fail, with the arithmetic in the tooltip.
+function syncSizes() {
+  for (const btn of sizeSeg.querySelectorAll("button")) {
+    const which = btn.dataset.size;
+    if (!source || which === "target") {
+      btn.disabled = false;
+      btn.title = "";
+      continue;
+    }
+    const n = Number(which);
+    const size = { w: Math.round(source.width * n), h: Math.round(source.height * n) };
+    const usable = modelsFor(size);
+    btn.disabled = usable.length === 0;
+    btn.title = usable.length ? "" : `${n}× of this picture would mean drawing `
+      + `${megapixels(Math.max(...Object.keys(MODELS).map((k) => (planFor(k, size) || { peak: Infinity }).peak)))}`
+      + `, and ${megapixels(MAX_PIXELS)} is the most this page will make.`;
+  }
+}
+
+/* ---------------------------------------------------------------- worker -- */
+
+/* TensorFlow.js holds the thread it runs on while a tile goes through the
+   network, and a few hundred tiles of that on the main thread is a page that
+   has stopped answering — no spinner, no seam, nothing. So the models run in
+   a worker, and the page stays alive to show the count going up and to let
+   the last answer be compared while the next one is still being made.
+
+   The worker is built here rather than kept in its own file, so this page is
+   still one file you can hand to someone. It holds its upscalers between runs
+   because warming one up means compiling the network onto the GPU, which is
+   seconds of work nobody should pay twice. */
+function workerSource(base) {
+  return `
+"use strict";
+importScripts(${JSON.stringify(base + "vendor/tfjs/tf.min.js")},
+              ${JSON.stringify(base + "vendor/upscaler/upscaler.js")});
+
+const MODELS = ${JSON.stringify(MODELS)};
+const BASE = ${JSON.stringify(base + "vendor/upscaler/models")};
+const held = new Map();                   // "model:scale" -> a warm upscaler
+let current = null;                       // { id, controller } of the run in flight
+
+function upscalerFor(key, scale) {
+  const id = key + ":" + scale;
+  if (!held.has(id)) {
+    const m = MODELS[key];
+    held.set(id, new WebUpscaler({
+      modelType: m.modelType, model: m.model, denoise: m.denoise, scale,
+      tileSize: ${TILE}, overlap: ${OVERLAP}, modelBaseUrl: BASE, backend: "webgl",
+    }));
+  }
+  return held.get(id);
+}
+
+// Canvas is the only resampler a browser offers, and asking it for a big
+// reduction in one step gives a soft, aliased answer, so anything over 2:1 is
+// halved repeatedly first — the same trick every thumbnailer uses.
+function resample(image, w, h) {
+  let src = image;
+  let cw = image.width, ch = image.height;
+  while (cw > w * 2 && ch > h * 2) {
+    const nw = Math.max(w, Math.floor(cw / 2)), nh = Math.max(h, Math.floor(ch / 2));
+    src = draw(src, nw, nh);
+    cw = nw; ch = nh;
+  }
+  return draw(src, w, h);
+}
+
+function draw(image, w, h) {
+  const from = new OffscreenCanvas(image.width, image.height);
+  from.getContext("2d").putImageData(image, 0, 0);
+  const to = new OffscreenCanvas(w, h);
+  const ctx = to.getContext("2d");
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(from, 0, 0, w, h);
+  return ctx.getImageData(0, 0, w, h);
+}
+
+async function run(job) {
+  const controller = new AbortController();
+  current = { id: job.id, controller };
+  const signal = controller.signal;
+  let image = new ImageData(job.data, job.width, job.height);
+  const passes = job.passes;
+
+  for (let i = 0; i < passes.length; i++) {
+    // Every pass but the first is fed a picture sized so that this pass, and
+    // the passes after it, land on the target exactly. Overshooting and
+    // coming back down at the end would mean the widest moment of the run
+    // sitting in the middle of it for no gain.
+    if (i > 0) {
+      const rest = passes.slice(i).reduce((a, b) => a * b, 1);
+      image = resample(image, Math.max(1, Math.round(job.target.w / rest)),
+                              Math.max(1, Math.round(job.target.h / rest)));
+    }
+    const up = upscalerFor(job.model, passes[i]);
+    if (!up.net) {
+      self.postMessage({ id: job.id, type: "phase", phase: "load", pass: i, passes: passes.length });
+      await up.warmup();
+    }
+    if (signal.aborted) throw abort();
+    self.postMessage({ id: job.id, type: "phase", phase: "tiles", pass: i, passes: passes.length });
+    image = await up.upscaleImageData(image, {
+      signal,
+      onProgress: (percent) => self.postMessage({
+        id: job.id, type: "progress", percent, pass: i, passes: passes.length,
+      }),
+    });
+  }
+
+  if (image.width !== job.target.w || image.height !== job.target.h) {
+    self.postMessage({ id: job.id, type: "phase", phase: "resample", pass: passes.length, passes: passes.length });
+    image = resample(image, job.target.w, job.target.h);
+  }
+  return image;
+}
+
+function abort() {
+  const err = new Error("cancelled");
+  err.name = "AbortError";
+  return err;
+}
+
+// A cancelled run unwinds a tile late, by which time the next one may
+// already be the one in flight, so the run in flight is only ever cleared by
+// the run that owns it.
+function retire(id) {
+  if (current && current.id === id) current = null;
+}
+
+self.onmessage = async (e) => {
+  const job = e.data;
+  if (job.type === "cancel") {
+    if (current) current.controller.abort();
+    return;
+  }
+  const started = performance.now();
+  try {
+    const image = await run(job);
+    retire(job.id);
+    self.postMessage({
+      id: job.id, type: "done", data: image.data, width: image.width, height: image.height,
+      backend: tf.getBackend(), ms: performance.now() - started,
+    }, [image.data.buffer]);
+  } catch (err) {
+    retire(job.id);
+    self.postMessage({
+      id: job.id, type: "error", aborted: err && err.name === "AbortError",
+      message: String((err && err.message) || err),
+    });
+  }
+};
+`;
+}
+
+let worker = null;
+let jobId = 0;
+let inFlight = null;      // { id, settle, reject }
+
+function startWorker() {
+  const base = new URL(".", location.href).href;
+  const blob = new Blob([workerSource(base)], { type: "text/javascript" });
+  const url = URL.createObjectURL(blob);
+  worker = new Worker(url);
+  URL.revokeObjectURL(url);
+  worker.onmessage = (e) => {
+    const msg = e.data;
+    if (!inFlight || msg.id !== inFlight.id) return;     // an answer to a run already written off
+    if (msg.type === "phase" || msg.type === "progress") return onWorkerStep(msg);
+    const { settle, reject } = inFlight;
+    inFlight = null;
+    if (msg.type === "done") settle(msg);
+    else if (msg.aborted) reject(Object.assign(new Error("cancelled"), { cancelled: true }));
+    else reject(new Error(msg.message));
+  };
+  // A worker that dies — the GPU process going away takes it with it — must
+  // not leave a run hanging for ever, and the next run gets a fresh one.
+  worker.onerror = (e) => {
+    const held = inFlight;
+    inFlight = null;
+    worker.terminate();
+    worker = null;
+    if (held) held.reject(new Error(e.message || "the worker stopped"));
+  };
+}
+
+function runInWorker(key, image, size, passes) {
+  if (!worker) startWorker();
+  const id = ++jobId;
+  return new Promise((settle, reject) => {
+    inFlight = { id, key, settle, reject };
+    worker.postMessage({
+      id, type: "run", model: key, passes,
+      data: image.data, width: image.width, height: image.height, target: size,
+    }, [image.data.buffer]);
+  });
+}
+
+// The run in flight is told to stop and its caller is let go at the same
+// moment: a promise nobody will ever settle leaves whoever was awaiting it
+// stuck mid-function, with the model it was running stuck at "running".
+function cancelRun() {
+  if (!inFlight) return;
+  const held = inFlight;
+  inFlight = null;
+  if (worker) worker.postMessage({ type: "cancel" });
+  held.reject(Object.assign(new Error("cancelled"), { cancelled: true }));
+}
+
+// Named for the person waiting rather than for the code: one line that says
+// what is happening and how far along it is.
+function onWorkerStep(msg) {
+  const running = inFlight && inFlight.key;
+  const of = msg.passes > 1 ? ` · pass ${msg.pass + 1} of ${msg.passes}` : "";
+  if (msg.type === "phase") {
+    if (msg.phase === "load") {
+      setStep("Loading the model", `${MODELS[running].title}${of}`);
+      setWaiting();
+    } else if (msg.phase === "resample") {
+      setStep("Resampling to the exact size", "");
+      setWaiting();
+    }
+    return;
+  }
+  // The count arrives before the first tile has been through, and a bar
+  // sitting at nothing for the length of a tile reads as a page that has
+  // stopped, so it sweeps until there is something to report.
+  if (!msg.percent) {
+    setStep("Upscaling", `starting on the tiles${of}`);
+    setWaiting();
+    return;
+  }
+  setStep("Upscaling", `${Math.round(msg.percent)}% of the tiles${of}`);
+  setProgress(msg.percent / 100);
+}
+
+/* ------------------------------------------------------------- the runs --- */
+
+/* The fast model answers first because it is the one that can, and the
+   quality model follows it without being asked — by the time anyone has
+   finished looking at the first answer, the second is usually there. The
+   order flips if a model has been picked by hand: then the picked one is the
+   one being waited for, and the other is the one running behind. */
+function queueOrder(size) {
+  const usable = modelsFor(size);
+  // A reduction is the same resample whichever model is nominally picked, so
+  // it is run once rather than twice over.
+  if (usable.length && !planFor(usable[0], size).passes.length) return [usable[0]];
+  if (chosenByHand && usable.includes(model)) {
+    return [model, ...usable.filter((k) => k !== model)];
+  }
+  return usable;
+}
+
+/* One loop runs the models, taking the next one that hasn't been tried yet,
+   so there is never more than one on the GPU at a time. Cancelling the run in
+   flight is how a model asked for by hand cuts in front: the loop wakes up,
+   asks the order again — which now starts with the one that was picked — and
+   carries on down it. */
+let pumping = null;             // the loop in flight, if there is one
+
+function pump(token) {
+  const loop = async () => {
+    for (;;) {
+      if (token !== runToken || !source) return;
+      const size = wantedSize();
+      if (!size) return;
+      const next = queueOrder(size).find((key) => results[key].state === "idle");
+      if (!next) return;
+      await runOne(next, token, size);
+    }
+  };
+  // A loop that has just been cancelled is still unwinding — it is sitting on
+  // the rejection of the run it was awaiting — and starting the next one on
+  // top of it would have two loops picking models off the same queue. So each
+  // one waits for the one before it to finish noticing it is finished.
+  const chained = (pumping || Promise.resolve()).then(loop, loop);
+  pumping = chained.finally(() => { if (pumping === chained) pumping = null; });
+  return pumping;
+}
+
+async function startRuns() {
+  if (!source) return;
+  const token = ++runToken;
+  cancelRun();
+  results.fast = blank();
+  results.best = blank();
+  reflectStates();
+
+  const size = wantedSize();
+  if (!size || !(size.w > 0) || !(size.h > 0)) {
+    endWork();
+    return setStatus("That target size isn't a size.", true);
+  }
+  syncSizes();
+  syncModels(size);
+
+  const order = queueOrder(size);
+  if (!order.length) {
+    endWork();
+    const reach = Math.max(...Object.keys(MODELS)
+      .map((k) => (planFor(k, size) || { peak: Infinity }).peak));
+    present(null);
+    return setStatus(`${size.w} × ${size.h} is ${megapixels(size.w * size.h)}, and getting there`
+      + ` would mean a model drawing ${megapixels(reach)} on the way.`
+      + ` ${capitalise(megapixels(MAX_PIXELS))} is the most this page will make.`, true);
+  }
+
+  await pump(token);
+}
+
+async function runOne(key, token, size) {
+  const plan = planFor(key, size);
+  const result = results[key];
+  result.state = "running";
+  result.plan = plan;
+  reflectStates();
+
+  const waitedOn = awaiting === key || model === key || !results[other(key)].canvas;
+  beginWork(!waitedOn);
+  setStep("Starting", MODELS[key].title);
+  setWaiting();
+  refreshStatus();
+
+  const started = performance.now();
+  try {
+    const pixels = source.canvas.getContext("2d", READBACK)
+      .getImageData(0, 0, source.width, source.height);
+    const msg = await runInWorker(key, pixels, size, plan.passes);
+    if (token !== runToken) return;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = msg.width;
+    canvas.height = msg.height;
+    canvas.getContext("2d").putImageData(new ImageData(msg.data, msg.width, msg.height), 0, 0);
+
+    result.canvas = canvas;
+    result.state = "ready";
+    result.where = msg.backend === "webgl" ? "on the GPU" : "on the CPU";
+    result.took = humanSeconds((performance.now() - started) / 1000);
+    result.message = plan.passes.length
+      ? `${MODELS[key].title} ${result.where}, ${passWord(plan.passes)} in ${result.took}`
+        + ` — ${canvas.width} × ${canvas.height}.`
+      : `Resampled to ${canvas.width} × ${canvas.height} in ${result.took}.`
+        + " No model: this is a reduction, and a network has nothing to add to one.";
+  } catch (err) {
+    if (err.cancelled || token !== runToken) return;
+    console.error(err);
+    result.state = "failed";
+    result.fault = err.message;
+    result.message = `${MODELS[key].title} couldn't run (${err.message}).`;
+  }
+
+  endWork();
+  reflectStates();
+  land(key);
+}
+
+function other(key) {
+  return key === "fast" ? "best" : "fast";
+}
+
+function passWord(passes) {
+  return passes.length === 1 ? `one ${passes[0]}× pass`
+    : `${passes.map((s) => `${s}×`).join(" then ")}`;
+}
+
+// What to do with an answer that arrived while something else was on screen.
+function land(key) {
+  const result = results[key];
+  const wanted = awaiting === key;
+  if (awaiting === key) awaiting = null;
+
+  if (result.state === "failed") {
+    // Don't strand anyone on a model that isn't there: fall back to whatever
+    // did work, and say why.
+    const fallback = results[other(key)];
+    if (wanted || model === key) {
+      if (fallback.state === "ready") present(other(key));
+      else present(null);
+    }
+    refreshStatus();
+    return;
+  }
+
+  // The quality model taking the view on its own is the point of running it
+  // behind; a model picked by hand is not overruled.
+  if (wanted || !chosenByHand || model === key) present(key);
+  else refreshStatus();
+}
+
+// The states both models are in, on the body, so the page says out loud what
+// it is up to rather than only in a sentence.
+function reflectStates() {
+  document.body.dataset.fast = results.fast.state;
+  document.body.dataset.best = results.best.state;
+}
+
+function refreshStatus() {
+  const result = results[model];
+  if (result && result.state === "ready") return setStatus(result.message + sideNote());
+  if (result && result.state === "failed") return setStatus(result.message + sideNote(), true);
+  if (result && result.state === "running") {
+    const ready = results[other(model)];
+    return setStatus(`Waiting on ${MODELS[model].label.toLowerCase()}`
+      + (ready.state === "ready" ? " — the other answer is on screen until it lands." : "…"));
+  }
+  setStatus(sideNote().trim());
+}
+
+// One clause about the model that isn't on screen, so the two never fight
+// over the status line.
+function sideNote() {
+  const key = other(model);
+  const result = results[key];
+  const name = MODELS[key].label;
+  if (!result || result.state === "idle") return "";
+  if (result.state === "running") return ` ${name} is running behind it.`;
+  if (result.state === "ready") return ` ${name} has finished too — switch to compare.`;
+  return ` ${name} couldn't run (${result.fault}).`;
+}
+
+/* -------------------------------------------------------------- intake --- */
+
+async function decode(file) {
+  // createImageBitmap is the fast path and handles everything a canvas can
+  // draw; an <img> is the fallback, which is what reads an SVG.
+  try {
+    const bitmap = await createImageBitmap(file);
+    const canvas = toCanvas(bitmap, bitmap.width, bitmap.height);
+    bitmap.close();
+    return canvas;
+  } catch (err) {
+    const url = URL.createObjectURL(file);
+    try {
+      const img = await new Promise((settle, reject) => {
+        const el = new Image();
+        el.onload = () => settle(el);
+        el.onerror = () => reject(new Error("this file isn't an image this browser can read"));
+        el.src = url;
+      });
+      if (!img.naturalWidth || !img.naturalHeight) {
+        throw new Error("this image has no size of its own, so there is nothing to multiply");
+      }
+      return toCanvas(img, img.naturalWidth, img.naturalHeight);
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+}
+
+function toCanvas(drawable, width, height) {
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  canvas.getContext("2d", READBACK).drawImage(drawable, 0, 0);
+  return canvas;
+}
+
+async function take(file) {
+  if (!file) return;
+  runToken++;
+  cancelRun();
+  setStatus("Reading the picture…");
+  setWaiting();
+  try {
+    const canvas = await decode(file);
+    if (source && source.url) URL.revokeObjectURL(source.url);
+    source = {
+      canvas,
+      width: canvas.width,
+      height: canvas.height,
+      name: file.name || "image",
+      // The left of the seam is this file as the browser itself draws it, so
+      // it is the file rather than a redrawn copy of it.
+      url: URL.createObjectURL(file),
+    };
+    beforeImg = new Image();
+    beforeImg.alt = "";
+    beforeImg.src = source.url;
+    results.fast = blank();
+    results.best = blank();
+    model = chosenByHand && sizeMode !== "target" ? model : "fast";
+    if (sizeMode === "target") fillTarget();
+    syncSizes();
+    await startRuns();
+  } catch (err) {
+    console.error(err);
+    endWork();
+    setStatus(`Couldn't read that: ${err.message}`, true);
+  }
+}
+
+dropzone.addEventListener("click", () => fileInput.click());
+dropzone.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInput.click(); }
+});
+fileInput.addEventListener("change", () => take(fileInput.files[0]));
+
+for (const type of ["dragenter", "dragover"]) {
+  dropzone.addEventListener(type, (e) => { e.preventDefault(); dropzone.classList.add("drag"); });
+}
+for (const type of ["dragleave", "dragend", "drop"]) {
+  dropzone.addEventListener(type, () => dropzone.classList.remove("drag"));
+}
+dropzone.addEventListener("drop", (e) => {
+  e.preventDefault();
+  take([...e.dataTransfer.files].find((f) => f.type.startsWith("image/")) || e.dataTransfer.files[0]);
+});
+
+document.addEventListener("paste", (e) => {
+  const file = [...(e.clipboardData ? e.clipboardData.files : [])]
+    .find((f) => f.type.startsWith("image/"));
+  if (file) take(file);
+});
+
+/* ------------------------------------------------------------- the stage -- */
+
+/* `key` is the model whose answer to show, or null when there isn't one — a
+   size nothing can reach, or a run that failed — in which case the original
+   stands there on its own so the controls are still reachable. */
+function present(key) {
+  if (key) model = key;
+  const result = key ? results[key] : null;
+  const canvas = result && result.canvas;
+
+  outEl.classList.add("ready");
+  wipeEl.classList.toggle("bare", !canvas);
+  afterLayer.textContent = "";
+  beforeLayer.textContent = "";
+
+  if (canvas) {
+    resultStamp++;
+    afterLayer.appendChild(canvas);
+    if (beforeImg) beforeLayer.appendChild(beforeImg);
+    const ratio = result.plan.ratio;
+    const name = result.plan.passes.length ? MODELS[key].label : "Resampled";
+    tagLeft.textContent = "Stretched";
+    tagRight.textContent = `${name} · ${ratio.toFixed(Math.abs(ratio % 1) < 0.05 ? 0 : 2)}×`;
+    metaEl.textContent = `${source.width} × ${source.height} → ${canvas.width} × ${canvas.height}`
+      + ` · from ${source.name}`
+      + (result.took ? ` · ${result.plan.passes.length ? MODELS[key].title : "resampled"} in ${result.took}` : "");
+  } else if (source) {
+    afterLayer.appendChild(source.canvas);
+    tagLeft.textContent = "Original";
+    metaEl.textContent = `${source.width} × ${source.height} · from ${source.name}`;
+  }
+
+  syncSeg(modelSeg, "model", model);
+  setSeam(seamPos);
+  refreshStatus();
+  prewarm();
+}
+
+/* The seam. Dragging anywhere on the picture moves it, because by the time
+   you have found the detail you want to judge, your pointer is already on it
+   and a slider under the card is somewhere else entirely. It is still a
+   slider as far as the page is concerned — focus it and the arrow keys walk
+   it across, which is also the only way to work it without a pointer. */
+function setSeam(percent) {
+  seamPos = Math.max(0, Math.min(100, percent));
+  // The original is the layer on top, clipped away from the right, so the
+  // model's answer — which is what sets the size of the box — is underneath
+  // and never moves.
+  beforeLayer.style.clipPath = `inset(0 ${(100 - seamPos).toFixed(2)}% 0 0)`;
+  seamEl.style.left = `${seamPos.toFixed(2)}%`;
+  seamEl.setAttribute("aria-valuenow", String(Math.round(seamPos)));
+  seamEl.setAttribute("aria-valuetext", seamPos <= 0 ? "all upscaled"
+    : seamPos >= 100 ? "all stretched"
+    : `${Math.round(seamPos)}% stretched on the left, the rest upscaled`);
+}
+
+function seamAt(clientX) {
+  const box = wipeEl.getBoundingClientRect();
+  if (!box.width) return seamPos;
+  return ((clientX - box.left) / box.width) * 100;
+}
+
+let dragging = false;
+
+wipeEl.addEventListener("pointerdown", (e) => {
+  if (wipeEl.classList.contains("bare") || e.button !== 0) return;
+  dragging = true;
+  wipeEl.setPointerCapture(e.pointerId);
+  setSeam(seamAt(e.clientX));
+  seamEl.focus({ preventScroll: true });
+  e.preventDefault();
+});
+wipeEl.addEventListener("pointermove", (e) => {
+  if (dragging) setSeam(seamAt(e.clientX));
+});
+for (const type of ["pointerup", "pointercancel", "lostpointercapture"]) {
+  wipeEl.addEventListener(type, () => { dragging = false; });
+}
+
+seamEl.addEventListener("keydown", (e) => {
+  const step = e.shiftKey ? 10 : 2;
+  const keys = { ArrowLeft: -step, ArrowRight: step, Home: -100, End: 100 };
+  if (!(e.key in keys)) return;
+  e.preventDefault();
+  setSeam(e.key === "Home" ? 0 : e.key === "End" ? 100 : seamPos + keys[e.key]);
+});
+
+/* -------------------------------------------------------------- output --- */
+
+/* Reading a sixteen-megapixel canvas back out as a PNG takes seconds, and a
+   button that waits on it is a button that looks broken — worse, by the time
+   it finishes the click's user activation has expired, which is a clipboard
+   write the browser is entitled to refuse. So the file is made as soon as
+   what is on screen settles, and the button spends what is already there. */
+const encodeCache = new Map();
+const ENCODE_CACHE = 3;
+
+function encodeKey(type) {
+  return `${type}|${resultStamp}`;
+}
+
+function encode(type, quality) {
+  const key = encodeKey(type);
+  const held = encodeCache.get(key);
+  if (held) return held.blob;
+
+  const canvas = afterLayer.querySelector("canvas");
+  const blob = new Promise((settle, reject) => {
+    if (!canvas) return reject(new Error("there is nothing to save yet"));
+    canvas.toBlob((made) => {
+      if (!made) return reject(new Error(`this browser can't write ${type}`));
+      // A browser that doesn't know the type quietly hands back a PNG.
+      if (made.type !== type) return reject(new Error(`this browser can't write ${type}`));
+      settle(made);
+    }, type, quality);
+  });
+
+  const entry = { blob, ready: false };
+  const settled = () => { entry.ready = true; };
+  blob.then(settled, settled);
+  encodeCache.set(key, entry);
+  while (encodeCache.size > ENCODE_CACHE) encodeCache.delete(encodeCache.keys().next().value);
+  return blob;
+}
+
+function quality() {
+  return format === "image/png" ? undefined : 0.92;
+}
+
+function alreadyEncoded(type) {
+  const held = encodeCache.get(encodeKey(type));
+  return !!held && held.ready;
+}
+
+function prewarm() {
+  if (!afterLayer.querySelector("canvas") || wipeEl.classList.contains("bare")) return;
+  encode(format, quality());
+}
+
+function baseName() {
+  const stem = source.name.replace(/\.[^.]+$/, "").replace(/[^\w.-]+/g, "-");
+  const canvas = afterLayer.querySelector("canvas");
+  return `${stem || "image"}-${canvas.width}x${canvas.height}`.slice(0, 70);
+}
+
+saveBtn.addEventListener("click", async () => {
+  try {
+    if (!alreadyEncoded(format)) setStatus("Writing the file…");
+    const blob = await encode(format, quality());
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${baseName()}.${EXT[format]}`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    setStatus(`Saved ${link.download} (${(blob.size / 1024 / 1024).toFixed(2)} MB).`);
+  } catch (err) {
+    console.error(err);
+    setStatus(`Couldn't save: ${err.message}`, true);
+  }
+});
+
+copyBtn.addEventListener("click", async () => {
+  try {
+    if (!navigator.clipboard || !window.ClipboardItem) {
+      throw new Error("this browser has no clipboard image support");
+    }
+    // PNG is the only image type every clipboard implementation accepts, and
+    // it goes over as a promise rather than a finished file: awaiting it
+    // first spends the click's activation, and a write that arrives without
+    // one is refused.
+    const png = encode("image/png");
+    await navigator.clipboard.write([new ClipboardItem({ "image/png": png })]);
+    setStatus("Copied as PNG.");
+  } catch (err) {
+    console.error(err);
+    setStatus(`Couldn't copy: ${err.message}`, true);
+  }
+});
+
+/* ------------------------------------------------------------ controls --- */
+
+function syncSeg(seg, attr, value) {
+  for (const btn of seg.querySelectorAll("button")) {
+    btn.setAttribute("aria-pressed", String(btn.dataset[attr] === String(value)));
+  }
+}
+
+// A model that cannot reach the size asked for is turned off rather than left
+// to fail halfway, and a reduction turns both off because neither is running.
+function syncModels(size) {
+  const usable = size ? modelsFor(size) : Object.keys(MODELS);
+  const plain = size && usable.length && !planFor(usable[0], size).passes.length;
+  for (const btn of modelSeg.querySelectorAll("button")) {
+    const key = btn.dataset.model;
+    btn.disabled = plain || !usable.includes(key);
+    btn.title = btn.disabled
+      ? (plain ? "A reduction is a plain resample; there is no model in it."
+               : `${MODELS[key].label} would have to draw `
+                 + `${megapixels(planFor(key, size).peak)} to get there.`)
+      : "";
+  }
+  if (usable.length && !usable.includes(model)) model = usable[0];
+}
+
+// The target boxes start where the current size left off, so they are
+// something to adjust rather than something to work out.
+function fillTarget() {
+  if (!source) return;
+  const size = sizeMode === "target" && target ? target
+    : { w: Math.round(source.width * 4), h: Math.round(source.height * 4) };
+  target = size;
+  targetW.value = String(size.w);
+  targetH.value = String(size.h);
+}
+
+sizeSeg.addEventListener("click", (e) => {
+  const btn = e.target.closest("button");
+  if (!btn || btn.disabled || btn.dataset.size === sizeMode) return;
+  sizeMode = btn.dataset.size;
+  syncSeg(sizeSeg, "size", sizeMode);
+  targetField.classList.toggle("off", sizeMode !== "target");
+  if (sizeMode === "target") fillTarget();
+  if (source) startRuns();
+});
+
+/* Width and height stay in proportion: letting them disagree would mean
+   either squashing the picture or quietly ignoring one of the two boxes, and
+   a target size nobody asked for is worse than a locked aspect ratio. The
+   run waits for the typing to stop, because every keystroke would otherwise
+   start a model. */
+let targetTimer = null;
+
+function retarget(driver) {
+  if (!source) return;
+  const ratio = source.height / source.width;
+  const w = Math.round(Number(targetW.value));
+  const h = Math.round(Number(targetH.value));
+  if (driver === "w" && w > 0) target = { w, h: Math.max(1, Math.round(w * ratio)) };
+  else if (driver === "h" && h > 0) target = { w: Math.max(1, Math.round(h / ratio)), h };
+  else return;
+  targetW.value = String(target.w);
+  targetH.value = String(target.h);
+  syncSizes();
+  clearTimeout(targetTimer);
+  targetTimer = setTimeout(() => startRuns(), 700);
+}
+
+targetW.addEventListener("input", () => retarget("w"));
+targetH.addEventListener("input", () => retarget("h"));
+for (const box of [targetW, targetH]) {
+  box.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    clearTimeout(targetTimer);
+    startRuns();
+  });
+}
+
+modelSeg.addEventListener("click", (e) => {
+  const btn = e.target.closest("button");
+  if (!btn || btn.disabled || btn.dataset.model === model) return;
+  chosenByHand = true;
+  const key = btn.dataset.model;
+  const result = results[key];
+
+  if (result.state === "ready") {
+    awaiting = null;
+    present(key);
+    refreshStatus();
+    return;
+  }
+
+  // Asked for before it exists: the run stops being a background one and the
+  // panel steps forward to say how far along it is. One that is only queued,
+  // or failed last time, cuts in front of whatever is on the GPU — which is
+  // the other model, working on an answer nobody is waiting for.
+  model = key;
+  syncSeg(modelSeg, "model", model);
+  awaiting = key;
+  if (result.state === "running") {
+    document.body.classList.remove("behind");
+    renderWorkPanel();
+  } else {
+    if (result.state === "failed") results[key] = blank();
+    if (inFlight) {
+      results[inFlight.key] = blank();
+      cancelRun();
+    }
+    reflectStates();
+    pump(runToken);
+  }
+  refreshStatus();
+});
+
+zoomSeg.addEventListener("click", (e) => {
+  const btn = e.target.closest("button");
+  if (!btn || btn.dataset.zoom === zoom) return;
+  zoom = btn.dataset.zoom;
+  syncSeg(zoomSeg, "zoom", zoom);
+  stageEl.classList.toggle("actual", zoom === "actual");
+});
+
+fmtSeg.addEventListener("click", (e) => {
+  const btn = e.target.closest("button");
+  if (!btn || btn.dataset.fmt === format) return;
+  format = btn.dataset.fmt;
+  syncSeg(fmtSeg, "fmt", format);
+  prewarm();
+});
+
+document.body.dataset.state = "idle";
+reflectStates();
+
+if (location.protocol === "file:") {
+  setStatus("Opened from a folder — the models need this served. Run "
+    + "python3 -m http.server in the repo and open it over http: a browser will not "
+    + "start a worker from a file:// folder, and that is where the models run.", true);
+}
+</script>
+</body>
+</html>
