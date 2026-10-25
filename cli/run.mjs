@@ -16,7 +16,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { parse } from "./lib/args.mjs";
 import { drive } from "./lib/drive.mjs";
 import { bold, dim, wrap } from "./lib/out.mjs";
@@ -30,7 +30,8 @@ const known = fs.existsSync(TOOLS)
   : [];
 
 async function load(name) {
-  return import(path.join(TOOLS, `${name}.mjs`));
+  // A file URL, not a path: on Windows a bare `C:\…` is refused as the URL scheme `c:`.
+  return import(pathToFileURL(path.join(TOOLS, `${name}.mjs`)).href);
 }
 
 function contents() {

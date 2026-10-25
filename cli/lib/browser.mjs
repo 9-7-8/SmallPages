@@ -17,7 +17,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const REPO = path.resolve(here, "..", "..");
@@ -51,7 +51,9 @@ if (!PW) {
   throw new Error("no Playwright found — install it, or set PLAYWRIGHT_MODULE "
     + "to the path of its index.mjs");
 }
-export const { chromium } = await import(PW);
+/* As a URL, because on Windows a bare `C:\…` path is read as a URL with the
+   scheme `c:` and refused (ERR_UNSUPPORTED_ESM_URL_SCHEME). */
+export const { chromium } = await import(pathToFileURL(PW).href);
 
 /* Playwright's own browser lookup is used when nothing is named, so an
    ordinary `npx playwright install chromium` just works; the explicit paths
