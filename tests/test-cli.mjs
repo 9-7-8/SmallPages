@@ -17,6 +17,7 @@ import fs from "node:fs";
 import path from "node:path";
 import zlib from "node:zlib";
 import { chromium, CHROMIUM_BIN, REPO, WORK, scoring } from "./lib/env.mjs";
+import { booleans as PLAYLIST_FLAGS } from "../cli/tools/playlist-to-audio.mjs";
 
 const { ok, done } = scoring();
 const CLI = path.join(REPO, "cli", "run.mjs");
@@ -128,8 +129,8 @@ const json = async (...args) => {
 {
   const got = await run();
   ok("with nothing asked for it lists what has a command line",
-    got.code === 0 && /color-picker/.test(got.out)
-      && /image-compressor/.test(got.out), got.out.slice(0, 300));
+    got.code === 0 && ["color-picker", "image-compressor", "playlist-to-audio"]
+      .every((tool) => got.out.includes(tool)), got.out.slice(0, 400));
   const help = await run("color-picker", "--help");
   ok("a tool's --help names its commands",
     ["convert", "palette", "pixel", "contrast", "gradient", "match"]
@@ -416,6 +417,182 @@ const json = async (...args) => {
     refused.err.trim());
 }
 
+/* ----------------------------------------------------- playlist-to-audio -- */
+
+/* The third tool, and the first that produces neither a reading nor a file:
+   what comes out is a command somebody is going to paste into a terminal. So
+   the right answer is written out below rather than measured, and the half
+   that matters is further down, where the page is driven by hand and the
+   command it shows is held against the command that was printed. */
+
+const LIST = "OLAK5uy_kVmHRcAlIhVuN0GLqDxvXVQ7pnU";
+const MUSIC = `https://music.youtube.com/playlist?list=${LIST}`;
+
+/* The page as it opens, with nothing but a playlist pasted into it: the
+   balanced tier at MP3 V0, the seven ticked boxes, and D:\Music in the folder
+   field. Every one of those is the page's own default rather than a choice
+   made at this end, which is the whole of what `playlist-to-audio <url>` with
+   no flags is supposed to be. */
+const BARE = [
+  "yt-dlp",
+  '-f "bestaudio/best"',
+  "-x --audio-format mp3 --audio-quality 0",
+  '-P "D:\\Music"',
+  '-o "%(playlist_title|Downloads)s/%(playlist_index)03d %(title)s.%(ext)s"',
+  "--embed-metadata",
+  '--parse-metadata "playlist_title:%(album)s"',
+  "--embed-thumbnail",
+  '--download-archive "archive.txt"',
+  "--ignore-errors --no-overwrites",
+  "--sleep-requests 1.5 --sleep-interval 2 --max-sleep-interval 6",
+  "--yes-playlist",
+  `"${MUSIC}"`,
+];
+
+{
+  const said = await json("playlist-to-audio", MUSIC);
+  ok("the bare command is the page's own defaults, argument for argument",
+    said.parts.map((p) => p.arg).join("\n") === BARE.join("\n"),
+    said.parts.map((p) => p.arg).filter((a, i) => a !== BARE[i]).join(" / "));
+  ok("and the command it prints is those arguments, wrapped for PowerShell",
+    said.command === BARE.join(" `\n    "), JSON.stringify(said.command.slice(0, 60)));
+  ok("with the tier, the setting and the boxes said out loud beside it",
+    said.tier === "balanced" && said.quality === "mp3:0"
+      && said.options.sponsorblock === false
+      && Object.values(said.options).filter(Boolean).length === 7,
+    `${said.tier} ${said.quality} ${JSON.stringify(said.options)}`);
+  ok("and the playlist canonicalised, with the page's own reading of it",
+    said.url.target === MUSIC && said.url.id === LIST
+      && said.url.kind === "YouTube Music playlist"
+      && said.url.note === `YouTube Music playlist · ${LIST}`,
+    JSON.stringify(said.url));
+  ok("every part but yt-dlp itself carries its annotation",
+    said.parts.filter((p) => !p.why).map((p) => p.arg).join() === "yt-dlp",
+    said.parts.filter((p) => !p.why).map((p) => p.arg).join(" / "));
+
+  /* The flags, each one changing its own part of the command and nothing
+     else. The arguments are compared as a set against the bare command, so a
+     flag that quietly moved something else would come out here. */
+  const flagged = await json("playlist-to-audio", LIST,
+    "--tier", "max", "--quality", "flac", "--shell", "bash", "--one-line",
+    "--to", "/srv/music", "--only", "1-20", "--cookies", "firefox",
+    "--no-cover", "--sponsorblock");
+  const args = flagged.parts.map((p) => p.arg);
+  ok("the flags each change their own part of the command",
+    args.includes("-x --audio-format flac")
+      && args.includes('-P "/srv/music"')
+      && args.includes("--playlist-items 1-20")
+      && args.includes("--cookies-from-browser firefox")
+      && args.includes("--sponsorblock-remove sponsor,selfpromo")
+      && !args.includes("--embed-thumbnail")
+      && args.at(-1) === `"https://www.youtube.com/playlist?list=${LIST}"`,
+    args.join(" / "));
+  ok("and --one-line prints what the page's Wrap lines button would",
+    flagged.command === args.join(" ") && !/\n/.test(flagged.command),
+    JSON.stringify(flagged.command.slice(0, 50)));
+  ok("--shell bash is the only thing that changes the continuation character",
+    (await json("playlist-to-audio", LIST, "--shell", "bash")).command
+      .includes(" \\\n    "), "");
+
+  /* `tiers` is the page answering for itself, and it is also the one check
+     holding the tool's flag list against the page's boxes. `cli/tools` has to
+     name those eight to print `--help` without opening a browser, which is
+     the one place in cli/ where something the page knows is written down
+     twice; this is what keeps the copy honest. */
+  const tiers = await json("playlist-to-audio", "tiers");
+  ok("tiers reports the three cards and marks the one the page opens on",
+    tiers.tiers.map((t) => t.key).join() === "max,balanced,min"
+      && tiers.tiers.filter((t) => t.chosen).map((t) => t.key).join() === "balanced",
+    tiers.tiers.map((t) => t.key + (t.chosen ? "*" : "")).join(" "));
+  ok("and the settings inside each card, with each card's own default marked",
+    tiers.tiers.every((t) => t.quality.length >= 3
+      && t.quality.filter((q) => q.default).length === 1)
+      && tiers.tiers[1].quality[0].value === "mp3:0",
+    tiers.tiers.map((t) => t.quality.filter((q) => q.default)[0].value).join(" "));
+  const fromPage = tiers.options
+    .map((o) => `${o.on ? "no-" : ""}${o.name}`).sort().join(" ");
+  const fromTool = PLAYLIST_FLAGS
+    .filter((f) => !["one-line", "why"].includes(f)).sort().join(" ");
+  ok("and the eight boxes the tool names are the eight the page has, "
+    + "the same way round",
+    fromPage === fromTool, `page: ${fromPage}\n        tool: ${fromTool}`);
+
+  /* The estimate, which is the one piece of arithmetic in this page: a
+     bitrate times a runtime. Twenty-five four-minute tracks is 6,000 seconds,
+     so the three figures are exact rather than approximate. */
+  const seconds = 25 * 240;
+  const est = await json("playlist-to-audio", "sizes", "--tracks", "25",
+                         "--length", "4:00");
+  ok("sizes is the bitrate times the runtime, to the byte",
+    est.seconds === seconds && est.duration === "1 h 40 m"
+      && est.tiers.map((t) => t.bytes).join()
+         === [160, 245, 6].map((k) => k * 1000 * seconds / 8).join(),
+    `${est.duration} · ${est.tiers.map((t) => t.bytes).join(" ")}`);
+  ok("and it defaults to the page's own 25 tracks of four minutes",
+    (await json("playlist-to-audio", "sizes")).seconds === seconds,
+    String((await json("playlist-to-audio", "sizes")).seconds));
+  const long = await json("playlist-to-audio", "sizes", "--tracks", "180",
+                          "--length", "3:30", "--tier", "min");
+  ok("a longer playlist multiplies out the same way, and --tier marks a row",
+    long.seconds === 180 * 210
+      && long.tiers.filter((t) => t.chosen).map((t) => t.key).join() === "min",
+    `${long.seconds} · ${long.tiers.filter((t) => t.chosen).map((t) => t.key)}`);
+
+  /* ------------------------------------------- and what goes wrong here -- */
+
+  const tier = await run("playlist-to-audio", LIST, "--tier", "lossless");
+  ok("a tier the page has no card for lists the three it has",
+    tier.code === 1 && /--tier is one of max, balanced, min/.test(tier.err),
+    tier.err.trim());
+  const setting = await run("playlist-to-audio", LIST, "--tier", "max",
+                            "--quality", "mp3:0");
+  ok("a setting from the wrong card comes back with that card's own list",
+    setting.code === 1
+      && /no setting for the max tier called "mp3:0" — there is best, flac, wav/
+         .test(setting.err), setting.err.trim());
+  const stray = await run("playlist-to-audio", LIST, "--no-covers");
+  ok("a flag that is nearly one of these names the one it is nearly",
+    stray.code === 1 && /no flag called --no-covers/.test(stray.err)
+      && /did you mean --no-cover\?/.test(stray.err), stray.err.trim());
+  const host = await run("playlist-to-audio", "https://vimeo.com/staffpicks");
+  ok("a link that is not YouTube is the page's own sentence, and builds nothing",
+    host.code === 1 && /That host isn't YouTube/.test(host.err)
+      && !/yt-dlp/.test(host.out), host.err.trim());
+  const pile = await run("playlist-to-audio", LIST, LIST);
+  ok("two playlists at once says where a slice of one goes instead",
+    pile.code === 1 && /one playlist at a time/.test(pile.err), pile.err.trim());
+  const wrongPlace = await run("playlist-to-audio", LIST, "--tracks", "40");
+  ok("and the estimate's own flags, on the command, say which command wants them",
+    wrongPlace.code === 1 && /not the command's/.test(wrongPlace.err),
+    wrongPlace.err.trim());
+  const wav = await json("playlist-to-audio", "sizes", "--tier", "max",
+                         "--quality", "wav", "--tracks", "25", "--length", "4:00");
+  ok("and the container moves the top row, since WAV is not the Opus stream",
+    wav.tiers[0].bytes === 1411 * 1000 * seconds / 8
+      && wav.tiers[1].bytes === 245 * 1000 * seconds / 8,
+    wav.tiers.map((t) => `${t.kbps}k`).join(" "));
+  const elsewhere = await run("playlist-to-audio", "sizes", "--to", "/srv/music");
+  ok("a flag that belongs to the command is refused by the estimate",
+    elsewhere.code === 1 && /not a flag `sizes` takes/.test(elsewhere.err)
+      && /--tracks, --length, --tier, --quality/.test(elsewhere.err),
+    elsewhere.err.trim());
+  const atTiers = await run("playlist-to-audio", "tiers", "--tier", "max");
+  ok("and `tiers`, which takes none, says that rather than ignoring it",
+    atTiers.code === 1 && /takes none but --json/.test(atTiers.err),
+    atTiers.err.trim());
+  const length = await run("playlist-to-audio", "sizes", "--length", "about four");
+  ok("a length the page's own parser cannot read is a sentence, not a fallback",
+    length.code === 1 && /a length reads as 4:00, 1:04:00, or 4\.5/.test(length.err),
+    length.err.trim());
+  const bareHelp = await run("playlist-to-audio", "--help");
+  ok("and --help names every flag without opening a browser",
+    bareHelp.code === 0
+      && PLAYLIST_FLAGS.every((f) => bareHelp.out.includes(`--${f}`))
+      && ["--tier", "--quality", "--to", "--only", "--cookies", "--shell"]
+         .every((f) => bareHelp.out.includes(f)),
+    PLAYLIST_FLAGS.filter((f) => !bareHelp.out.includes(`--${f}`)).join(" "));
+}
+
 /* ------------------------------------------------------- what goes wrong -- */
 
 {
@@ -571,6 +748,121 @@ const json = async (...args) => {
       + "from the command line");
 
   ok("no page errors from image-compressor.html", errs.length === 0, errs.join(" | "));
+  await browser.close();
+}
+
+/* ------------------------------ the same answer as the tab, as a command -- */
+
+/* playlist-to-audio.html driven by hand: the URL field, the tier cards, the
+   box inside the card that is up, the checkboxes and the two selects. Then
+   what the page shows is held against what the command printed.
+
+   The first check is the one that would have caught the bug this page was
+   fixed for. `playlist-to-audio <url>` with no flags is meant to be the page
+   as it opens, and for a while the page as it opened was lying about itself:
+   Balanced was lit up and the Smallest file command was underneath it. A
+   command line that read the tier off the pressed card, or that had its own
+   idea of what the default was, would pass everything above and fail here. */
+{
+  const browser = await chromium.launch({ executablePath: CHROMIUM_BIN });
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 1400 } });
+  const page = await ctx.newPage();
+  const errs = [];
+  page.on("pageerror", (e) => errs.push("pageerror: " + e.message));
+  page.on("console", (m) => {
+    if (m.type() === "error" && !/favicon/.test(m.location().url || "")) {
+      errs.push(m.text());
+    }
+  });
+
+  await page.goto(`file://${path.join(REPO, "playlist-to-audio.html")}`);
+
+  /* Everything a person would read: the command, the annotations under it,
+     and which card is pressed. */
+  const shown = () => page.evaluate(() => ({
+    cmd: document.getElementById("cmd").textContent,
+    why: [...document.querySelectorAll("#why tr")]
+      .map((tr) => [...tr.children].map((td) => td.textContent).join("␟")),
+    pressed: [...document.querySelectorAll(".tier")]
+      .find((b) => b.getAttribute("aria-pressed") === "true").dataset.tier,
+  }));
+
+  await page.fill("#url", MUSIC);
+  let onScreen = await shown();
+  let printed = await json("playlist-to-audio", MUSIC);
+  ok("a playlist pasted in, and nothing else touched, is the bare command",
+    onScreen.cmd === printed.prompt + printed.command,
+    `${JSON.stringify(onScreen.cmd.slice(0, 70))}\n        vs `
+      + JSON.stringify((printed.prompt + printed.command).slice(0, 70)));
+  ok("and the tier the card shows is the tier the command line says it used",
+    onScreen.pressed === printed.tier, `${onScreen.pressed} vs ${printed.tier}`);
+  ok("with the page in the other browser showing the very same thing",
+    onScreen.cmd === printed.shown, JSON.stringify(printed.shown.slice(0, 70)));
+
+  /* And the same again with eight controls moved by hand, because a default
+     agreeing is not the same as a setting agreeing. */
+  await page.click('.tier[data-tier="max"]');
+  await page.selectOption("#maxq", "wav");
+  await page.selectOption("#shell", "bash");
+  await page.selectOption("#cookies", "brave");
+  await page.uncheck("#o-thumb");
+  await page.uncheck("#o-slow");
+  await page.check("#o-sponsor");
+  await page.fill("#dest", "/srv/music");
+  await page.fill("#items", "4-9");
+
+  /* The eight flags for the eight controls, named once so the runs below
+     cannot drift apart from each other. */
+  const HAND = ["--tier", "max", "--quality", "wav", "--shell", "bash",
+                "--cookies", "brave", "--no-cover", "--no-pauses",
+                "--sponsorblock", "--to", "/srv/music", "--only", "4-9"];
+
+  onScreen = await shown();
+  printed = await json("playlist-to-audio", MUSIC, ...HAND);
+  ok("eight controls moved by hand come out as the same command as eight flags",
+    onScreen.cmd === printed.prompt + printed.command,
+    `${JSON.stringify(onScreen.cmd.slice(0, 90))}\n        vs `
+      + JSON.stringify((printed.prompt + printed.command).slice(0, 90)));
+
+  /* The annotation table too, which is the part of the page a terminal
+     otherwise has no way of seeing. `--why` prints these, so they are worth
+     knowing to be the page's own sentences rather than a set written here. */
+  ok("and the table under it is the annotations --why prints, in order",
+    onScreen.why.join("\n") === printed.parts.filter((x) => x.why)
+      .map((x) => `${x.arg.split(" ")[0]}␟${x.why}`).join("\n"),
+    `${onScreen.why.length} rows on screen, `
+      + `${printed.parts.filter((x) => x.why).length} printed`);
+
+  const why = await run("playlist-to-audio", MUSIC, ...HAND, "--why");
+  ok("which is what comes out of --why in prose",
+    why.code === 0 && onScreen.why.every((row) =>
+      why.out.includes(row.split("␟")[0])),
+    why.out.slice(0, 120));
+
+  /* One line, by the page's own button and by the flag. */
+  await page.click("#wrap-btn");
+  onScreen = await shown();
+  printed = await json("playlist-to-audio", MUSIC, ...HAND, "--one-line");
+  ok("and the Wrap lines button is --one-line, down to the spaces",
+    onScreen.cmd === printed.prompt + printed.command,
+    JSON.stringify(onScreen.cmd.slice(0, 90)));
+
+  /* And the state that was the bug, which nothing outside the page can get
+     it into any more. `tier` is a script-level binding, so the suite can set
+     it by hand to prove the hook refuses to answer from a page that is
+     showing one tier and would build another — rather than tripping over a
+     <select> that does not exist and failing as a null dereference, which is
+     how this read before the guard went in. */
+  const confused = await page.evaluate(async () => {
+    tier = "mp3";
+    try { await window.CLI.jobs.command({ url: "PLabc" }); return "answered"; }
+    catch (e) { return e.message; }
+  });
+  ok("a tier that is none of the three cards is refused in those words",
+    /none of its three cards/.test(confused), confused);
+
+  ok("no page errors from playlist-to-audio.html", errs.length === 0,
+    errs.join(" | "));
   await browser.close();
 }
 

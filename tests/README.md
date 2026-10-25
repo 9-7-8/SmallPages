@@ -228,6 +228,21 @@ Suites are named for the page they exercise. The ones worth knowing about:
   moves in forties from 240, so `--max 300` is not a size that page can be
   asked for, and the command line has to report the 320 it got rather than the
   300 it was given.
+
+  `playlist-to-audio` is the third, and the one whose answer is neither a
+  reading nor a file but a command somebody is going to paste into a terminal,
+  so the thirteen arguments of the bare command are written out here and
+  compared one at a time. Then the page is opened, a playlist is typed into
+  it, **nothing else is touched**, and what it shows is held against what
+  `playlist-to-audio <url>` printed — which is the check the whole arrangement
+  rests on, because the bare command is defined as the page as it opens and
+  for a while the page as it opened was lying about itself. Then eight
+  controls are moved by hand and compared against the same eight as flags, and
+  the annotation table on screen against what `--why` prints. One more holds
+  the eight box names in `cli/tools/playlist-to-audio.mjs` — which has to name
+  them to print `--help` without launching a browser, and is the only place in
+  `cli/` where something a page knows is written down twice — against the
+  eight the page reports, the same way round.
 - **`test-dice.mjs`** — the dice roller, where the claim worth checking is that
   the die on the table is showing what the page says was rolled. It reads each
   die's quaternion back out and works out which labelled face is pointing at
@@ -371,6 +386,46 @@ Suites are named for the page they exercise. The ones worth knowing about:
   itself, so the clamp underneath is never asked to refuse anything. The suite
   lifts the ceiling to get at it. Without that the clamp could be deleted and
   nothing here would notice.
+- **`test-playlist.mjs`** — the `yt-dlp` command builder, which produces no
+  file and no sound, so every check reads the command out of the `<pre>` a
+  person copies rather than out of a function. Each of the eight option boxes
+  is unticked in turn and the whole argument list compared before and after,
+  because a box wired to the wrong flag passes a check that only looks at its
+  own flag; the top tier is checked for *not* naming an audio quality, which
+  is its entire promise, since naming one is what forces the re-encode it
+  exists to avoid; the four shapes of playlist link all have to come out
+  canonicalised; and the size estimate is checked against the multiplication
+  twice over — against the bitrates the page claims, and against the rate
+  printed in each row, which is worked out separately from the figure beside
+  it and so can be right while that is wrong.
+
+  The first check in it is the bug the suite was written for. `tier` was set
+  to `"mp3"`, which is none of the three `data-tier` names, so the page opened
+  with Balanced lit up and the *Smallest file* command underneath it: 6 kbps
+  Opus, mono, speech mode, under a card that says it buys playback on anything
+  with a headphone jack. Nothing on screen disagreed with anything else on
+  screen, which is why it survived.
+
+  Twenty-two deliberate breakages went in across two rounds and four were not
+  noticed, which is the only reason this suite is worth anything. Loosening
+  the bare-id pattern so that any word at all became a playlist id went
+  straight past it — nothing here had ever typed plain text into the field.
+  The length field's second branch, the one that reads a three-digit minute
+  count, had never been reached, because `4:00` and `1:04:00` both match the
+  first. The top tier's rate label and its size are worked out separately and
+  only the label was being read, so a mutation that changed just the figure
+  left `1411 kbps` sitting next to a size worked out at 160. And the *Wrap
+  lines* button turned out to have the same bug as the tier: it offered to
+  wrap a command that was already wrapped, which no check could see because
+  only one of its two states was ever read.
+
+  One thing written down because the obvious fixture for it is wrong. The
+  readout's "Not a URL yet." is nearly unreachable in a browser: Chromium's
+  URL parser percent-encodes the spaces in `the one with the horses` and hands
+  back a hostname, so the page calls that a host that is not YouTube. Node's
+  parser throws on the same string — so a check written against the parser in
+  the suite rather than the one in the tab would have been testing a URL
+  parser nobody here uses. A scheme with no host at all is what gets there.
 - **`test-pdfb.mjs`** — saves a PDF, reloads it through pdf.js, and reads the
   text back out, which is the only way to prove a copied page stayed a page
   rather than becoming a picture of one.
