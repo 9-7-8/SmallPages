@@ -10,7 +10,12 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { chromium, NO_PLAYWRIGHT } from "../../cli/lib/browser.mjs";
 export { chromium, CHROMIUM_BIN } from "../../cli/lib/browser.mjs";
+
+/* The command line can wait to complain until something needs a browser,
+   because `--help` does not. Every suite does, so here it is said at once. */
+if (!chromium) throw new Error(NO_PLAYWRIGHT);
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const TESTS = path.resolve(here, "..");

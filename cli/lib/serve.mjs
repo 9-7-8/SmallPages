@@ -43,7 +43,11 @@ const TYPES = {
 const type = (file) => TYPES[path.extname(file).toLowerCase()]
   || "application/octet-stream";
 
-export async function serve(root) {
+/* `port` 0 is whatever is going. A fixed one is asked for by `drive` when it
+   wants the same origin every time — storage is kept per origin, and a port
+   is part of one — and if that port is taken this says so by throwing
+   EADDRINUSE rather than quietly moving. */
+export async function serve(root, { port: wanted = 0 } = {}) {
   const server = http.createServer((req, res) => {
     let asked;
     try {
@@ -78,7 +82,7 @@ export async function serve(root) {
 
   await new Promise((up, down) => {
     server.once("error", down);
-    server.listen(0, "127.0.0.1", up);
+    server.listen(wanted, "127.0.0.1", up);
   });
 
   const { port } = server.address();

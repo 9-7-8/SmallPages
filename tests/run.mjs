@@ -12,7 +12,7 @@
    They sit in this folder, except the games', which sit in `games/` under it
    because there are going to be a lot of them. Nothing else nests. */
 
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import net from "node:net";
 import path from "node:path";
@@ -45,12 +45,26 @@ const free = (port) => new Promise((settle) => {
   probe.on("error", () => settle(true));
 });
 
+/* `python3` is the name on Linux and macOS. On Windows it is usually the
+   Store's placeholder, which prints an advert and exits, so the server never
+   comes up and the runner says only that nothing answered — the first name
+   that really reports a Python 3 is the one used. $PYTHON beats all of them. */
+const PYTHON = [process.env.PYTHON, "python3", "python", "py"].find((exe) => {
+  if (!exe) return false;
+  const got = spawnSync(exe, ["--version"], { encoding: "utf8", windowsHide: true });
+  return got.status === 0 && /Python 3/.test(`${got.stdout}${got.stderr}`);
+});
+
 async function serve(port, args, cwd) {
   if (!await free(port)) {
     console.log(`  (something already answers on ${port} — using it)`);
     return null;
   }
-  const child = spawn("python3", args, { cwd, stdio: "ignore", detached: true });
+  if (!PYTHON) {
+    throw new Error("the suites are served by Python 3 and none was found — install it,"
+      + " or set PYTHON to its path");
+  }
+  const child = spawn(PYTHON, args, { cwd, stdio: "ignore", detached: true, windowsHide: true });
   for (let tries = 0; tries < 100; tries++) {
     await new Promise((r) => setTimeout(r, 100));
     if (!await free(port)) return child;
