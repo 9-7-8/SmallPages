@@ -290,15 +290,31 @@ whichever card is up, so the flag means the same thing the box does.
       `D:\Music` and PowerShell, which is what makes the check at the end of
       `tests/test-cli.mjs` mean anything.
 - [x] **`uncrop.html`** &mdash; `<picture> --canvas --width --height --ratio
-      --grow --scale --fit --at --fill --out --format --quality`, plus
-      `formats`. The first whose bare command runs *nothing*: on that page
-      opening a picture only shows you the figures and Uncrop is a separate
-      press, so the bare command is those figures and `--out` is the press,
-      which also means the arithmetic can be checked without fetching 80 MB
-      of weights. It is also the first where the page's own default fill
-      wants a download, so an offline run says so in a sentence rather than
-      hanging, and the one fill that needs nothing fetched is what the
-      written files are checked with.
+      --grow --swap --scale --fit --at --fill --out --show-added --format
+      --quality`, plus `sizes` and `formats`. Every control on the page has a
+      flag: the two size fields, the Swap button, the seven size presets, the
+      eight shapes, the size slider, Centre, Fit inside, Actual pixels,
+      dragging the picture, the three fills, the four formats, the quality
+      slider, Save, and *Show what was added*, which `--show-added` saves at
+      the size of the picture rather than the size of the panel.
+
+      The first whose bare command runs *nothing*: on that page opening a
+      picture only shows you the figures and Uncrop is a separate press, so
+      the bare command is those figures and `--out` is the press, which also
+      means the arithmetic can be checked without fetching 80 MB of weights.
+      It is also the first where the page's own default fill wants a
+      download, so an offline run says so in a sentence rather than hanging,
+      and the one fill that needs nothing fetched is what the written files
+      are checked with.
+
+      `--canvas` is the one flag here that is *not* parsed in `cli/`. A canvas
+      can be two numbers or the name on one of the page's own preset buttons,
+      and which names there are is the page's business, so the string is
+      handed over as it was typed and the page resolves it or refuses it.
+      `uncrop sizes` lists them by asking the page the same way. That is the
+      rule at the top of this file taken one step further than the other
+      three tools needed: not just *do not work the answer out*, but *do not
+      keep a copy of the question either*.
 
 Four of the forty-seven pages in the index. The rest are below, grouped by the
 shape of the work rather than by where they sit in the hub, because pages of

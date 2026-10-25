@@ -685,6 +685,51 @@ const BARE = [
   ok("--out <dir> uses the page's own Save name",
     intoDir.name === "cli-photo-uncropped-400x400.png"
       && fs.existsSync(path.join(WORK, intoDir.name)), intoDir.name);
+
+  /* The canvas sizes and shapes the page offers, listed by asking the page.
+     Nothing in `cli/` keeps a copy of them, so the thing to check is that
+     what comes out of the terminal is what is on the buttons. */
+  const sizes = await json("uncrop", "sizes");
+  ok("the sizes command lists the page's own presets and shapes",
+    sizes.sizes.length === 7 && sizes.shapes.length === 8
+      && sizes.sizes.find((f) => f.name === "2480x3508").label === "A4 at 300 dpi"
+      && sizes.shapes[0].name === "keep",
+    JSON.stringify(sizes.sizes.map((f) => f.name)));
+
+  /* And a preset can be asked for by the words on its button, which is the
+     half of this the page has to do because the words are the page's. */
+  const a4 = await json("uncrop", PHOTO, "--canvas", "a4at300dpi");
+  ok("--canvas takes the name on a preset button as well as its figures",
+    a4.plan.width === 2480 && a4.plan.height === 3508,
+    `${a4.plan.width}×${a4.plan.height}`);
+  const named = await run("uncrop", PHOTO, "--canvas", "enormous");
+  ok("and a name that is neither is refused in the page's own words",
+    named.code === 1 && /two numbers like 2560x1440/.test(named.err), named.err.trim());
+
+  const swapped = await json("uncrop", PHOTO, "--canvas", "1920x1080", "--swap");
+  ok("--swap is the page's Swap button",
+    swapped.plan.width === 1080 && swapped.plan.height === 1920,
+    `${swapped.plan.width}×${swapped.plan.height}`);
+
+  /* *Show what was added*, which the page draws into its panel and the
+     terminal saves at the size of the picture. */
+  const marked = path.join(WORK, "cli-uncrop-marked.png");
+  const both = await json("uncrop", PHOTO, "--canvas", "1200x900", "--fill", "reflect",
+    "--out", asPng, "--show-added", marked);
+  ok("--show-added writes a second picture beside the first",
+    both.wrote.endsWith("cli-uncrop.png") && both.marked.endsWith("cli-uncrop-marked.png")
+      && fs.existsSync(marked), JSON.stringify([both.wrote, both.marked]));
+  ok("and it is the same canvas, marked rather than cropped or resized",
+    (await json("image-compressor", marked)).original.width === 1200
+      && !fs.readFileSync(marked).equals(fs.readFileSync(asPng)),
+    `${fs.statSync(marked).size} bytes against ${fs.statSync(asPng).size}`);
+
+  const markedDir = await json("uncrop", PHOTO, "--canvas", "400x400", "--fill", "reflect",
+    "--show-added", WORK + path.sep);
+  ok("into a directory it is named for what it is, and the run still happened",
+    markedDir.marked.endsWith("cli-photo-what-was-added-400x400.png")
+      && markedDir.wrote === null && markedDir.seconds !== undefined,
+    JSON.stringify([markedDir.marked, markedDir.wrote]));
 }
 
 /* ------------------------------------------------------- what goes wrong -- */

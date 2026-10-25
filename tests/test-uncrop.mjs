@@ -966,6 +966,124 @@ await page.waitForFunction(() => window.UNCROP.state.result && window.UNCROP.sta
     `jpeg ${onJpeg}, webp ${onWebp}, tiff ${onTiff}, png ${onPng}`);
 }
 
+/* ------------------------------------------------- 5b. what was added -- */
+
+/* The page's own *Show what was added*, and the full-size version of it the
+   terminal saves. They are one function drawn at two scales, so the thing to
+   check is that the drawing does what it says: everything dimmed, your own
+   pixels left alone, a line between them. */
+await open(BANDS);
+await page.click('button[data-method="reflect"]');
+await page.evaluate(() => { window.UNCROP.setSize(360, 240); window.UNCROP.centre(); });
+await page.click('#run');
+await page.waitForFunction(() => window.UNCROP.state.result, null, { timeout: 60000 });
+
+{
+  const read = async () => page.evaluate(() => {
+    const g = document.getElementById('out').getContext('2d');
+    const at = (x, y) => Array.from(g.getImageData(x, y, 1, 1).data).slice(0, 3);
+    return { corner: at(4, 4), middle: at(180, 120) };
+  });
+  const plain = await read();
+  await page.click('#showAdded');
+  const marked = await read();
+  await page.click('#showAdded');
+  const back = await read();
+
+  const sum = (p) => p[0] + p[1] + p[2];
+  ok('Show what was added dims the fill and leaves your own pixels alone',
+    sum(marked.corner) < sum(plain.corner) * 0.6
+      && Math.abs(sum(marked.middle) - sum(plain.middle)) <= 6,
+    `${JSON.stringify(plain)} became ${JSON.stringify(marked)}`);
+  ok('and pressing it again puts the picture back',
+    JSON.stringify(back) === JSON.stringify(plain),
+    `${JSON.stringify(plain)} came back as ${JSON.stringify(back)}`);
+}
+
+{
+  const full = await page.evaluate(() => {
+    const c = window.UNCROP.markedCanvas();
+    const g = c.getContext('2d');
+    const r = window.UNCROP.state.rect;
+    const p = window.UNCROP.resultCanvas().getContext('2d');
+    const at = (ctx, x, y) => Array.from(ctx.getImageData(x, y, 1, 1).data).slice(0, 3);
+    return {
+      w: c.width, h: c.height,
+      inside: { marked: at(g, r.x + 40, r.y + 40), plain: at(p, r.x + 40, r.y + 40) },
+      outside: { marked: at(g, 6, 6), plain: at(p, 6, 6) },
+      /* the plain result must not have been drawn on in the making of it */
+      stillPlain: at(p, 6, 6),
+    };
+  });
+  const sum = (p) => p[0] + p[1] + p[2];
+  ok('the terminal gets the same marking at the size of the picture, not the panel',
+    full.w === 360 && full.h === 240, `${full.w} × ${full.h}`);
+  ok('with the fill dimmed and the picture untouched',
+    sum(full.outside.marked) < sum(full.outside.plain) * 0.6
+      && JSON.stringify(full.inside.marked) === JSON.stringify(full.inside.plain),
+    JSON.stringify(full));
+  ok('and the result itself is not marked up by the making of it',
+    JSON.stringify(full.stillPlain) === JSON.stringify(full.outside.plain),
+    JSON.stringify([full.stillPlain, full.outside.plain]));
+}
+
+/* ------------------------------------------- 5c. the page's own sizes -- */
+
+/* The canvas presets and shapes, which the terminal lists by asking the page
+   rather than by keeping a copy of them. The check is against the buttons
+   themselves, because the buttons are the list. */
+{
+  /* A job that throws would otherwise take the suite down with a stack trace
+     instead of failing the checks that are about it. */
+  const said = await page.evaluate(() => {
+    try { return window.CLI.jobs.sizes(); }
+    catch (e) { return { sizes: [], shapes: [], threw: e.message }; }
+  });
+  const onPage = await page.evaluate(() => ({
+    sizes: [...document.querySelectorAll('#presets button[data-size]')].map(b => b.dataset.size),
+    shapes: [...document.querySelectorAll('#ratios button[data-ratio]')].map(b => b.dataset.ratio),
+  }));
+  ok('the sizes the terminal is told about are the buttons on the page',
+    JSON.stringify(said.sizes.map(s => s.name)) === JSON.stringify(onPage.sizes)
+      && JSON.stringify(said.shapes.map(s => s.name)) === JSON.stringify(onPage.shapes),
+    JSON.stringify([said.sizes.map(s => s.name), onPage.sizes]));
+  const a4 = said.sizes.find(s => s.name === '2480x3508');
+  ok('and each one carries the figures that are on it',
+    said.sizes.every(s => s.name === `${s.width}x${s.height}`)
+      && !!a4 && a4.label === 'A4 at 300 dpi',
+    JSON.stringify(said.sizes));
+
+  /* A preset can be asked for by its figures, by the words on the button, or
+     by those words with the spaces taken out, because all three are what
+     somebody will type. */
+  /* Caught rather than left to throw: a name the page has stopped
+     recognising is a wrong answer to report, not a stack trace to read. */
+  const ways = await page.evaluate(() => ['2480x3508', 'A4 at 300 dpi', 'a4at300dpi', 'A4AT300DPI']
+    .map(name => {
+      try {
+        window.UNCROP.placeAs({ size: name });
+        return `${window.UNCROP.state.target.w}x${window.UNCROP.state.target.h}`;
+      } catch (e) { return `refused: ${e.message}`; }
+    }));
+  ok('a size preset answers to its figures and to the words on its button',
+    ways.every(w => w === '2480x3508'), JSON.stringify(ways));
+
+  const nonsense = await page.evaluate(() => {
+    try { window.UNCROP.placeAs({ size: 'enormous' }); return 'took it'; }
+    catch (e) { return e.message; }
+  });
+  ok('and a size that is neither is refused in a sentence',
+    /two numbers like 2560x1440/.test(nonsense), nonsense);
+
+  await page.evaluate(() => window.UNCROP.placeAs({ size: '1920x1080' }));
+  const swapped = await page.evaluate(() => {
+    window.UNCROP.placeAs({ swap: true });
+    return window.UNCROP.state.target;
+  });
+  ok('and Swap turns the canvas on its side',
+    swapped.w === 1080 && swapped.h === 1920, JSON.stringify(swapped));
+}
+
 /* ------------------------------------------- 6. the button and the terminal -- */
 
 /* The page's Save button and `window.CLI`'s job have to produce the same

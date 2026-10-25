@@ -558,7 +558,12 @@ function drawView() {
 /* ------------------------------------------------------------- the panel -- */
 
 function say(p) {
-  const pct = (x) => Math.round(x * 100);
+  /* Rounded, but never rounded all the way to none or all: a picture that is
+     a thousandth of the canvas still leaves 99% new rather than 100. */
+  const pct = (x) => {
+    const n = Math.round(x * 100);
+    return (n === 100 && x < 1) ? 99 : (n === 0 && x > 0) ? "under 1" : n;
+  };
   const bits = [`<b>${p.width} × ${p.height}</b>`, `${p.megapixels} MP`];
   if (p.level === "stop") {
     bits.push("—");
@@ -1428,6 +1433,44 @@ function methodNote() {
 
 /* -------------------------------------------------------------- the result -- */
 
+/* What *Show what was added* shows: everything dimmed, the picture punched
+   back out of the dimming so what is left bright is exactly what you brought,
+   and a dashed line round it. One function, drawn at whatever scale it is
+   given — the panel asks for it at the size on screen and the terminal asks
+   for it at the size of the picture, and neither has its own version of it. */
+function paintMarks(g, rect, scale, w, h) {
+  const over = surface(w, h), og = over.getContext("2d");
+  og.fillStyle = "rgba(0,0,0,0.55)";
+  og.fillRect(0, 0, w, h);
+  og.globalCompositeOperation = "destination-out";
+  og.fillStyle = "#000";
+  og.fillRect(rect.x * scale, rect.y * scale, rect.w * scale, rect.h * scale);
+  g.drawImage(over, 0, 0);
+
+  g.save();
+  /* The dashes are a fixed share of the picture rather than a fixed number of
+     pixels, so the line reads the same on a thumbnail and on a 4000-pixel
+     canvas instead of turning into a solid rule. */
+  const dash = Math.max(3, Math.round(Math.min(w, h) / 90));
+  g.setLineDash([dash * 1.3, dash]);
+  g.lineWidth = Math.max(1, Math.round(Math.min(w, h) / 500));
+  g.strokeStyle = "rgba(255,255,255,0.8)";
+  g.strokeRect(Math.round(rect.x * scale) + 0.5, Math.round(rect.y * scale) + 0.5,
+    Math.max(1, Math.round(rect.w * scale) - 1), Math.max(1, Math.round(rect.h * scale) - 1));
+  g.restore();
+}
+
+/* The same thing at the size of the picture itself, which is what the
+   terminal saves and what the panel is a scaled-down view of. */
+function markedCanvas() {
+  if (!result) return null;
+  const c = surface(result.size.w, result.size.h);
+  const g = c.getContext("2d");
+  g.drawImage(result.canvas, 0, 0);
+  paintMarks(g, result.rect, 1, result.size.w, result.size.h);
+  return c;
+}
+
 function showResult() {
   if (!result) return;
   el.outCard.classList.remove("hid");
@@ -1441,24 +1484,7 @@ function showResult() {
   g.clearRect(0, 0, vw, vh);
   g.drawImage(result.canvas, 0, 0, vw, vh);
 
-  if (showAdded) {
-    /* Dim everything and then punch the picture back out of the dimming, so
-       what is left bright is exactly what you brought. */
-    const r = result.rect;
-    const over = surface(vw, vh), og = over.getContext("2d");
-    og.fillStyle = "rgba(0,0,0,0.55)";
-    og.fillRect(0, 0, vw, vh);
-    og.globalCompositeOperation = "destination-out";
-    og.fillStyle = "#000";
-    og.fillRect(r.x * vs, r.y * vs, r.w * vs, r.h * vs);
-    g.drawImage(over, 0, 0);
-    g.save();
-    g.setLineDash([5, 4]);
-    g.strokeStyle = "rgba(255,255,255,0.8)";
-    g.strokeRect(Math.round(r.x * vs) + 0.5, Math.round(r.y * vs) + 0.5,
-      Math.max(1, Math.round(r.w * vs) - 1), Math.max(1, Math.round(r.h * vs) - 1));
-    g.restore();
-  }
+  if (showAdded) paintMarks(g, result.rect, vs, vw, vh);
 
   const how = result.method === "reflect" ? "mirrored"
     : `${MODELS[result.method].what} on ${result.on === "webgpu" ? "your GPU" : "the CPU"}`;
@@ -1688,9 +1714,36 @@ el.save.addEventListener("click", async () => {
 /* The canvas and the placement, set the way the page's own controls set them.
    The order is the order of the controls down the card: how big the canvas is,
    then what shape, then how big the picture is on it, then where. */
+/* A size preset by the name on its own button, or by the figures on it.
+   Spaces, case and the multiplication sign are all ignored, so "A4 at 300 dpi",
+   "a4at300dpi" and "2480x3508" are the same button. */
+function presetNamed(name) {
+  const flat = (t) => String(t).toLowerCase().replace(/×/g, "x").replace(/[^a-z0-9x]/g, "");
+  const want = flat(name);
+  for (const b of el.presets.querySelectorAll("button[data-size]")) {
+    if (flat(b.dataset.size) === want || flat(b.textContent) === want) return b;
+  }
+  return null;
+}
+
 function placeAs(o) {
   if (typeof o.grow === "number") setSize(src.w * o.grow, src.h * o.grow);
+  if (o.size) {
+    const button = presetNamed(o.size);
+    if (button) {
+      button.click();
+    } else {
+      const bits = String(o.size).toLowerCase().replace(/×/g, "x").split("x");
+      const w = Number(bits[0]), h = Number(bits[1]);
+      if (bits.length !== 2 || !(w > 0) || !(h > 0)) {
+        throw new Error(`a canvas is two numbers like 2560x1440, or the name of one`
+          + ` of the page's own sizes — not "${o.size}"`);
+      }
+      setSize(w, h);
+    }
+  }
   if (o.width || o.height) setSize(o.width || target.w, o.height || target.h);
+  if (o.swap) el.swap.click();
   if (o.ratio) {
     const shape = String(o.ratio);
     const [a, b] = shape === "keep" ? [src.w, src.h] : shape.split(":").map(Number);
@@ -1729,6 +1782,37 @@ window.CLI = {
       return Object.keys(FORMATS).map((k) => ({
         name: k, ext: FORMATS[k].ext, quality: FORMATS[k].quality, maxSide: FORMATS[k].maxSide || 0,
       }));
+    },
+
+    /* The canvas sizes and shapes the page offers, read off its own buttons
+       rather than written down a second time in a terminal. */
+    sizes() {
+      return {
+        sizes: [...el.presets.querySelectorAll("button[data-size]")].map((b) => {
+          const [w, h] = b.dataset.size.split("x").map(Number);
+          return { name: b.dataset.size, label: b.textContent.trim(), width: w, height: h };
+        }),
+        shapes: [...el.ratios.querySelectorAll("button[data-ratio]")].map((b) => ({
+          name: b.dataset.ratio, label: b.textContent.trim(),
+        })),
+        grow: 1.25,
+      };
+    },
+
+    /* What *Show what was added* shows, at the size of the picture: the fill
+       dimmed, your own pixels bright, a dashed line between them. It is the
+       last run's result, so it follows a run rather than doing one. */
+    async marked(o = {}) {
+      const c = markedCanvas();
+      if (!c) throw new Error("there is nothing to mark up yet — uncrop something first");
+      const fmt = o.format || format;
+      const q = typeof o.quality === "number" ? o.quality : Number(el.quality.value);
+      const blob = await encode(c, fmt, q);
+      return {
+        name: saveName(fmt, result.size).replace(/-uncropped-/, "-what-was-added-"),
+        bytes: Array.from(new Uint8Array(await blob.arrayBuffer())),
+        width: result.size.w, height: result.size.h,
+      };
     },
 
     async run(o = {}) {
@@ -1783,7 +1867,7 @@ window.UNCROP = {
   },
   sessions, MODELS, WORK,
   plan, framesFor, viewFor, maskFor, polarityFrom, encode, tiffBytes,
-  currentPlan, setSize, update, fitScale, placeAs,
+  currentPlan, setSize, update, fitScale, placeAs, markedCanvas, presetNamed,
   centre: () => { centre(); update(); },
   place: (p) => { Object.assign(place, p); update(); },
   resultCanvas: () => result && result.canvas,

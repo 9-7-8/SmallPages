@@ -32,7 +32,7 @@ export const page = "uncrop.html";
 export const summary = "a picture on a bigger canvas, with the new border "
   + "painted in by an inpainting model";
 
-export const booleans = ["fit"];
+export const booleans = ["fit", "swap"];
 
 const FILLS = ["fast", "best", "reflect"];
 const FORMATS = ["png", "webp", "jpeg", "tiff"];
@@ -52,16 +52,20 @@ const FILL_NOTE = {
 export const usage = `a picture uncropped onto a bigger canvas, out of uncrop.html.
 
   node cli/run.mjs uncrop <picture> [options]
+  node cli/run.mjs uncrop sizes
   node cli/run.mjs uncrop formats
 
 The canvas
 
-  --canvas <WxH>                the canvas to fill, as 2560x1440
+  --canvas <WxH|name>           the canvas to fill, as 2560x1440 — or the name
+                                of one of the page's own sizes, which
+                                \`uncrop sizes\` lists
   --width <px>  --height <px>   the same, one side at a time
   --ratio <W:H>                 keep the width and work the height out from
                                 this shape, or "keep" for the picture's own
   --grow <n>                    the canvas as a multiple of the picture.
                                 Left out, the page's own default of 1.25
+  --swap                        swap the two sides over, the page's Swap button
 
 Where the picture sits on it
 
@@ -77,11 +81,18 @@ The fill
                                 ${FILL_NOTE.fast}.
                                 best is ${FILL_NOTE.best}.
                                 reflect needs no download and no connection
+
+Saving
+
   --out <file>                  write the result here. The ending picks the
                                 format — .png, .webp, .jpg or .tif — unless
                                 --format says otherwise
   --out <dir>/                  write it into that directory, under the name
                                 the page's own Save button would give it
+  --show-added <file|dir/>      write a second copy with the invented border
+                                dimmed and a dashed line round what you
+                                brought, which is the page's own
+                                "Show what was added"
   --format ${FORMATS.join("|")}      which format, whatever the ending says
   --quality <40-100>            for WebP and JPEG; the page's slider sits at
                                 92, and 100 asks WebP for lossless. PNG and
@@ -90,23 +101,25 @@ The fill
   --json                        the whole answer as JSON
   --help                        this
 
+  sizes                         the canvas sizes and shapes the page offers
   formats                       what can be saved, and the limits of each
 
-With no --out nothing is run and nothing is written: you get the canvas, how
-much of it is new and how many model passes it would take, which is what the
-page shows you before you press Uncrop. The first run of either model needs a
-connection, for the runtime and the weights; reflect never does.`;
+With neither --out nor --show-added nothing is run and nothing is written: you
+get the canvas, how much of it is new and how many model passes it would take,
+which is what the page shows you before you press Uncrop. The first run of
+either model needs a connection, for the runtime and the weights; reflect
+never does.`;
 
-/* Where the file goes, and what that says about the format. A name ending in
+/* Where a file goes, and what that says about the format. A name ending in
    a slash, or one that is already a directory, means "in there" — and the
    name inside it is the page's own, which is not known until the page has
    made something, so that half waits. */
-function destination(flags) {
-  if (flags.out === undefined) return null;
-  if (flags.out === true) {
-    throw new Error("--out wants somewhere to write: a file, or a directory");
+function destination(flags, which = "out") {
+  if (flags[which] === undefined) return null;
+  if (flags[which] === true) {
+    throw new Error(`--${which} wants somewhere to write: a file, or a directory`);
   }
-  const asked = String(flags.out);
+  const asked = String(flags[which]);
   const full = path.resolve(asked);
   const intoDir = /[\\/]$/.test(asked)
     || (fs.existsSync(full) && fs.statSync(full).isDirectory());
@@ -115,9 +128,16 @@ function destination(flags) {
   return { dir: path.dirname(full), file: full, format: BY_EXT[ext] || null };
 }
 
-/* `--canvas 2560x1440`, and the two flags that say the same thing one side at
-   a time. Both at once is refused rather than resolved in whichever order
-   this file happens to read them. */
+/* `--canvas` is handed to the page as it was typed, because what a canvas
+   size may be is the page's business: it is two numbers, or the name on one
+   of the page's own preset buttons, and `uncrop sizes` lists those by asking
+   the page rather than by keeping a copy of them here. Only the shape of the
+   thing is checked before a browser is launched, which is enough to catch a
+   flag that was meant to be something else.
+
+   `--width` and `--height` say the same thing one side at a time. Both ways
+   at once is refused rather than resolved in whichever order this file
+   happens to read them. */
 function canvas(flags) {
   const pair = flags.canvas;
   const one = flags.width !== undefined || flags.height !== undefined;
@@ -131,15 +151,12 @@ function canvas(flags) {
       height: number(flags.height, "--height", { min: 1, max: 1e6 }),
     };
   }
-  const said = String(pair).toLowerCase().replace(/×/g, "x");
-  const bits = said.split("x");
-  if (bits.length !== 2) {
-    throw new Error(`--canvas wants a size like 2560x1440, not "${pair}"`);
+  const said = String(pair);
+  if (pair === true || !/^[\w .×x-]+$/i.test(said)) {
+    throw new Error("--canvas wants a size like 2560x1440, or the name of one of"
+      + ` the page's own — \`uncrop sizes\` lists them`);
   }
-  return {
-    width: number(bits[0], "--canvas width", { min: 1, max: 1e6 }),
-    height: number(bits[1], "--canvas height", { min: 1, max: 1e6 }),
-  };
+  return { size: said };
 }
 
 function corner(flags) {
@@ -172,7 +189,15 @@ async function handIn(handle, file) {
   return said;
 }
 
-const share = (n) => `${Math.round(n * 100)}%`;
+/* Rounded, but never rounded all the way to none or all: a picture that is a
+   thousandth of the canvas still leaves 99% new rather than 100, and the
+   figures line on the page follows the same rule. */
+const share = (n) => {
+  const pct = Math.round(n * 100);
+  if (pct === 100 && n < 1) return "99%";
+  if (pct === 0 && n > 0) return "under 1%";
+  return `${pct}%`;
+};
 
 function sides(gaps) {
   const said = [];
@@ -199,13 +224,16 @@ function readable(d, file, fill) {
     ]),
   ];
   if (p.blocked || p.note) lines.push("", ...wrap(p.blocked || p.note));
-  if (d.wrote) {
+  if (d.wrote || d.marked) {
     const ran = { webgpu: "your GPU", wasm: "the CPU", mirror: "no model at all",
       crop: "nothing — it was a crop" }[d.ran] || d.ran;
     lines.push("", ...rows([
       ["ran on", ran],
       ["took", `${d.seconds}s`],
-    ]), "", `  wrote ${bold(d.wrote)}`, "");
+    ]), "");
+    if (d.wrote) lines.push(`  wrote ${bold(d.wrote)}`);
+    if (d.marked) lines.push(`  and ${bold(d.marked)}, with what was added marked on it`);
+    lines.push("");
   } else {
     lines.push("", `  ${dim("nothing run and nothing written — --out <file> does it")}`, "");
   }
@@ -214,8 +242,33 @@ function readable(d, file, fill) {
 
 export async function run({ words, flags, open }) {
   const asJson = !!flags.json;
-  only(flags, ["out", "canvas", "width", "height", "ratio", "grow", "scale",
-    "fit", "at", "fill", "format", "quality"]);
+  only(flags, ["out", "show-added", "canvas", "width", "height", "ratio", "grow",
+    "scale", "fit", "swap", "at", "fill", "format", "quality"]);
+
+  if (words.length === 1 && words[0] === "sizes") {
+    const handle = await open();
+    try {
+      const said = await handle.call("sizes", {});
+      emit(said, (d) => [
+        "",
+        ...rows(d.sizes.map((f) => {
+          const plain = f.label.replace(/[^0-9]/g, "") === f.name.replace(/[^0-9]/g, "");
+          return [f.name, plain ? dim(`${f.width} × ${f.height}`) : f.label];
+        })),
+        "",
+        ...wrap("Any of those is a --canvas, by its figures or by its name, and so is"
+          + " any other size: --canvas 3000x2000. The shapes below are --ratio, which"
+          + " keeps the width the canvas already has and works the height out from it."),
+        "",
+        ...rows(d.shapes.map((f) => [f.name, dim(f.label)])),
+        "",
+        ...wrap(`With no canvas given at all it is the picture and a quarter more all`
+          + ` round, which is ${d.grow} times its own size and what the page opens on.`),
+        "",
+      ], asJson);
+    } finally { await handle.close(); }
+    return;
+  }
 
   if (words.length === 1 && words[0] === "formats") {
     const handle = await open();
@@ -256,6 +309,7 @@ export async function run({ words, flags, open }) {
   const fill = oneOf(flags.fill === undefined ? undefined : String(flags.fill).toLowerCase(),
     "--fill", FILLS, "fast");
   const dest = destination(flags);
+  const marks = destination(flags, "show-added");
   const named = oneOf(
     flags.format === undefined ? undefined
       : String(flags.format).toLowerCase().replace(/^jpg$/, "jpeg").replace(/^tif$/, "tiff"),
@@ -271,6 +325,7 @@ export async function run({ words, flags, open }) {
   const where = {
     ...canvas(flags),
     ...corner(flags),
+    swap: !!flags.swap,
     ratio: flags.ratio === undefined ? null
       : flags.ratio === true ? (() => { throw new Error("--ratio wants a shape like 16:9, or keep"); })()
         : String(flags.ratio),
@@ -295,7 +350,7 @@ export async function run({ words, flags, open }) {
     const plan = await handle.call("plan", where);
     const answer = { picture, plan, fill, wrote: null };
 
-    if (!dest) {
+    if (!dest && !marks) {
       if (plan.blocked) throw new Error(plan.blocked);
       emit(answer, (d) => readable(d, file, fill), asJson);
       return;
@@ -308,15 +363,36 @@ export async function run({ words, flags, open }) {
     if (!said.bytes || !said.bytes.length) {
       throw new Error("the page came back with no file, so nothing was written");
     }
-    const target = dest.file || path.join(dest.dir, said.name);
-    fs.mkdirSync(path.dirname(target), { recursive: true });
-    fs.writeFileSync(target, Buffer.from(said.bytes));
-    const near = path.relative(process.cwd(), target);
+
+    /* The bytes came out of the tab one number at a time, so a short array
+       would otherwise be written as a truncated file that still opens. */
+    const put = (where2, got) => {
+      if (!got.bytes || !got.bytes.length) {
+        throw new Error("the page came back with no file, so nothing was written");
+      }
+      const target = where2.file || path.join(where2.dir, got.name);
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.writeFileSync(target, Buffer.from(got.bytes));
+      const near = path.relative(process.cwd(), target);
+      return near.startsWith("..") ? target : near;
+    };
+
+    const wrote = dest ? put(dest, said) : null;
+    /* The marked-up copy is the page's own *Show what was added*, drawn at the
+       size of the picture rather than the size of the panel. It follows the
+       run, because it marks up what the run just made. */
+    let marked = null;
+    if (marks) {
+      marked = put(marks, await handle.call("marked", {
+        format: format || undefined,
+        quality: quality === null ? undefined : quality,
+      }));
+    }
 
     const { bytes, ...rest } = said;
     Object.assign(answer, rest, {
       plan: await handle.call("plan", where),
-      wrote: near.startsWith("..") ? target : near,
+      wrote, marked,
     });
     emit(answer, (d) => readable(d, file, fill), asJson);
   } finally { await handle.close(); }
