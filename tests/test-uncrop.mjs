@@ -1403,15 +1403,24 @@ const B2 = await paint('uncrop-batch-wide.png', 160, 60, 'bands');
    not reach before, and it means session creation — the GPU, the fallbacks,
    the polarity — is the page's real code. `gpu` decides whether the page is
    told there is a WebGPU adapter; `gpuRunFails` makes every run on it throw
-   the error a GTX 1070 Ti really threw. */
+   the error a GTX 1070 Ti really threw.
+
+   And it behaves the way the real runtime does about its proxy, always,
+   because that is what broke every real CPU run once the suite was green: a
+   create asked for with `env.wasm.proxy` on fails with "worker not ready" —
+   the worker is built from a jsDelivr script and never starts from another
+   origin — and the runtime remembers the failed backend, so every create
+   after it fails too, proxy or not. A page that ever asks for the proxy
+   fails every model check below. */
 async function fakeRuntime(o = {}) {
   await page.evaluate(async (o) => {
-    window.CREATES = []; window.RUNS = []; window.RELEASED = 0;
+    window.CREATES = []; window.RUNS = []; window.RELEASED = 0; window.PROXIED = 0;
     Object.defineProperty(navigator, 'gpu', {
       configurable: true,
       value: o.gpu ? { requestAdapter: async () => ({}) } : undefined,
     });
     const side = 512, n = side * side;
+    let poisoned = false;
     window.ort = {
       env: { wasm: {} },
       Tensor: class { constructor(type, data, dims) { this.type = type; this.data = data; this.dims = dims; } },
@@ -1419,6 +1428,8 @@ async function fakeRuntime(o = {}) {
         create: async (bytes, opts) => {
           const ep = opts.executionProviders[0];
           window.CREATES.push(ep);
+          if (window.ort.env.wasm.proxy) { window.PROXIED++; poisoned = true; }
+          if (poisoned) throw new Error('no available backend found. ERR: [wasm] Error: worker not ready');
           return {
             inputNames: ['image', 'mask'], outputNames: ['out'], inputMetadata: [],
             release: async () => { window.RELEASED++; },
@@ -1549,12 +1560,17 @@ const ihdr = (png) => ({ w: png.readUInt32BE(16), h: png.readUInt32BE(20) });
   await page.waitForFunction(n => window.UNCROP.state.loads > n, was, { timeout: 15000 });
   await page.locator('#addLeft').fill('40');
   await page.click('button[data-method="best"]');
+  /* No zip at all is what a runtime that will not start looks like, and
+     that has to be a FAIL below rather than the suite dying on a timeout. */
   const [zipped] = await Promise.all([
-    page.waitForEvent('download', { timeout: 60000 }),
+    page.waitForEvent('download', { timeout: 60000 }).catch(() => null),
     page.click('#runAll'),
   ]);
-  const entries = unzip(fs.readFileSync(await zipped.path()));
+  const entries = zipped ? unzip(fs.readFileSync(await zipped.path())) : [];
   const made = await page.evaluate(() => ({ creates: window.CREATES, runs: window.RUNS.length }));
+  ok('a CPU run never asks for the proxy worker, which cannot start and poisons the runtime',
+    (await page.evaluate(() => window.PROXIED)) === 0 && /^3 of 3/.test(await page.textContent('#runNote')),
+    `${await page.evaluate(() => window.PROXIED)} proxied; ${await page.textContent('#runNote')}`);
   ok('a model run over a batch is started once, not once a picture',
     made.creates.length === 1 && made.creates[0] === 'wasm' && entries.length === 3,
     JSON.stringify({ ...made, entries: entries.length }));

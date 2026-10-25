@@ -368,7 +368,7 @@
 
   <p class="note"><strong>No model</strong> needs no download and happens instantly. It mirrors your picture out across each edge and melts the reflection into a blur as it gets further away, which is an old trick and an honest one: on grass, gravel, fabric, fog or a blurred background it is genuinely hard to catch, and on anything with structure in it &mdash; a horizon, a doorway, a face near the edge &mdash; it is obviously a mirror. It is also what you get when there is no WebGPU and no connection, and it is a reasonable way to see whether your framing is right before spending the download.</p>
 
-  <p class="note"><strong>Where it runs.</strong> The models are ONNX, run by <a href="https://github.com/microsoft/onnxruntime">ONNX Runtime Web</a> from jsDelivr, on WebGPU where the browser has it and on the CPU through WebAssembly where it does not. Some graphics cards start a model and then fail part way through a run &mdash; LaMa's Fourier layers have been seen to on an older NVIDIA card &mdash; so a run that fails on the GPU is started again on the CPU by itself, the status line says so, and that model stays on the CPU until the page is reloaded. The CPU path works and is maybe ten times slower, on one thread, because more than one needs cross-origin isolation headers that a static host does not send. Neither the runtime nor the weights are in this repository, so the first run of each model needs a connection; after that the weights sit in your browser's own storage and it does not. The page has to be served rather than opened off the filesystem, because WebAssembly will not load from a <code>file://</code> folder.</p>
+  <p class="note"><strong>Where it runs.</strong> The models are ONNX, run by <a href="https://github.com/microsoft/onnxruntime">ONNX Runtime Web</a> from jsDelivr, on WebGPU where the browser has it and on the CPU through WebAssembly where it does not. Some graphics cards start a model and then fail part way through a run &mdash; LaMa's Fourier layers have been seen to on an older NVIDIA card &mdash; so a run that fails on the GPU is started again on the CPU by itself, the status line says so, and that model stays on the CPU until the page is reloaded. The CPU path works and is maybe ten times slower, on one thread, because more than one needs cross-origin isolation headers that a static host does not send. It runs on the page itself rather than in a background worker, because the runtime builds its worker from a script on jsDelivr and that worker never starts on a page served from anywhere else &mdash; so while a pass is running on the CPU the tab may not repaint, and the status line above says which pass it is on. Neither the runtime nor the weights are in this repository, so the first run of each model needs a connection; after that the weights sit in your browser's own storage and it does not. The page has to be served rather than opened off the filesystem, because WebAssembly will not load from a <code>file://</code> folder.</p>
 
   <p class="note"><strong>How big is too big.</strong> Anything up to 16384 pixels on a side is allowed, because that is the largest canvas browsers will give; above about 12 megapixels the page says so, because every copy of the canvas is four bytes a pixel and it holds a few at once, and a phone will give up long before a desktop does. 64 megapixels is the ceiling here. The warning is about your machine rather than about the model: the fill is painted at 512 px whatever the canvas, so a bigger canvas costs memory and time without buying any more invented detail.</p>
 
@@ -1356,20 +1356,22 @@ async function sessionFor(kind, onStep) {
   onStep(`Starting ${m.what}`, gpu ? "on your GPU"
     : gpuFailed[kind] ? "on the CPU, because it failed on your GPU" : "on the CPU, which is the slow way", null);
 
-  /* In order of preference, and every one of them a fallback for the one
-     before it. The proxy moves WebAssembly off the main thread, because a
-     minute of it on the main thread is a page that looks broken — but it
-     builds a worker out of a script from another origin, which is exactly the
-     sort of thing a site's own rules can forbid, so running on the main
-     thread after all is the last resort rather than no answer at all. */
-  const ways = gpu
-    ? [["webgpu", false], ["wasm", true], ["wasm", false]]
-    : [["wasm", true], ["wasm", false]];
+  /* The GPU, then the CPU on the main thread. ONNX Runtime's proxy — the
+     WebAssembly moved into a worker — is never asked for. It builds that
+     worker from a script on jsDelivr, which is another origin from wherever
+     this page is served, and the worker never reports ready; and the
+     runtime remembers a backend that failed to start, so the plain attempt
+     after it failed too, with "no available backend found. ERR: [wasm]
+     Error: worker not ready". That was every CPU run, in a tab and at the
+     terminal, and the GPU fallback landed on it. The cost of the main thread
+     is a tab that does not repaint while a pass runs; the status line is
+     set before each pass, so it says which one. */
+  ort.env.wasm.proxy = false;
+  const ways = gpu ? ["webgpu", "wasm"] : ["wasm"];
 
   let session = null, on = "", trouble = null;
-  for (const [ep, proxy] of ways) {
+  for (const ep of ways) {
     try {
-      ort.env.wasm.proxy = proxy;
       session = await ort.InferenceSession.create(bytes, { executionProviders: [ep] });
       on = ep;
       break;
