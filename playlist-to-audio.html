@@ -341,7 +341,7 @@
     <div class="cmd-head">
       <h2>Command</h2>
       <div class="cmd-tools">
-        <button class="action ghost" type="button" id="wrap-btn">Wrap lines</button>
+        <button class="action ghost" type="button" id="wrap-btn">One line</button>
         <button class="action" type="button" id="copy-btn">Copy</button>
       </div>
     </div>
@@ -384,7 +384,12 @@ document.querySelectorAll(".bars").forEach(el => {
 const $ = id => document.getElementById(id);
 
 const urlEl = $("url"), readout = $("readout"), cmdEl = $("cmd"), whyEl = $("why");
-let tier = "mp3";
+/* Which tier card is pressed. It has to be one of the three `data-tier`
+   names, and it has to be the card that carries `aria-pressed="true"` in the
+   markup: this said "mp3" for a while, which is none of them, so the page
+   opened with Balanced lit up and built the Smallest file command — 6 kbps,
+   mono, speech mode — underneath it. Nothing on screen said so. */
+let tier = "balanced";
 let wrapped = true;
 
 /* ------------------------------------------------------------------ *
@@ -674,6 +679,9 @@ document.querySelectorAll(".tier-extra select").forEach(sel => {
     $(id).addEventListener("change", render);
   });
 
+/* The label is what pressing it would do, so with the command wrapped — which
+   is how the page opens — it offers One line. The markup has to agree with
+   `wrapped` above for the same reason the pressed tier card does. */
 $("wrap-btn").addEventListener("click", () => {
   wrapped = !wrapped;
   $("wrap-btn").textContent = wrapped ? "One line" : "Wrap lines";
