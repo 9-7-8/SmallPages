@@ -11,6 +11,7 @@ node cli/run.mjs color-picker convert "#4f8fd0"
 node cli/run.mjs color-picker palette photo.jpg --count 6 --json
 node cli/run.mjs image-compressor photo.jpg --out small.webp --quality 70
 node cli/run.mjs playlist-to-audio "https://music.youtube.com/playlist?list=OLAK5uy_…"
+node cli/run.mjs uncrop covers/ --left 15%h --out wider/
 ```
 
 Games are not in this. A game is something you play.
@@ -42,6 +43,59 @@ Three pieces:
 `lib/browser.mjs` is also where `tests/lib/env.mjs` gets its Playwright and its
 Chromium, so there is one list of places to look rather than two that can
 disagree.
+
+## What it needs
+
+Node, a Playwright library, and a browser for it to drive. Neither has to be
+named: both are looked for, in this order, and the first that is there is
+used.
+
+| | Playwright | the browser |
+| --- | --- | --- |
+| 1 | `$PLAYWRIGHT_MODULE` &mdash; its `index.mjs`, or the folder it is in | `$CHROMIUM_BIN` |
+| 2 | `node_modules/` in this checkout, the current folder, or your home folder | `$PLAYWRIGHT_BROWSERS_PATH/chromium-*/…` (a container) |
+| 3 | npm's global folder &mdash; `%APPDATA%\npm\node_modules` on Windows, `…/lib/node_modules` elsewhere, then whatever `npm root -g` says | Playwright's own Chromium, if `npx playwright install chromium` was ever run |
+| 4 | | the Chrome or Edge already installed, where each installs itself: `Program Files`, `Program Files (x86)` and `%LOCALAPPDATA%` on Windows, `/Applications` on a Mac, `/usr/bin` and `/opt/google` on Linux |
+
+So on a machine with Chrome or Edge on it, the whole of the setup is one line,
+and the browser download is skipped because the one you have is enough:
+
+```
+$env:PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1; npm i -g playwright      # PowerShell
+PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm i -g playwright            # bash, zsh, Git Bash
+```
+
+When either is missing the command says so in those words, with that line in
+it, rather than in Playwright's &mdash; and only when something actually needs a
+browser, so `--help` works on a machine with neither.
+
+### A browser that remembers
+
+Each command used to open a brand-new browser profile, which forgot
+everything a page had kept the moment it ended. For most pages that cost
+nothing. For `uncrop.html` it cost 206 MB: LaMa's weights are kept in the
+page's IndexedDB so they are only ever fetched once, and every command fetched
+them again.
+
+So the command line keeps one profile, in the place each system keeps a
+program's cache &mdash; `%LOCALAPPDATA%\SmallPages\cli-profile` on Windows,
+`~/Library/Caches/SmallPages/cli-profile` on a Mac,
+`~/.cache/smallpages/cli-profile` elsewhere &mdash; and serves the checkout on
+the same port every time, 47615, because storage belongs to an origin and the
+port is part of the origin. A different port each run would be a different
+site each run, with nothing kept. Deleting the folder costs nothing but the
+next download.
+
+| | |
+| --- | --- |
+| `SMALLPAGES_PROFILE=none` | a fresh profile every time, on any free port. `tests/test-cli.mjs` runs every command like this, so nothing one check leaves behind can make the next one pass |
+| `SMALLPAGES_PROFILE=<dir>` | keep the profile there instead |
+| `SMALLPAGES_PORT=<n>` | the port a remembering run serves on, if something else lives on 47615 |
+
+A profile is a folder only one browser may have open at once, so a second
+command started while the first is still running cannot have it. That command
+runs anyway, in a fresh profile, and says on stderr that a model will be
+fetched again; so does a run whose port is taken.
 
 ## Adding a page to it
 
@@ -107,7 +161,31 @@ and Save is a separate click &mdash; so the bare command is the open and
 time, which is most of what anybody wants a compressor in a terminal for.
 
 A page that writes several files at once takes `--out <dir>` and nothing else.
-Nothing has needed that yet; `split-sheet.html` is where it gets decided.
+`uncrop`'s batch was the first to need it: given several pictures, or a
+folder, its `--out` is a directory whether or not the name ends in a slash,
+and a name ending in a picture's own ending is refused rather than made into a
+folder called `wide.png`. Each file inside is named the way the page's own
+batch names it, which the job returns.
+
+### Several files in
+
+A tool that can take a pile of files does it the way a person would with the
+page: open the page once, and hand the files in one after another through the
+same file input, with the same flags. Opening the page once is the point &mdash;
+it is a model loaded once rather than once a picture. `uncrop` is the one to
+copy:
+
+- A folder means the files in it a browser can open, in name order with the
+  numbers in names counted as numbers, and not its sub-folders. What the
+  command itself wrote last time is left out, so a batch whose `--out` is its
+  own folder can be run twice.
+- The page already holds the last file when the next goes in, so the wait is
+  for a counter on the hook to go up (`image().loads`), not for a picture to
+  be there. Waiting on `ready` reads the previous picture's answer.
+- One line a file as it finishes, then a total; `--json` is the whole run at
+  the end. A file that fails is named and the rest still run, and the exit is
+  1 if any failed.
+- One file on its own behaves exactly as it did before there were batches.
 
 ### 3. A module in `tools/`, named after the page
 
@@ -275,6 +353,24 @@ job can reach settings a person would have to go and open first, which is
 convenient and worth being deliberate about: `--quality` is read against
 whichever card is up, so the flag means the same thing the box does.
 
+**A path is not a URL on Windows.** `import("C:\\…\\tool.mjs")` is read as a
+URL whose scheme is `c:` and refused with `ERR_UNSUPPORTED_ESM_URL_SCHEME`,
+which is why nothing here ran on Windows at all until `run.mjs` and
+`lib/browser.mjs` started handing `import()` a `pathToFileURL`. The same goes
+for `page.goto`: a `file://` page is `pathToFileURL(…).href`, not a string
+with a path pasted after the slashes.
+
+**A fresh profile forgets.** See *A browser that remembers*, above: it was
+costing a 206 MB download a picture before anybody noticed, because a single
+run looks exactly the same either way.
+
+**A session that starts on the GPU can still fail on it.** `uncrop.html`
+already fell back to the CPU when ONNX Runtime would not *create* a session on
+WebGPU. On a GTX 1070 Ti it created one happily and then failed inside a
+kernel a pass into the run, which the creation fallback never saw. A page
+whose work runs on WebGPU wants the fallback round the run as well, and wants
+to remember that it happened.
+
 ## What has one
 
 - [x] **`color-picker.html`** &mdash; `convert`, `palette`, `pixel`,
@@ -289,15 +385,30 @@ whichever card is up, so the flag means the same thing the box does.
       came from. Its bare command is the page exactly as it opens, down to
       `D:\Music` and PowerShell, which is what makes the check at the end of
       `tests/test-cli.mjs` mean anything.
-- [x] **`uncrop.html`** &mdash; `<picture> --canvas --width --height --ratio
-      --grow --swap --scale --fit --at --fill --out --show-added --format
-      --quality`, plus `sizes` and `formats`. Every control on the page has a
-      flag: the two size fields, the Swap button, the seven size presets, the
-      eight shapes, the size slider, the nine align buttons, Fit inside,
-      Actual pixels, dragging the picture, the three fills, the four formats,
-      the quality slider, Save, and *Show what was added*, which
-      `--show-added` saves at the size of the picture rather than the size of
-      the panel.
+- [x] **`uncrop.html`** &mdash; `<picture>… | <folder> --left --right --top
+      --bottom --canvas --width --height --ratio --grow --swap --scale --fit
+      --at --fill --out --show-added --format --quality`, plus `sizes` and
+      `formats`. Every control on the page has a flag: the four Add fields,
+      the two size fields, the Swap button, the seven size presets, the eight
+      shapes, the size slider, the nine align buttons, Fit inside, Actual
+      pixels, dragging the picture, the three fills, the four formats, the
+      quality slider, Save, and *Show what was added*, which `--show-added`
+      saves at the size of the picture rather than the size of the panel.
+
+      ```
+      node cli/run.mjs uncrop cover.jpg --left 15%h --out cover-wide.png
+      node cli/run.mjs uncrop covers/ --left 15%h --out wider/
+      ```
+
+      `--left 74` is a 74-pixel strip down the left; `--left 15%` is fifteen
+      per cent of the picture's width, and `--left 15%h` fifteen per cent of
+      its height, which is what a strip beside a book cover usually wants. The
+      four are handed over as typed, like `--canvas`, and the page works out
+      what they come to. Several pictures, or a folder, are a batch: the page
+      and the model are loaded once, each picture goes in through the file
+      input in turn, and each is written as `<its name>-uncropped.<ext>`.
+      The fill defaults to `best`, LaMa, because that is what the page now
+      opens on.
 
       The first whose bare command runs *nothing*: on that page opening a
       picture only shows you the figures and Uncrop is a separate press, so

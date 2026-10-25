@@ -36,13 +36,24 @@ and a container that provides its own both work:
 
 | | Playwright | Chromium |
 | --- | --- | --- |
-| 1 | `$PLAYWRIGHT_MODULE` | `$CHROMIUM_BIN` |
-| 2 | `node_modules/playwright` | `$PLAYWRIGHT_BROWSERS_PATH/chromium-*/chrome-linux/chrome` |
-| 3 | a global install | whatever Playwright picks for itself |
+| 1 | `$PLAYWRIGHT_MODULE` (its `index.mjs` or its folder) | `$CHROMIUM_BIN` |
+| 2 | `node_modules/playwright` here, in the current folder or in your home folder | `$PLAYWRIGHT_BROWSERS_PATH/chromium-*/chrome-linux/chrome` |
+| 3 | a global install, wherever npm keeps those | Playwright's own Chromium, if it was ever installed |
+| 4 | | the Chrome or Edge already on the machine |
 
-So `npm i -D playwright && npx playwright install chromium` is enough from
-nothing. `SITE_PORT` moves the server off 8099; `TEST_WORK` moves the scratch
-directory off `tests/.work`.
+[`cli/README.md`](../cli/README.md) has the full list of places. So
+`npm i -D playwright && npx playwright install chromium` is enough from
+nothing, and on a machine with Chrome or Edge,
+`PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm i -g playwright` is. The server and
+the stubs are Python 3: `python3`, or `python` or `py` where `python3` is the
+Windows Store's placeholder, or `$PYTHON`. `SITE_PORT` moves the server off
+8099; `TEST_WORK` moves the scratch directory off `tests/.work`.
+
+The command line keeps a browser profile between runs so that a page's own
+storage survives (see *A browser that remembers* in the CLI's README).
+`test-cli.mjs` runs every command with `SMALLPAGES_PROFILE=none`, so each one
+starts from nothing as a suite should, and checks the kept profile separately
+in a folder of its own under `WORK`.
 
 ## Writing one
 
@@ -243,6 +254,32 @@ Suites are named for the page they exercise. The ones worth knowing about:
   them to print `--help` without launching a browser, and is the only place in
   `cli/` where something a page knows is written down twice — against the
   eight the page reports, the same way round.
+
+  `uncrop` adds a batch: a folder of three pictures of different shapes, with
+  a text file and an earlier output lying among them, run with
+  `--left 15%h`, and every file checked by its `IHDR` against fifteen per
+  cent of its own height; one of them run on its own has to be the batch's
+  file byte for byte, and the same picture driven through the page by hand
+  &mdash; `15%h` typed into the real Add-left field &mdash; has to be that
+  file again. A broken picture in the middle of a batch is named and the rest
+  still written. The kept browser profile is checked through `drive` itself:
+  something put in uncrop's weight store by one run has to be there for the
+  next, on the same origin, and not in a fresh profile.
+- **`test-uncrop.mjs`** — the outpainter, without ever fetching a model.
+  The model path runs against a stand-in session, and since the batch and
+  the GPU fallback both go through `sessionFor`, the later sections stub
+  `ort.InferenceSession.create` instead and put a few bytes in the page's
+  own weight store, so the real creation code runs and nothing is fetched
+  (a request to Hugging Face or jsDelivr fails the check). A batch of three
+  is run through *Uncrop all*, the zip it saves is read in Node &mdash; a
+  stored zip needs no decoder &mdash; and the session is checked to have been
+  created once for the lot. A GPU that fails part way through a run is
+  staged with the error a GTX 1070 Ti really threw, and the run has to finish
+  on the CPU, say so, and keep the model off the GPU afterwards; the null, a
+  GPU that works, has to stay on it. The feather check moved from the mirror
+  to the stubbed model, because under a mirror the fill beneath the
+  picture's edge is the picture's edge and the blend changes nothing &mdash;
+  that check passed on a software canvas by rounding and failed on a GPU one.
 - **`test-dice.mjs`** — the dice roller, where the claim worth checking is that
   the die on the table is showing what the page says was rolled. It reads each
   die's quaternion back out and works out which labelled face is pointing at

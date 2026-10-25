@@ -15,6 +15,7 @@
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import zlib from "node:zlib";
 import { chromium, CHROMIUM_BIN, REPO, WORK, scoring } from "./lib/env.mjs";
 import { booleans as PLAYLIST_FLAGS } from "../cli/tools/playlist-to-audio.mjs";
@@ -114,9 +115,14 @@ fs.writeFileSync(PHOTO, noisePng());
 
 /* ------------------------------------------------------------- running it -- */
 
+let extraEnv = {};
 const run = (...args) => new Promise((settle) => {
   const child = spawn(process.execPath, [CLI, ...args],
-    { cwd: REPO, stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, NO_COLOR: "1" } });
+    { cwd: REPO, stdio: ["ignore", "pipe", "pipe"],
+      /* A fresh browser profile for every command, so nothing one check
+         leaves in the browser's storage can make the next one pass. The
+         kept profile is checked on its own, further down. */
+      env: { ...process.env, NO_COLOR: "1", SMALLPAGES_PROFILE: "none", ...extraEnv } });
   let out = "", err = "";
   child.stdout.on("data", (d) => { out += d; });
   child.stderr.on("data", (d) => { err += d; });
@@ -752,6 +758,170 @@ const BARE = [
     JSON.stringify([markedDir.marked, markedDir.wrote]));
 }
 
+/* ----------------------------------------------------- uncrop, a batch -- */
+
+/* A border on each side, and several pictures in one command. The border is
+   the page's four Add fields, handed over as typed, so `15%h` is worked out by
+   the page; the batch is the same page and the same flags, once a picture,
+   with the page and the model loaded once. The pictures are a folder of three
+   of different shapes, with a file that is not a picture and a file this
+   command wrote last time sitting among them, because a real folder has
+   both. */
+const BATCH = path.join(WORK, "cli-batch");
+const BATCH_OUT = path.join(WORK, "cli-batch-out");
+fs.rmSync(BATCH, { recursive: true, force: true });
+fs.rmSync(BATCH_OUT, { recursive: true, force: true });
+fs.mkdirSync(BATCH, { recursive: true });
+const shades = (W, H, k) => pngOf(W, H, (y) => {
+  const line = [];
+  for (let x = 0; x < W; x++) line.push((x * k) & 255, (y * 3) & 255, (x + y * k) & 255);
+  return line;
+});
+fs.writeFileSync(path.join(BATCH, "cover-1.png"), shades(200, 300, 3));
+fs.writeFileSync(path.join(BATCH, "cover-2.png"), shades(120, 180, 5));
+fs.writeFileSync(path.join(BATCH, "cover-10.png"), shades(300, 200, 7));
+fs.writeFileSync(path.join(BATCH, "notes.txt"), "not a picture");
+fs.writeFileSync(path.join(BATCH, "cover-1-uncropped.png"), shades(10, 10, 1));
+const ihdrOf = (file) => {
+  const b = fs.readFileSync(file);
+  return { w: b.readUInt32BE(16), h: b.readUInt32BE(20) };
+};
+
+{
+  const d = await json("uncrop", BATCH, "--left", "15%h", "--fill", "reflect", "--out", BATCH_OUT);
+  ok("a folder is a batch of the pictures in it, in name order, numbers as numbers",
+    d.pictures.map((p) => path.basename(p.file)).join() === "cover-1.png,cover-2.png,cover-10.png",
+    d.pictures.map((p) => p.file).join(", "));
+  ok("leaving out what is not a picture and what this command wrote last time",
+    d.total.pictures === 3 && d.total.written === 3 && d.total.failed === 0,
+    JSON.stringify(d.total));
+  const written = ["cover-1", "cover-2", "cover-10"].map((n) => path.join(BATCH_OUT, `${n}-uncropped.png`));
+  ok("each is written into --out as <its name>-uncropped, with no slash needed on the end",
+    written.every((f) => fs.existsSync(f)) && magic(written[0]) === "png",
+    fs.existsSync(BATCH_OUT) ? fs.readdirSync(BATCH_OUT).join(", ") : "no folder");
+  ok("and each got 15% of its own height on the left, worked out by the page",
+    JSON.stringify(written.map(ihdrOf)) === JSON.stringify([
+      { w: 245, h: 300 }, { w: 147, h: 180 }, { w: 330, h: 200 }])
+      && d.pictures[0].plan.gaps.left === 45 && d.pictures[0].plan.gaps.right === 0,
+    JSON.stringify(written.map((f) => fs.existsSync(f) ? ihdrOf(f) : null)));
+  /* Not checked: that each picture's wait is for *that* picture to open
+     (`loads` going up) rather than for any picture to be there. Waiting on
+     the wrong thing was tried and nothing here noticed, because a picture
+     this small opens before the next call reaches the page, and `handIn`
+     refuses a load count that did not move anyway. The race is real for a
+     big picture and cannot be staged with a small one. */
+  ok("every picture in it was really run",
+    d.pictures.every((p) => p.ran === "mirror") && d.fill === "reflect",
+    JSON.stringify(d.pictures.map((p) => p.ran)));
+
+  /* One picture of the batch, on its own, with the same flag, is the same
+     file — the batch is the single command again, not a second way of doing
+     it. And its name is the single command's, with the size in it. */
+  const single = path.join(WORK, "cli-batch-single.png");
+  const alone = await json("uncrop", path.join(BATCH, "cover-2.png"), "--left", "15%h",
+    "--fill", "reflect", "--out", single);
+  ok("a picture out of a batch is that picture uncropped on its own, byte for byte",
+    fs.readFileSync(single).equals(fs.readFileSync(written[1])) && alone.plan.width === 147,
+    `${fs.statSync(single).size} against ${fs.statSync(written[1]).size}`);
+  const intoDir = await json("uncrop", path.join(BATCH, "cover-2.png"), "--left", "15%h",
+    "--fill", "reflect", "--out", WORK + path.sep);
+  ok("and one picture on its own keeps the name the page's Save button gives it",
+    intoDir.name === "cover-2-uncropped-147x180.png", intoDir.name);
+
+  /* Readable, as it goes: a line a picture and a total. */
+  const said = await run("uncrop", path.join(BATCH, "cover-1.png"), path.join(BATCH, "cover-2.png"),
+    "--right", "40", "--top", "10%", "--fill", "reflect", "--out", path.join(WORK, "cli-batch-said"));
+  ok("a batch reports each picture as it goes, and a total",
+    said.code === 0 && /1\/2\s+cover-1\.png/.test(said.out) && /2\/2\s+cover-2\.png/.test(said.out)
+      && /2 of 2 written/.test(said.out) && /200 × 300 → 240 × 330/.test(said.out),
+    said.out.trim() + said.err.trim());
+
+  const looked = await json("uncrop", BATCH, "--left", "74");
+  ok("a batch with no --out reads every picture and writes nothing",
+    looked.total.written === 0 && looked.pictures.every((p) => p.wrote === null && p.plan.gaps.left === 74),
+    JSON.stringify(looked.total));
+
+  /* A picture in the middle of a batch that will not open is named, and the
+     rest still run; the exit says something went wrong. */
+  const broken = path.join(WORK, "cli-batch-broken.png");
+  fs.writeFileSync(broken, Buffer.from("this is not a png at all"));
+  const mixed = await run("uncrop", path.join(BATCH, "cover-1.png"), broken, path.join(BATCH, "cover-2.png"),
+    "--left", "10", "--fill", "reflect", "--out", path.join(WORK, "cli-batch-mixed"), "--json");
+  let m = null;
+  try { m = JSON.parse(mixed.out); } catch { /* reported below */ }
+  ok("a picture that will not open is named, the rest are still written, and the exit is 1",
+    mixed.code === 1 && m && m.total.written === 2 && m.total.failed === 1
+      && /not an image this browser can read/.test(m.pictures[1].error),
+    mixed.out.slice(0, 600) + mixed.err);
+
+  const oneFile = await run("uncrop", BATCH, "--left", "10", "--out", path.join(WORK, "x.png"));
+  ok("a batch's --out is a directory, and a name ending .png is refused before anything runs",
+    oneFile.code === 1 && /has to be a directory/.test(oneFile.err), oneFile.err.trim());
+  const clash = await run("uncrop", PHOTO, "--left", "10%", "--canvas", "800x600");
+  ok("a border and a canvas both saying how big it is is refused",
+    clash.code === 1 && /use one or the other/.test(clash.err), clash.err.trim());
+  const notOne = await run("uncrop", PHOTO, "--left", "lots");
+  ok("and a border that is not one is a sentence, before a browser is launched",
+    notOne.code === 1 && /--left wants pixels like 40/.test(notOne.err), notOne.err.trim());
+  const empty = path.join(WORK, "cli-batch-empty");
+  fs.mkdirSync(empty, { recursive: true });
+  fs.writeFileSync(path.join(empty, "readme.txt"), "nothing");
+  const none = await run("uncrop", empty, "--left", "10");
+  ok("a folder with no pictures in it says so",
+    none.code === 1 && /has no pictures in it/.test(none.err), none.err.trim());
+
+  const help = await run("uncrop", "--help");
+  ok("--help puts the batch and the border up front, and best as the default fill",
+    /--left <n\|n%>/.test(help.out) && /<folder>/.test(help.out) && /The page opens on best/.test(help.out),
+    help.out.slice(0, 400));
+}
+
+/* -------------------------------------------- a browser that remembers -- */
+
+/* Each command used to start a fresh browser profile, so the 206 MB of LaMa
+   weights uncrop.html keeps in IndexedDB were fetched again for every
+   picture. The command line now keeps a profile and serves the checkout on
+   the same port each time, because storage belongs to an origin and a port
+   is part of one. Checked here through `drive` itself, in a profile of the
+   suite's own, with something put in the page's weight store by one run and
+   read back by the next — and the null, a fresh profile, which must not see
+   it. */
+{
+  const { drive } = await import(pathToFileURL(path.join(REPO, "cli", "lib", "drive.mjs")).href);
+  const kept = path.join(WORK, "cli-profile");
+  fs.rmSync(kept, { recursive: true, force: true });
+  const port = 47000 + (process.pid % 900);
+  const first = await drive("uncrop.html", { profile: kept, port });
+  await first.tab.evaluate(() => window.UNCROP.keep("probe", new Uint8Array([7, 8, 9]).buffer));
+  const origin1 = first.origin;
+  await first.close();
+  const second = await drive("uncrop.html", { profile: kept, port });
+  const back = await second.tab.evaluate(async () => {
+    const got = await window.UNCROP.cached("probe");
+    return got ? Array.from(new Uint8Array(got)) : null;
+  });
+  const origin2 = second.origin;
+  await second.close();
+  ok("a kept profile is served on the same origin every time",
+    origin1 === origin2 && origin1.endsWith(`:${port}`) && first.kept && second.kept,
+    `${origin1} then ${origin2}`);
+  ok("so what a page keeps in its storage is still there on the next command",
+    JSON.stringify(back) === "[7,8,9]", JSON.stringify(back));
+
+  const fresh = await drive("uncrop.html", { profile: false });
+  const nothing = await fresh.tab.evaluate(async () => (await window.UNCROP.cached("probe")) || null);
+  await fresh.close();
+  ok("and a fresh profile, which is what the suites run in, starts with none of it",
+    nothing === null && !fresh.kept, JSON.stringify(nothing));
+
+  /* `--help` needs no browser, so it must not need a Playwright either. */
+  extraEnv = { PLAYWRIGHT_MODULE: path.join(WORK, "no-playwright-here", "index.mjs") };
+  const bare = await run("uncrop", "--help");
+  extraEnv = {};
+  ok("--help answers without a Playwright to hand",
+    bare.code === 0 && /--left/.test(bare.out), bare.err.trim().slice(0, 300));
+}
+
 /* ------------------------------------------------------- what goes wrong -- */
 
 {
@@ -798,7 +968,7 @@ const BARE = [
     if (m.type() === "error" && !/favicon|404/.test(m.text())) errs.push(m.text());
   });
 
-  await page.goto(`file://${path.join(REPO, "color-picker.html")}`);
+  await page.goto(pathToFileURL(path.join(REPO, "color-picker.html")).href);
   await page.waitForTimeout(250);
 
   for (const colour of ["#4f8fd0", "#e03a3e", "#1e1e22"]) {
@@ -857,7 +1027,7 @@ const BARE = [
     if (m.type() === "error" && !/favicon|404/.test(m.text())) errs.push(m.text());
   });
 
-  await page.goto(`file://${path.join(REPO, "image-compressor.html")}`);
+  await page.goto(pathToFileURL(path.join(REPO, "image-compressor.html")).href);
   await page.setInputFiles("#fileInput", PHOTO);
   await page.waitForFunction(() => window.CLI.image().ready, null, { timeout: 30000 });
 
@@ -947,7 +1117,7 @@ const BARE = [
     }
   });
 
-  await page.goto(`file://${path.join(REPO, "playlist-to-audio.html")}`);
+  await page.goto(pathToFileURL(path.join(REPO, "playlist-to-audio.html")).href);
 
   /* Everything a person would read: the command, the annotations under it,
      and which card is pressed. */
@@ -1062,7 +1232,7 @@ const BARE = [
     if (m.type() === "error" && !/favicon|404/.test(m.text())) errs.push(m.text());
   });
 
-  await page.goto(`file://${path.join(REPO, "uncrop.html")}`);
+  await page.goto(pathToFileURL(path.join(REPO, "uncrop.html")).href);
   await page.setInputFiles("#file", PHOTO);
   await page.waitForFunction(() => window.CLI.jobs.image().ready, null, { timeout: 30000 });
 
@@ -1120,6 +1290,26 @@ const BARE = [
   });
   ok("and the terminal is told the same thing in the same words",
     /16384 pixels on a side/.test(refused), refused);
+
+  /* The border, by hand: the picture in through the file input, 15%h typed
+     into the page's own Add-left field, the mirror, Uncrop and Save. The file
+     has to be the one the batch above wrote for the same picture with
+     `--left 15%h` — which is the check that the command line has not grown
+     its own idea of what fifteen per cent of a picture is. */
+  await page.evaluate(() => { document.getElementById("file").value = ""; });
+  await page.setInputFiles("#file", path.join(BATCH, "cover-2.png"));
+  await page.waitForFunction(() => window.CLI.jobs.image().name === "cover-2", null, { timeout: 30000 });
+  await page.locator("#addLeft").fill("15%h");
+  await page.click('button[data-method="reflect"]');
+  await page.click("#run");
+  await page.waitForFunction(() => window.UNCROP.state.result, null, { timeout: 60000 });
+  const [bordered] = await Promise.all([page.waitForEvent("download"), page.click("#save")]);
+  const borderByHand = path.join(WORK, "cli-border-by-hand.png");
+  await bordered.saveAs(borderByHand);
+  ok("15%h typed into the page's Add field is the file --left 15%h wrote, byte for byte",
+    fs.readFileSync(borderByHand).equals(fs.readFileSync(path.join(BATCH_OUT, "cover-2-uncropped.png"))),
+    `${fs.statSync(borderByHand).size} bytes by hand against `
+      + `${fs.statSync(path.join(BATCH_OUT, "cover-2-uncropped.png")).size} from the batch`);
 
   ok("no page errors from uncrop.html", errs.length === 0, errs.join(" | "));
   await browser.close();

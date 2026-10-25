@@ -508,12 +508,15 @@ await page.waitForFunction(() => window.UNCROP.state.result, null, { timeout: 60
   }, '/tests/.work/uncrop-bands.png');
   ok('the picture itself comes back byte for byte', diff.inner === 0,
     `worst channel inside the picture was ${diff.inner} off`);
-  /* Written down because it is the one exception to the line above, and the
-     page's notes have to keep saying so: the outermost two pixels are blended
-     with what meets them, which is what stops the join being a line. */
-  ok('except the outermost two pixels, which are blended into the fill',
-    diff.edge > 0, 'the feather did nothing, so the seam is a hard line');
+  /* The exception to the line above — the outermost two pixels are blended
+     with what meets them — is checked under the stubbed model below rather
+     than here. Under a mirror the fill beneath the picture's edge *is* the
+     picture's edge, so blending the two changes nothing at all, and whether a
+     check here saw a difference came down to the rasteriser's rounding: it
+     passed on a software canvas and failed on a GPU one. */
 }
+
+const FIXTURE_BANDS = '/tests/.work/uncrop-bands.png';
 
 /* -------------------------------------------------- 4. the model path, stubbed -- */
 
@@ -640,6 +643,34 @@ await runModel();
   ok('and the picture is still the picture underneath it',
     !magenta(read.inside) && read.landmark[1] > 200 && read.landmark[0] < 60,
     JSON.stringify(read));
+}
+
+/* The feather, where there is something different to blend with: the fill
+   here is flat magenta, so the picture's outermost two pixels have to come
+   out pulled towards it, and the ones inside them not at all. */
+{
+  const diff = await page.evaluate(async (fixture) => {
+    const img = new Image();
+    await new Promise((go, no) => { img.onload = go; img.onerror = no; img.src = fixture; });
+    const want = document.createElement('canvas');
+    want.width = img.naturalWidth; want.height = img.naturalHeight;
+    want.getContext('2d').drawImage(img, 0, 0);
+    const a = want.getContext('2d').getImageData(0, 0, want.width, want.height).data;
+    const r = window.UNCROP.state.rect;
+    const b = window.UNCROP.resultCanvas().getContext('2d').getImageData(r.x, r.y, r.w, r.h).data;
+    let inner = 0, edge = 0;
+    for (let y = 0; y < r.h; y++) for (let x = 0; x < r.w; x++) {
+      const i = (y * r.w + x) * 4;
+      let d = 0;
+      for (let c = 0; c < 3; c++) d = Math.max(d, Math.abs(a[i + c] - b[i + c]));
+      const onEdge = x < 2 || y < 2 || x >= r.w - 2 || y >= r.h - 2;
+      if (onEdge) edge = Math.max(edge, d); else inner = Math.max(inner, d);
+    }
+    return { inner, edge };
+  }, FIXTURE_BANDS);
+  ok('the outermost two pixels of the picture are blended into the fill',
+    diff.edge > 8 && diff.inner === 0,
+    `edge ${diff.edge} off, inside ${diff.inner} off — the feather did nothing, so the seam is a hard line`);
 }
 
 /* Where the mask's edge actually falls, worked out here from the frame the
@@ -1274,6 +1305,354 @@ await page.click('button[data-format="png"]');
     JSON.stringify(formats));
 }
 
+/* ------------------------------------------------- 7. a border each side -- */
+
+/* The four Add fields: the direct way to say "this much more on the left",
+   which used to mean working out the canvas and the picture's corner by hand.
+   A share is of the picture — its width for left and right, its height for
+   top and bottom, or whichever %w or %h names. */
+await open(BANDS);                                   // 120 × 80
+{
+  /* On a page of its own, because this one has had its fill changed by every
+     section above. The button lit and the variable the run reads have to
+     agree, which is the playlist page's old bug in another shape. */
+  const fresh = await ctx.newPage();
+  await fresh.goto(SITE);
+  const opens = {
+    lit: await fresh.getAttribute('button[data-method="best"]', 'aria-pressed'),
+    method: await fresh.evaluate(() => window.UNCROP.state.method),
+  };
+  await fresh.close();
+  ok('the page opens on the best model, which is what the terminal defaults to',
+    opens.lit === 'true' && opens.method === 'best', JSON.stringify(opens));
+
+  await page.locator('#addLeft').fill('');
+  await page.locator('#addLeft').pressSequentially('15%h');
+  let s = await state();
+  ok('15%h on the left adds a strip fifteen per cent of the picture\'s height wide',
+    s.target.w === 120 + 12 && s.target.h === 80 && s.rect.x === 12 && s.rect.y === 0,
+    JSON.stringify([s.target, s.rect]));
+  const figures = await page.textContent('#figures');
+  ok('and the figures say so: the new canvas, and 12 on the left and nothing else',
+    figures.includes('132 × 80') && figures.includes('12 left') && !/right|top|bottom/.test(figures),
+    figures);
+
+  await page.locator('#addTop').fill('40');
+  s = await state();
+  ok('a number is pixels, and a second side keeps the first',
+    s.target.w === 132 && s.target.h === 120 && s.rect.x === 12 && s.rect.y === 40,
+    JSON.stringify([s.target, s.rect]));
+
+  await page.locator('#addRight').fill('25%');
+  s = await state();
+  ok('a bare % on the right is of the picture\'s width',
+    s.target.w === 120 + 12 + 30 && s.rect.x === 12, JSON.stringify([s.target, s.rect]));
+
+  await page.locator('#addBottom').fill('10%w');
+  s = await state();
+  ok('and %w on the bottom is of its width, whatever the side would take by default',
+    s.target.h === 80 + 40 + 12, JSON.stringify(s.target));
+
+  /* Something that is not a border yet is left alone, the way the width field
+     leaves a half-typed number alone, and leaving the field puts back what it
+     really is. */
+  await page.locator('#addTop').fill('4o');
+  s = await state();
+  ok('a field holding something that is not a border changes nothing',
+    s.target.h === 132 && s.rect.y === 40, JSON.stringify([s.target, s.rect]));
+  await page.locator('#view').focus();
+  ok('and leaving it puts the border back, as it was typed',
+    (await page.inputValue('#addTop')) === '40' && (await page.inputValue('#addLeft')) === '15%h',
+    `${await page.inputValue('#addTop')} / ${await page.inputValue('#addLeft')}`);
+
+  /* Once something else shapes the canvas the fields stop being the setting
+     and become a readout of it, in pixels. */
+  await page.fill('#w', '300');
+  await page.locator('#view').focus();
+  s = await state();
+  ok('a canvas set by hand turns the fields into the pixels each side now has',
+    (await page.inputValue('#addLeft')) === String(s.rect.x)
+      && (await page.inputValue('#addRight')) === String(300 - s.rect.x - s.rect.w),
+    `${await page.inputValue('#addLeft')} ${await page.inputValue('#addRight')} for ${JSON.stringify(s.rect)}`);
+
+  /* The terminal's way in is the same function behind the same fields. */
+  const viaJob = await page.evaluate(() => window.CLI.jobs.plan({ sides: { left: '15%h' } }));
+  ok('the terminal\'s border is the page\'s border',
+    viaJob.width === 132 && viaJob.height === 80 && viaJob.gaps.left === 12 && viaJob.gaps.right === 0,
+    JSON.stringify([viaJob.width, viaJob.height, viaJob.gaps]));
+  const halved = await page.evaluate(() => window.CLI.jobs.plan({ sides: { left: '50%' }, scale: 0.5 }));
+  ok('and a share is of the picture as it sits, so at half size half its width is 30',
+    halved.width === 90 && halved.gaps.left === 30, JSON.stringify([halved.width, halved.gaps]));
+  const badSide = await page.evaluate(() => {
+    try { window.CLI.jobs.plan({ sides: { left: 'lots' } }); return 'no complaint'; }
+    catch (e) { return String(e.message); }
+  });
+  ok('a border that is not one is refused in a sentence that says what one is',
+    /not a border for the left/.test(badSide) && /15%h/.test(badSide), badSide);
+}
+
+/* ------------------------------------------------------------- 8. a batch -- */
+
+const B1 = await paint('uncrop-batch-tall.png', 90, 140, 'bands');
+const B2 = await paint('uncrop-batch-wide.png', 160, 60, 'bands');
+
+/* The runtime again, but this time as the page's own `sessionFor` sees it:
+   `ort.InferenceSession.create` is the stub, and the weights are a few bytes
+   put in the page's own IndexedDB store first, so `weights()` finds them
+   there and fetches nothing. That is the cache round trip the suite could
+   not reach before, and it means session creation — the GPU, the fallbacks,
+   the polarity — is the page's real code. `gpu` decides whether the page is
+   told there is a WebGPU adapter; `gpuRunFails` makes every run on it throw
+   the error a GTX 1070 Ti really threw. */
+async function fakeRuntime(o = {}) {
+  await page.evaluate(async (o) => {
+    window.CREATES = []; window.RUNS = []; window.RELEASED = 0;
+    Object.defineProperty(navigator, 'gpu', {
+      configurable: true,
+      value: o.gpu ? { requestAdapter: async () => ({}) } : undefined,
+    });
+    const side = 512, n = side * side;
+    window.ort = {
+      env: { wasm: {} },
+      Tensor: class { constructor(type, data, dims) { this.type = type; this.data = data; this.dims = dims; } },
+      InferenceSession: {
+        create: async (bytes, opts) => {
+          const ep = opts.executionProviders[0];
+          window.CREATES.push(ep);
+          return {
+            inputNames: ['image', 'mask'], outputNames: ['out'], inputMetadata: [],
+            release: async () => { window.RELEASED++; },
+            run: async (feed) => {
+              window.RUNS.push(ep);
+              if (ep === 'webgpu' && o.gpuRunFails) {
+                throw new Error('[WebGPU] Kernel "[Add] /generator/model/model.5/conv1/ffc/convg2g/Add"'
+                  + ' failed. Error: Can\'t perform binary op on the given tensors');
+              }
+              /* LaMa's export answers in 0–255 floats; magenta where told. */
+              const img = feed.image.data, msk = feed.mask.data;
+              const out = new Float32Array(3 * n);
+              for (let i = 0; i < n; i++) {
+                const hole = msk[i] === 1;
+                out[i] = hole ? 255 : img[i] * 255;
+                out[n + i] = hole ? 0 : img[n + i] * 255;
+                out[2 * n + i] = hole ? 255 : img[2 * n + i] * 255;
+              }
+              return { out: { data: out, dims: [1, 3, side, side] } };
+            },
+          };
+        },
+      },
+    };
+    delete window.UNCROP.sessions.best;
+    for (const k of Object.keys(window.UNCROP.gpuFailed)) delete window.UNCROP.gpuFailed[k];
+    await window.UNCROP.keep('best', new Uint8Array(16).buffer);
+  }, o);
+}
+
+/* A stored zip read in Node, which needs no decoder: a header, the name, the
+   bytes as they are. */
+function unzip(buf) {
+  const out = [];
+  let at = 0;
+  while (buf.readUInt32LE(at) === 0x04034b50) {
+    const size = buf.readUInt32LE(at + 18), nlen = buf.readUInt16LE(at + 26), xlen = buf.readUInt16LE(at + 28);
+    const name = buf.subarray(at + 30, at + 30 + nlen).toString('utf8');
+    const data = buf.subarray(at + 30 + nlen + xlen, at + 30 + nlen + xlen + size);
+    out.push({ name, data, method: buf.readUInt16LE(at + 8) });
+    at += 30 + nlen + xlen + size;
+  }
+  return out;
+}
+const ihdr = (png) => ({ w: png.readUInt32BE(16), h: png.readUInt32BE(20) });
+
+{
+  await page.evaluate(() => { document.getElementById('file').value = ''; });
+  const was = (await state()).loads;
+  await page.setInputFiles('#file', [BANDS, B1, B2]);
+  await page.waitForFunction(n => window.UNCROP.state.loads > n, was, { timeout: 15000 });
+  const b = await page.evaluate(() => window.UNCROP.batch);
+  ok('several pictures at once are a batch, with the first open to be set up',
+    b.queue.length === 3 && (await state()).src.name === 'uncrop-bands'
+      && await page.locator('#runAll').isVisible()
+      && (await page.textContent('#runAll')).trim() === 'Uncrop all 3',
+    JSON.stringify(b));
+  ok('and the page says it will use what is set on this one on every one',
+    /3 pictures/.test(await page.textContent('#batchSays'))
+      && /Nothing is added to them yet/.test(await page.textContent('#batchRecipe')),
+    `${await page.textContent('#batchSays')} | ${await page.textContent('#batchRecipe')}`);
+
+  await page.locator('#addLeft').fill('15%h');
+  ok('a border typed as a share is said as one, for every picture',
+    (await page.textContent('#batchRecipe')).trim() === 'Each picture gets 15% of its height on the left.',
+    await page.textContent('#batchRecipe'));
+
+  await page.click('button[data-method="reflect"]');
+  const [zipped] = await Promise.all([
+    page.waitForEvent('download', { timeout: 60000 }),
+    page.click('#runAll'),
+  ]);
+  const zfile = path.join(WORK, 'uncrop-batch.zip');
+  await zipped.saveAs(zfile);
+  const entries = unzip(fs.readFileSync(zfile));
+  ok('Uncrop all saves the lot as one zip, each named after the picture it came from',
+    zipped.suggestedFilename() === 'uncropped-3-pictures.zip'
+      && entries.map(e => e.name).join() === 'uncrop-bands-uncropped.png,uncrop-batch-tall-uncropped.png,uncrop-batch-wide-uncropped.png',
+    `${zipped.suggestedFilename()}: ${entries.map(e => e.name).join(', ')}`);
+  const sizes = entries.map(e => ihdr(e.data));
+  ok('and each one got its own 15% of its own height, on the left',
+    JSON.stringify(sizes) === JSON.stringify([
+      { w: 120 + 12, h: 80 }, { w: 90 + 21, h: 140 }, { w: 160 + 9, h: 60 }]),
+    JSON.stringify(sizes));
+  ok('the run says how it went, picture by picture adding up to a total',
+    /^3 of 3 uncropped in/.test((await page.textContent('#runNote')).trim())
+      && /Save all 3 as PNG/.test(await page.textContent('#saveAll')),
+    `${await page.textContent('#runNote')} | ${await page.textContent('#saveAll')}`);
+
+  /* The last picture in the zip has to be the file the page would make of it
+     on its own, with the same border typed in — a batch is the page doing the
+     same thing again, not a second way of doing it. */
+  await open(B2);
+  await page.click('button[data-method="reflect"]');
+  const alone = await page.evaluate(() => window.CLI.jobs.run({ sides: { left: '15%h' }, method: 'reflect', format: 'png' }));
+  ok('and a picture out of the batch is that picture uncropped on its own, byte for byte',
+    Buffer.from(alone.bytes).equals(entries[2].data),
+    `${alone.bytes.length} bytes alone against ${entries[2].data.length} from the zip`);
+}
+
+/* A canvas, not a border: a fixed size and a place on it carry over as the
+   size and the same share of the room either side, which is what the align
+   pad means — so against the bottom right stays against the bottom right. */
+{
+  await open(BANDS);
+  await page.click('#presets button[data-size="1920x1080"]');
+  await page.click('#align button[data-align="right bottom"]');
+  const rc = await page.evaluate(() => window.UNCROP.recipeNow());
+  const said = await page.evaluate((rc) => window.UNCROP.describeRecipe(rc), rc);
+  await open(B1);
+  await page.evaluate((rc) => window.UNCROP.applyRecipe(rc), rc);
+  const s = await state();
+  ok('a canvas and a corner carry over to a picture of another size',
+    s.target.w === 1920 && s.target.h === 1080 && s.rect.x === 1920 - 90 && s.rect.y === 1080 - 140,
+    JSON.stringify([s.target, s.rect]));
+  ok('and the sentence says so', said === 'Each picture goes on a 1920 × 1080 canvas, against the bottom right, at its own pixels.', said);
+}
+
+/* A model in a batch is started once and used for every picture. */
+{
+  const fetched = [];
+  const watch = (r) => { if (/huggingface|jsdelivr/.test(r.url())) fetched.push(r.url()); };
+  page.on('request', watch);
+  await fakeRuntime({ gpu: false });
+  await page.evaluate(() => { document.getElementById('file').value = ''; });
+  const was = (await state()).loads;
+  await page.setInputFiles('#file', [BANDS, B1, B2]);
+  await page.waitForFunction(n => window.UNCROP.state.loads > n, was, { timeout: 15000 });
+  await page.locator('#addLeft').fill('40');
+  await page.click('button[data-method="best"]');
+  const [zipped] = await Promise.all([
+    page.waitForEvent('download', { timeout: 60000 }),
+    page.click('#runAll'),
+  ]);
+  const entries = unzip(fs.readFileSync(await zipped.path()));
+  const made = await page.evaluate(() => ({ creates: window.CREATES, runs: window.RUNS.length }));
+  ok('a model run over a batch is started once, not once a picture',
+    made.creates.length === 1 && made.creates[0] === 'wasm' && entries.length === 3,
+    JSON.stringify({ ...made, entries: entries.length }));
+  page.off('request', watch);
+  ok('and its weights came out of the page\'s own storage, with nothing fetched',
+    fetched.length === 0 && made.runs >= 3, `${made.runs} runs; fetched ${fetched.join(', ')}`);
+}
+
+/* Stopping a batch stops the batch, not just the picture it was on. */
+{
+  await page.evaluate(() => {
+    const was = window.UNCROP.sessions.best.session.run;
+    window.UNCROP.sessions.best.session.run = async (feed) => {
+      await new Promise(r => setTimeout(r, 300));
+      return was(feed);
+    };
+  });
+  const runsBefore = await page.evaluate(() => window.RUNS.length);
+  await page.click('#runAll');
+  await page.waitForFunction(() => /Picture 1 of 3/.test(document.getElementById('batchStep').textContent),
+    null, { timeout: 20000 });
+  await page.click('#stop');
+  await page.waitForFunction(() => !window.UNCROP.batch.batching, null, { timeout: 30000 });
+  const note = (await page.textContent('#runNote')).trim();
+  /* Broken on purpose: taking out Stop's reach into the batch is caught here.
+     Taking out either of the two places the batch loop looks at it is not,
+     because each holds the batch up without the other — the check before the
+     next picture and the one after a stopped picture. Both are kept.
+
+     The first picture is one pass, so a Stop pressed during it may land
+     before the pass starts or after it, and either is right; what is wrong is
+     the batch carrying on to the second. */
+  const runs = await page.evaluate(() => window.RUNS.length);
+  ok('Stop during a batch ends the batch rather than moving on to the next picture',
+    /^[01] of 3 uncropped/.test(note) && /stopped before the rest/.test(note) && runs <= runsBefore + 1,
+    `${note} after ${runs} runs`);
+}
+
+/* ------------------------------------------- 9. a GPU that fails part way -- */
+
+/* What happened on a GTX 1070 Ti: LaMa's session started on WebGPU and then
+   a run failed inside a kernel. The page only fell back to the CPU when
+   *starting* failed, so the run just ended in an error. Now a run that fails
+   on the GPU is started again on the CPU, the status line says so, and the
+   model stays off the GPU for the rest of the session. */
+{
+  await open(BANDS);
+  await fakeRuntime({ gpu: true, gpuRunFails: true });
+  await page.evaluate(() => {
+    window.SAID = [];
+    new MutationObserver(() => window.SAID.push(document.getElementById('stepDetail').textContent))
+      .observe(document.getElementById('stepDetail'), { childList: true, characterData: true, subtree: true });
+    window.UNCROP.setSize(300, 300); window.UNCROP.centre();
+  });
+  await page.click('button[data-method="best"]');
+  await page.click('#run');
+  await page.waitForFunction(() => !document.body.classList.contains('busy'), null, { timeout: 60000 });
+  const s = await state();
+  const got = await page.evaluate(() => ({ creates: window.CREATES, runs: window.RUNS, released: window.RELEASED, said: window.SAID }));
+  ok('a run that fails on the GPU is finished on the CPU instead of ending in an error',
+    s.result && s.result.on === 'wasm' && s.result.passes === 3 && /Kernel/.test(s.result.fellBack),
+    JSON.stringify({ result: s.result, note: await page.textContent('#runNote') }));
+  ok('by throwing the GPU session away and starting one on the CPU, once',
+    got.creates.join() === 'webgpu,wasm' && got.released === 1, JSON.stringify(got.creates) + ` released ${got.released}`);
+  ok('and the pass that failed is the one run again, with the rest on the CPU',
+    got.runs.join() === 'webgpu,wasm,wasm,wasm', got.runs.join());
+  ok('the status line said so while it happened',
+    got.said.some(t => /failed on your GPU, so it is starting again on the CPU/.test(t)), got.said.join(' | '));
+  ok('and so does the line it finished on',
+    /failed on your GPU, so it ran on the CPU/.test(await page.textContent('#runNote'))
+      && /it failed on your GPU/.test(await page.textContent('#outFigures')),
+    `${await page.textContent('#runNote')} | ${await page.textContent('#outFigures')}`);
+
+  /* Remembered: a session started again later in the same visit is not
+     offered the GPU, because the fault is in a kernel and would come back. */
+  await page.evaluate(() => { delete window.UNCROP.sessions.best; window.CREATES = []; });
+  await page.click('#run');
+  await page.waitForFunction(() => !document.body.classList.contains('busy'), null, { timeout: 60000 });
+  const again = await page.evaluate(() => window.CREATES);
+  ok('the model stays off the GPU for the rest of the session',
+    again.join() === 'wasm' && (await state()).result.on === 'wasm' && !!(await state()).result.fellBack,
+    JSON.stringify(again));
+  ok('and the cost line says why it is on the CPU',
+    /failed on your GPU, so it stays on the CPU/.test(await page.textContent('#cost')),
+    await page.textContent('#cost'));
+
+  /* The null: a GPU that works is used and nothing is said about falling back. */
+  await fakeRuntime({ gpu: true, gpuRunFails: false });
+  await page.click('#run');
+  await page.waitForFunction(() => !document.body.classList.contains('busy'), null, { timeout: 60000 });
+  const fine = await state();
+  ok('a GPU that works is kept, with nothing said about the CPU',
+    fine.result.on === 'webgpu' && !fine.result.fellBack
+      && (await page.evaluate(() => window.CREATES.join())) === 'webgpu'
+      && !/CPU/.test(await page.textContent('#runNote')),
+    JSON.stringify(fine.result));
+}
+
 /* --------------------------------------------------------------- the tally -- */
 
 ok('nothing threw along the way', errs.length === 0, errs.join(' | '));
@@ -1295,12 +1674,25 @@ await browser.close();
      that could tell a plausible sky from a smear, and a page that quietly
      started producing smears would pass every line above.
 
-   - **WebGPU.** The container's Chromium has no adapter, so every stubbed run
-     above takes the `wasm` path through `sessionFor`. The WebGPU branch, and
-     the proxy and thread settings that go with it, are unexercised.
+   - **WebGPU itself.** Section 9 tells the page there is an adapter and
+     stubs the runtime, so the choice of WebGPU, the fallback when a run on
+     it fails, and remembering that are the page's real code; a real GPU, and
+     the proxy and thread settings for the CPU, are not exercised.
 
-   - **The weight cache.** `keep` and `cached` are never reached without a
-     download to cache, so the IndexedDB round trip is untested.
+   - **The weight cache, filled by a download.** `keep` and `cached` are now
+     reached — sections 8 and 9 put the weights in the store and the page
+     reads them back — but `weights()` writing what it has just fetched is
+     still only reached with a real download.
+
+   Broken on purpose for the borders, the batch and the GPU fallback: a bare
+   % read on the wrong axis, the picture left at the edge instead of where the
+   border leaves it, no fallback on a failed run, the fallback not
+   remembered, no status line about it, a batch's name with the size in it,
+   the recipe not applied, the session thrown away between pictures, the
+   fields showing pixels while a border is being typed, the page opening on
+   the fast model, and Stop not reaching the batch were each caught. The two
+   places the batch loop reads Stop cover for each other, as written beside
+   that check.
 
    - **Anything above 64 megapixels, and the 16384 limit itself.** The
      refusals are checked as arithmetic; what a browser actually does when

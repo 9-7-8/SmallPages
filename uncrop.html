@@ -43,6 +43,11 @@
      seg's own height sets the row and the fields sit on the same baseline. */
   .sizes .seg, .sizes button { align-self: flex-end; }
 
+  /* A border on each side, typed as pixels or as a share of the picture, so
+     the fields take text rather than numbers. */
+  .row > label input[type="text"] { width: 6rem; display: block; margin-top: 0.3rem; }
+  .hint-line { font-size: 0.78rem; color: var(--text-faint); margin: -0.4rem 0 1rem; max-width: 70ch; }
+
   .by { align-self: flex-end; padding-bottom: 0.45rem; font-size: 0.85rem; color: var(--text-faint); }
 
   .shelf { gap: 0.5rem; }
@@ -117,7 +122,11 @@
   .acts { display: flex; gap: 0.8rem; align-items: center; flex-wrap: wrap; }
   #stop { display: none; }
   body.busy #stop { display: inline-block; }
-  body.busy #run { display: none; }
+  body.busy #run, body.busy #runAll { display: none; }
+  #runAll.hid, #saveAll.hid, .batch.hid { display: none; }
+  .batch { margin-top: 0.8rem; }
+  .batch-step { font-size: 0.78rem; color: var(--text-dim); margin-bottom: 0.2rem; }
+  .batch-step:empty { display: none; }
 
   .working {
     display: none;
@@ -195,10 +204,14 @@
   <div class="card">
     <div class="dropzone" id="dropzone" tabindex="0">
       <div>Drop an image here, or click to choose one</div>
-      <div class="hint">You can paste one too</div>
-      <input type="file" id="file" accept="image/*">
+      <div class="hint">You can paste one too &mdash; or drop several at once, and the same settings are used on every one of them</div>
+      <input type="file" id="file" accept="image/*" multiple>
     </div>
     <p class="status" id="loadNote"></p>
+    <div class="batch hid" id="batch">
+      <p class="figures" id="batchSays"></p>
+      <p class="figures" id="batchRecipe"></p>
+    </div>
   </div>
 
   <div class="card hid" id="setup">
@@ -214,6 +227,22 @@
       </label>
       <button class="ghost" id="swap" title="Swap width and height">Swap</button>
     </div>
+
+    <div class="row" id="sides" role="group" aria-label="Add a border to each side">
+      <label>Add left
+        <input type="text" id="addLeft" data-side="left" inputmode="decimal" spellcheck="false" autocomplete="off">
+      </label>
+      <label>Right
+        <input type="text" id="addRight" data-side="right" inputmode="decimal" spellcheck="false" autocomplete="off">
+      </label>
+      <label>Top
+        <input type="text" id="addTop" data-side="top" inputmode="decimal" spellcheck="false" autocomplete="off">
+      </label>
+      <label>Bottom
+        <input type="text" id="addBottom" data-side="bottom" inputmode="decimal" spellcheck="false" autocomplete="off">
+      </label>
+    </div>
+    <p class="hint-line">Pixels, or a share of the picture: <code>15%</code> is of its width on the left and right and of its height on the top and bottom, and <code>15%h</code> or <code>15%w</code> says which. The canvas grows to fit and the picture sits where the border leaves it.</p>
 
     <div class="row shelf" id="ratios" role="group" aria-label="Shape">
       <button data-ratio="keep">Keep the shape</button>
@@ -271,8 +300,8 @@
   <div class="card hid" id="fillCard">
     <h2>The fill</h2>
     <div class="seg methods" id="methods" role="group" aria-label="How the border is filled">
-      <button data-method="fast" aria-pressed="true">Fast model</button>
-      <button data-method="best" aria-pressed="false">Best model</button>
+      <button data-method="best" aria-pressed="true">Best model</button>
+      <button data-method="fast" aria-pressed="false">Fast model</button>
       <button data-method="reflect" aria-pressed="false">No model</button>
     </div>
     <p class="cost" id="cost"></p>
@@ -280,6 +309,7 @@
 
     <div class="acts">
       <button id="run">Uncrop</button>
+      <button id="runAll" class="hid">Uncrop all</button>
       <button class="ghost" id="stop">Stop</button>
       <span class="status" id="runNote"></span>
     </div>
@@ -287,6 +317,7 @@
     <div class="working" id="working" role="status" aria-live="polite">
       <div class="spinner" aria-hidden="true"></div>
       <div class="said">
+        <div class="batch-step" id="batchStep"></div>
         <div class="step" id="step">Working</div>
         <div class="step-detail" id="stepDetail"></div>
         <div class="bar" id="bar"><i></i></div>
@@ -314,6 +345,7 @@
         <input type="range" id="quality" min="40" max="100" step="1" value="92">
       </label>
       <button id="save">Save</button>
+      <button class="ghost hid" id="saveAll">Save all (.zip)</button>
     </div>
     <p class="status" id="saveNote"></p>
   </div>
@@ -326,13 +358,17 @@
 
   <p class="note"><strong>A big jump is made in steps.</strong> Asked to double a picture, neither model has anything to go on out at the far corner, so the border is grown in passes, each one adding at most a third of what it can already see to any side and then becoming the known picture for the next. Half again is one pass, twice is two, four times is three and ten times is five; eight is the limit, and past that the last pass is handed whatever is left, which smears. The count is on screen before you start, because each pass is a model run — roughly a second each on a GPU and ten or twenty without one.</p>
 
-  <p class="note"><strong>Fast model</strong> is <a href="https://github.com/Picsart-AI-Research/MI-GAN">MI-GAN</a> (ICCV 2023, Picsart AI Research), the pipeline ONNX export at about 80&nbsp;MB, fetched from <a href="https://huggingface.co/andraniksargsyan/migan">Hugging Face</a> the first time you ask for it and then kept in your browser's storage. It was built to inpaint on a phone, which is exactly the shape of this problem, and it is the one to start with. Both the code and the weights are MIT licensed.</p>
+  <p class="note"><strong>Best model</strong> is <a href="https://github.com/advimman/lama">LaMa</a> &mdash; big-lama, through <a href="https://huggingface.co/Carve/LaMa-ONNX">Carve's ONNX export</a>, about 206&nbsp;MB, and it is what the page opens on. Its fast-Fourier convolutions see the whole frame at once rather than a neighbourhood, which is why it is the one that holds a horizon straight and keeps a texture's scale across a wide band; in use the fast model's borders came back visibly worse, which is why this one is the default rather than the smaller download. It is two and a half times the download and several times the work per pass. LaMa's code is Apache 2.0; the weights were trained on Places365-Challenge, whose own terms are research and education, so if this is for something commercial the fast model is the one with the clean licence.</p>
 
-  <p class="note"><strong>Best model</strong> is <a href="https://github.com/advimman/lama">LaMa</a> &mdash; big-lama, through <a href="https://huggingface.co/Carve/LaMa-ONNX">Carve's ONNX export</a>, about 206&nbsp;MB. Its fast-Fourier convolutions see the whole frame at once rather than a neighbourhood, which is why it is the one that holds a horizon straight and keeps a texture's scale across a wide band. It is two and a half times the download and several times the work per pass. LaMa's code is Apache 2.0; the weights were trained on Places365-Challenge, whose own terms are research and education, so if this is for something commercial the fast model is the one with the clean licence.</p>
+  <p class="note"><strong>Fast model</strong> is <a href="https://github.com/Picsart-AI-Research/MI-GAN">MI-GAN</a> (ICCV 2023, Picsart AI Research), the pipeline ONNX export at about 80&nbsp;MB, fetched from <a href="https://huggingface.co/andraniksargsyan/migan">Hugging Face</a> the first time you ask for it and then kept in your browser's storage. It was built to inpaint on a phone, so it is quicker on a slow machine and the smaller download, and both the code and the weights are MIT licensed.</p>
+
+  <p class="note"><strong>Adding a strip.</strong> The four <em>Add</em> fields are the direct way to say "this much more on the left": a number is pixels, and a percentage is a share of the picture &mdash; of its width on the left and right and of its height on the top and bottom, unless <code>%w</code> or <code>%h</code> says otherwise, so <code>15%h</code> on the left of a book cover is a strip as wide as fifteen per cent of the cover is tall. The canvas grows to fit and the picture sits where the border leaves it, so nothing has to be worked out by hand.</p>
+
+  <p class="note"><strong>A batch.</strong> Choose or drop several pictures at once and the first one opens here to be set up; what you set is then used on every one of them in turn, with the progress on screen, and they are saved together as one <code>.zip</code>, each named after the picture it came from &mdash; one file rather than a download per picture, which browsers cancel when they come in a burst. The line under the drop zone says how each picture will be treated. A border typed into the <em>Add</em> fields as a percentage is the setting that suits a pile of pictures of different sizes; a canvas size, a shape or a placement on the pad is used as it stands, and the model is loaded once for the lot.</p>
 
   <p class="note"><strong>No model</strong> needs no download and happens instantly. It mirrors your picture out across each edge and melts the reflection into a blur as it gets further away, which is an old trick and an honest one: on grass, gravel, fabric, fog or a blurred background it is genuinely hard to catch, and on anything with structure in it &mdash; a horizon, a doorway, a face near the edge &mdash; it is obviously a mirror. It is also what you get when there is no WebGPU and no connection, and it is a reasonable way to see whether your framing is right before spending the download.</p>
 
-  <p class="note"><strong>Where it runs.</strong> The models are ONNX, run by <a href="https://github.com/microsoft/onnxruntime">ONNX Runtime Web</a> from jsDelivr, on WebGPU where the browser has it and on the CPU through WebAssembly where it does not &mdash; the CPU path works and is maybe ten times slower, on one thread, because more than one needs cross-origin isolation headers that a static host does not send. Neither the runtime nor the weights are in this repository, so the first run of each model needs a connection; after that the weights sit in your browser's own storage and it does not. The page has to be served rather than opened off the filesystem, because WebAssembly will not load from a <code>file://</code> folder.</p>
+  <p class="note"><strong>Where it runs.</strong> The models are ONNX, run by <a href="https://github.com/microsoft/onnxruntime">ONNX Runtime Web</a> from jsDelivr, on WebGPU where the browser has it and on the CPU through WebAssembly where it does not. Some graphics cards start a model and then fail part way through a run &mdash; LaMa's Fourier layers have been seen to on an older NVIDIA card &mdash; so a run that fails on the GPU is started again on the CPU by itself, the status line says so, and that model stays on the CPU until the page is reloaded. The CPU path works and is maybe ten times slower, on one thread, because more than one needs cross-origin isolation headers that a static host does not send. Neither the runtime nor the weights are in this repository, so the first run of each model needs a connection; after that the weights sit in your browser's own storage and it does not. The page has to be served rather than opened off the filesystem, because WebAssembly will not load from a <code>file://</code> folder.</p>
 
   <p class="note"><strong>How big is too big.</strong> Anything up to 16384 pixels on a side is allowed, because that is the largest canvas browsers will give; above about 12 megapixels the page says so, because every copy of the canvas is four bytes a pixel and it holds a few at once, and a phone will give up long before a desktop does. 64 megapixels is the ceiling here. The warning is about your machine rather than about the model: the fill is painted at 512 px whatever the canvas, so a bigger canvas costs memory and time without buying any more invented detail.</p>
 
@@ -383,6 +419,9 @@ const el = {
   outCard: $("outCard"), out: $("out"), showAdded: $("showAdded"),
   outFigures: $("outFigures"), formats: $("formats"), qwrap: $("qwrap"),
   quality: $("quality"), qval: $("qval"), save: $("save"), saveNote: $("saveNote"),
+  sides: [$("addLeft"), $("addRight"), $("addTop"), $("addBottom")],
+  batch: $("batch"), batchSays: $("batchSays"), batchRecipe: $("batchRecipe"),
+  runAll: $("runAll"), batchStep: $("batchStep"), saveAll: $("saveAll"),
 };
 
 /* ----------------------------------------------------------------- state -- */
@@ -398,11 +437,26 @@ const FEATHER = 2;               // px of the picture's own edge blended into th
 let src = null;                  // { img, w, h, name } — the picture as it came in
 let target = { w: 0, h: 0 };     // the canvas being filled
 let place = { x: 0, y: 0, scale: 1 };   // where the picture sits on it, in canvas px
-let method = "fast";
-let result = null;               // { canvas, rect, method, passes, on }
+/* LaMa rather than MI-GAN: in use the fast model's borders were the ones that
+   looked wrong, and the extra download is paid once. */
+let method = "best";
+let result = null;               // { canvas, rect, method, passes, on, fellBack }
 let format = "png";
 let busy = false, stopped = false;
 let showAdded = false;
+
+/* What was last used to shape the canvas, which is what a batch repeats on
+   every picture after the first. A border typed into the Add fields is kept
+   as it was typed — "15%" stays fifteen per cent, rather than becoming the
+   pixels it came to on this picture — and anything else that moves the
+   canvas or the picture makes it a canvas of a fixed size. */
+let shaping = { kind: "sides" };                 // or { kind: "canvas" }, { kind: "ratio", ratio }
+let sideSpecs = { left: "0", right: "0", top: "0", bottom: "0" };
+let scaleWay = "actual";                         // or "fit", or "share" of fitting
+
+let queue = [];                  // the pictures opened together, as files
+let batching = false, batchStopped = false;
+let made = [];                   // { name, data } from the last batch, for the zip
 
 /* ------------------------------------------------------------- geometry -- */
 
@@ -662,11 +716,87 @@ function update() {
   }
   const p = currentPlan();
   say(p);
-  el.run.disabled = busy || !!p.blocked;
+  /* The Add fields are a readout of the border as much as a control for it.
+     While the border is what is being set they show it as it was typed, so
+     "15%" stays on screen rather than turning into the pixels it came to;
+     once something else has moved the canvas they show the pixels each side
+     now has. */
+  const gaps = gapsNow();
+  for (const f of el.sides) {
+    if (document.activeElement === f) continue;
+    const side = f.dataset.side;
+    f.value = shaping.kind === "sides" ? sideSpecs[side] : String(Math.max(0, gaps[side]));
+  }
+  el.run.disabled = busy || batching || !!p.blocked;
   el.run.textContent = (p.passes || p.exact) ? "Uncrop" : "Crop it";
+  el.runAll.classList.toggle("hid", queue.length < 2);
+  el.runAll.textContent = `Uncrop all ${queue.length}`;
+  el.runAll.disabled = busy || batching || !!p.blocked;
+  if (queue.length > 1) el.batchRecipe.textContent = describeRecipe(recipeNow());
   drawView();
   methodNote();
   return p;
+}
+
+/* How far the canvas runs past the picture on each side, in canvas pixels;
+   negative where the picture hangs off. */
+function gapsNow() {
+  const r = rectOf();
+  return { left: r.x, top: r.y, right: target.w - (r.x + r.w), bottom: target.h - (r.y + r.h) };
+}
+
+/* ---------------------------------------------------------- a border each side -- */
+
+/* "40" is pixels, "15%" is a share of the picture — of its width for the
+   left and right, of its height for the top and bottom — and "15%w" or
+   "15%h" says which outright, so a strip on the left of a book cover can be
+   a share of how tall the cover is. The share is of the picture as it sits on
+   the canvas, which at actual size is the picture's own pixels. */
+const ACROSS = { left: "w", right: "w", top: "h", bottom: "h" };
+
+function sidePx(side, spec, r = rectOf()) {
+  const said = String(spec === undefined || spec === null ? "" : spec).trim().toLowerCase();
+  const m = /^(\d+(?:\.\d+)?)\s*(px|%|%w|%h)?$/.exec(said);
+  if (!m) {
+    throw new Error(`"${spec}" is not a border for the ${side} — it is pixels like 40,`
+      + " or a share of the picture like 15%, 15%w or 15%h");
+  }
+  const n = Number(m[1]);
+  const unit = m[2] || "px";
+  if (unit === "px") return Math.round(n);
+  const of = unit === "%w" ? "w" : unit === "%h" ? "h" : ACROSS[side];
+  return Math.round(n / 100 * r[of]);
+}
+
+/* The canvas grown to the picture plus a border on each side, and the
+   picture put where the border leaves it. A side not mentioned keeps the
+   border it has. Every side is worked out before anything moves, so a bad
+   one is refused with the canvas as it was. */
+function extend(specs) {
+  const r = rectOf();
+  const now = gapsNow();
+  const px = {};
+  for (const side of ["left", "right", "top", "bottom"]) {
+    px[side] = specs[side] === undefined ? Math.max(0, now[side]) : sidePx(side, specs[side], r);
+  }
+  setSize(r.w + px.left + px.right, r.h + px.top + px.bottom);
+  place.x = px.left;
+  place.y = px.top;
+  update();
+  return px;
+}
+
+/* Anything but the Add fields that moves the canvas or the picture makes the
+   shape a fixed canvas, because the border it leaves is no longer one that was
+   asked for. */
+function shapedByHand() {
+  if (shaping.kind === "sides") shaping = { kind: "canvas" };
+}
+
+function resetShaping() {
+  shaping = { kind: "sides" };
+  sideSpecs = { left: "0", right: "0", top: "0", bottom: "0" };
+  scaleWay = "actual";
 }
 
 /* Only the floor is clamped here. A canvas too big for a browser to draw used
@@ -727,21 +857,54 @@ el.drop.addEventListener("keydown", (e) => {
 ["dragleave", "drop"].forEach((n) => el.drop.addEventListener(n, () => el.drop.classList.remove("drag")));
 el.drop.addEventListener("drop", (e) => {
   e.preventDefault();
-  const f = e.dataTransfer.files && e.dataTransfer.files[0];
-  if (f) load(f);
+  openMany([...((e.dataTransfer && e.dataTransfer.files) || [])]);
 });
 el.file.addEventListener("change", () => {
-  const f = el.file.files && el.file.files[0];
-  if (f) load(f);
+  openMany([...(el.file.files || [])]);
 });
 window.addEventListener("paste", (e) => {
   for (const item of (e.clipboardData && e.clipboardData.items) || []) {
     if (item.kind === "file" && item.type.startsWith("image/")) {
       const f = item.getAsFile();
-      if (f) { load(f); return; }
+      if (f) { openMany([f]); return; }
     }
   }
 });
+
+/* One picture is a picture. Several are a batch: the first opens to be set
+   up, and the rest wait for Uncrop all. Anything dropped that is not a
+   picture by its type is left out and counted, rather than failing half way
+   through the batch. Files with no type at all are given the benefit of the
+   doubt, because the reader will say so if they are not pictures. */
+async function openMany(files) {
+  if (!files.length || busy || batching) return;
+  const pictures = files.filter((f) => !f.type || f.type.startsWith("image/"));
+  const left = files.length - pictures.length;
+  if (!pictures.length) {
+    el.loadNote.textContent = files.length === 1
+      ? "That is not a picture this page can open."
+      : `None of those ${files.length} files is a picture.`;
+    el.loadNote.classList.add("error");
+    return;
+  }
+  queue = pictures.length > 1 ? pictures : [];
+  made = [];
+  el.saveAll.classList.add("hid");
+  resetShaping();
+  await load(pictures[0]);
+  el.batch.classList.toggle("hid", queue.length < 2);
+  if (queue.length > 1) {
+    const names = queue.map((f) => f.name);
+    el.batchSays.innerHTML = `<b>${queue.length} pictures</b> · `
+      + escapeHtml(names.slice(0, 4).join(", ") + (names.length > 4 ? `, and ${names.length - 4} more` : ""))
+      + (left ? ` · ${left} file${left === 1 ? "" : "s"} that ${left === 1 ? "is" : "are"} not a picture left out` : "")
+      + ". The first is open below; what you set on it is used on every one.";
+  }
+  update();
+}
+
+const escapeHtml = (s) => String(s).replace(/[&<>"]/g,
+  (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
 let loads = 0;       // pictures opened, so a reopen is something a suite can wait on
 
@@ -776,9 +939,11 @@ async function load(fileOrBlob) {
     el.loadNote.textContent = `${src.w} × ${src.h}, ${src.name}`;
     loads++;
     update();
+    return true;
   } catch (e) {
     el.loadNote.textContent = String(e.message || e);
     el.loadNote.classList.add("error");
+    return false;
   }
 }
 
@@ -798,15 +963,46 @@ function typeable(field, apply) {
   field.addEventListener("blur", () => update());
 }
 
-typeable(el.w, (n) => setSize(n, target.h));
-typeable(el.h, (n) => setSize(target.w, n));
-el.swap.addEventListener("click", () => { setSize(target.h, target.w); centre(); update(); });
+typeable(el.w, (n) => { shaping = { kind: "canvas" }; setSize(n, target.h); });
+typeable(el.h, (n) => { shaping = { kind: "canvas" }; setSize(target.w, n); });
+el.swap.addEventListener("click", () => {
+  shaping = { kind: "canvas" };
+  setSize(target.h, target.w); centre(); update();
+});
+
+/* The Add fields. Nothing is applied while a field holds something that is
+   not a border yet — the "1" on the way to "15%", or a lone "%" — the same as
+   the width and height fields, and leaving the field puts the border it
+   really has back into it. */
+for (const f of el.sides) {
+  f.addEventListener("input", () => {
+    if (!src) return;
+    const side = f.dataset.side;
+    const said = f.value.trim();
+    try { sidePx(side, said); } catch (e) { return; }
+    if (shaping.kind !== "sides") {
+      const g = gapsNow();
+      sideSpecs = {
+        left: String(Math.max(0, g.left)), right: String(Math.max(0, g.right)),
+        top: String(Math.max(0, g.top)), bottom: String(Math.max(0, g.bottom)),
+      };
+      shaping = { kind: "sides" };
+    }
+    sideSpecs[side] = said;
+    extend({ [side]: said });
+  });
+  f.addEventListener("blur", () => update());
+}
 
 el.ratios.addEventListener("click", (e) => {
   const b = e.target.closest("button[data-ratio]");
   if (!b || !src) return;
   const r = b.dataset.ratio;
   const [a, c] = r === "keep" ? [src.w, src.h] : r.split(":").map(Number);
+  /* A shape on a canvas still the picture's own width is a shape that suits
+     any picture, so a batch repeats the shape; on a canvas that was sized by
+     hand first it is that width, and a batch repeats the canvas. */
+  shaping = shaping.kind === "canvas" ? { kind: "canvas" } : { kind: "ratio", ratio: r };
   setSize(target.w, target.w * c / a);
   centre();
   update();
@@ -816,6 +1012,7 @@ el.presets.addEventListener("click", (e) => {
   const b = e.target.closest("button[data-size]");
   if (!b || !src) return;
   const [w, h] = b.dataset.size.split("x").map(Number);
+  shaping = { kind: "canvas" };
   setSize(w, h);
   centre();
   update();
@@ -828,6 +1025,8 @@ el.scale.addEventListener("input", () => {
   const r1 = rectOf();
   place.x = mid.x - r1.w / 2;
   place.y = mid.y - r1.h / 2;
+  scaleWay = "share";
+  shapedByHand();
   update();
 });
 
@@ -836,10 +1035,15 @@ el.align.addEventListener("click", (e) => {
   if (!b || !src) return;
   const [across, down] = b.dataset.align.split(" ");
   align(across, down);
+  shapedByHand();
   update();
 });
-el.fit.addEventListener("click", () => { place.scale = fitScale(); centre(); update(); });
-el.actual.addEventListener("click", () => { place.scale = clampScale(1); centre(); update(); });
+el.fit.addEventListener("click", () => {
+  place.scale = fitScale(); centre(); scaleWay = "fit"; shapedByHand(); update();
+});
+el.actual.addEventListener("click", () => {
+  place.scale = clampScale(1); centre(); scaleWay = "actual"; shapedByHand(); update();
+});
 
 /* Dragging the picture about on the canvas. Pointer events rather than mouse
    events so a finger on a tablet does the same thing, and the canvas takes
@@ -856,6 +1060,7 @@ el.view.addEventListener("pointermove", (e) => {
   if (!drag) return;
   place.x = drag.ox + (e.clientX - drag.x) / viewScale;
   place.y = drag.oy + (e.clientY - drag.y) / viewScale;
+  shapedByHand();
   update();
 });
 ["pointerup", "pointercancel"].forEach((n) => el.view.addEventListener(n, () => {
@@ -869,6 +1074,7 @@ el.view.addEventListener("keydown", (e) => {
   e.preventDefault();
   place.x += moves[e.key][0];
   place.y += moves[e.key][1];
+  shapedByHand();
   update();
 });
 el.view.addEventListener("wheel", (e) => {
@@ -880,6 +1086,8 @@ el.view.addEventListener("wheel", (e) => {
   const r1 = rectOf();
   place.x = mid.x - r1.w / 2;
   place.y = mid.y - r1.h / 2;
+  scaleWay = "share";
+  shapedByHand();
   update();
 }, { passive: false });
 
@@ -1003,6 +1211,7 @@ const MODELS = {
 };
 
 const sessions = {};        // kind -> { run, on, side, hole, settled }
+const gpuFailed = {};       // kind -> what WebGPU said when a run of it failed, for the rest of the session
 let ortLoad = null;
 
 async function hasWebGPU() {
@@ -1129,7 +1338,9 @@ async function sessionFor(kind, onStep) {
   if (sessions[kind]) return sessions[kind];
   const m = MODELS[kind];
   const ort = await ortReady();
-  const gpu = await hasWebGPU();
+  /* A model that has already failed on this GPU once in this session is not
+     offered it again: the failure is in a kernel, so it would fail again. */
+  const gpu = !gpuFailed[kind] && await hasWebGPU();
 
   ort.env.wasm.wasmPaths = ORT_DIST;
 
@@ -1142,7 +1353,8 @@ async function sessionFor(kind, onStep) {
     ? Math.min(4, navigator.hardwareConcurrency || 1) : 1;
 
   const bytes = await weights(kind, onStep);
-  onStep(`Starting ${m.what}`, gpu ? "on your GPU" : "on the CPU, which is the slow way", null);
+  onStep(`Starting ${m.what}`, gpu ? "on your GPU"
+    : gpuFailed[kind] ? "on the CPU, because it failed on your GPU" : "on the CPU, which is the slow way", null);
 
   /* In order of preference, and every one of them a fallback for the one
      before it. The proxy moves WebAssembly off the main thread, because a
@@ -1368,39 +1580,78 @@ function settle(view, inCanvas, knownInView) {
   return c;
 }
 
-async function fillWithModel(kind, size, rect, frames, onStep) {
+/* A run that fails on the GPU, after the session started there perfectly
+   happily. Some cards do this — LaMa's export failed on a GTX 1070 Ti with
+   `[WebGPU] Kernel "[Add] …/ffc/convg2g/Add" failed. Can't perform binary op
+   on the given tensors`, a whole pass in — and the session-creation fallback
+   never sees it, because creation went fine. So the session is thrown away,
+   started again on the CPU from the weights already in storage, and the
+   model stays off the GPU for the rest of the session: the fault is in a
+   kernel, and trying again would only fail again a pass later. The mask's
+   polarity has already been settled and carries across. */
+async function cpuInstead(kind, was, err, onStep) {
+  gpuFailed[kind] = String((err && err.message) || err).split("\n")[0];
+  delete sessions[kind];
+  try { if (was.session && was.session.release) await was.session.release(); } catch (e) { /* gone anyway */ }
   const st = await sessionFor(kind, onStep);
+  st.hole = was.hole;
+  st.settled = was.settled;
+  return st;
+}
+
+async function fillWithModel(kind, size, rect, frames, onStep) {
+  let st = await sessionFor(kind, onStep);
   const full = { x: 0, y: 0, w: size.w, h: size.h };
   let known = intersect(rect, full);
   let prev = null;
+  let fellBack = "";
 
   for (let i = 0; i < frames.length; i++) {
     if (stopped) throw new Error("stopped");
     const frame = frames[i];
     onStep(`Pass ${i + 1} of ${frames.length}`,
-      `${frame.w} × ${frame.h} of ${size.w} × ${size.h}, on ${st.on === "webgpu" ? "your GPU" : "the CPU"}`,
+      `${frame.w} × ${frame.h} of ${size.w} × ${size.h}, on ${st.on === "webgpu" ? "your GPU" : "the CPU"}`
+        + (fellBack ? `, because ${MODELS[kind].what} failed on your GPU` : ""),
       null);
     await new Promise((go) => requestAnimationFrame(() => go()));
 
-    const input = inputFor(st, frame, rect, prev);
-    const v = input.v;
-    const flags = maskFor(v, frame, known);
-    const before = input.ctx.getImageData(0, 0, v.side, v.side).data;
+    let input, v, flags, before, out;
+    const pass = async () => {
+      input = inputFor(st, frame, rect, prev);
+      v = input.v;
+      flags = maskFor(v, frame, known);
+      before = input.ctx.getImageData(0, 0, v.side, v.side).data;
 
-    let out = await runOnce(st, before, flags, st.hole);
+      out = await runOnce(st, before, flags, st.hole);
 
-    /* The first run of a session is also the one that settles which way round
-       the mask goes. If it came back wrong, the same pass runs again the other
-       way and that is what the rest of the session uses. */
-    if (!st.settled) {
-      const read = polarityFrom(before, out, flags);
-      st.settled = true;
-      if (read.flipped) {
-        st.hole = st.hole ? 0 : (st.maskType === "uint8" ? 255 : 1);
-        onStep(`Pass ${i + 1} of ${frames.length}`,
-          `${MODELS[kind].what} wanted its mask the other way round — running it again`, null);
-        out = await runOnce(st, before, flags, st.hole);
+      /* The first run of a session is also the one that settles which way
+         round the mask goes. If it came back wrong, the same pass runs again
+         the other way and that is what the rest of the session uses. */
+      if (!st.settled) {
+        const read = polarityFrom(before, out, flags);
+        st.settled = true;
+        if (read.flipped) {
+          st.hole = st.hole ? 0 : (st.maskType === "uint8" ? 255 : 1);
+          onStep(`Pass ${i + 1} of ${frames.length}`,
+            `${MODELS[kind].what} wanted its mask the other way round — running it again`, null);
+          out = await runOnce(st, before, flags, st.hole);
+        }
       }
+    };
+
+    try {
+      await pass();
+    } catch (e) {
+      if (st.on !== "webgpu" || stopped) throw e;
+      onStep(`Pass ${i + 1} of ${frames.length}`,
+        `${MODELS[kind].what} failed on your GPU, so it is starting again on the CPU — slower, but it works`,
+        null);
+      st = await cpuInstead(kind, st, e, onStep);
+      fellBack = gpuFailed[kind];
+      onStep(`Pass ${i + 1} of ${frames.length}`,
+        `${frame.w} × ${frame.h} of ${size.w} × ${size.h}, on the CPU, because ${MODELS[kind].what}`
+          + " failed on your GPU", null);
+      await pass();
     }
 
     v.out = out;
@@ -1420,7 +1671,9 @@ async function fillWithModel(kind, size, rect, frames, onStep) {
   g.imageSmoothingQuality = "high";
   g.drawImage(prev.canvas, prev.ox, prev.oy, prev.dw, prev.dh, 0, 0, size.w, size.h);
   stamp(g, size, rect);
-  return { canvas: res, on: st.on };
+  /* Said on every run that is on the CPU for this reason, not only the one
+     where it happened, so a batch's later pictures say why they were slow. */
+  return { canvas: res, on: st.on, fellBack: fellBack || (st.on !== "webgpu" && gpuFailed[kind]) || "" };
 }
 
 function fillWithMirror(size, rect) {
@@ -1467,7 +1720,7 @@ async function uncrop() {
   if (p.blocked) { update(); return; }
 
   busy = true;
-  stopped = false;
+  stopped = batchStopped;
   document.body.classList.add("busy");
   el.runNote.textContent = "";
   el.runNote.classList.remove("error");
@@ -1493,12 +1746,13 @@ async function uncrop() {
     }
 
     result = {
-      canvas: made.canvas, rect, method, on: made.on,
+      canvas: made.canvas, rect, method, on: made.on, fellBack: made.fellBack || "",
       passes: frames.length, crop: !frames.length, size,
       seconds: (Date.now() - started) / 1000,
     };
     showResult();
-    el.runNote.textContent = `Done in ${result.seconds.toFixed(1)}s`;
+    el.runNote.textContent = `Done in ${result.seconds.toFixed(1)}s`
+      + (result.fellBack ? ` — ${MODELS[method].what} failed on your GPU, so it ran on the CPU` : "");
   } catch (e) {
     if (String(e.message) === "stopped") {
       el.runNote.textContent = "Stopped.";
@@ -1508,13 +1762,243 @@ async function uncrop() {
     }
   } finally {
     busy = false;
-    document.body.classList.remove("busy");
+    if (!batching) document.body.classList.remove("busy");
     update();
   }
 }
 
-el.run.addEventListener("click", uncrop);
-el.stop.addEventListener("click", () => { stopped = true; el.runNote.textContent = "Stopping…"; });
+el.run.addEventListener("click", () => uncrop());
+el.stop.addEventListener("click", () => {
+  stopped = true;
+  if (batching) batchStopped = true;
+  el.runNote.textContent = "Stopping…";
+});
+
+/* ---------------------------------------------------------------- a batch -- */
+
+/* What every picture after the first is given, read off the page as it
+   stands: the border as it was typed, or the canvas and where the picture
+   sits on it, or the shape. A placement is kept as a share of the room either
+   side, which is exactly what the align pad means — 0 is against the left or
+   the top, a half is centred, 1 is against the right or the bottom — so a
+   picture of another size lands in the same place. */
+function recipeNow() {
+  if (shaping.kind === "sides") return { kind: "sides", sides: { ...sideSpecs }, scale: place.scale };
+  const r = rectOf();
+  const share = (at, room) => (room ? at / room : 0.5);
+  const how = {
+    scale: scaleWay === "fit" ? "fit" : scaleWay === "share" ? place.scale / fitScale() : 1,
+    scaleWay,
+    fx: share(r.x, target.w - r.w),
+    fy: share(r.y, target.h - r.h),
+  };
+  if (shaping.kind === "ratio") return { kind: "ratio", ratio: shaping.ratio, ...how };
+  return { kind: "canvas", w: target.w, h: target.h, ...how };
+}
+
+function applyRecipe(rc) {
+  if (rc.kind === "sides") {
+    place.scale = clampScale(rc.scale);
+    shaping = { kind: "sides" };
+    sideSpecs = { ...rc.sides };
+    extend(rc.sides);
+    return;
+  }
+  if (rc.kind === "ratio") {
+    const [a, c] = rc.ratio === "keep" ? [src.w, src.h] : rc.ratio.split(":").map(Number);
+    setSize(target.w, target.w * c / a);
+  } else {
+    setSize(rc.w, rc.h);
+  }
+  shaping = rc.kind === "ratio" ? { kind: "ratio", ratio: rc.ratio } : { kind: "canvas" };
+  scaleWay = rc.scaleWay;
+  place.scale = rc.scale === "fit" ? fitScale()
+    : rc.scaleWay === "share" ? clampScale(fitScale() * rc.scale) : clampScale(1);
+  const r = rectOf();
+  place.x = Math.round((target.w - r.w) * rc.fx);
+  place.y = Math.round((target.h - r.h) * rc.fy);
+  update();
+}
+
+/* The recipe in a sentence, under the drop zone, so it is clear before
+   pressing anything what every other picture is going to get. */
+function describeRecipe(rc) {
+  const where = (fx, fy) => {
+    const word = (f, lo, hi) => (f === 0 ? lo : f === 1 ? hi : f === 0.5 ? "centre" : null);
+    const a = word(fx, "left", "right"), d = word(fy, "top", "bottom");
+    if (a === "centre" && d === "centre") return "centred";
+    if (a && d) return `against the ${a === "centre" ? d : d === "centre" ? a : `${d} ${a}`}`;
+    return "in the same place";
+  };
+  const size = (rc2) => rc2.scale === "fit" ? "fitted inside it"
+    : rc2.scaleWay === "share" ? "at the same share of it" : "at its own pixels";
+  if (rc.kind === "canvas") {
+    return `Each picture goes on a ${rc.w} × ${rc.h} canvas, ${where(rc.fx, rc.fy)}, ${size(rc)}.`;
+  }
+  if (rc.kind === "ratio") {
+    const shape = rc.ratio === "keep" ? "canvas its own shape" : `${rc.ratio} canvas`;
+    return `Each picture goes on a ${shape} as wide as it is, ${where(rc.fx, rc.fy)}, ${size(rc)}.`;
+  }
+  const bits = [];
+  for (const side of ["left", "right", "top", "bottom"]) {
+    const s = String(rc.sides[side]).trim().toLowerCase();
+    const m = /^(\d+(?:\.\d+)?)\s*(px|%|%w|%h)?$/.exec(s);
+    if (!m || Number(m[1]) === 0) continue;
+    const unit = m[2] || "px";
+    const of = unit === "%w" ? "width" : unit === "%h" ? "height"
+      : ACROSS[side] === "w" ? "width" : "height";
+    bits.push(unit === "px" ? `${Number(m[1])} px on the ${side}` : `${Number(m[1])}% of its ${of} on the ${side}`);
+  }
+  if (!bits.length) {
+    return "Nothing is added to them yet: set a border or a canvas on this one, and every picture gets the same.";
+  }
+  const list = bits.length === 1 ? bits[0] : `${bits.slice(0, -1).join(", ")} and ${bits[bits.length - 1]}`;
+  return `Each picture gets ${list}.`;
+}
+
+async function runBatch() {
+  if (busy || batching || queue.length < 2 || !src) return;
+  const rc = recipeNow();
+  const fmt = format, q = Number(el.quality.value);
+  const files = queue.slice();
+  const started = Date.now();
+  const failed = [];
+  const names = new Set();
+  batching = true;
+  batchStopped = false;
+  made = [];
+  el.saveAll.classList.add("hid");
+  document.body.classList.add("busy");
+  update();
+
+  try {
+    for (let i = 0; i < files.length; i++) {
+      if (batchStopped) break;
+      const file = files[i];
+      el.batchStep.textContent = `Picture ${i + 1} of ${files.length} · ${file.name}`;
+      /* The first is the one on screen, set up by hand, and is run as it
+         stands; every other one is opened and given the recipe. */
+      if (i > 0) {
+        if (!await load(file)) {
+          failed.push({ name: file.name, why: el.loadNote.textContent });
+          continue;
+        }
+        applyRecipe(rc);
+      }
+      const p = currentPlan();
+      if (p.blocked) { failed.push({ name: file.name, why: p.blocked }); continue; }
+      await uncrop();
+      /* A picture that finished before Stop was pressed is kept; one that was
+         stopped part way is not a failure, it is where the batch ended. */
+      if (!result) {
+        if (batchStopped) break;
+        failed.push({ name: file.name, why: el.runNote.textContent });
+        continue;
+      }
+      try {
+        const blob = await encode(result.canvas, fmt, q);
+        let name = saveName(fmt, result.size, { batch: true });
+        /* Two pictures with the same name before their endings would
+           otherwise overwrite each other inside the zip. */
+        for (let n = 2; names.has(name); n++) {
+          name = saveName(fmt, result.size, { batch: true }).replace(/(\.[^.]+)$/, `-${n}$1`);
+        }
+        names.add(name);
+        made.push({ name, data: new Uint8Array(await blob.arrayBuffer()) });
+      } catch (e) {
+        failed.push({ name: file.name, why: String(e.message || e) });
+      }
+    }
+  } finally {
+    batching = false;
+    document.body.classList.remove("busy");
+    el.batchStep.textContent = "";
+    update();
+  }
+
+  const secs = ((Date.now() - started) / 1000).toFixed(1);
+  const bits = [`${made.length} of ${files.length} uncropped in ${secs}s`];
+  if (batchStopped) bits.push("stopped before the rest");
+  for (const f of failed) bits.push(`${f.name}: ${f.why}`);
+  el.runNote.textContent = bits.join(" · ");
+  el.runNote.classList.toggle("error", failed.length > 0);
+  batchStopped = false;
+  if (made.length) {
+    el.saveAll.classList.remove("hid");
+    el.saveAll.textContent = `Save all ${made.length} as ${fmt.toUpperCase()} (.zip)`;
+    saveZip();
+  }
+  return { made: made.length, failed, seconds: Number(secs) };
+}
+
+el.runAll.addEventListener("click", () => runBatch());
+
+function zipName() {
+  return `uncropped-${made.length}-picture${made.length === 1 ? "" : "s"}.zip`;
+}
+
+function saveZip() {
+  if (!made.length) return;
+  const name = zipName();
+  download(zip(made), name);
+  el.saveNote.classList.remove("error");
+  el.saveNote.textContent = `${name} — ${made.length} picture${made.length === 1 ? "" : "s"}`;
+}
+
+el.saveAll.addEventListener("click", saveZip);
+
+/* A plain stored zip, the same writer split-sheet.html builds its own with:
+   the pictures in it are compressed already, so deflating them again buys
+   nothing. Bit 11 says the names are UTF-8, so a picture called café comes
+   out of it called café. */
+const CRC = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    t[n] = c >>> 0;
+  }
+  return t;
+})();
+function crc32(bytes) {
+  let c = 0xffffffff;
+  for (let i = 0; i < bytes.length; i++) c = CRC[(c ^ bytes[i]) & 0xff] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+}
+function zip(files) {
+  const enc = new TextEncoder(), parts = [], central = [];
+  let offset = 0;
+  for (const { name, data } of files) {
+    const nm = enc.encode(name), crc = crc32(data);
+    const local = new DataView(new ArrayBuffer(30));
+    local.setUint32(0, 0x04034b50, true); local.setUint16(4, 20, true); local.setUint16(6, 0x0800, true);
+    local.setUint16(8, 0, true);
+    local.setUint32(14, crc, true); local.setUint32(18, data.length, true); local.setUint32(22, data.length, true);
+    local.setUint16(26, nm.length, true);
+    parts.push(local, nm, data);
+    const cen = new DataView(new ArrayBuffer(46));
+    cen.setUint32(0, 0x02014b50, true); cen.setUint16(4, 20, true); cen.setUint16(6, 20, true);
+    cen.setUint16(8, 0x0800, true);
+    cen.setUint32(16, crc, true); cen.setUint32(20, data.length, true); cen.setUint32(24, data.length, true);
+    cen.setUint16(28, nm.length, true); cen.setUint32(42, offset, true);
+    central.push(cen, nm);
+    offset += 30 + nm.length + data.length;
+  }
+  const size = central.reduce((s, p) => s + p.byteLength, 0);
+  const end = new DataView(new ArrayBuffer(22));
+  end.setUint32(0, 0x06054b50, true); end.setUint16(8, files.length, true); end.setUint16(10, files.length, true);
+  end.setUint32(12, size, true); end.setUint32(16, offset, true);
+  return new Blob([...parts, ...central, end], { type: "application/zip" });
+}
+
+function download(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
 
 el.methods.addEventListener("click", (e) => {
   const b = e.target.closest("button[data-method]");
@@ -1535,6 +2019,7 @@ function methodNote() {
   }
   el.cost.textContent = sessions[method]
     ? `${m.what} is loaded and running on ${sessions[method].on === "webgpu" ? "your GPU" : "the CPU"}.`
+      + (gpuFailed[method] ? " It failed on your GPU, so it stays on the CPU until the page is reloaded." : "")
     : `${m.what}, about ${m.mb} MB the first time and then kept in your browser's storage.`;
   const p = src ? currentPlan() : null;
   el.methodNote.textContent = p && p.passes
@@ -1598,7 +2083,8 @@ function showResult() {
   if (showAdded) paintMarks(g, result.rect, vs, vw, vh);
 
   const how = result.method === "reflect" ? "mirrored"
-    : `${MODELS[result.method].what} on ${result.on === "webgpu" ? "your GPU" : "the CPU"}`;
+    : `${MODELS[result.method].what} on ${result.on === "webgpu" ? "your GPU" : "the CPU"}`
+      + (result.fellBack ? " (it failed on your GPU)" : "");
   /* The pass count is a model's, so a mirror does not claim one and a canvas
      the picture already covered says what actually happened to it. */
   const did = result.crop ? " · cropped"
@@ -1750,9 +2236,15 @@ const FORMATS = {
   tiff: { type: "image/tiff", ext: "tif", quality: false },
 };
 
-function saveName(fmt, size) {
+/* One picture is named for what it became, size and all. In a batch every
+   canvas can be a different size, so the size in the name stops being
+   something to tell them apart by and starts getting in the way of matching
+   each one back to its source: there the name is the source's own and no
+   more. */
+function saveName(fmt, size, { batch = false } = {}) {
   const f = FORMATS[fmt];
-  return `${src ? src.name : "picture"}-uncropped-${size.w}x${size.h}.${f.ext}`;
+  const stem = src ? src.name : "picture";
+  return batch ? `${stem}-uncropped.${f.ext}` : `${stem}-uncropped-${size.w}x${size.h}.${f.ext}`;
 }
 
 async function encode(canvas, fmt, quality) {
@@ -1801,12 +2293,7 @@ el.save.addEventListener("click", async () => {
   try {
     const blob = await encode(result.canvas, format, Number(el.quality.value));
     const name = saveName(format, result.size);
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = name;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    download(blob, name);
     el.saveNote.textContent = `${name} — ${(blob.size / 1e6).toFixed(2)} MB`;
   } catch (e) {
     el.saveNote.textContent = String(e.message || e);
@@ -1862,6 +2349,22 @@ function alignFrom(spec) {
 }
 
 function placeAs(o) {
+  /* A border on each side is a canvas and a placement both, so it is applied
+     on its own: the picture's size first, since a share of the picture is a
+     share of it as it sits, and then the four Add fields as they would be
+     typed. A side not given is none. */
+  if (o.sides) {
+    if (typeof o.scale === "number") place.scale = clampScale(o.scale);
+    const specs = { left: "0", right: "0", top: "0", bottom: "0" };
+    for (const side of Object.keys(specs)) {
+      if (o.sides[side] !== undefined && o.sides[side] !== null) specs[side] = String(o.sides[side]);
+    }
+    extend(specs);
+    shaping = { kind: "sides" };
+    sideSpecs = specs;
+    update();
+    return;
+  }
   if (typeof o.grow === "number") setSize(src.w * o.grow, src.h * o.grow);
   if (o.size) {
     const button = presetNamed(o.size);
@@ -1906,10 +2409,12 @@ function placeAs(o) {
 window.CLI = {
   page: "uncrop",
   jobs: {
+    /* `loads` counts pictures opened, so a terminal handing in the second of
+       a batch can wait for that one rather than see the first still there. */
     image() {
       return src
-        ? { ready: true, width: src.w, height: src.h, name: src.name }
-        : { ready: false };
+        ? { ready: true, width: src.w, height: src.h, name: src.name, loads }
+        : { ready: false, loads };
     },
 
     plan(o) {
@@ -1949,7 +2454,8 @@ window.CLI = {
       const q = typeof o.quality === "number" ? o.quality : Number(el.quality.value);
       const blob = await encode(c, fmt, q);
       return {
-        name: saveName(fmt, result.size).replace(/-uncropped-/, "-what-was-added-"),
+        name: saveName(fmt, result.size, { batch: !!o.batch })
+          .replace(/-uncropped([-.])/, "-what-was-added$1"),
         bytes: Array.from(new Uint8Array(await blob.arrayBuffer())),
         width: result.size.w, height: result.size.h,
       };
@@ -1974,13 +2480,16 @@ window.CLI = {
       const q = typeof o.quality === "number" ? o.quality : Number(el.quality.value);
       const blob = await encode(result.canvas, fmt, q);
       return {
-        name: saveName(fmt, result.size),
+        /* `batch` asks for the name a batch gives it, which is the source's
+           own name and no size — see `saveName`. */
+        name: saveName(fmt, result.size, { batch: !!o.batch }),
         bytes: Array.from(new Uint8Array(await blob.arrayBuffer())),
         width: result.size.w,
         height: result.size.h,
         passes: result.passes,
         method: result.method,
         ran: result.on,
+        fellBack: result.fellBack || "",
         seconds: Math.round(result.seconds * 100) / 100,
       };
     },
@@ -2001,13 +2510,17 @@ window.UNCROP = {
       rect: src ? rectOf() : null,
       result: result && {
       w: result.size.w, h: result.size.h, passes: result.passes,
-      crop: !!result.crop, on: result.on, method: result.method,
+      crop: !!result.crop, on: result.on, method: result.method, fellBack: result.fellBack,
     },
+      shaping, sideSpecs,
     };
   },
-  sessions, MODELS, WORK,
+  sessions, gpuFailed, MODELS, WORK,
   plan, framesFor, viewFor, maskFor, polarityFrom, encode, tiffBytes,
   currentPlan, setSize, update, fitScale, placeAs, markedCanvas, presetNamed,
+  sidePx, extend, recipeNow, applyRecipe, describeRecipe, runBatch,
+  cached, keep,
+  get batch() { return { queue: queue.map((f) => f.name), made: made.map((m) => m.name), batching }; },
   centre: () => { centre(); update(); },
   align, alignNow, alignFrom,
   place: (p) => { Object.assign(place, p); update(); },
