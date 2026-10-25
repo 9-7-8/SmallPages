@@ -92,6 +92,11 @@ function magic(file) {
   if (head.subarray(0, 4).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47]))) return "png";
   if (head.subarray(0, 4).toString("latin1") === "RIFF"
       && head.subarray(8, 12).toString("latin1") === "WEBP") return "webp";
+  /* The one here that no browser can write, so uncrop.html writes it itself:
+     little-endian byte order, then 42, which is the whole of a TIFF header
+     that is not an offset. */
+  if (head.subarray(0, 2).toString("latin1") === "II"
+      && head.readUInt16LE(2) === 42) return "tiff";
   return "something else";
 }
 
@@ -129,7 +134,7 @@ const json = async (...args) => {
 {
   const got = await run();
   ok("with nothing asked for it lists what has a command line",
-    got.code === 0 && ["color-picker", "image-compressor", "playlist-to-audio"]
+    got.code === 0 && ["color-picker", "image-compressor", "playlist-to-audio", "uncrop"]
       .every((tool) => got.out.includes(tool)), got.out.slice(0, 400));
   const help = await run("color-picker", "--help");
   ok("a tool's --help names its commands",
@@ -593,6 +598,95 @@ const BARE = [
     PLAYLIST_FLAGS.filter((f) => !bareHelp.out.includes(`--${f}`)).join(" "));
 }
 
+/* ----------------------------------------------------------------- uncrop -- */
+
+/* The fourth tool, and the first whose bare command runs nothing at all. On
+   image-compressor.html opening a picture has already encoded it, so a bare
+   command is a tally; on uncrop.html opening one only shows you the figures
+   and Uncrop is a separate press, so a bare command here is those figures and
+   `--out` is the press. Which makes the arithmetic checkable without
+   fetching 80 MB of weights: the canvas, the share of it that is new, the
+   gaps on each side and the number of model passes all come back from a run
+   that downloads nothing.
+
+   `--fill reflect` is the one fill that needs no model at all, so it is the
+   one the written files are checked with. */
+{
+  const d = await json("uncrop", PHOTO, "--canvas", "1200x900");
+  ok("a canvas given outright is the canvas, and the picture is centred on it",
+    d.plan.width === 1200 && d.plan.height === 900
+      && d.plan.gaps.left === 200 && d.plan.gaps.right === 200
+      && d.plan.gaps.top === 150 && d.plan.gaps.bottom === 150,
+    JSON.stringify([d.plan.width, d.plan.height, d.plan.gaps]));
+  ok("the share that is new is the canvas less the picture, to the pixel",
+    d.plan.newPixels === 1200 * 900 - 800 * 600
+      && Math.abs(d.plan.newShare - 0.5556) < 0.001,
+    `${d.plan.newPixels} new, ${d.plan.newShare}`);
+  ok("a border this modest is one pass",
+    d.plan.passes === 1, String(d.plan.passes));
+  ok("and a bare command writes nothing and runs nothing",
+    d.wrote === null && d.seconds === undefined, JSON.stringify([d.wrote, d.seconds]));
+
+  const twice = await json("uncrop", PHOTO, "--grow", "2");
+  ok("--grow is a multiple of the picture, and a bigger jump is more passes",
+    twice.plan.width === 1600 && twice.plan.height === 1200 && twice.plan.passes === 2,
+    JSON.stringify([twice.plan.width, twice.plan.height, twice.plan.passes]));
+
+  /* A shape keeps the width and works the height out, which on this picture
+     makes the canvas shorter than the picture — so some of it is cut, and the
+     page says how much rather than cropping quietly. */
+  const wide = await json("uncrop", PHOTO, "--ratio", "16:9");
+  ok("--ratio keeps the width and reshapes the height",
+    wide.plan.width === 1000 && wide.plan.height === 563,
+    `${wide.plan.width}×${wide.plan.height}`);
+  ok("and a canvas that cuts the picture says what share of it goes",
+    Math.abs(wide.plan.cropped - (1 - 563 / 600)) < 0.002
+      && /6% of the picture/.test(wide.plan.note),
+    `${wide.plan.cropped}: ${wide.plan.note}`);
+
+  /* Half the picture's own pixels is 400 × 300, which leaves 400 either side
+     of it on a 1200-wide canvas rather than the 200 the full-size one left. */
+  const scaled = await json("uncrop", PHOTO, "--canvas", "1200x900", "--scale", "0.5");
+  ok("--scale is a multiple of the picture's own pixels",
+    scaled.plan.gaps.left === 400 && scaled.plan.gaps.top === 300
+      && scaled.plan.newPixels === 1200 * 900 - 400 * 300,
+    JSON.stringify(scaled.plan.gaps));
+  const put = await json("uncrop", PHOTO, "--canvas", "1200x900", "--at", "0,0");
+  ok("--at puts the corner where it says, rather than centring it",
+    put.plan.gaps.left === 0 && put.plan.gaps.top === 0
+      && put.plan.gaps.right === 400 && put.plan.gaps.bottom === 300,
+    JSON.stringify(put.plan.gaps));
+
+  /* The files. Two formats, one of which no browser can write. */
+  const asPng = path.join(WORK, "cli-uncrop.png");
+  const asTif = path.join(WORK, "cli-uncrop.tif");
+  const made = await json("uncrop", PHOTO, "--canvas", "1200x900",
+    "--fill", "reflect", "--out", asPng);
+  ok("--out writes the file and says where it went",
+    fs.existsSync(asPng) && made.wrote.endsWith("cli-uncrop.png")
+      && made.width === 1200 && made.height === 900,
+    JSON.stringify([made.wrote, made.width, made.height]));
+  ok("and what it wrote is really a PNG", magic(asPng) === "png", magic(asPng));
+
+  const back = await json("image-compressor", asPng);
+  ok("and the page next door, handed it back, opens it at 1200×900",
+    back.original.width === 1200 && back.original.height === 900,
+    `${back.original.width}×${back.original.height}`);
+
+  await json("uncrop", PHOTO, "--canvas", "1200x900", "--fill", "reflect", "--out", asTif);
+  ok("a TIFF comes out a TIFF, which is the one format no browser can write",
+    magic(asTif) === "tiff", magic(asTif));
+  ok("and it is bigger than the PNG of the same picture, being Deflate on raw samples",
+    fs.statSync(asTif).size > fs.statSync(asPng).size * 0.5,
+    `${fs.statSync(asTif).size} against ${fs.statSync(asPng).size}`);
+
+  const intoDir = await json("uncrop", PHOTO, "--canvas", "400x400",
+    "--fill", "reflect", "--out", WORK + path.sep);
+  ok("--out <dir> uses the page's own Save name",
+    intoDir.name === "cli-photo-uncropped-400x400.png"
+      && fs.existsSync(path.join(WORK, intoDir.name)), intoDir.name);
+}
+
 /* ------------------------------------------------------- what goes wrong -- */
 
 {
@@ -608,6 +702,19 @@ const BARE = [
   const missing = await run("color-picker", "palette", "no-such-file.png");
   ok("and a file that is not there is caught before a browser is launched",
     missing.code === 1 && /no such file/.test(missing.err), missing.err.trim());
+
+  const toobig = await run("uncrop", PHOTO, "--canvas", "9000x9000");
+  ok("a canvas past what the page will hold is refused with the page's reason",
+    toobig.code === 1 && /ceiling of 64/.test(toobig.err), toobig.err.trim());
+  const twoWays = await run("uncrop", PHOTO, "--canvas", "800x600", "--width", "800");
+  ok("two ways of saying the same thing is refused rather than resolved",
+    twoWays.code === 1 && /use one or the other/.test(twoWays.err), twoWays.err.trim());
+  const lying = await run("uncrop", PHOTO, "--out", "x.png", "--format", "tiff");
+  ok("a name that would lie about the format in it is refused",
+    lying.code === 1 && /disagree about the format/.test(lying.err), lying.err.trim());
+  const bothSizes = await run("uncrop", PHOTO, "--fit", "--scale", "2");
+  ok("and two ways of sizing the picture is refused too",
+    bothSizes.code === 1 && /use one/.test(bothSizes.err), bothSizes.err.trim());
 }
 
 /* ----------------------------------------- the same answer as the tab -- */
@@ -863,6 +970,93 @@ const BARE = [
 
   ok("no page errors from playlist-to-audio.html", errs.length === 0,
     errs.join(" | "));
+  await browser.close();
+}
+
+/* ------------------------------ the same answer as the tab, uncropping -- */
+
+/* uncrop.html driven by hand: the real file input, the real width and height
+   fields, the real Centre button, the real fill buttons and the real Save.
+
+   Then the same comparison that makes the image-compressor block the
+   strongest in this file — two files rather than two readings of a number.
+   The fill here is the mirror rather than a model, which is what makes the
+   comparison possible at all: it is the one fill that fetches nothing, and it
+   is drawn from the picture by arithmetic, so the same canvas and the same
+   placement give the same bytes every time. A command line that had grown its
+   own idea of where to put the picture, or of how far to mirror, would pass
+   everything above and fail this. */
+{
+  const browser = await chromium.launch({ executablePath: CHROMIUM_BIN });
+  const ctx = await browser.newContext({
+    viewport: { width: 1280, height: 1400 }, acceptDownloads: true });
+  const page = await ctx.newPage();
+  const errs = [];
+  page.on("pageerror", (e) => errs.push("pageerror: " + e.message));
+  page.on("console", (m) => {
+    if (m.type() === "error" && !/favicon|404/.test(m.text())) errs.push(m.text());
+  });
+
+  await page.goto(`file://${path.join(REPO, "uncrop.html")}`);
+  await page.setInputFiles("#file", PHOTO);
+  await page.waitForFunction(() => window.CLI.jobs.image().ready, null, { timeout: 30000 });
+
+  /* Typed into the two fields, then centred with the button — which is what
+     the command line's own default placement means, and the thing the two
+     have to agree about. */
+  await page.fill("#w", "1200");
+  await page.fill("#h", "900");
+  await page.click("#centre");
+  await page.click('button[data-method="reflect"]');
+
+  const figures = await page.textContent("#figures");
+  const printed = await json("uncrop", PHOTO, "--canvas", "1200x900", "--fill", "reflect");
+  ok("the figures on screen are the figures the terminal printed",
+    figures.includes("1200 × 900") && figures.includes("1.08 MP")
+      && figures.includes(`${Math.round(printed.plan.newShare * 100)}%`)
+      && figures.includes("200 left") && figures.includes("1 pass"),
+    `${figures.trim()} against ${JSON.stringify(printed.plan)}`);
+
+  await page.click("#run");
+  await page.waitForFunction(() => window.UNCROP.state.result, null, { timeout: 60000 });
+  const [download] = await Promise.all([
+    page.waitForEvent("download"),
+    page.click("#save"),
+  ]);
+  const byHand = path.join(WORK, "cli-uncrop-by-hand.png");
+  await download.saveAs(byHand);
+
+  const byFlag = path.join(WORK, "cli-uncrop-by-flag.png");
+  const said = await json("uncrop", PHOTO, "--canvas", "1200x900",
+    "--fill", "reflect", "--out", byFlag);
+  ok("Save and --out give the file the same name",
+    download.suggestedFilename() === said.name
+      && said.name === "cli-photo-uncropped-1200x900.png",
+    `${download.suggestedFilename()} against ${said.name}`);
+  ok("and the same file, byte for byte",
+    fs.readFileSync(byHand).equals(fs.readFileSync(byFlag)),
+    `${fs.statSync(byHand).size} bytes by hand against ${fs.statSync(byFlag).size} by flag`);
+
+  /* The page's own refusal, reached the way a person reaches it — by typing a
+     number into the width field — and then read through the hook the way the
+     terminal reads it, so the sentence in a tab is the sentence in a shell.
+     The field used to clamp this quietly, which handed you a canvas you had
+     not asked for and made the refusal unreachable. */
+  await page.fill("#w", "20000");
+  const onScreen = await page.textContent("#flag");
+  const stillOff = await page.locator("#run").isDisabled();
+  ok("a canvas no browser will draw is refused rather than quietly brought down",
+    /16384 pixels on a side/.test(onScreen) && stillOff
+      && (await page.evaluate(() => window.UNCROP.state.target.w)) === 20000,
+    `${onScreen.trim()} (button disabled: ${stillOff})`);
+  const refused = await page.evaluate(async () => {
+    try { await window.CLI.jobs.run({ width: 20000, height: 1000 }); return "answered"; }
+    catch (e) { return e.message; }
+  });
+  ok("and the terminal is told the same thing in the same words",
+    /16384 pixels on a side/.test(refused), refused);
+
+  ok("no page errors from uncrop.html", errs.length === 0, errs.join(" | "));
   await browser.close();
 }
 

@@ -1,0 +1,1793 @@
+<!DOCTYPE html>
+<!-- Uncrop, from SmallPages <https://github.com/9-7-8/SmallPages>
+     Copyright (C) 2026 Ixora. SPDX-License-Identifier: GPL-3.0-or-later
+     Free software with no warranty, under the GNU General Public License,
+     version 3 or later: see LICENSE in the repository, or
+     <https://www.gnu.org/licenses/>. -->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Uncrop</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  /* Layout and sizing only. Colour, type and component styling live in theme.css. */
+
+  body { margin: 0; padding: 3rem 1.5rem 5rem; }
+
+  main { max-width: 860px; margin: 0 auto; }
+
+  p.lede { margin: 0 0 2.2rem; max-width: 56ch; }
+
+  .card { margin-bottom: 1.5rem; }
+  .card h2 { margin-top: 0; }
+  .card.hid { display: none; }
+
+  .dropzone { padding: 2.5rem 1.5rem; text-align: center; cursor: pointer; }
+  .dropzone input { display: none; }
+  .dropzone .hint { font-size: 0.85rem; margin-top: 0.4rem; }
+
+  .row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.9rem;
+    align-items: flex-end;
+    margin-bottom: 1rem;
+  }
+  .row:last-child { margin-bottom: 0; }
+  .row > label { display: block; font-size: 0.78rem; }
+  .row > label input[type="number"] { width: 7.5rem; display: block; margin-top: 0.3rem; }
+  .row > label input[type="range"] { width: 13rem; display: block; margin-top: 0.4rem; }
+
+  /* The size fields and the ratio buttons line up along the bottom, so the
+     seg's own height sets the row and the fields sit on the same baseline. */
+  .sizes .seg, .sizes button { align-self: flex-end; }
+
+  .by { align-self: flex-end; padding-bottom: 0.45rem; font-size: 0.85rem; color: var(--text-faint); }
+
+  .shelf { gap: 0.5rem; }
+  .shelf button { font-size: 0.74rem; padding: 0.4rem 0.6rem; }
+
+  /* The canvas under the picture. The checkerboard belongs to the canvas
+     itself rather than to the panel, the way an image editor only checkers
+     the artboard, so the margin around it reads as the page and not as part
+     of the picture. */
+  .stage {
+    padding: 1.1rem;
+    text-align: center;
+    overflow: auto;
+    background-image: none;
+  }
+  .stage canvas {
+    max-width: 100%;
+    height: auto;
+    vertical-align: middle;
+    touch-action: none;
+  }
+  #view { cursor: grab; }
+  #view.dragging { cursor: grabbing; }
+  #view:focus-visible { outline: 2px solid var(--neon); outline-offset: 2px; }
+
+  .figures { font-size: 0.85rem; }
+  .figures b { color: var(--neon); font-weight: 400; }
+
+  /* Three steps of the same panel: a note, a caution, a refusal. Only the
+     edge and the ink change, so the three read as one scale rather than as
+     three unrelated boxes. */
+  .flag {
+    display: none;
+    margin: 1rem 0 0;
+    padding: 0.8rem 1rem;
+    border-left: 2px solid var(--line);
+    font-size: 0.85rem;
+    color: var(--text-dim);
+  }
+  .flag.on { display: block; }
+  .flag.heavy { border-left-color: var(--neon-deep); color: var(--text); }
+  .flag.huge { border-left-color: var(--neon); color: var(--text); }
+  .flag.stop { border-left-color: #ff6b6b; color: #ffb3b3; }
+
+  .methods { margin-bottom: 1rem; }
+  .cost { font-size: 0.78rem; color: var(--text-faint); margin: -0.4rem 0 1rem; }
+
+  .acts { display: flex; gap: 0.8rem; align-items: center; flex-wrap: wrap; }
+  #stop { display: none; }
+  body.busy #stop { display: inline-block; }
+  body.busy #run { display: none; }
+
+  .working {
+    display: none;
+    align-items: center;
+    gap: 1.1rem;
+    margin-top: 1.2rem;
+    padding: 0.9rem 1.1rem;
+    border: 1px dashed var(--line);
+  }
+  body.busy .working { display: flex; }
+
+  .spinner {
+    flex: none;
+    width: 26px;
+    height: 26px;
+    border: 2px solid var(--line);
+    border-top-color: var(--neon);
+    border-radius: 50%;
+    box-shadow: var(--glow-soft);
+    animation: spin 0.9s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .working > div { flex: 1; min-width: 0; }
+  .step { font-size: 0.92rem; }
+  .step-detail { font-size: 0.78rem; color: var(--text-dim); margin-top: 0.15rem; }
+
+  .bar { height: 2px; margin-top: 0.6rem; background: var(--line-soft); overflow: hidden; }
+  .bar i {
+    display: block;
+    height: 100%;
+    width: 0;
+    background: var(--neon);
+    box-shadow: var(--glow-soft);
+    transition: width 0.2s ease;
+  }
+  /* A download knows how far along it is. Inference does not report anything
+     as it goes, so for that the bar sweeps instead of filling. */
+  .bar.waiting i {
+    width: 32%;
+    transition: none;
+    animation: sweep 1.5s ease-in-out infinite;
+  }
+  @keyframes sweep {
+    0%   { transform: translateX(-100%); }
+    100% { transform: translateX(412%); }
+  }
+
+  /* Specific enough to beat `.row > label` above it, which is a class and an
+     element and so outranks a bare `.qwrap`. */
+  .row > label.qwrap { display: none; }
+  .row > label.qwrap.on { display: block; }
+
+  p.note { font-size: 0.85rem; }
+
+  @media (max-width: 620px) {
+    body { padding: 2rem 1rem 4rem; }
+    .row > label input[type="number"] { width: 5.5rem; }
+    .acts button { flex: 1; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <a class="home" href="index.html">&larr; index</a>
+  <h1>Uncrop</h1>
+  <p class="lede">Put a picture on a bigger canvas and have the empty border painted in. Say what size you want, move the picture about inside it, and an inpainting model invents the rest &mdash; the sky above, the carpet below, the wall either side of a portrait that was cropped too tight. It runs on your own machine: the model's weights are fetched once and cached, and the picture never leaves the page. Your own pixels are kept exactly as they were, so what comes back is your photograph with new edges rather than a redrawing of it.</p>
+
+  <div class="card">
+    <div class="dropzone" id="dropzone" tabindex="0">
+      <div>Drop an image here, or click to choose one</div>
+      <div class="hint">You can paste one too</div>
+      <input type="file" id="file" accept="image/*">
+    </div>
+    <p class="status" id="loadNote"></p>
+  </div>
+
+  <div class="card hid" id="setup">
+    <h2>The canvas</h2>
+
+    <div class="row sizes">
+      <label>Width
+        <input type="number" id="w" min="16" max="16384" step="1">
+      </label>
+      <span class="by">&times;</span>
+      <label>Height
+        <input type="number" id="h" min="16" max="16384" step="1">
+      </label>
+      <button class="ghost" id="swap" title="Swap width and height">Swap</button>
+    </div>
+
+    <div class="row shelf" id="ratios" role="group" aria-label="Shape">
+      <button data-ratio="keep">Keep the shape</button>
+      <button data-ratio="1:1">1:1</button>
+      <button data-ratio="4:3">4:3</button>
+      <button data-ratio="3:2">3:2</button>
+      <button data-ratio="16:9">16:9</button>
+      <button data-ratio="2:3">2:3</button>
+      <button data-ratio="3:4">3:4</button>
+      <button data-ratio="9:16">9:16</button>
+    </div>
+
+    <div class="row shelf" id="presets" role="group" aria-label="Sizes">
+      <button data-size="1920x1080">1920 &times; 1080</button>
+      <button data-size="2560x1440">2560 &times; 1440</button>
+      <button data-size="3840x2160">3840 &times; 2160</button>
+      <button data-size="1080x1350">1080 &times; 1350</button>
+      <button data-size="1080x1920">1080 &times; 1920</button>
+      <button data-size="2480x3508">A4 at 300 dpi</button>
+      <button data-size="3508x2480">A4 across</button>
+    </div>
+
+    <div class="stage">
+      <canvas id="view" width="10" height="10" tabindex="0"
+              role="application"
+              aria-label="The canvas, with your picture on it. Drag to move it, or use the arrow keys."></canvas>
+    </div>
+
+    <div class="row">
+      <label>Picture size
+        <input type="range" id="scale" min="2" max="400" step="1" value="100">
+      </label>
+      <button class="ghost" id="centre">Centre</button>
+      <button class="ghost" id="fitBtn">Fit inside</button>
+      <button class="ghost" id="actual">Actual pixels</button>
+    </div>
+
+    <p class="figures" id="figures"></p>
+    <p class="flag" id="flag"></p>
+  </div>
+
+  <div class="card hid" id="fillCard">
+    <h2>The fill</h2>
+    <div class="seg methods" id="methods" role="group" aria-label="How the border is filled">
+      <button data-method="fast" aria-pressed="true">Fast model</button>
+      <button data-method="best" aria-pressed="false">Best model</button>
+      <button data-method="reflect" aria-pressed="false">No model</button>
+    </div>
+    <p class="cost" id="cost"></p>
+    <p class="status" id="methodNote"></p>
+
+    <div class="acts">
+      <button id="run">Uncrop</button>
+      <button class="ghost" id="stop">Stop</button>
+      <span class="status" id="runNote"></span>
+    </div>
+
+    <div class="working" id="working" role="status" aria-live="polite">
+      <div class="spinner" aria-hidden="true"></div>
+      <div>
+        <div class="step" id="step">Working</div>
+        <div class="step-detail" id="stepDetail"></div>
+        <div class="bar" id="bar"><i></i></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card hid" id="outCard">
+    <h2>The result</h2>
+    <div class="stage">
+      <canvas id="out" width="10" height="10"></canvas>
+    </div>
+    <div class="row">
+      <button class="ghost" id="showAdded" aria-pressed="false">Show what was added</button>
+      <span class="figures" id="outFigures"></span>
+    </div>
+    <div class="row">
+      <div class="seg" id="formats" role="group" aria-label="File format">
+        <button data-format="png" aria-pressed="true">PNG</button>
+        <button data-format="webp" aria-pressed="false">WebP</button>
+        <button data-format="jpeg" aria-pressed="false">JPEG</button>
+        <button data-format="tiff" aria-pressed="false">TIFF</button>
+      </div>
+      <label class="qwrap" id="qwrap">Quality <span id="qval">92</span>
+        <input type="range" id="quality" min="40" max="100" step="1" value="92">
+      </label>
+      <button id="save">Save</button>
+    </div>
+    <p class="status" id="saveNote"></p>
+  </div>
+
+  <h2 class="section">What it is doing</h2>
+
+  <p class="note"><strong>Your pixels are kept.</strong> The model only ever paints where there was nothing. When it has finished, your picture is drawn back over the result at its full resolution, so every pixel you brought is the pixel you brought &mdash; an inpainting network reconstructs what it was shown as well as what it was not, and its version of your photograph is slightly softer than your photograph. Only the border is its work. The one exception is the outermost two pixels of your picture, which are blended with what meets them so that the join is not a line; everything inside that comes back byte for byte, and the test suite checks it.</p>
+
+  <p class="note"><strong>It works at 512 px and the border is enlarged.</strong> Both models see a 512-pixel-square view, which is what they were trained at, so the whole canvas is shrunk to fit that, filled, and the new border is then scaled up to meet your picture. That is the trade this page makes to run in a tab: the invented part is soft and gets softer the bigger the canvas, while your own picture stays sharp. It continues sky, water, grass, carpet, plaster and bokeh well; it will not invent a face, a hand, or a straight line that has to meet something far away, and a long thin extension &mdash; a 16:9 canvas round a portrait &mdash; is the hardest case there is.</p>
+
+  <p class="note"><strong>A big jump is made in steps.</strong> Asked to double a picture, neither model has anything to go on out at the far corner, so the border is grown in passes, each one adding at most a third of what it can already see to any side and then becoming the known picture for the next. Half again is one pass, twice is two, four times is three and ten times is five; eight is the limit, and past that the last pass is handed whatever is left, which smears. The count is on screen before you start, because each pass is a model run — roughly a second each on a GPU and ten or twenty without one.</p>
+
+  <p class="note"><strong>Fast model</strong> is <a href="https://github.com/Picsart-AI-Research/MI-GAN">MI-GAN</a> (ICCV 2023, Picsart AI Research), the pipeline ONNX export at about 80&nbsp;MB, fetched from <a href="https://huggingface.co/andraniksargsyan/migan">Hugging Face</a> the first time you ask for it and then kept in your browser's storage. It was built to inpaint on a phone, which is exactly the shape of this problem, and it is the one to start with. Both the code and the weights are MIT licensed.</p>
+
+  <p class="note"><strong>Best model</strong> is <a href="https://github.com/advimman/lama">LaMa</a> &mdash; big-lama, through <a href="https://huggingface.co/Carve/LaMa-ONNX">Carve's ONNX export</a>, about 206&nbsp;MB. Its fast-Fourier convolutions see the whole frame at once rather than a neighbourhood, which is why it is the one that holds a horizon straight and keeps a texture's scale across a wide band. It is two and a half times the download and several times the work per pass. LaMa's code is Apache 2.0; the weights were trained on Places365-Challenge, whose own terms are research and education, so if this is for something commercial the fast model is the one with the clean licence.</p>
+
+  <p class="note"><strong>No model</strong> needs no download and happens instantly. It mirrors your picture out across each edge and melts the reflection into a blur as it gets further away, which is an old trick and an honest one: on grass, gravel, fabric, fog or a blurred background it is genuinely hard to catch, and on anything with structure in it &mdash; a horizon, a doorway, a face near the edge &mdash; it is obviously a mirror. It is also what you get when there is no WebGPU and no connection, and it is a reasonable way to see whether your framing is right before spending the download.</p>
+
+  <p class="note"><strong>Where it runs.</strong> The models are ONNX, run by <a href="https://github.com/microsoft/onnxruntime">ONNX Runtime Web</a> from jsDelivr, on WebGPU where the browser has it and on the CPU through WebAssembly where it does not &mdash; the CPU path works and is maybe ten times slower, on one thread, because more than one needs cross-origin isolation headers that a static host does not send. Neither the runtime nor the weights are in this repository, so the first run of each model needs a connection; after that the weights sit in your browser's own storage and it does not. The page has to be served rather than opened off the filesystem, because WebAssembly will not load from a <code>file://</code> folder.</p>
+
+  <p class="note"><strong>How big is too big.</strong> Anything up to 16384 pixels on a side is allowed, because that is the largest canvas browsers will give; above about 12 megapixels the page says so, because every copy of the canvas is four bytes a pixel and it holds a few at once, and a phone will give up long before a desktop does. 64 megapixels is the ceiling here. The warning is about your machine rather than about the model: the fill is painted at 512 px whatever the canvas, so a bigger canvas costs memory and time without buying any more invented detail.</p>
+
+  <p class="note"><strong>Saving.</strong> <strong>PNG</strong> is lossless and reads everywhere; it is the right default. <strong>TIFF</strong> is written here by hand, in strips with Deflate compression, because no browser can encode one and it is what the rest of the photographic world wants for a big lossless image &mdash; Photoshop, Affinity, GIMP, Preview and ImageMagick all open it, and it carries the resolution so a print at 300 dpi comes out the size it should. <strong>WebP</strong> is a good deal smaller for the same picture but cannot exceed 16383 pixels on a side; the slider at 100 asks for lossless and Chromium gives exactly that, which the suite pins, while anything below it is lossy; <strong>JPEG</strong> is the one to pick when the file has to be small and nothing after this will edit it. The quality slider only appears for the two that have one.</p>
+</main>
+
+<script>
+"use strict";
+
+/* ------------------------------------------------------------------ what --
+
+   Outpainting: a picture goes on a bigger canvas and an inpainting network
+   paints what was never there. Three things decide whether the answer is any
+   good, and none of them is the choice of model.
+
+   1. The model works at 512 px square, which is what both of these were
+      trained at. So the whole canvas is shrunk into that view, filled, and
+      the new border scaled back up. The picture itself is never shrunk: it is
+      drawn back over the result at full resolution at the end, which is why
+      your pixels survive and the border is the soft part.
+
+   2. A big jump is made in passes. Neither model has anything to go on out at
+      a far corner, so the known frame grows by about a third a pass and each
+      pass's output is the next pass's known picture.
+
+   3. The hole is seeded with a mirror of the picture rather than left grey.
+      A network fills from the edges inwards and a plausible colour under the
+      mask costs nothing and gives it somewhere to start.
+
+   The mask polarity is worked out by running the model rather than by trusting
+   a model card, because the two exports here disagree about which way round it
+   goes and a card that is wrong fails by returning a beautifully inpainted
+   copy of the hole. `polarityFrom` below is that check.                     */
+
+/* -------------------------------------------------------------- elements -- */
+
+const $ = (id) => document.getElementById(id);
+const el = {
+  drop: $("dropzone"), file: $("file"), loadNote: $("loadNote"),
+  setup: $("setup"), w: $("w"), h: $("h"), swap: $("swap"),
+  ratios: $("ratios"), presets: $("presets"),
+  view: $("view"), scale: $("scale"),
+  centre: $("centre"), fit: $("fitBtn"), actual: $("actual"),
+  figures: $("figures"), flag: $("flag"),
+  fillCard: $("fillCard"), methods: $("methods"), cost: $("cost"),
+  methodNote: $("methodNote"), run: $("run"), stop: $("stop"), runNote: $("runNote"),
+  working: $("working"), step: $("step"), stepDetail: $("stepDetail"), bar: $("bar"),
+  outCard: $("outCard"), out: $("out"), showAdded: $("showAdded"),
+  outFigures: $("outFigures"), formats: $("formats"), qwrap: $("qwrap"),
+  quality: $("quality"), qval: $("qval"), save: $("save"), saveNote: $("saveNote"),
+};
+
+/* ----------------------------------------------------------------- state -- */
+
+const MAX_SIDE = 16384;          // the largest canvas a browser will hand out
+const MAX_MP = 64;               // and what this page is willing to hold a few copies of
+const WORK = 512;                // the view both models were trained at
+const GROW = 0.34;               // how much of its own size a frame gains on a side per pass
+const PASS_CAP = 8;              // after this many, the last pass takes whatever is left
+const FEATHER = 2;               // px of the picture's own edge blended into the fill
+
+let src = null;                  // { img, w, h, name } — the picture as it came in
+let target = { w: 0, h: 0 };     // the canvas being filled
+let place = { x: 0, y: 0, scale: 1 };   // where the picture sits on it, in canvas px
+let method = "fast";
+let result = null;               // { canvas, rect, method, passes, on }
+let format = "png";
+let busy = false, stopped = false;
+let showAdded = false;
+
+/* ------------------------------------------------------------- geometry -- */
+
+/* All of this is arithmetic on rectangles and none of it touches a canvas, so
+   the figures on screen, the warning, the pass count and the command line all
+   read the same answer out of the same function. */
+
+const intersect = (a, b) => {
+  const x = Math.max(a.x, b.x), y = Math.max(a.y, b.y);
+  const r = Math.min(a.x + a.w, b.x + b.w), d = Math.min(a.y + a.h, b.y + b.h);
+  return (r > x && d > y) ? { x, y, w: r - x, h: d - y } : null;
+};
+
+const same = (a, b) => a && b && a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
+
+/* Where the picture sits, in whole canvas pixels. */
+function rectOf(p = place, s = src) {
+  return {
+    x: Math.round(p.x), y: Math.round(p.y),
+    w: Math.max(1, Math.round(s.w * p.scale)),
+    h: Math.max(1, Math.round(s.h * p.scale)),
+  };
+}
+
+/* The frames the fill grows through: each one the known picture for the next.
+   The first is the picture's own rectangle grown by a third, the last is the
+   whole canvas. [] means there is nothing to fill; null means the picture is
+   not on the canvas at all.
+
+   The cap is a cap on passes, not on what gets filled — when it is reached the
+   last pass is handed the whole of the rest, which will look like a stretch
+   out at the corners and is the honest outcome of asking for a tenfold
+   expansion. A final sliver is folded into the pass before it, because a pass
+   that grows the frame by four pixels costs the same as one that grows it by
+   four hundred. */
+function framesFor(rect, size) {
+  const full = { x: 0, y: 0, w: size.w, h: size.h };
+  let cur = intersect(rect, full);
+  if (!cur) return null;
+  if (same(cur, full)) return [];
+
+  const frames = [];
+  while (frames.length < PASS_CAP) {
+    const last = frames.length === PASS_CAP - 1;
+    const stepL = Math.min(cur.x, Math.ceil(GROW * cur.w));
+    const stepT = Math.min(cur.y, Math.ceil(GROW * cur.h));
+    const stepR = Math.min(full.w - (cur.x + cur.w), Math.ceil(GROW * cur.w));
+    const stepB = Math.min(full.h - (cur.y + cur.h), Math.ceil(GROW * cur.h));
+    let next = {
+      x: cur.x - stepL, y: cur.y - stepT,
+      w: cur.w + stepL + stepR, h: cur.h + stepT + stepB,
+    };
+    const overX = full.w - next.w, overY = full.h - next.h;
+    if (last || (overX <= 0.08 * full.w && overY <= 0.08 * full.h)) next = full;
+    frames.push(next);
+    cur = next;
+    if (same(cur, full)) break;
+  }
+  if (!same(frames[frames.length - 1], full)) frames.push(full);
+  return frames;
+}
+
+/* Everything the page says about a canvas before anything is run, as plain
+   data. `blocked` is the only one that stops the button. */
+function plan(o) {
+  const size = { w: Math.round(o.width), h: Math.round(o.height) };
+  const rect = o.rect;
+  const full = { x: 0, y: 0, w: size.w, h: size.h };
+  const vis = intersect(rect, full);
+  const area = size.w * size.h;
+  const mp = area / 1e6;
+  const kept = vis ? vis.w * vis.h : 0;
+  const frames = framesFor(rect, size);
+
+  const out = {
+    width: size.w, height: size.h,
+    megapixels: Math.round(mp * 100) / 100,
+    newPixels: area - kept,
+    newShare: area ? (area - kept) / area : 0,
+    cropped: 1 - kept / (rect.w * rect.h),
+    gaps: {
+      left: Math.max(0, rect.x), top: Math.max(0, rect.y),
+      right: Math.max(0, size.w - (rect.x + rect.w)),
+      bottom: Math.max(0, size.h - (rect.y + rect.h)),
+    },
+    passes: frames ? frames.length : 0,
+    level: "ok",
+    blocked: "",
+    note: "",
+  };
+
+  if (!Number.isFinite(size.w) || !Number.isFinite(size.h) || size.w < 16 || size.h < 16) {
+    out.level = "stop";
+    out.blocked = "A canvas has to be at least 16 pixels each way.";
+  } else if (size.w > MAX_SIDE || size.h > MAX_SIDE) {
+    out.level = "stop";
+    out.blocked = `${size.w} × ${size.h} is over ${MAX_SIDE} pixels on a side, which is the`
+      + " largest canvas browsers will give out. Nothing here can draw it.";
+  } else if (mp > MAX_MP) {
+    out.level = "stop";
+    out.blocked = `${out.megapixels} megapixels is past this page's ceiling of ${MAX_MP}.`
+      + " It holds three canvases that size at four bytes a pixel, and the tab would be"
+      + " killed rather than slow.";
+  } else if (!frames) {
+    out.level = "stop";
+    out.blocked = "The picture is not on the canvas at all. Move it back inside, or press Centre.";
+  } else if (!frames.length) {
+    out.level = "none";
+    out.note = "The picture covers the whole canvas, so there is nothing to invent:"
+      + " this is a crop, and Uncrop will just cut it out for you.";
+  } else if (mp > 32 || Math.max(size.w, size.h) > 8192) {
+    out.level = "huge";
+    out.note = `${out.megapixels} megapixels is a lot of canvas. Every copy of it is`
+      + ` ${Math.round(area * 4 / 1e6)} MB and the page holds a few at once, so expect a long`
+      + " wait, expect a phone or tablet to give up, and know that the fill is painted at"
+      + " 512 px whatever the size — a canvas this big buys no extra invented detail.";
+  } else if (mp > 12) {
+    out.level = "heavy";
+    out.note = `${out.megapixels} megapixels means about ${Math.round(area * 4 / 1e6)} MB a copy`
+      + " and the page keeps a few, so it will be slow and it may be too much for a phone."
+      + " The fill is painted at 512 px either way.";
+  }
+
+  if (out.level !== "stop" && out.cropped > 0.01) {
+    out.note += (out.note ? " " : "")
+      + `${Math.round(out.cropped * 100)}% of the picture hangs off the canvas and will be cut.`;
+  }
+  if (out.level !== "stop" && out.passes >= PASS_CAP) {
+    out.note += (out.note ? " " : "")
+      + `This is a big enough jump that the ${PASS_CAP}-pass limit is reached and the last pass`
+      + " has to cover the rest in one go, which tends to smear. A smaller canvas, or a bigger"
+      + " picture on it, will look better.";
+  }
+  return out;
+}
+
+/* ------------------------------------------------------------- the stage -- */
+
+/* The canvas on screen is a scaled view of the canvas being built, and the
+   checkerboard is drawn into it rather than put behind it, so what is empty
+   reads as empty artboard and the panel's own margin does not. */
+
+const VIEW_W = 760, VIEW_H = 480;
+let viewScale = 1;
+
+const checker = (() => {
+  const c = document.createElement("canvas");
+  c.width = c.height = 16;
+  const g = c.getContext("2d");
+  g.fillStyle = "#121212"; g.fillRect(0, 0, 16, 16);
+  g.fillStyle = "#1c1c1c"; g.fillRect(0, 0, 8, 8); g.fillRect(8, 8, 8, 8);
+  return c;
+})();
+
+const fitScale = () => Math.min(target.w / src.w, target.h / src.h);
+
+/* The bounds are the picture's own pixels rather than a share of the canvas.
+   A tenth of the canvas as a floor was the obvious thing and it was wrong:
+   picking a 4K canvas for a small photograph silently scaled the photograph
+   up, which is exactly what somebody uncropping does not want. */
+function clampScale(s) {
+  const low = Math.max(0.01, 24 / Math.min(src.w, src.h));   // still big enough to grab
+  const high = Math.max(2, Math.min(40, fitScale() * 4));    // past fitting is a crop, which is allowed
+  return Math.min(Math.max(s, low), high);
+}
+
+function drawView() {
+  if (!src) return;
+  viewScale = Math.min(1, VIEW_W / target.w, VIEW_H / target.h);
+  const vw = Math.max(1, Math.round(target.w * viewScale));
+  const vh = Math.max(1, Math.round(target.h * viewScale));
+  if (el.view.width !== vw || el.view.height !== vh) {
+    el.view.width = vw; el.view.height = vh;
+  }
+  const g = el.view.getContext("2d");
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  g.clearRect(0, 0, vw, vh);
+  g.fillStyle = g.createPattern(checker, "repeat");
+  g.fillRect(0, 0, vw, vh);
+
+  const r = rectOf();
+  g.imageSmoothingQuality = "high";
+  g.drawImage(src.img, r.x * viewScale, r.y * viewScale, r.w * viewScale, r.h * viewScale);
+
+  /* The picture's own edge, so it is clear what is yours and what is about to
+     be invented even when the fill will match the colour either side of it. */
+  g.save();
+  g.setLineDash([5, 4]);
+  g.lineWidth = 1;
+  g.strokeStyle = "rgba(255,255,255,0.55)";
+  g.strokeRect(
+    Math.round(r.x * viewScale) + 0.5, Math.round(r.y * viewScale) + 0.5,
+    Math.max(1, Math.round(r.w * viewScale) - 1), Math.max(1, Math.round(r.h * viewScale) - 1));
+  g.restore();
+}
+
+/* ------------------------------------------------------------- the panel -- */
+
+function say(p) {
+  const pct = (x) => Math.round(x * 100);
+  const bits = [`<b>${p.width} × ${p.height}</b>`, `${p.megapixels} MP`];
+  if (p.level === "stop") {
+    bits.push("—");
+  } else if (!p.passes) {
+    bits.push("nothing to invent");
+  } else {
+    bits.push(`<b>${pct(p.newShare)}%</b> of it is new`);
+    const g = p.gaps;
+    const sides = [];
+    if (g.left) sides.push(`${g.left} left`);
+    if (g.right) sides.push(`${g.right} right`);
+    if (g.top) sides.push(`${g.top} top`);
+    if (g.bottom) sides.push(`${g.bottom} bottom`);
+    if (sides.length) bits.push(sides.join(", "));
+    bits.push(`<b>${p.passes}</b> pass${p.passes === 1 ? "" : "es"}`);
+  }
+  el.figures.innerHTML = bits.join(" · ");
+
+  const flag = p.blocked || p.note;
+  el.flag.textContent = flag;
+  el.flag.className = "flag" + (flag ? " on " + (p.blocked ? "stop" : p.level) : "");
+}
+
+function currentPlan() {
+  return plan({ width: target.w, height: target.h, rect: rectOf() });
+}
+
+function update() {
+  if (!src) return;
+  el.w.value = target.w;
+  el.h.value = target.h;
+  const f = fitScale();
+  el.scale.value = String(Math.round(Math.min(400, Math.max(2, place.scale / f * 100))));
+  const p = currentPlan();
+  say(p);
+  el.run.disabled = busy || !!p.blocked;
+  el.run.textContent = p.passes ? "Uncrop" : "Crop it";
+  drawView();
+  methodNote();
+  return p;
+}
+
+/* Only the floor is clamped here. A canvas too big for a browser to draw used
+   to be quietly brought down to 16384, which meant the refusal `plan` carries
+   could never be reached and you were handed a canvas you had not asked for
+   with nothing on screen saying so. The limit is one rule and it lives in
+   `plan`, which says what is wrong and turns the button off. */
+function setSize(w, h) {
+  target = {
+    w: Math.max(16, Math.round(w) || 16),
+    h: Math.max(16, Math.round(h) || 16),
+  };
+  place.scale = clampScale(place.scale);
+  update();
+}
+
+function centre() {
+  const r = rectOf();
+  place.x = Math.round((target.w - r.w) / 2);
+  place.y = Math.round((target.h - r.h) / 2);
+}
+
+/* ---------------------------------------------------------------- inputs -- */
+
+el.drop.addEventListener("click", () => el.file.click());
+el.drop.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" || e.key === " ") { e.preventDefault(); el.file.click(); }
+});
+["dragenter", "dragover"].forEach((n) => el.drop.addEventListener(n, (e) => {
+  e.preventDefault(); el.drop.classList.add("drag");
+}));
+["dragleave", "drop"].forEach((n) => el.drop.addEventListener(n, () => el.drop.classList.remove("drag")));
+el.drop.addEventListener("drop", (e) => {
+  e.preventDefault();
+  const f = e.dataTransfer.files && e.dataTransfer.files[0];
+  if (f) load(f);
+});
+el.file.addEventListener("change", () => {
+  const f = el.file.files && el.file.files[0];
+  if (f) load(f);
+});
+window.addEventListener("paste", (e) => {
+  for (const item of (e.clipboardData && e.clipboardData.items) || []) {
+    if (item.kind === "file" && item.type.startsWith("image/")) {
+      const f = item.getAsFile();
+      if (f) { load(f); return; }
+    }
+  }
+});
+
+let loads = 0;       // pictures opened, so a reopen is something a suite can wait on
+
+async function load(fileOrBlob) {
+  el.loadNote.textContent = "Reading the picture…";
+  el.loadNote.classList.remove("error");
+  try {
+    const url = URL.createObjectURL(fileOrBlob);
+    const img = new Image();
+    img.decoding = "sync";
+    await new Promise((go, no) => {
+      img.onload = go;
+      img.onerror = () => no(new Error("that file is not an image this browser can read"));
+      img.src = url;
+    });
+    src = {
+      img, w: img.naturalWidth, h: img.naturalHeight,
+      name: (fileOrBlob.name || "picture").replace(/\.[^.]+$/, ""),
+    };
+    result = null;
+    el.outCard.classList.add("hid");
+
+    /* A quarter more canvas all round, the picture's own shape, at its own
+       pixels — enough that there is visibly something to fill, and the shape
+       buttons are right there for anything else. */
+    const grow = 1.25;
+    place = { x: 0, y: 0, scale: 1 };
+    setSize(Math.round(src.w * grow), Math.round(src.h * grow));
+    centre();
+    el.setup.classList.remove("hid");
+    el.fillCard.classList.remove("hid");
+    el.loadNote.textContent = `${src.w} × ${src.h}, ${src.name}`;
+    loads++;
+    update();
+  } catch (e) {
+    el.loadNote.textContent = String(e.message || e);
+    el.loadNote.classList.add("error");
+  }
+}
+
+el.w.addEventListener("input", () => setSize(el.w.value, target.h));
+el.h.addEventListener("input", () => setSize(target.w, el.h.value));
+el.swap.addEventListener("click", () => { setSize(target.h, target.w); centre(); update(); });
+
+el.ratios.addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-ratio]");
+  if (!b || !src) return;
+  const r = b.dataset.ratio;
+  const [a, c] = r === "keep" ? [src.w, src.h] : r.split(":").map(Number);
+  setSize(target.w, target.w * c / a);
+  centre();
+  update();
+});
+
+el.presets.addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-size]");
+  if (!b || !src) return;
+  const [w, h] = b.dataset.size.split("x").map(Number);
+  setSize(w, h);
+  centre();
+  update();
+});
+
+el.scale.addEventListener("input", () => {
+  const r0 = rectOf();
+  const mid = { x: r0.x + r0.w / 2, y: r0.y + r0.h / 2 };
+  place.scale = clampScale(fitScale() * Number(el.scale.value) / 100);
+  const r1 = rectOf();
+  place.x = mid.x - r1.w / 2;
+  place.y = mid.y - r1.h / 2;
+  update();
+});
+
+el.centre.addEventListener("click", () => { centre(); update(); });
+el.fit.addEventListener("click", () => { place.scale = fitScale(); centre(); update(); });
+el.actual.addEventListener("click", () => { place.scale = clampScale(1); centre(); update(); });
+
+/* Dragging the picture about on the canvas. Pointer events rather than mouse
+   events so a finger on a tablet does the same thing, and the canvas takes
+   the arrow keys too, because a page where the only way to place something is
+   to drag it is a page some people cannot use. */
+let drag = null;
+el.view.addEventListener("pointerdown", (e) => {
+  if (!src) return;
+  el.view.setPointerCapture(e.pointerId);
+  el.view.classList.add("dragging");
+  drag = { x: e.clientX, y: e.clientY, ox: place.x, oy: place.y };
+});
+el.view.addEventListener("pointermove", (e) => {
+  if (!drag) return;
+  place.x = drag.ox + (e.clientX - drag.x) / viewScale;
+  place.y = drag.oy + (e.clientY - drag.y) / viewScale;
+  update();
+});
+["pointerup", "pointercancel"].forEach((n) => el.view.addEventListener(n, () => {
+  drag = null;
+  el.view.classList.remove("dragging");
+}));
+el.view.addEventListener("keydown", (e) => {
+  const step = e.shiftKey ? 10 : 1;
+  const moves = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
+  if (!moves[e.key] || !src) return;
+  e.preventDefault();
+  place.x += moves[e.key][0];
+  place.y += moves[e.key][1];
+  update();
+});
+el.view.addEventListener("wheel", (e) => {
+  if (!src) return;
+  e.preventDefault();
+  const r0 = rectOf();
+  const mid = { x: r0.x + r0.w / 2, y: r0.y + r0.h / 2 };
+  place.scale = clampScale(place.scale * (e.deltaY < 0 ? 1.06 : 1 / 1.06));
+  const r1 = rectOf();
+  place.x = mid.x - r1.w / 2;
+  place.y = mid.y - r1.h / 2;
+  update();
+}, { passive: false });
+
+/* ------------------------------------------------------------- surfaces -- */
+
+function surface(w, h) {
+  const c = document.createElement("canvas");
+  c.width = Math.max(1, Math.round(w));
+  c.height = Math.max(1, Math.round(h));
+  return c;
+}
+
+/* The picture mirrored outwards across each of its edges, tiled until the
+   canvas is covered. This is the whole of the no-model fill, and it is also
+   what seeds the hole for a model run: a network fills from the edges inwards
+   and something the right colour under the mask costs nothing. */
+function mirrorField(g, img, rect, size) {
+  const iMin = Math.floor(-rect.x / rect.w), iMax = Math.ceil((size.w - rect.x) / rect.w);
+  const jMin = Math.floor(-rect.y / rect.h), jMax = Math.ceil((size.h - rect.y) / rect.h);
+  g.imageSmoothingQuality = "high";
+  for (let j = jMin; j <= jMax; j++) {
+    for (let i = iMin; i <= iMax; i++) {
+      const flipX = Math.abs(i) % 2 === 1, flipY = Math.abs(j) % 2 === 1;
+      g.save();
+      g.translate(rect.x + i * rect.w + (flipX ? rect.w : 0),
+                  rect.y + j * rect.h + (flipY ? rect.h : 0));
+      g.scale(flipX ? -1 : 1, flipY ? -1 : 1);
+      g.drawImage(img, 0, 0, rect.w, rect.h);
+      g.restore();
+    }
+  }
+}
+
+/* Alpha 0 over the picture, climbing to 1 at the canvas edges — the ramp the
+   mirror is melted along, built out of four gradients that add where they
+   overlap so the corners fade on both axes at once. */
+function awayRamp(size, rect) {
+  const c = surface(size.w, size.h), g = c.getContext("2d");
+  g.globalCompositeOperation = "lighter";
+  const strip = (x, y, w, h, x0, y0, x1, y1) => {
+    if (w <= 0 || h <= 0) return;
+    const grd = g.createLinearGradient(x0, y0, x1, y1);
+    grd.addColorStop(0, "rgba(255,255,255,0)");
+    grd.addColorStop(1, "rgba(255,255,255,1)");
+    g.fillStyle = grd;
+    g.fillRect(x, y, w, h);
+  };
+  const right = rect.x + rect.w, bottom = rect.y + rect.h;
+  strip(0, 0, rect.x, size.h, rect.x, 0, 0, 0);
+  strip(right, 0, size.w - right, size.h, right, 0, size.w, 0);
+  strip(0, 0, size.w, rect.y, 0, rect.y, 0, 0);
+  strip(0, bottom, size.w, size.h - bottom, 0, bottom, 0, size.h);
+  return c;
+}
+
+/* Opaque in the middle, fading over `f` pixels at each edge. The picture is
+   stamped through this, so the join is a blend of two pixels rather than a
+   line — which is also the one place the picture is not kept byte for byte,
+   and the notes on the page say so. */
+function edgeMask(w, h, f) {
+  const c = surface(w, h), g = c.getContext("2d");
+  g.fillStyle = "#fff";
+  g.fillRect(0, 0, w, h);
+  g.globalCompositeOperation = "destination-out";
+  const fade = (x, y, bw, bh, x0, y0, x1, y1) => {
+    const grd = g.createLinearGradient(x0, y0, x1, y1);
+    grd.addColorStop(0, "rgba(0,0,0,0.72)");
+    grd.addColorStop(1, "rgba(0,0,0,0)");
+    g.fillStyle = grd;
+    g.fillRect(x, y, bw, bh);
+  };
+  fade(0, 0, f, h, 0, 0, f, 0);
+  fade(w - f, 0, f, h, w, 0, w - f, 0);
+  fade(0, 0, w, f, 0, 0, 0, f);
+  fade(0, h - f, w, f, 0, h, 0, h - f);
+  return c;
+}
+
+/* The picture, at its own resolution, back over whatever was invented.
+
+   The feather wants a layer the size of the picture, and a picture scaled well
+   past the canvas — which is allowed, and is how you crop with this page —
+   can be a layer no canvas will give out. So a picture hanging off the edge is
+   drawn straight, with no feather: `drawImage` does the cutting itself, and
+   the join a feather is for is only a join on a side that is actually inside
+   the canvas. */
+function stamp(g, size, rect) {
+  const vis = intersect(rect, { x: 0, y: 0, w: size.w, h: size.h });
+  if (!vis) return;
+  if (vis.w !== rect.w || vis.h !== rect.h) {
+    g.drawImage(src.img, rect.x, rect.y, rect.w, rect.h);
+    return;
+  }
+  const layer = surface(rect.w, rect.h), lg = layer.getContext("2d");
+  lg.imageSmoothingQuality = "high";
+  lg.drawImage(src.img, 0, 0, rect.w, rect.h);
+  const f = Math.min(FEATHER, Math.floor(Math.min(rect.w, rect.h) / 4));
+  if (f > 0) {
+    lg.globalCompositeOperation = "destination-in";
+    lg.drawImage(edgeMask(rect.w, rect.h, f), 0, 0);
+  }
+  g.drawImage(layer, rect.x, rect.y);
+}
+
+/* ------------------------------------------------------- the model fills -- */
+
+const ORT_VERSION = "1.22.0";
+const ORT_DIST = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSION}/dist/`;
+
+const MODELS = {
+  fast: {
+    label: "Fast model", what: "MI-GAN",
+    url: "https://huggingface.co/andraniksargsyan/migan/resolve/main/migan_pipeline_v2.onnx",
+    mb: 80, type: "uint8", hole: 255,
+  },
+  best: {
+    label: "Best model", what: "LaMa",
+    url: "https://huggingface.co/Carve/LaMa-ONNX/resolve/main/lama_fp32.onnx",
+    mb: 206, type: "float32", hole: 1, over255: true,
+  },
+};
+
+const sessions = {};        // kind -> { run, on, side, hole, settled }
+let ortLoad = null;
+
+async function hasWebGPU() {
+  try {
+    if (!navigator.gpu) return false;
+    return !!(await navigator.gpu.requestAdapter());
+  } catch (e) { return false; }
+}
+
+/* ONNX Runtime Web comes from jsDelivr rather than this repository: it is 22
+   MB of WebAssembly for one optional feature, and the weights have to be
+   fetched anyway. A page that only ever uses the mirror never asks for it. */
+function ortReady() {
+  if (window.ort) return Promise.resolve(window.ort);
+  if (ortLoad) return ortLoad;
+  ortLoad = new Promise((go, no) => {
+    const s = document.createElement("script");
+    s.src = ORT_DIST + "ort.min.js";
+    s.onload = () => window.ort
+      ? go(window.ort)
+      : no(new Error("ONNX Runtime Web loaded and left nothing behind"));
+    s.onerror = () => no(new Error(
+      "ONNX Runtime Web would not load from jsDelivr. The first run of a model needs a"
+      + " connection; the no-model fill needs none."));
+    document.head.append(s);
+  });
+  return ortLoad;
+}
+
+/* Weights are kept in IndexedDB rather than left to the browser's cache,
+   because 206 MB is exactly the sort of thing a cache throws away first and
+   nobody wants to fetch it twice. A store that will not open is not an error:
+   the run goes ahead and the next one downloads again. */
+function store(mode) {
+  return new Promise((go, no) => {
+    const req = indexedDB.open("uncrop", 1);
+    req.onupgradeneeded = () => {
+      if (!req.result.objectStoreNames.contains("weights")) req.result.createObjectStore("weights");
+    };
+    req.onsuccess = () => {
+      const db = req.result;
+      go({ db, box: db.transaction("weights", mode).objectStore("weights") });
+    };
+    req.onerror = () => no(req.error || new Error("no IndexedDB"));
+  });
+}
+
+async function cached(key) {
+  const { db, box } = await store("readonly");
+  const got = await new Promise((go, no) => {
+    const r = box.get(key);
+    r.onsuccess = () => go(r.result);
+    r.onerror = () => no(r.error);
+  });
+  db.close();
+  return got;
+}
+
+async function keep(key, bytes) {
+  const { db, box } = await store("readwrite");
+  await new Promise((go, no) => {
+    const r = box.put(bytes, key);
+    r.onsuccess = () => go();
+    r.onerror = () => no(r.error);
+  });
+  db.close();
+}
+
+async function weights(kind, onStep) {
+  const m = MODELS[kind];
+  const hit = await cached(kind).catch(() => null);
+  if (hit) {
+    onStep(`${m.what} is already here`, "from your browser's storage", null);
+    return new Uint8Array(hit);
+  }
+
+  onStep(`Fetching ${m.what}`, `about ${m.mb} MB, once`, 0);
+  const nowhere = " The first run of a model needs a connection; the no-model fill needs none.";
+  const res = await fetch(m.url).catch((e) => {
+    throw new Error(`${m.what}'s weights would not download: ${e.message}.${nowhere}`);
+  });
+  if (!res.ok) {
+    throw new Error(`${m.what}'s weights would not download — ${res.status} `
+      + `${res.statusText} from ${new URL(m.url).host}.${nowhere}`);
+  }
+  const total = Number(res.headers.get("content-length")) || m.mb * 1e6;
+
+  let bytes;
+  if (res.body && res.body.getReader) {
+    const reader = res.body.getReader();
+    const parts = [];
+    let got = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      parts.push(value);
+      got += value.length;
+      onStep(`Fetching ${m.what}`,
+        `${(got / 1e6).toFixed(0)} of about ${(total / 1e6).toFixed(0)} MB`,
+        Math.min(0.99, got / total));
+    }
+    bytes = new Uint8Array(got);
+    let at = 0;
+    for (const p of parts) { bytes.set(p, at); at += p.length; }
+  } else {
+    bytes = new Uint8Array(await res.arrayBuffer());
+  }
+
+  await keep(kind, bytes.buffer).catch(() => {});
+  return bytes;
+}
+
+/* One side of the square view the model wants. Both of these were exported at
+   512, but LaMa's export fixes it in the graph and MI-GAN's does not, so the
+   figure is read off the model where the model states it. */
+function declaredSide(meta) {
+  const dims = meta && (meta.shape || meta.dims);
+  if (!Array.isArray(dims) || dims.length !== 4) return 0;
+  const [, , h, w] = dims;
+  return (typeof h === "number" && typeof w === "number" && h === w && h >= 64 && h <= 2048) ? h : 0;
+}
+
+async function sessionFor(kind, onStep) {
+  if (sessions[kind]) return sessions[kind];
+  const m = MODELS[kind];
+  const ort = await ortReady();
+  const gpu = await hasWebGPU();
+
+  ort.env.wasm.wasmPaths = ORT_DIST;
+
+  /* Threads need SharedArrayBuffer, which needs the two cross-origin
+     isolation headers, which a static host like GitHub Pages does not send.
+     So one thread unless the page happens to be served somewhere that does —
+     asking for four where they are not available is how a runtime ends up
+     refusing to start rather than running slowly. */
+  ort.env.wasm.numThreads = (typeof crossOriginIsolated !== "undefined" && crossOriginIsolated)
+    ? Math.min(4, navigator.hardwareConcurrency || 1) : 1;
+
+  const bytes = await weights(kind, onStep);
+  onStep(`Starting ${m.what}`, gpu ? "on your GPU" : "on the CPU, which is the slow way", null);
+
+  /* In order of preference, and every one of them a fallback for the one
+     before it. The proxy moves WebAssembly off the main thread, because a
+     minute of it on the main thread is a page that looks broken — but it
+     builds a worker out of a script from another origin, which is exactly the
+     sort of thing a site's own rules can forbid, so running on the main
+     thread after all is the last resort rather than no answer at all. */
+  const ways = gpu
+    ? [["webgpu", false], ["wasm", true], ["wasm", false]]
+    : [["wasm", true], ["wasm", false]];
+
+  let session = null, on = "", trouble = null;
+  for (const [ep, proxy] of ways) {
+    try {
+      ort.env.wasm.proxy = proxy;
+      session = await ort.InferenceSession.create(bytes, { executionProviders: [ep] });
+      on = ep;
+      break;
+    } catch (e) { trouble = e; }
+  }
+  if (!session) {
+    throw new Error(`${m.what} would not start: ${(trouble && trouble.message) || trouble}`);
+  }
+
+  const meta = session.inputMetadata || [];
+  const byName = (n) => (Array.isArray(meta) ? meta.find((x) => x && x.name === n) : null);
+  const imageIn = session.inputNames[0], maskIn = session.inputNames[1];
+  if (!maskIn) {
+    throw new Error(`${m.what} takes ${session.inputNames.length} input, and an inpainting`
+      + " model has to take two: the picture and the mask.");
+  }
+  const typeOf = (n, fallback) => {
+    const t = byName(n);
+    return (t && typeof t.type === "string" && /^(uint8|float32)$/.test(t.type)) ? t.type : fallback;
+  };
+
+  sessions[kind] = {
+    session, on, kind,
+    imageIn, maskIn,
+    imageType: typeOf(imageIn, m.type),
+    maskType: typeOf(maskIn, m.type),
+    side: declaredSide(byName(imageIn)) || WORK,
+    hole: m.hole,
+    over255: !!m.over255,
+    settled: false,      // whether the mask polarity has been confirmed by running it
+  };
+  return sessions[kind];
+}
+
+/* -------------------------------------------------------- one model pass -- */
+
+/* The frame is letterboxed into the model's square view; the padding counts
+   as hole, which wastes a little of the view on a long canvas and is honest
+   about it — telling the model that grey padding is real picture is what makes
+   a fill bend towards grey at the edges. */
+function viewFor(st, frame) {
+  const side = st.side;
+  const s = Math.min(side / frame.w, side / frame.h);
+  const dw = Math.max(1, Math.round(frame.w * s)), dh = Math.max(1, Math.round(frame.h * s));
+  return { side, s, dw, dh, ox: Math.floor((side - dw) / 2), oy: Math.floor((side - dh) / 2) };
+}
+
+/* The mask: 1 where the model should paint. Built in the model's view, from
+   the frame and the known rectangle inside it, and rounded so that a pixel on
+   the boundary is treated as hole — a known pixel wrongly marked hole gets
+   repainted and looks fine, a hole pixel wrongly marked known stays whatever
+   seeded it and shows as a hard ring. */
+function maskFor(v, frame, known) {
+  const side = v.side;
+  const flags = new Uint8Array(side * side).fill(1);
+  const k = intersect(known, frame);
+  if (!k) return flags;
+  const x0 = Math.ceil(v.ox + (k.x - frame.x) * v.s);
+  const y0 = Math.ceil(v.oy + (k.y - frame.y) * v.s);
+  const x1 = Math.floor(v.ox + (k.x + k.w - frame.x) * v.s);
+  const y1 = Math.floor(v.oy + (k.y + k.h - frame.y) * v.s);
+  for (let y = Math.max(0, y0); y < Math.min(side, y1); y++) {
+    flags.fill(0, y * side + Math.max(0, x0), y * side + Math.min(side, x1));
+  }
+  return flags;
+}
+
+async function runOnce(st, rgba, flags, hole) {
+  const ort = window.ort;
+  const side = st.side, n = side * side;
+
+  let image;
+  if (st.imageType === "uint8") {
+    image = new Uint8Array(3 * n);
+    for (let i = 0; i < n; i++) {
+      image[i] = rgba[i * 4];
+      image[n + i] = rgba[i * 4 + 1];
+      image[2 * n + i] = rgba[i * 4 + 2];
+    }
+  } else {
+    image = new Float32Array(3 * n);
+    for (let i = 0; i < n; i++) {
+      image[i] = rgba[i * 4] / 255;
+      image[n + i] = rgba[i * 4 + 1] / 255;
+      image[2 * n + i] = rgba[i * 4 + 2] / 255;
+    }
+  }
+
+  const on = st.maskType === "uint8" ? (hole ? 255 : 0) : (hole ? 1 : 0);
+  const off = st.maskType === "uint8" ? (hole ? 0 : 255) : (hole ? 0 : 1);
+  const mask = st.maskType === "uint8" ? new Uint8Array(n) : new Float32Array(n);
+  for (let i = 0; i < n; i++) mask[i] = flags[i] ? on : off;
+
+  const feed = {};
+  feed[st.imageIn] = new ort.Tensor(st.imageType, image, [1, 3, side, side]);
+  feed[st.maskIn] = new ort.Tensor(st.maskType, mask, [1, 1, side, side]);
+  const out = await st.session.run(feed);
+  const tensor = out[st.session.outputNames[0]];
+  if (!tensor || !tensor.data) throw new Error(`${MODELS[st.kind].what} returned nothing`);
+
+  /* Whatever shape and range it came back in, out comes RGBA at the view's
+     size. Channels-first is what both of these do; the other way round is
+     handled because reading it off the tensor costs nothing and guessing
+     wrong gives three bands of colour rather than an error. */
+  const dims = tensor.dims || [1, 3, side, side];
+  const chwFirst = dims.length !== 4 || dims[1] === 3 || dims[1] === 4;
+  const data = tensor.data;
+  let span = 1;
+  if (data instanceof Float32Array) {
+    let top = 0;
+    for (let i = 0; i < data.length; i += 997) top = Math.max(top, data[i]);
+    span = top <= 1.5 && !st.over255 ? 255 : 1;
+  }
+
+  const px = new Uint8ClampedArray(4 * n);
+  for (let i = 0; i < n; i++) {
+    for (let c = 0; c < 3; c++) {
+      const at = chwFirst ? c * n + i : i * dims[dims.length - 1] + c;
+      px[i * 4 + c] = data[at] * span;
+    }
+    px[i * 4 + 3] = 255;
+  }
+  return new ImageData(px, side, side);
+}
+
+/* Which way round the mask goes, decided by running the model rather than by
+   believing a model card. Run it, then look at what moved: a model told the
+   truth leaves the known picture close to how it found it and puts something
+   new under the mask. A model handed the mask upside down does the opposite —
+   it lovingly repaints your photograph and hands back the seed in the border
+   untouched, which is a failure that looks like a success until you notice the
+   face has changed. */
+function polarityFrom(before, after, flags) {
+  let dHole = 0, nHole = 0, dKnown = 0, nKnown = 0;
+  for (let i = 0; i < flags.length; i += 3) {
+    const a = before[i * 4], b = after.data[i * 4];
+    const g1 = before[i * 4 + 1], g2 = after.data[i * 4 + 1];
+    const d = (Math.abs(a - b) + Math.abs(g1 - g2)) / 2;
+    if (flags[i]) { dHole += d; nHole++; } else { dKnown += d; nKnown++; }
+  }
+  const hole = nHole ? dHole / nHole : 0;
+  const known = nKnown ? dKnown / nKnown : 0;
+  return { hole, known, flipped: nKnown > 32 && nHole > 32 && hole < 3 && known > 12 };
+}
+
+/* ------------------------------------------------------------- the passes -- */
+
+/* What a pass is handed: the frame it is filling, and the rectangle inside
+   that frame which is already picture. What it gives back is the model's
+   square view of that frame, which becomes the next pass's known content.
+   Nothing is kept at canvas resolution between passes — the picture is drawn
+   from the original file every time, so the one thing that must stay sharp
+   never goes through a resize. */
+function inputFor(st, frame, rect, prev) {
+  const v = viewFor(st, frame);
+  const c = surface(v.side, v.side);
+  const g = c.getContext("2d");
+  const toView = (r) => ({
+    x: v.ox + (r.x - frame.x) * v.s, y: v.oy + (r.y - frame.y) * v.s,
+    w: r.w * v.s, h: r.h * v.s,
+  });
+
+  /* Mid grey under the letterbox padding, which is masked as hole anyway. */
+  g.fillStyle = "#808080";
+  g.fillRect(0, 0, v.side, v.side);
+
+  g.save();
+  g.beginPath();
+  g.rect(v.ox, v.oy, v.dw, v.dh);
+  g.clip();
+  const seed = toView(rect);
+  if (seed.w >= 2 && seed.h >= 2) {
+    mirrorField(g, src.img, seed, { w: v.side, h: v.side });
+  } else {
+    g.drawImage(src.img, seed.x, seed.y, Math.max(1, seed.w), Math.max(1, seed.h));
+  }
+  if (prev) {
+    const at = toView(prev.frame);
+    g.imageSmoothingQuality = "high";
+    g.drawImage(prev.canvas, prev.ox, prev.oy, prev.dw, prev.dh, at.x, at.y, at.w, at.h);
+  }
+  g.drawImage(src.img, seed.x, seed.y, seed.w, seed.h);
+  g.restore();
+
+  return { v, canvas: c, ctx: g };
+}
+
+/* The model's answer, with the content that went in as known put back over it.
+   Without this the known ring drifts a little further from itself every pass,
+   because a pass reconstructs what it was shown as well as filling what it was
+   not; with it, and a two-pixel feather so the boundary is not a ring, each
+   pass only ever adds. */
+function settle(view, inCanvas, knownInView) {
+  const c = surface(view.side, view.side);
+  const g = c.getContext("2d");
+  g.putImageData(view.out, 0, 0);
+  const k = {
+    x: Math.round(knownInView.x), y: Math.round(knownInView.y),
+    w: Math.round(knownInView.w), h: Math.round(knownInView.h),
+  };
+  if (k.w > 4 && k.h > 4) {
+    const layer = surface(k.w, k.h), lg = layer.getContext("2d");
+    lg.drawImage(inCanvas, k.x, k.y, k.w, k.h, 0, 0, k.w, k.h);
+    lg.globalCompositeOperation = "destination-in";
+    lg.drawImage(edgeMask(k.w, k.h, 2), 0, 0);
+    g.drawImage(layer, k.x, k.y);
+  }
+  return c;
+}
+
+async function fillWithModel(kind, size, rect, frames, onStep) {
+  const st = await sessionFor(kind, onStep);
+  const full = { x: 0, y: 0, w: size.w, h: size.h };
+  let known = intersect(rect, full);
+  let prev = null;
+
+  for (let i = 0; i < frames.length; i++) {
+    if (stopped) throw new Error("stopped");
+    const frame = frames[i];
+    onStep(`Pass ${i + 1} of ${frames.length}`,
+      `${frame.w} × ${frame.h} of ${size.w} × ${size.h}, on ${st.on === "webgpu" ? "your GPU" : "the CPU"}`,
+      null);
+    await new Promise((go) => requestAnimationFrame(() => go()));
+
+    const input = inputFor(st, frame, rect, prev);
+    const v = input.v;
+    const flags = maskFor(v, frame, known);
+    const before = input.ctx.getImageData(0, 0, v.side, v.side).data;
+
+    let out = await runOnce(st, before, flags, st.hole);
+
+    /* The first run of a session is also the one that settles which way round
+       the mask goes. If it came back wrong, the same pass runs again the other
+       way and that is what the rest of the session uses. */
+    if (!st.settled) {
+      const read = polarityFrom(before, out, flags);
+      st.settled = true;
+      if (read.flipped) {
+        st.hole = st.hole ? 0 : (st.maskType === "uint8" ? 255 : 1);
+        onStep(`Pass ${i + 1} of ${frames.length}`,
+          `${MODELS[kind].what} wanted its mask the other way round — running it again`, null);
+        out = await runOnce(st, before, flags, st.hole);
+      }
+    }
+
+    v.out = out;
+    const k = intersect(known, frame);
+    prev = {
+      canvas: settle(v, input.canvas, {
+        x: v.ox + (k.x - frame.x) * v.s, y: v.oy + (k.y - frame.y) * v.s,
+        w: k.w * v.s, h: k.h * v.s,
+      }),
+      frame, ox: v.ox, oy: v.oy, dw: v.dw, dh: v.dh,
+    };
+    known = frame;
+  }
+
+  const res = surface(size.w, size.h);
+  const g = res.getContext("2d");
+  g.imageSmoothingQuality = "high";
+  g.drawImage(prev.canvas, prev.ox, prev.oy, prev.dw, prev.dh, 0, 0, size.w, size.h);
+  stamp(g, size, rect);
+  return { canvas: res, on: st.on };
+}
+
+function fillWithMirror(size, rect) {
+  const res = surface(size.w, size.h);
+  const g = res.getContext("2d");
+  mirrorField(g, src.img, rect, size);
+
+  /* The mirror is recognisable as a mirror, so it is melted into itself with
+     distance: sharp against the picture, where it is at its most convincing,
+     and softer the further out it goes, where the repeat would otherwise be
+     the first thing you see. */
+  const gaps = Math.max(rect.x, rect.y, size.w - (rect.x + rect.w), size.h - (rect.y + rect.h));
+  const k = Math.min(40, Math.max(2, Math.round(gaps / 18)));
+  if (gaps > 0) {
+    const soft = surface(size.w, size.h), sg = soft.getContext("2d");
+    sg.filter = `blur(${k}px)`;
+    sg.drawImage(res, 0, 0);
+    sg.filter = "none";
+    sg.globalCompositeOperation = "destination-in";
+    sg.drawImage(awayRamp(size, rect), 0, 0);
+    g.drawImage(soft, 0, 0);
+  }
+  stamp(g, size, rect);
+  return { canvas: res, on: "mirror" };
+}
+
+/* ----------------------------------------------------------------- a run -- */
+
+function onStep(label, detail, frac) {
+  el.step.textContent = label;
+  el.stepDetail.textContent = detail || "";
+  if (frac === null || frac === undefined) {
+    el.bar.classList.add("waiting");
+    el.bar.firstElementChild.style.width = "32%";
+  } else {
+    el.bar.classList.remove("waiting");
+    el.bar.firstElementChild.style.width = `${Math.round(frac * 100)}%`;
+  }
+}
+
+async function uncrop() {
+  if (busy || !src) return;
+  const p = currentPlan();
+  if (p.blocked) { update(); return; }
+
+  busy = true;
+  stopped = false;
+  document.body.classList.add("busy");
+  el.runNote.textContent = "";
+  el.runNote.classList.remove("error");
+  onStep("Getting ready", "", null);
+
+  const size = { w: target.w, h: target.h };
+  const rect = rectOf();
+  const frames = framesFor(rect, size);
+  const started = Date.now();
+
+  try {
+    let made;
+    if (!frames.length) {
+      const res = surface(size.w, size.h);
+      stamp(res.getContext("2d"), size, rect);
+      made = { canvas: res, on: "crop" };
+    } else if (method === "reflect") {
+      onStep("Mirroring the edges", "no model, no download", null);
+      await new Promise((go) => requestAnimationFrame(() => go()));
+      made = fillWithMirror(size, rect);
+    } else {
+      made = await fillWithModel(method, size, rect, frames, onStep);
+    }
+
+    result = {
+      canvas: made.canvas, rect, method, on: made.on,
+      passes: frames.length, crop: !frames.length, size,
+      seconds: (Date.now() - started) / 1000,
+    };
+    showResult();
+    el.runNote.textContent = `Done in ${result.seconds.toFixed(1)}s`;
+  } catch (e) {
+    if (String(e.message) === "stopped") {
+      el.runNote.textContent = "Stopped.";
+    } else {
+      el.runNote.textContent = String(e.message || e);
+      el.runNote.classList.add("error");
+    }
+  } finally {
+    busy = false;
+    document.body.classList.remove("busy");
+    update();
+  }
+}
+
+el.run.addEventListener("click", uncrop);
+el.stop.addEventListener("click", () => { stopped = true; el.runNote.textContent = "Stopping…"; });
+
+el.methods.addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-method]");
+  if (!b) return;
+  method = b.dataset.method;
+  for (const other of el.methods.querySelectorAll("button")) {
+    other.setAttribute("aria-pressed", String(other === b));
+  }
+  methodNote();
+});
+
+function methodNote() {
+  const m = MODELS[method];
+  if (!m) {
+    el.cost.textContent = "Nothing to download. Instant, and the one to use to check your framing.";
+    el.methodNote.textContent = "";
+    return;
+  }
+  el.cost.textContent = sessions[method]
+    ? `${m.what} is loaded and running on ${sessions[method].on === "webgpu" ? "your GPU" : "the CPU"}.`
+    : `${m.what}, about ${m.mb} MB the first time and then kept in your browser's storage.`;
+  const p = src ? currentPlan() : null;
+  el.methodNote.textContent = p && p.passes
+    ? `${p.passes} model run${p.passes === 1 ? "" : "s"} for this canvas.`
+    : "";
+}
+
+/* -------------------------------------------------------------- the result -- */
+
+function showResult() {
+  if (!result) return;
+  el.outCard.classList.remove("hid");
+  const size = result.size;
+  const vs = Math.min(1, VIEW_W / size.w, VIEW_H / size.h);
+  const vw = Math.max(1, Math.round(size.w * vs)), vh = Math.max(1, Math.round(size.h * vs));
+  el.out.width = vw;
+  el.out.height = vh;
+  const g = el.out.getContext("2d");
+  g.imageSmoothingQuality = "high";
+  g.clearRect(0, 0, vw, vh);
+  g.drawImage(result.canvas, 0, 0, vw, vh);
+
+  if (showAdded) {
+    /* Dim everything and then punch the picture back out of the dimming, so
+       what is left bright is exactly what you brought. */
+    const r = result.rect;
+    const over = surface(vw, vh), og = over.getContext("2d");
+    og.fillStyle = "rgba(0,0,0,0.55)";
+    og.fillRect(0, 0, vw, vh);
+    og.globalCompositeOperation = "destination-out";
+    og.fillStyle = "#000";
+    og.fillRect(r.x * vs, r.y * vs, r.w * vs, r.h * vs);
+    g.drawImage(over, 0, 0);
+    g.save();
+    g.setLineDash([5, 4]);
+    g.strokeStyle = "rgba(255,255,255,0.8)";
+    g.strokeRect(Math.round(r.x * vs) + 0.5, Math.round(r.y * vs) + 0.5,
+      Math.max(1, Math.round(r.w * vs) - 1), Math.max(1, Math.round(r.h * vs) - 1));
+    g.restore();
+  }
+
+  const how = result.method === "reflect" ? "mirrored"
+    : `${MODELS[result.method].what} on ${result.on === "webgpu" ? "your GPU" : "the CPU"}`;
+  /* The pass count is a model's, so a mirror does not claim one and a canvas
+     the picture already covered says what actually happened to it. */
+  const did = result.crop ? " · cropped"
+    : result.method === "reflect" ? ""
+    : ` · ${result.passes} pass${result.passes === 1 ? "" : "es"}`;
+  el.outFigures.innerHTML = `<b>${size.w} × ${size.h}</b> · ${how}${did}`
+    + ` · ${result.seconds.toFixed(1)}s`;
+}
+
+el.showAdded.addEventListener("click", () => {
+  showAdded = !showAdded;
+  el.showAdded.setAttribute("aria-pressed", String(showAdded));
+  showResult();
+});
+
+/* ------------------------------------------------------------------ TIFF -- */
+
+/* No browser can encode a TIFF, and TIFF is what the rest of the photographic
+   world wants for a big lossless picture, so it is written here: classic
+   little-endian TIFF, 8 bits a sample, in strips of about a megabyte with
+   Adobe Deflate on each one. Strips rather than one block because a 64
+   megapixel picture is 256 MB of samples and nothing should hold all of that
+   twice, and because every reader worth having streams them.
+
+   Deflate is compression 8, and `CompressionStream("deflate")` produces
+   exactly what that means — a zlib stream, header and all. Where it is
+   missing the strips go in uncompressed under compression 1, which is bigger
+   and still a valid TIFF. */
+
+const TIFF_SOFTWARE = "SmallPages Uncrop\u0000";
+
+async function deflate(bytes) {
+  const cs = new CompressionStream("deflate");
+  const ab = await new Response(new Blob([bytes]).stream().pipeThrough(cs)).arrayBuffer();
+  return new Uint8Array(ab);
+}
+
+function buildTiff(W, H, spp, strips, rowsPerStrip, dpi, comp) {
+  const ASCII = 2, SHORT = 3, LONG = 4, RATIONAL = 5;
+  const width = (type, count) =>
+    type === SHORT ? 2 * count : type === LONG ? 4 * count : type === RATIONAL ? 8 * count : count;
+
+  const offsets = [];
+  let at = 8;
+  for (const s of strips) { offsets.push(at); at += s.length; }
+  const ifdAt = at;
+
+  const soft = Array.from(new TextEncoder().encode(TIFF_SOFTWARE));
+  const tags = [
+    [256, LONG, 1, [W]],
+    [257, LONG, 1, [H]],
+    [258, SHORT, spp, new Array(spp).fill(8)],
+    [259, SHORT, 1, [comp]],
+    [262, SHORT, 1, [2]],                      // RGB
+    [273, LONG, strips.length, offsets],
+    [277, SHORT, 1, [spp]],
+    [278, LONG, 1, [rowsPerStrip]],
+    [279, LONG, strips.length, strips.map((s) => s.length)],
+    [282, RATIONAL, 1, [dpi, 1]],
+    [283, RATIONAL, 1, [dpi, 1]],
+    [284, SHORT, 1, [1]],                      // chunky
+    [296, SHORT, 1, [2]],                      // resolution in inches
+    [305, ASCII, soft.length, soft],
+  ];
+  if (spp === 4) tags.push([338, SHORT, 1, [2]]);   // the fourth sample is unassociated alpha
+
+  const ifdLen = 2 + 12 * tags.length + 4;
+  let cursor = ifdAt + ifdLen;
+  if (cursor % 2) cursor++;
+  const placed = tags.map(([tag, type, count, vals]) => {
+    const bytes = width(type, count);
+    if (bytes <= 4) return { tag, type, count, vals, at: null };
+    const spot = cursor;
+    cursor += bytes + (bytes % 2);
+    return { tag, type, count, vals, at: spot };
+  });
+
+  const buf = new Uint8Array(cursor);
+  const view = new DataView(buf.buffer);
+  const put = (pos, type, vals) => {
+    for (const v of vals) {
+      if (type === SHORT) { view.setUint16(pos, v, true); pos += 2; }
+      else if (type === LONG || type === RATIONAL) { view.setUint32(pos, v, true); pos += 4; }
+      else { view.setUint8(pos, v); pos += 1; }
+    }
+  };
+
+  buf[0] = 0x49; buf[1] = 0x49;                 // "II"
+  view.setUint16(2, 42, true);
+  view.setUint32(4, ifdAt, true);
+  let p = 8;
+  for (const s of strips) { buf.set(s, p); p += s.length; }
+
+  view.setUint16(ifdAt, placed.length, true);
+  let e = ifdAt + 2;
+  for (const it of placed) {
+    view.setUint16(e, it.tag, true);
+    view.setUint16(e + 2, it.type, true);
+    view.setUint32(e + 4, it.count, true);
+    if (it.at === null) put(e + 8, it.type, it.vals);
+    else { view.setUint32(e + 8, it.at, true); put(it.at, it.type, it.vals); }
+    e += 12;
+  }
+  view.setUint32(e, 0, true);                   // no second IFD
+  return buf;
+}
+
+async function tiffBytes(canvas, dpi = 300) {
+  const W = canvas.width, H = canvas.height;
+  const g = canvas.getContext("2d");
+
+  /* Three samples where nothing is transparent, which is the usual case here
+     and what the fewest readers can get wrong. The scan is a pass over the
+     alpha channel a band at a time, so it costs no more memory than one
+     band. */
+  let opaque = true;
+  for (let y = 0; y < H && opaque; y += 64) {
+    const d = g.getImageData(0, y, W, Math.min(64, H - y)).data;
+    for (let i = 3; i < d.length; i += 4) {
+      if (d[i] !== 255) { opaque = false; break; }
+    }
+  }
+  const spp = opaque ? 3 : 4;
+  const rowBytes = W * spp;
+  const rows = Math.max(1, Math.min(H, Math.floor(1048576 / rowBytes) || 1));
+  const squash = typeof CompressionStream === "function";
+
+  const strips = [];
+  for (let y = 0; y < H; y += rows) {
+    const n = Math.min(rows, H - y);
+    const d = g.getImageData(0, y, W, n).data;
+    const raw = new Uint8Array(n * rowBytes);
+    let o = 0;
+    for (let i = 0; i < d.length; i += 4) {
+      raw[o++] = d[i]; raw[o++] = d[i + 1]; raw[o++] = d[i + 2];
+      if (spp === 4) raw[o++] = d[i + 3];
+    }
+    strips.push(squash ? await deflate(raw) : raw);
+  }
+  return buildTiff(W, H, spp, strips, rows, dpi, squash ? 8 : 1);
+}
+
+/* ---------------------------------------------------------------- saving -- */
+
+const FORMATS = {
+  png: { type: "image/png", ext: "png", quality: false },
+  webp: { type: "image/webp", ext: "webp", quality: true, maxSide: 16383 },
+  jpeg: { type: "image/jpeg", ext: "jpg", quality: true, maxSide: 65535 },
+  tiff: { type: "image/tiff", ext: "tif", quality: false },
+};
+
+function saveName(fmt, size) {
+  const f = FORMATS[fmt];
+  return `${src ? src.name : "picture"}-uncropped-${size.w}x${size.h}.${f.ext}`;
+}
+
+async function encode(canvas, fmt, quality) {
+  const f = FORMATS[fmt];
+  if (!f) throw new Error(`there is no ${fmt} here`);
+  const side = Math.max(canvas.width, canvas.height);
+  if (f.maxSide && side > f.maxSide) {
+    throw new Error(`${fmt.toUpperCase()} cannot hold a picture over ${f.maxSide} pixels on a side,`
+      + ` and this one is ${side}. PNG or TIFF can.`);
+  }
+  if (fmt === "tiff") {
+    return new Blob([await tiffBytes(canvas)], { type: f.type });
+  }
+  const blob = await new Promise((go, no) => canvas.toBlob(
+    (b) => b ? go(b) : no(new Error(`this browser would not write a ${fmt.toUpperCase()}`)),
+    f.type, f.quality ? quality / 100 : undefined));
+
+  /* A canvas asked for a format it does not have hands back a PNG under the
+     wrong name rather than failing, which is a file that lies about itself. */
+  if (blob.type !== f.type) {
+    throw new Error(`this browser cannot write ${fmt.toUpperCase()} — it offered`
+      + ` ${blob.type || "something unnamed"} instead`);
+  }
+  return blob;
+}
+
+el.formats.addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-format]");
+  if (!b) return;
+  format = b.dataset.format;
+  for (const other of el.formats.querySelectorAll("button")) {
+    other.setAttribute("aria-pressed", String(other === b));
+  }
+  el.qwrap.classList.toggle("on", FORMATS[format].quality);
+  el.saveNote.textContent = "";
+  el.saveNote.classList.remove("error");
+});
+
+el.quality.addEventListener("input", () => { el.qval.textContent = el.quality.value; });
+
+el.save.addEventListener("click", async () => {
+  if (!result) return;
+  el.save.disabled = true;
+  el.saveNote.classList.remove("error");
+  el.saveNote.textContent = "Writing the file…";
+  try {
+    const blob = await encode(result.canvas, format, Number(el.quality.value));
+    const name = saveName(format, result.size);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    el.saveNote.textContent = `${name} — ${(blob.size / 1e6).toFixed(2)} MB`;
+  } catch (e) {
+    el.saveNote.textContent = String(e.message || e);
+    el.saveNote.classList.add("error");
+  } finally {
+    el.save.disabled = false;
+  }
+});
+
+/* ------------------------------------------------------------ the terminal -- */
+
+/* `node cli/run.mjs uncrop …` drives this, and the jobs are the page doing
+   its own work: a job sets the page's own controls, presses the page's own
+   buttons, and reads the answer off the page. Nothing here works anything out
+   for itself, so the terminal cannot disagree with the tab. */
+/* The canvas and the placement, set the way the page's own controls set them.
+   The order is the order of the controls down the card: how big the canvas is,
+   then what shape, then how big the picture is on it, then where. */
+function placeAs(o) {
+  if (typeof o.grow === "number") setSize(src.w * o.grow, src.h * o.grow);
+  if (o.width || o.height) setSize(o.width || target.w, o.height || target.h);
+  if (o.ratio) {
+    const shape = String(o.ratio);
+    const [a, b] = shape === "keep" ? [src.w, src.h] : shape.split(":").map(Number);
+    if (!(a > 0 && b > 0)) {
+      throw new Error(`a shape is two numbers like 16:9, or "keep" — not "${shape}"`);
+    }
+    setSize(target.w, target.w * b / a);
+  }
+  if (o.fit) place.scale = fitScale();
+  if (typeof o.scale === "number") place.scale = clampScale(o.scale);
+  if (typeof o.x === "number" || typeof o.y === "number") {
+    if (typeof o.x === "number") place.x = o.x;
+    if (typeof o.y === "number") place.y = o.y;
+  } else {
+    centre();
+  }
+  update();
+}
+
+window.CLI = {
+  page: "uncrop",
+  jobs: {
+    image() {
+      return src
+        ? { ready: true, width: src.w, height: src.h, name: src.name }
+        : { ready: false };
+    },
+
+    plan(o) {
+      if (!src) throw new Error("open a picture first");
+      placeAs(o || {});
+      return currentPlan();
+    },
+
+    formats() {
+      return Object.keys(FORMATS).map((k) => ({
+        name: k, ext: FORMATS[k].ext, quality: FORMATS[k].quality, maxSide: FORMATS[k].maxSide || 0,
+      }));
+    },
+
+    async run(o = {}) {
+      if (!src) throw new Error("open a picture first");
+      if (o.method) {
+        const b = el.methods.querySelector(`button[data-method="${o.method}"]`);
+        if (!b) throw new Error(`there is no "${o.method}" fill; it is fast, best or reflect`);
+        b.click();
+      }
+      placeAs(o);
+
+      const ready = currentPlan();
+      if (ready.blocked) throw new Error(ready.blocked);
+
+      await uncrop();
+      if (!result) throw new Error(el.runNote.textContent || "the run did not finish");
+
+      const fmt = o.format || format;
+      const q = typeof o.quality === "number" ? o.quality : Number(el.quality.value);
+      const blob = await encode(result.canvas, fmt, q);
+      return {
+        name: saveName(fmt, result.size),
+        bytes: Array.from(new Uint8Array(await blob.arrayBuffer())),
+        width: result.size.w,
+        height: result.size.h,
+        passes: result.passes,
+        method: result.method,
+        ran: result.on,
+        seconds: Math.round(result.seconds * 100) / 100,
+      };
+    },
+  },
+};
+
+/* The page's own innards, for `tests/test-uncrop.mjs`. A suite that can only
+   reach the buttons can test the mirror and the file formats, but it cannot
+   test a model run without fetching 80 MB of weights — so it puts its own
+   session in `sessions`, which is the same slot `sessionFor` fills, and the
+   pass loop above cannot tell the difference. */
+window.UNCROP = {
+  get state() {
+    return {
+      loads,
+      src: src && { w: src.w, h: src.h, name: src.name },
+      target, place, method, format,
+      rect: src ? rectOf() : null,
+      result: result && {
+      w: result.size.w, h: result.size.h, passes: result.passes,
+      crop: !!result.crop, on: result.on, method: result.method,
+    },
+    };
+  },
+  sessions, MODELS, WORK,
+  plan, framesFor, viewFor, maskFor, polarityFrom, encode, tiffBytes,
+  currentPlan, setSize, update, fitScale, placeAs,
+  centre: () => { centre(); update(); },
+  place: (p) => { Object.assign(place, p); update(); },
+  resultCanvas: () => result && result.canvas,
+};
+</script>
+</body>
+</html>

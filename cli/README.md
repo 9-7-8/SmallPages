@@ -289,8 +289,18 @@ whichever card is up, so the flag means the same thing the box does.
       came from. Its bare command is the page exactly as it opens, down to
       `D:\Music` and PowerShell, which is what makes the check at the end of
       `tests/test-cli.mjs` mean anything.
+- [x] **`uncrop.html`** &mdash; `<picture> --canvas --width --height --ratio
+      --grow --scale --fit --at --fill --out --format --quality`, plus
+      `formats`. The first whose bare command runs *nothing*: on that page
+      opening a picture only shows you the figures and Uncrop is a separate
+      press, so the bare command is those figures and `--out` is the press,
+      which also means the arithmetic can be checked without fetching 80 MB
+      of weights. It is also the first where the page's own default fill
+      wants a download, so an offline run says so in a sentence rather than
+      hanging, and the one fill that needs nothing fetched is what the
+      written files are checked with.
 
-Three of the forty-six pages in the index. The rest are below, grouped by the
+Four of the forty-seven pages in the index. The rest are below, grouped by the
 shape of the work rather than by where they sit in the hub, because pages of
 the same shape are the same job twice and the second one is an afternoon.
 
