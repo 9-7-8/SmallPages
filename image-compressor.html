@@ -125,7 +125,7 @@
         </div>
 
         <div class="acts">
-          <button type="button" id="saveBtn">Save it</button>
+          <button type="button" id="saveBtn" disabled>Save it</button>
         </div>
       </div>
 
@@ -193,6 +193,25 @@ const wipeBase   = el("wipeBase");
 const wipeTop    = el("wipeTop");
 const wipeSeam   = el("wipeSeam");
 const wipePos    = el("wipePos");
+const saveBtn    = el("saveBtn");
+
+/* What a browser will actually paint. Past these a canvas is handed over as
+   normal, gives up a context as normal, and then quietly paints nothing: at
+   20000 × 20000 every pixel comes back transparent and `toBlob` returns null,
+   with no complaint anywhere. The area is the one that bites — a side of
+   20000 on its own is fine in Chromium — but both are capped, because which
+   limit applies varies by browser and build.
+
+   The side is 16383 rather than the round number because of WebP, which this
+   page writes by default. A lossy WebP keeps its dimensions in fourteen bits,
+   so 16383 is the widest one there is, and asking for a column more does not
+   fail: a 16385-wide canvas comes back as a 16383-wide WebP with two columns
+   quietly gone. Capping a pixel lower costs nothing and keeps the size in the
+   tally the size in the file. image-grid.html holds its sheet under 16384
+   instead, which is right for it — it only ever writes PNG and JPEG, and both
+   carry the full width. */
+const MAX_SIDE = 16383;
+const MAX_AREA = 268435456;
 
 let source = null;        // { bitmap, name, type, size, w, h }
 let sourceUrl = "";
@@ -287,6 +306,7 @@ async function open(file) {
     // drawn to a canvas does not reliably do.
     const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
 
+    forget();
     if (sourceUrl) URL.revokeObjectURL(sourceUrl);
     sourceUrl = URL.createObjectURL(file);
     source = { bitmap, name: file.name, type: file.type, size: file.size,
@@ -320,8 +340,44 @@ function targetSize() {
   const cap = Number(scaleIn.value);
   const longest = Math.max(source.w, source.h);
   // Never enlarged: asking for more pixels than the file has only invents them.
-  const k = Math.min(1, cap / longest);
-  return { w: Math.max(1, Math.round(source.w * k)), h: Math.max(1, Math.round(source.h * k)), k };
+  const asked = Math.min(1, cap / longest);
+  /* And never past what the browser will paint, however modest the ask was in
+     proportion: a 400-megapixel scan is over the area ceiling at full size,
+     and the canvas for it comes back blank rather than complaining. So the
+     shrink is tightened until it fits, and `capped` is how the page knows to
+     say that is what happened.
+
+     The sides are then held under the ceiling directly rather than trusted to
+     come out of the multiplication, because a ratio multiplied back out lands
+     a hair either side of the figure it was derived from and half of those
+     hairs are over. */
+  const fit = Math.min(
+    1,
+    MAX_SIDE / (source.w * asked),
+    MAX_SIDE / (source.h * asked),
+    Math.sqrt(MAX_AREA / (source.w * asked * source.h * asked)),
+  );
+  const k = asked * fit;
+  return {
+    w: Math.min(MAX_SIDE, Math.max(1, Math.round(source.w * k))),
+    h: Math.min(MAX_SIDE, Math.max(1, Math.round(source.h * k))),
+    k,
+    capped: fit < 1,
+  };
+}
+
+/* Drops whatever was encoded last, so that the page is showing nothing
+   rather than showing something out of date. Called when an encode fails and
+   when a new picture arrives, which are the two moments the thing on screen
+   stops being about the thing in the controls. */
+function forget() {
+  if (outUrl) URL.revokeObjectURL(outUrl);
+  outUrl = "";
+  outBlob = null;
+  wipeTop.textContent = "";
+  tallyEl.textContent = "";
+  barFill.style.width = "0%";
+  saveBtn.disabled = true;
 }
 
 async function encode() {
@@ -364,9 +420,17 @@ async function encode() {
     wipeTop.appendChild(img);
     slide();
 
+    saveBtn.disabled = false;
     showTally(blob, w, h);
   } catch (err) {
     console.error(err);
+    /* The last good blob is still sitting here, and leaving it was a page
+       that read as a success in spite of itself: the tally went on describing
+       the settings before last, the seam went on showing that picture, and
+       Save handed over a file nothing on screen was about — then replaced
+       this very message with "Saved". Nothing at all is better than something
+       that quietly is not the answer. */
+    forget();
     setStatus(`Couldn't encode that: ${err.message}`, true);
   } finally {
     busy = false;
@@ -459,11 +523,13 @@ function syncQuality() {
 
 function syncScale() {
   if (!source) return;
-  const { w, h, k } = targetSize();
+  const { w, h, k, capped } = targetSize();
   scaleOut.textContent = `${scaleIn.value}px`;
-  scaleNote.textContent = k < 1
-    ? `${w}×${h} — down from ${source.w}×${source.h}`
-    : `${w}×${h} — full size`;
+  scaleNote.textContent = capped
+    ? `${w}×${h} — brought down to what this browser will draw`
+    : k < 1
+      ? `${w}×${h} — down from ${source.w}×${source.h}`
+      : `${w}×${h} — full size`;
 }
 
 function syncFormat() {
@@ -483,7 +549,7 @@ formatSel.addEventListener("change", () => { syncFormat(); later(); });
 qualityIn.addEventListener("input", () => { syncQuality(); later(); });
 scaleIn.addEventListener("input", () => { syncScale(); later(); });
 
-el("saveBtn").addEventListener("click", () => {
+saveBtn.addEventListener("click", () => {
   if (!outBlob) return;
   const link = document.createElement("a");
   link.href = outUrl;
@@ -594,13 +660,14 @@ window.CLI = {
       }
       if (!outBlob) throw new Error("the encoder gave nothing back");
 
-      const { w, h } = targetSize();
+      const { w, h, capped } = targetSize();
       return {
         ...tallyOf(outBlob, w, h),
         lossy: format().lossy,
         quality: format().lossy ? Number(qualityIn.value) : null,
         cap: Number(scaleIn.value),
         asked: o.cap == null ? null : Number(o.cap),
+        ceiling: capped,
         name: saveName(),
         status: statusEl.textContent.trim(),
         /* A blob cannot survive the trip out of the tab, so the file leaves

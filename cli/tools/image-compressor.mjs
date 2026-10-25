@@ -134,6 +134,11 @@ function notes(d, flags) {
       + "40-pixel steps, from 240 up to the picture's own longest side, and "
       + "never enlarges.");
   }
+  if (d.ceiling) {
+    said.push(`${d.compressed.width}×${d.compressed.height} is as big as this `
+      + "browser will paint, so the picture was brought down to fit rather "
+      + "than coming out at the cap it was given.");
+  }
   if (!d.lossy && flags.quality !== undefined) {
     said.push(`${d.compressed.format} is lossless, so --quality was not used.`);
   }

@@ -44,6 +44,112 @@ So `npm i -D playwright && npx playwright install chromium` is enough from
 nothing. `SITE_PORT` moves the server off 8099; `TEST_WORK` moves the scratch
 directory off `tests/.work`.
 
+## Writing one
+
+A suite is one file that opens the page in a real browser, uses it, prints a
+`PASS` or `FAIL` line per check, and exits non-zero if any failed. `run.mjs`
+only starts it and adds the lines up. There is no framework, nothing to
+register, and no helper to learn beyond `lib/env.mjs`.
+
+### 1. Check what the page produced
+
+Not what a function returned. Reload the saved PDF and read its text back out,
+render the audio through an `OfflineAudioContext` and measure the envelope,
+open the saved picture again and read its pixels. Several bugs here survived a
+passing test and a quick look, and were caught by a person listening.
+
+Where the page is the only thing in the repo that can read its own output &mdash;
+an image encoder, a zip reader, a PDF writer &mdash; hand the file back to the
+page rather than writing a reader in the suite to check it. A second reader is
+a second implementation, and the two drift. Read bytes directly only for what
+no decoder is needed for: a magic number, a PNG's `IHDR`, a string that should
+or should not be in there.
+
+### 2. The skeleton
+
+```js
+import { chromium, CHROMIUM_BIN, WORK, scoring } from './lib/env.mjs';
+
+const { ok, done } = scoring();
+const browser = await chromium.launch({ executablePath: CHROMIUM_BIN });
+/* … */
+ok('nothing threw along the way', errs.length === 0, errs.join(' | '));
+process.exit(done());
+```
+
+`scoring()` keeps the tally, so the exit code still means something when the
+suite is run on its own rather than through `run.mjs`. Collect `pageerror` and
+console errors into a list as you go and assert it is empty at the end &mdash;
+filtering the missing favicon on its **location**, not its text, because
+Chromium says only *the server responded with a status of 404* and puts the
+file nowhere but `m.location()`. A failure the suite causes on purpose, and
+that the page is right to log, comes off that list where it is caused, with a
+line saying whose it was.
+
+### 3. Draw the fixtures if you can
+
+A picture, a sound or a document the suite can draw for itself does not belong
+in the repository. Put the painter in the suite, seed anything random from a
+fixed sequence rather than `Math.random`, and give the thing the structure the
+page is actually judged on &mdash; flat colour encodes to nothing at any
+quality and so cannot show a quality setting doing anything, and upscales
+perfectly by any means at all.
+
+What genuinely cannot be drawn goes in `FIXTURES` in `lib/env.mjs`, read
+through `WORK`, carrying nobody's content and nothing large. Write scratch
+output under `WORK` too, under a name no other suite uses.
+
+### 4. Wait on the answer, not on a stopwatch
+
+`waitForTimeout` passes on a fast machine and reads the *previous* answer on a
+slow one, which is a check that silently stops checking. Wait for the thing
+you are about to assert, or for a signal the page changes on every new answer:
+`image-compressor.html` puts a fresh object URL on its compressed layer each
+time it encodes, so that `src` changing is proof the tally underneath is the
+new one.
+
+### 5. Prove every check can fail
+
+The step nobody thinks they need. **A suite that passes the first time it is
+run has told you nothing yet** &mdash; a check that would pass whatever the
+page did looks exactly like a check that works.
+
+So break the page on purpose, one behaviour at a time, and see which check
+notices. Keep the page's text in hand, swap one thing for a wrong thing, run
+the suite, restore it. Twenty minutes of that is worth more than twenty more
+checks. Three things come out of it:
+
+- **A check nothing catches.** Either it is asserting a tautology, or the
+  behaviour has a second guard holding it up &mdash; both worth knowing.
+- **A behaviour no check covers.** Write the check.
+- **A behaviour that cannot be broken from outside.** `image-compressor.html`
+  will not enlarge a picture, and nothing could make it: the slider's ceiling
+  is the picture itself, so the clamp underneath is never asked to refuse
+  anything. The suite lifts the ceiling to get at it. Without that the clamp
+  could be deleted and nothing here would notice.
+
+Two of these are already written up where they were found. `test-rain.mjs` has
+six checks that were measuring a random variable against a line drawn from one
+good run, and between them lost about one run in six. `test-imgc.mjs` came at
+it from the other end: 48 checks passed first time, and of seven deliberate
+breakages one went unnoticed and one check turned out to be about a browser
+default rather than about the page.
+
+**Write down what you could not check, beside the check concerned.** A limit
+recorded is a limit the next person can work with; a limit left implied reads
+as coverage that is not there.
+
+### 6. If there is randomness in it
+
+Measure the figure over hundreds of runs before drawing a line anywhere near
+it, and do not move the line until it goes quiet &mdash; make the
+*measurement* steadier instead, and write the spread it came from down beside
+it. Keep a null measurement alongside: the same figure read where there is
+genuinely nothing to find, so the check is known to still be able to fail.
+How repeats are combined matters as much as taking them; `test-rain.mjs`'s
+entry below is the long version, and it is worth reading before averaging
+anything.
+
 ## What is in here
 
 Suites are named for the page they exercise. The ones worth knowing about:
@@ -218,6 +324,21 @@ Suites are named for the page they exercise. The ones worth knowing about:
   the first few bytes are ever read in node, and only to catch a WebP wearing
   a `.jpg` name.
 
+  A fifth came out of writing the first four. The page used to report a failed
+  encode in red and then leave everything else exactly as it was &mdash; the
+  previous run's tally, the previous picture under the seam, and a Save button
+  that handed that file over and replaced the complaint with "Saved". Past
+  about 268 megapixels a canvas is handed over as normal, paints nothing at
+  all and returns null from `toBlob` without a word, so a large scan took that
+  path. The page now drops what it was holding and turns Save off, and the
+  suite injects the failure by replacing `toBlob` rather than carrying a
+  gigabyte of fixture &mdash; then checks the page comes *back* when the
+  encoder works again, since a page that went quiet for good would be the
+  worse bug. The ceiling that avoids the failure is capped at 16383 rather
+  than 16384, which is WebP's own limit: its dimensions live in fourteen bits,
+  and a column past that is dropped silently, so the round number would have
+  made the tally disagree with the file by a pixel.
+
   The EXIF one is the page's privacy claim and the one thing on it a reader
   cannot check by looking, so the fixture is built in the suite: a picture the
   browser encodes, with an APP1 block spliced in after the SOI carrying an
@@ -230,19 +351,26 @@ Suites are named for the page they exercise. The ones worth knowing about:
   it, in the size reported and in the saved pixels both.
 
   Every one of these passed the first time it was run, which is the point at
-  which this repository has learned to be suspicious, so the suite was run
-  again against the page broken seven ways on purpose: the white fill taken
-  out, the quality slider ignored, the enlargement clamp removed, the seam
-  clipped the other way, the saved name changed, the tally's subtraction
-  broken, and the picture drawn upside down. Six were caught by exactly the
-  check that should catch them. The seventh is written up beside the check that
-  cannot see it: taking away the argument that asks the decoder to read the
-  orientation changes nothing, because Chromium reads it by default now, so
-  that check is about the page's end-to-end behaviour rather than about the
-  flag. One check exists only because of that exercise &mdash; the clamp that
-  refuses to enlarge cannot be reached through the slider at all, whose ceiling
-  is the picture itself, so the suite lifts the ceiling to get at it. Without
-  that it could stop refusing and nothing here would notice.
+  which this repository has learned to be suspicious, so the page was broken
+  on purpose instead &mdash; eleven ways across two rounds, the second round
+  aimed at the fix above. Nine were caught by exactly the check that should
+  catch them, including the original stale-output bug, which five checks now
+  stand on. The two that were not are written up beside the checks that cannot
+  see them, because a limit recorded is worth more than a limit implied:
+  taking away the argument that asks the decoder to read the EXIF orientation
+  changes nothing, Chromium reading it by default now, so that check is about
+  the end-to-end behaviour rather than the flag; and the proportional shrink
+  that keeps an oversized picture in proportion is guarded a second time by a
+  plain clamp on each side, so removing either alone still comes out right.
+  The area ceiling cannot be staged at all &mdash; a source over 268
+  megapixels is a gigabyte of fixture and a canvas no browser will paint &mdash;
+  so the injected `toBlob` failure covers its consequence instead.
+
+  One check exists only because of that exercise. The page will not enlarge a
+  picture, and nothing could make it: the slider's ceiling is the picture
+  itself, so the clamp underneath is never asked to refuse anything. The suite
+  lifts the ceiling to get at it. Without that the clamp could be deleted and
+  nothing here would notice.
 - **`test-pdfb.mjs`** — saves a PDF, reloads it through pdf.js, and reads the
   text back out, which is the only way to prove a copied page stayed a page
   rather than becoming a picture of one.
@@ -307,4 +435,8 @@ Several of these were written after a bug reached a person's ears first — the
 startup bang on the noise machine, the gust rubber-band on the rain, the
 thunder that sounded like it was playing backwards. Each now has a check that
 fails if it returns. But the check exists because somebody listened, not
-because the suite found it. Run the page.
+because the suite found it.
+
+*Prove every check can fail* above keeps a suite honest about the behaviour it
+set out to cover. Nothing keeps it honest about the behaviour nobody thought
+of &mdash; and that is most of what reaches a person first. Run the page.

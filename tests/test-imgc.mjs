@@ -134,6 +134,7 @@ const state = () => page.evaluate(() => {
       win: c.classList.contains('win'),
     })),
     bar: el('barFill').style.width,
+    saveOff: el('saveBtn').disabled,
     seam: el('wipePos').value,
     clip: el('wipeTop').style.clipPath,
     seamAt: el('wipeSeam').style.left,
@@ -499,6 +500,132 @@ ok('and the saved pixels are the rotated ones: red above, blue below',
      && turnedOut.bottom[2] > 150 && turnedOut.bottom[0] < 100,
    `${turnedOut.size.join('×')} top ${turnedOut.top.join(',')} `
      + `bottom ${turnedOut.bottom.join(',')}`);
+
+/* --------------------------------------------- when the encoder gives up -- */
+
+/* The failure being guarded against is real and absurd to carry a fixture
+   for: past about 268 megapixels a canvas is handed over as normal, gives up
+   a context as normal, then paints nothing at all and lets `toBlob` return
+   null without a word anywhere. A 400-megapixel scan takes that path.
+   Replacing `toBlob` is the same failure for the price of two lines.
+
+   What used to happen next was worse than an error. The page kept the
+   previous run's tally, kept the previous picture under the seam, let Save
+   hand that file over — and the cheerful "Saved" message wrote over the
+   complaint, so the last thing on screen said it had worked. */
+await page.goto(SITE);
+await page.waitForTimeout(200);
+await afterEncode(() => hand({ name: 'photo.png', what: 'noise', w: 400, h: 300 }));
+s = await state();
+ok('before the injection there is a good answer here to lose',
+   s.cells.length === 3 && s.layers[1] && !s.saveOff && !s.failed,
+   `${s.cells.length} cells, save ${s.saveOff ? 'off' : 'on'}`);
+
+await page.evaluate(() => {
+  window.__toBlob = HTMLCanvasElement.prototype.toBlob;
+  HTMLCanvasElement.prototype.toBlob = function (cb) { cb(null); };
+});
+await page.fill('#quality', '25');
+await page.locator('#quality').dispatchEvent('input');
+await page.waitForFunction(() =>
+  document.getElementById('status').classList.contains('error'),
+  null, { timeout: 15000 });
+s = await state();
+ok('an encode that fails says so, in red', s.failed
+   && /Couldn.t encode that/.test(s.status), s.status);
+ok('and leaves no tally standing from the run before it',
+   s.cells.length === 0, `${s.cells.length} cells still there`);
+ok('nor the picture that went with it under the seam',
+   !s.layers[1] && s.layers[0], s.layers.join());
+ok('nor a bar still claiming a saving', s.bar === '0%', s.bar);
+ok('and Save is not offered at all', s.saveOff, 'still live');
+
+/* Belt and braces, because the disabled button is only the first of the two:
+   made to fire anyway, the handler has to refuse by itself. */
+const pending = page.waitForEvent('download', { timeout: 2500 })
+  .then(d => d.suggestedFilename()).catch(() => null);
+await page.evaluate(() => {
+  document.getElementById('saveBtn')
+    .dispatchEvent(new MouseEvent('click', { bubbles: true }));
+});
+const forced = await pending;
+s = await state();
+ok('made to fire anyway it hands nothing over, and the complaint still stands',
+   forced === null && s.failed && /Couldn.t encode that/.test(s.status),
+   `${forced} / ${s.status}`);
+
+/* And it has to come back. A page that went quiet for good on one bad encode
+   would be a worse bug than the one this is about. */
+await afterEncode(() => page.evaluate(() => {
+  HTMLCanvasElement.prototype.toBlob = window.__toBlob;
+  const q = document.getElementById('quality');
+  q.value = '55';
+  q.dispatchEvent(new Event('input', { bubbles: true }));
+}));
+s = await state();
+ok('and when the encoder works again the page comes back on its own',
+   !s.failed && s.cells.length === 3 && s.layers[1] && !s.saveOff
+     && /% off the original/.test(s.status), s.status);
+/* The page logs what went wrong, which is right of it — but that failure was
+   ours, so it is taken off the list the last check in this file reads.
+   Anything else it logged stays on. */
+const logged = errs.filter(e => /gave nothing back/.test(e));
+ok('and the failure left a note in the console for whoever opens it',
+   logged.length > 0, 'nothing was logged');
+for (let i = errs.length - 1; i >= 0; i--) {
+  if (/gave nothing back/.test(errs[i])) errs.splice(i, 1);
+}
+
+const recovered = await save('imgc-recovered.webp');
+const recoveredBack = await pixels(recovered.file, 'image/webp', []);
+ok('with a Save that hands over a real file again',
+   magic(recovered.bytes) === 'webp' && recoveredBack.size.join('×') === '400×300',
+   `${magic(recovered.bytes)} ${recoveredBack.size.join('×')}`);
+
+/* ----------------------------------------------- the browser's ceiling -- */
+
+/* A picture wider than a canvas will go. The slider cannot ask for less than
+   the whole of it, since its ceiling is the picture, so this is the one size
+   the page has to decide on the reader's behalf — and the note under the
+   slider is where that gets admitted.
+
+   16400 across is over the side ceiling while well under the area one, which
+   keeps the fixture a few hundred kilobytes rather than a gigabyte. Note the
+   asymmetry it rests on: this Chromium will paint a 16400-wide canvas quite
+   happily, which is how the fixture gets drawn at all, and the page refuses
+   it anyway because which limit bites varies by browser and build.
+
+   Two things this cannot reach, written down rather than left to be
+   discovered. The side ceiling is guarded twice — once by the proportional
+   shrink and once by a plain clamp on each side — so taking either away on
+   its own still comes out at 16383 here and no check below moves. And the
+   area ceiling cannot be reached at all: a source over 268 megapixels is a
+   gigabyte of fixture and a canvas this browser will not paint in the first
+   place, which is rather the point. What an over-area canvas *does* —
+   paint nothing and return null from `toBlob` — is the failure injected in
+   the section above, so its consequence is covered even though its cause
+   cannot be staged. */
+await page.goto(SITE);
+await page.waitForTimeout(200);
+await afterEncode(() => hand({ name: 'panorama.png', what: 'halves', w: 16400, h: 100 }));
+s = await state();
+ok('a picture past what a canvas will paint is brought down to fit',
+   /16383×100 · webp/.test(s.cells[1].sub), s.cells[1].sub);
+ok('and the note says that is why, rather than calling it full size',
+   /16383×100 — brought down to what this browser will draw/.test(s.scaleNote),
+   s.scaleNote);
+ok('while the original is still reported at the size it really is',
+   /16400×100 · png/.test(s.cells[0].sub), s.cells[0].sub);
+
+const wide = await save('imgc-wide.webp');
+const widePixels = await pixels(wide.file, 'image/webp',
+  [['left', 1000, 50], ['right', 15000, 50]]);
+ok('and what it saves is the picture, not the blank an oversized canvas gives',
+   widePixels.size.join('×') === '16383×100'
+     && widePixels.left[0] > 140 && widePixels.left[2] < 110
+     && widePixels.right[2] > 140 && widePixels.right[0] < 110,
+   `${widePixels.size.join('×')} left ${widePixels.left.join(',')} `
+     + `right ${widePixels.right.join(',')}`);
 
 /* ------------------------------------------------- the other ways in -- */
 

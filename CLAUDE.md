@@ -112,6 +112,10 @@ catches a command line quietly growing arithmetic of its own.
 Suites live in [`tests/`](tests/) and run with `node tests/run.mjs`, which starts
 the server and the caption stub itself. A new page gets a suite; a bug that
 reached the user's ears gets a check that fails if it comes back.
+*Writing one* in [`tests/README.md`](tests/README.md) is the procedure — the
+skeleton, the fixtures, what to wait on, and the step that matters most: break
+the page on purpose and see which check notices, because a suite that passed
+first time has not told you anything yet.
 
 Check what the page produced, not what a function returned — reload the saved
 PDF and read its text back, render the audio offline and measure the envelope.
