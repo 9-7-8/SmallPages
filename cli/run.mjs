@@ -72,7 +72,19 @@ if (!known.includes(asked)) {
 
 const tool = await load(asked);
 
-if (flags.help || (!words.length && !Object.keys(flags).length)) {
+/* The arguments are read again now that the tool is known, because only the
+   tool knows which of its flags take a value and which are a plain yes.
+   `--no-tags <url>` has to leave the URL where the tool can find it rather
+   than handing it to the flag, and that is not decidable up here. */
+let { words: argv, flags: opts } = { words, flags };
+if (tool.booleans && tool.booleans.length) {
+  const again = parse(process.argv.slice(2), tool.booleans);
+  again.words.shift();                  // the tool's own name
+  argv = again.words;
+  opts = again.flags;
+}
+
+if (opts.help || (!argv.length && !Object.keys(opts).length)) {
   console.log("\n" + tool.usage + "\n");
   process.exit(0);
 }
@@ -82,7 +94,7 @@ if (flags.help || (!words.length && !Object.keys(flags).length)) {
 const open = () => drive(tool.page);
 
 try {
-  await tool.run({ words, flags, open });
+  await tool.run({ words: argv, flags: opts, open });
 } catch (err) {
   console.error(`\n  ${err.message}\n`);
   process.exit(1);

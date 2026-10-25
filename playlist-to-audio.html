@@ -638,21 +638,42 @@ function fmtSize(bytes) {
        :             (mb / 1024).toFixed(mb / 1024 < 10 ? 2 : 1) + " GB";
 }
 
-function sizes() {
+/* The estimate as data, before any of it is a row on the screen. The figures
+   are wanted in two places — drawn here, printed by the command line — and a
+   second copy of the multiplication is a second answer waiting to disagree
+   with this one, so `sizes` draws whatever this says and `window.CLI` hands
+   back the same thing. */
+function estimateOf() {
   const rows = rates();
-
   const tracks = Math.max(1, Math.min(20000, +$("tracks").value || 1));
   const per = parseLen($("avglen").value);
-  $("avglen").style.borderColor = per === null ? "#8a4a22" : "";
-  const seconds = tracks * (per === null ? 240 : per);
+  const each = per === null ? 240 : per;
+  const seconds = tracks * each;
+  return {
+    tracks: tracks, each: each, seconds: seconds,
+    read: per !== null,                     // false => the 4:00 fallback
+    duration: fmtDur(seconds),
+    tiers: rows.map(r => ({
+      key: r.key, name: r.name, kbps: r.kbps,
+      label: r.label.replace(/^~/, ""),
+      bytes: Math.round(r.kbps * 1000 * seconds / 8),
+      human: fmtSize(r.kbps * 1000 * seconds / 8),
+      chosen: r.key === tier,
+    })),
+  };
+}
 
-  $("est-total").textContent = fmtDur(seconds) + " of audio";
+function sizes() {
+  const est = estimateOf();
 
-  $("est-rows").innerHTML = rows.map(r =>
-    '<tr class="' + (r.key === tier ? "on" : "") + '">' +
+  $("avglen").style.borderColor = est.read ? "" : "#8a4a22";
+  $("est-total").textContent = est.duration + " of audio";
+
+  $("est-rows").innerHTML = est.tiers.map(r =>
+    '<tr class="' + (r.chosen ? "on" : "") + '">' +
       '<td class="tier-name">' + r.name + "</td>" +
-      '<td class="tier-rate">' + r.label.replace(/^~/, "") + "</td>" +
-      '<td class="tier-size">' + fmtSize(r.kbps * 1000 * seconds / 8) + "</td>" +
+      '<td class="tier-rate">' + r.label + "</td>" +
+      '<td class="tier-size">' + r.human + "</td>" +
     "</tr>").join("");
 }
 
@@ -704,6 +725,224 @@ $("copy-btn").addEventListener("click", async () => {
 });
 
 render();
+
+/* ------------------------------------------------------- the command line -- */
+
+/* `cli/tools/playlist-to-audio.mjs` drives this page in a headless browser
+   rather than assembling a yt-dlp line of its own, which it would be very
+   easy to do and which would be two builders sharing a name. Every job below
+   sets the page's own controls, calls the page's own `build`, and hands back
+   what the Copy button would have put on your clipboard.
+
+   Nothing is loaded here and nothing is saved, so there is no `ready` reader
+   on this hook: the page is usable the moment it is up. */
+
+/* Which select belongs to which card, and the option boxes under their own
+   names, so a terminal and the page are talking about the same controls
+   rather than about two lists that have to be kept level by hand. */
+const TIER_Q = { max: "maxq", balanced: "balq", min: "minq" };
+const OPTIONS = {
+  numbers: "o-number", tags: "o-meta", album: "o-album", cover: "o-thumb",
+  archive: "o-archive", pauses: "o-slow", skip: "o-continue",
+  sponsorblock: "o-sponsor",
+};
+
+/* A <select> set to a value it has no option for keeps the old value and says
+   nothing at all, which is a wrong answer wearing the look of a right one.
+   The same goes for a name that is nearly right. */
+function wantOption(el, value, what) {
+  const opts = Array.from(el.options).map(o => o.value);
+  const hit = opts.find(v => v.toLowerCase() === String(value).toLowerCase());
+  if (!hit) {
+    throw new Error('no ' + what + ' called "' + value + '" — there is '
+      + opts.join(", "));
+  }
+  el.value = hit;
+  el.dispatchEvent(new Event("change", { bubbles: true }));
+  return hit;
+}
+
+/* The box belonging to whichever card is up. `tier` is one of three names or
+   the page is in a state no card is showing, which is the bug this page was
+   fixed for: it opened on "mp3" for a while, lit Balanced up and built the
+   Smallest file command underneath it. A sentence here is worth more than a
+   null two lines down, and it says which half of the page to believe. */
+function tierBox() {
+  const box = TIER_Q[tier];
+  if (!box) {
+    throw new Error('the page is on a tier called "' + tier + '", which is '
+      + "none of its three cards — so what it is showing and what it would "
+      + "build are two different tiers");
+  }
+  return $(box);
+}
+
+/* The card is pressed rather than the variable assigned, so the tier arrives
+   the way it arrives for a person and the estimate table lights up with it. */
+function pressTier(name) {
+  const card = document.querySelector('.tier[data-tier="' + name + '"]');
+  if (!card) {
+    throw new Error('no tier called "' + name + '" — there is '
+      + Array.from(document.querySelectorAll(".tier"))
+          .map(b => b.dataset.tier).join(", "));
+  }
+  card.click();
+  return name;
+}
+
+/* Typing, in the one way the page notices. Every field below is wired to both
+   `input` and `change`, so one of each is what a keystroke amounts to. */
+function setField(id, value) {
+  const el = $(id);
+  el.value = value;
+  el.dispatchEvent(new Event("input", { bubbles: true }));
+  el.dispatchEvent(new Event("change", { bubbles: true }));
+  return el.value;
+}
+
+function setBox(name, on) {
+  const el = $(OPTIONS[name]);
+  el.checked = !!on;
+  el.dispatchEvent(new Event("change", { bubbles: true }));
+  return el.checked;
+}
+
+window.CLI = {
+  page: "playlist-to-audio",
+
+  jobs: {
+    /* The three cards, what each one's box offers, and the boxes underneath —
+       asked of the page rather than written down a second time in a help
+       string that would go stale the first time a card gained an option. */
+    tiers() {
+      return {
+        tiers: Array.from(document.querySelectorAll(".tier")).map(card => {
+          const key = card.dataset.tier;
+          const sel = $(TIER_Q[key]);
+          return {
+            key: key,
+            name: card.querySelector("h3").textContent.trim(),
+            rate: card.querySelector(".rate").textContent.trim(),
+            what: card.querySelector("p").textContent.trim(),
+            chosen: card.getAttribute("aria-pressed") === "true",
+            label: card.querySelector(".tier-extra label").textContent.trim(),
+            quality: Array.from(sel.options).map(o => ({
+              value: o.value, name: o.textContent.trim(),
+              default: o.value === sel.value,
+            })),
+          };
+        }),
+        options: Object.keys(OPTIONS).map(name => ({
+          name: name,
+          what: $(OPTIONS[name]).closest(".opt").querySelector("span")
+                  .firstChild.textContent.trim(),
+          why: $(OPTIONS[name]).closest(".opt").querySelector("em")
+                 .textContent.trim(),
+          on: $(OPTIONS[name]).checked,
+        })),
+        cookies: Array.from($("cookies").options).map(o => o.value)
+                   .filter(Boolean),
+        shells: Array.from($("shell").options).map(o => ({
+          value: o.value, name: o.textContent.trim(),
+          default: o.value === $("shell").value,
+        })),
+        dest: $("dest").value,
+      };
+    },
+
+    /* The command, and the annotation of every part of it. Both come out of
+       `build`, which is also what the page draws, so the line printed in a
+       terminal is the line in the <pre> and the table under it. */
+    command(o) {
+      const want = o || {};
+
+      setField("url", want.url == null ? "" : String(want.url));
+
+      /* The tier first: which quality box the next line is about depends on
+         which card is pressed. */
+      if (want.tier != null) pressTier(String(want.tier));
+      if (want.quality != null) {
+        wantOption(tierBox(), want.quality, "setting for the " + tier + " tier");
+      }
+
+      for (const name of Object.keys(OPTIONS)) {
+        if (want[name] != null) setBox(name, want[name]);
+      }
+      if (want.dest != null) setField("dest", String(want.dest));
+      if (want.items != null) setField("items", String(want.items));
+      if (want.cookies != null) {
+        wantOption($("cookies"), want.cookies, "browser to take cookies from");
+      }
+      if (want.shell != null) wantOption($("shell"), want.shell, "shell");
+      /* Wrapping is a button rather than a field, and it toggles, so it is
+         pressed only when it is pointing the wrong way. */
+      if (want.wrap != null && !!want.wrap !== wrapped) $("wrap-btn").click();
+
+      const info = readUrl(urlEl.value);
+      if (info.state === "empty") {
+        throw new Error("which playlist? a YouTube or YouTube Music playlist "
+          + "link, or the bare list id out of one");
+      }
+      if (info.state === "bad") {
+        throw new Error(info.msg + ' Nothing was built for "'
+          + urlEl.value.trim() + '".');
+      }
+
+      render();
+      const parts = build();
+
+      return {
+        url: {
+          state: info.state,
+          kind: info.kind || null,
+          id: info.id || null,
+          target: info.url,
+          needsAuth: !!info.needsAuth,
+          note: readout.textContent.trim(),
+        },
+        tier: tier,
+        quality: tierBox().value,
+        setting: tierBox().selectedOptions[0].textContent.trim(),
+        shell: $("shell").value,
+        prompt: $("shell").value === "pwsh" ? "PS> " : "$ ",
+        wrapped: wrapped,
+        dest: $("dest").value.trim(),
+        items: $("items").value.trim(),
+        cookies: $("cookies").value,
+        options: Object.fromEntries(
+          Object.keys(OPTIONS).map(name => [name, $(OPTIONS[name]).checked])),
+        parts: parts.map(p => ({ arg: p.arg, why: p.why })),
+        command: plainCommand(),
+        shown: cmdEl.textContent,
+      };
+    },
+
+    /* The size estimate, which is the page's own multiplication of a bitrate
+       by a runtime. A length the page cannot read becomes 4:00 on screen and
+       the field goes red; there is no red field in a terminal, so here it is
+       a sentence instead. */
+    sizes(o) {
+      const want = o || {};
+      if (want.tier != null) pressTier(String(want.tier));
+      /* The top row's rate is the container's, not the tier's: a lossless
+         wrapper round a lossy stream is five times the size of the stream. So
+         the setting is worth being able to ask about here too. */
+      if (want.quality != null) {
+        wantOption(tierBox(), want.quality, "setting for the " + tier + " tier");
+      }
+      if (want.tracks != null) setField("tracks", String(want.tracks));
+      if (want.length != null) {
+        const text = String(want.length);
+        if (parseLen(text) === null) {
+          throw new Error('a length reads as 4:00, 1:04:00, or 4.5 for minutes'
+            + ' — not "' + text + '"');
+        }
+        setField("avglen", text);
+      }
+      return estimateOf();
+    },
+  },
+};
 </script>
 </body>
 </html>

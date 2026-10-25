@@ -10,6 +10,7 @@ node cli/run.mjs color-picker --help              what that one takes
 node cli/run.mjs color-picker convert "#4f8fd0"
 node cli/run.mjs color-picker palette photo.jpg --count 6 --json
 node cli/run.mjs image-compressor photo.jpg --out small.webp --quality 70
+node cli/run.mjs playlist-to-audio "https://music.youtube.com/playlist?list=OLAK5uy_…"
 ```
 
 Games are not in this. A game is something you play.
@@ -114,12 +115,20 @@ Nothing has needed that yet; `split-sheet.html` is where it gets decided.
 export const page = "color-picker.html";
 export const summary = "one line for the listing";
 export const usage = `the full help`;
+export const booleans = ["one-line"];          // optional; see below
 export async function run({ words, flags, open }) { … }
 ```
 
 `words` are the arguments that were not flags, `flags` is everything that was,
 and `open()` gives back `{ tab, call, close }` — so a command is: validate,
 `open()`, `call('job', {…})`, print, `close()` in a `finally`.
+
+A tool with a flag that takes no value has to say so, in `booleans`, because
+`--one-line <url>` is otherwise a flag called `one-line` whose value is the
+URL and a command with nothing to work on. `run.mjs` reads the arguments a
+second time once the tool is known, since which flags take a value is the
+tool's business and not the parser's. `--help`, `--json` and `-h` are always
+in there.
 
 Conventions worth keeping to, because they are what somebody will expect from
 the second tool having used the first:
@@ -130,7 +139,13 @@ the second tool having used the first:
 - `--out <file>` for anything that produces a file, under the three rules
   just above. A command with no `--out` writes nothing.
 - A flag with a fixed set of answers uses `oneOf`, so a typo lists the
-  answers instead of falling through to the default.
+  answers instead of falling through to the default. Where the answers are a
+  `<select>`'s own options, the page refuses it instead — `wantOption` there,
+  so the sentence carries the list the page really has rather than a copy of
+  it kept in Node.
+- A flag the tool does not know is a sentence too, through `only`, rather than
+  being ignored. A tool that shrugs at `--no-covers` answers a question it was
+  not asked, and the run looks like it worked.
 - Default to whatever the page defaults to. Where the page has a button that
   means "just do the obvious thing" — `color-picker.html` has *Build a palette
   from this*, which sets the rule back to Dominant and lets the picture pick
@@ -168,7 +183,9 @@ that make it work; the rest are what make it look like the tool next to it.
 - [ ] `--out <file>` wherever the page saves something, `--out <dir>` where it
       saves several, and nothing written at all without one
 - [ ] Flags with a fixed set of answers go through `oneOf`; numbers through
-      `number` with a range
+      `number` with a range; flags the tool does not know through `only`
+- [ ] Any flag that takes no value is named in `booleans`, so it does not
+      swallow the word after it
 - [ ] Defaults are the page's defaults, and the bare command is whatever the
       page's own "just do it" button does
 - [ ] Validation before `open()`, so a typo and `--help` launch nothing
@@ -233,6 +250,31 @@ Chromium says *Failed to load resource: the server responded with a status of
 spent its life failing on a favicon it was trying to ignore. Filter on the
 location.
 
+**The page's own default is not what the page shows when it opens.** Two
+different things, and `playlist-to-audio.html` had them disagreeing: the
+Balanced tier card carried `aria-pressed="true"` in the markup while the
+variable the command was built from said `"mp3"`, which is none of the three
+card names, so the page opened with Balanced lit up and the *Smallest file*
+command underneath it — Opus at 6 kbps, downmixed to mono, in speech mode.
+Anybody who pasted it got a playlist that sounds like a phone call, and
+nothing on screen disagreed with anything else on screen. Its *Wrap lines*
+button had the same shape of bug, offering to wrap a command that was already
+wrapped. So before deciding what a bare command is, read the markup and the
+script against each other: the hook is the first thing that ever has to say
+out loud which state the page is in, and a page that cannot answer that
+consistently has a bug for the tab as well as for the terminal. The guard in
+`tierBox` is there because the answer has to be a sentence rather than a null
+dereference.
+
+**A control the page has collapsed is still a control a job can set.** The
+quality box inside each tier card is `display: none` until that card is
+pressed, which does not stop `wantOption` from setting it — the DOM is the
+DOM — and does stop a suite from clicking it, because Playwright waits for
+something visible and then times out saying the element is not there. So a
+job can reach settings a person would have to go and open first, which is
+convenient and worth being deliberate about: `--quality` is read against
+whichever card is up, so the flag means the same thing the box does.
+
 ## What has one
 
 - [x] **`color-picker.html`** &mdash; `convert`, `palette`, `pixel`,
@@ -240,8 +282,15 @@ location.
 - [x] **`image-compressor.html`** &mdash; `<picture> --out --format --quality
       --max`, and `formats`. The first one that writes a file, so it is the
       one to copy the `--out` rules off rather than inventing them again.
+- [x] **`playlist-to-audio.html`** &mdash; `<playlist> --tier --quality --to
+      --only --cookies --shell --one-line --why` and the seven `--no-…`
+      boxes, plus `tiers` and `sizes`. The first with no file at either end
+      and the first with boolean flags, so it is where `booleans` and `only`
+      came from. Its bare command is the page exactly as it opens, down to
+      `D:\Music` and PowerShell, which is what makes the check at the end of
+      `tests/test-cli.mjs` mean anything.
 
-Two of the forty-six pages in the index. The rest are below, grouped by the
+Three of the forty-six pages in the index. The rest are below, grouped by the
 shape of the work rather than by where they sit in the hub, because pages of
 the same shape are the same job twice and the second one is an afternoon.
 
@@ -291,12 +340,11 @@ rather than through a parser written to check it.
 
 ### Text in, an answer out
 
-No file plumbing, so these are the quick ones. `playlist-to-audio.html` is
-probably the easiest page in the repo to convert: it builds a `yt-dlp` command
-and never touches audio, so its whole output is already a line of text meant
-for a terminal.
+No file plumbing, so these are the quick ones. `playlist-to-audio.html` was
+the first of them and took an afternoon including its two suites, most of
+which went on the page rather than on the command — so the next one is
+genuinely an hour's work and not a day's.
 
-- [ ] `playlist-to-audio.html` &mdash; `<url>` prints the command
 - [ ] `readability-check.html` &mdash; `essay.txt`: five formulas, the grade
       that is their middle, and Reading Ease
 - [ ] `captions-to-transcript.html` &mdash; `track.vtt --as prose|srt|vtt`

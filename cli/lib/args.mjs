@@ -54,3 +54,22 @@ export function oneOf(value, what, allowed, fallback) {
   }
   return value;
 }
+
+/* And the flag nobody meant to type. A tool that ignores what it does not
+   recognise answers a question it was not asked: `--no-cover` misspelt once
+   is a run with the cover art still embedded and not a word about it. The
+   three the parser handles itself are always allowed. */
+export function only(flags, names) {
+  const known = new Set([...names, "help", "json", "h"]);
+  const stray = Object.keys(flags).find((f) => !known.has(f));
+  if (!stray) return;
+  /* The whole list is `--help`'s job — a tool with eighteen flags would
+     answer a typo with a paragraph. The near miss is worth naming, because a
+     plural slipped onto the end of a real flag is most of what this catches. */
+  const bare = (f) => f.replace(/s$/, "");
+  const near = names.find((n) => n.startsWith(stray) || stray.startsWith(n)
+    || bare(n) === bare(stray));
+  throw new Error(`no flag called --${stray} here`
+    + (near ? ` — did you mean --${near}?` : "")
+    + ". --help lists the ones there are.");
+}
