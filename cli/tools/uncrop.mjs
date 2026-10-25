@@ -63,8 +63,10 @@ The canvas
   --width <px>  --height <px>   the same, one side at a time
   --ratio <W:H>                 keep the width and work the height out from
                                 this shape, or "keep" for the picture's own
-  --grow <n>                    the canvas as a multiple of the picture.
-                                Left out, the page's own default of 1.25
+  --grow <n>                    the canvas as a multiple of the picture, so
+                                --grow 2 leaves half the canvas to invent.
+                                Left out, the canvas is the picture's own size,
+                                which is what the page opens on
   --swap                        swap the two sides over, the page's Swap button
 
 Where the picture sits on it
@@ -72,8 +74,11 @@ Where the picture sits on it
   --scale <n>                   the picture's size as a multiple of its own
                                 pixels; 1 is actual size, which is the default
   --fit                         scale it to fit the canvas instead
-  --at <x,y>                    the picture's top-left corner on the canvas.
-                                Left out, it is centred
+  --align <where>               put the picture against a corner or an edge:
+                                "top left", "bottom-right", "left", "centre".
+                                These are the nine buttons on the page
+  --at <x,y>                    or its top-left corner outright, in canvas
+                                pixels. Left out, the picture is centred
 
 The fill
 
@@ -243,7 +248,7 @@ function readable(d, file, fill) {
 export async function run({ words, flags, open }) {
   const asJson = !!flags.json;
   only(flags, ["out", "show-added", "canvas", "width", "height", "ratio", "grow",
-    "scale", "fit", "swap", "at", "fill", "format", "quality"]);
+    "scale", "fit", "swap", "align", "at", "fill", "format", "quality"]);
 
   if (words.length === 1 && words[0] === "sizes") {
     const handle = await open();
@@ -262,8 +267,9 @@ export async function run({ words, flags, open }) {
         "",
         ...rows(d.shapes.map((f) => [f.name, dim(f.label)])),
         "",
-        ...wrap(`With no canvas given at all it is the picture and a quarter more all`
-          + ` round, which is ${d.grow} times its own size and what the page opens on.`),
+        ...wrap("With no canvas given at all it is the picture's own size, which is"
+          + " what the page opens on and which leaves nothing to invent until you"
+          + " make it bigger: --canvas, --ratio or --grow."),
         "",
       ], asJson);
     } finally { await handle.close(); }
@@ -325,6 +331,10 @@ export async function run({ words, flags, open }) {
   const where = {
     ...canvas(flags),
     ...corner(flags),
+    align: flags.align === undefined ? null
+      : flags.align === true
+        ? (() => { throw new Error('--align wants a corner or an edge, like "top left"'); })()
+        : String(flags.align),
     swap: !!flags.swap,
     ratio: flags.ratio === undefined ? null
       : flags.ratio === true ? (() => { throw new Error("--ratio wants a shape like 16:9, or keep"); })()
@@ -335,6 +345,9 @@ export async function run({ words, flags, open }) {
   };
   if (where.fit && where.scale !== null) {
     throw new Error("--fit and --scale both set the picture's size — use one");
+  }
+  if (where.align && (where.x !== undefined || where.y !== undefined)) {
+    throw new Error("--align and --at both say where the picture goes — use one");
   }
   const quality = number(flags.quality, "--quality", { min: 40, max: 100 });
 

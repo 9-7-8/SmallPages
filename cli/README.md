@@ -293,10 +293,11 @@ whichever card is up, so the flag means the same thing the box does.
       --grow --swap --scale --fit --at --fill --out --show-added --format
       --quality`, plus `sizes` and `formats`. Every control on the page has a
       flag: the two size fields, the Swap button, the seven size presets, the
-      eight shapes, the size slider, Centre, Fit inside, Actual pixels,
-      dragging the picture, the three fills, the four formats, the quality
-      slider, Save, and *Show what was added*, which `--show-added` saves at
-      the size of the picture rather than the size of the panel.
+      eight shapes, the size slider, the nine align buttons, Fit inside,
+      Actual pixels, dragging the picture, the three fills, the four formats,
+      the quality slider, Save, and *Show what was added*, which
+      `--show-added` saves at the size of the picture rather than the size of
+      the panel.
 
       The first whose bare command runs *nothing*: on that page opening a
       picture only shows you the figures and Uncrop is a separate press, so

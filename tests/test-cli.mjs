@@ -632,16 +632,24 @@ const BARE = [
     twice.plan.width === 1600 && twice.plan.height === 1200 && twice.plan.passes === 2,
     JSON.stringify([twice.plan.width, twice.plan.height, twice.plan.passes]));
 
+  /* With no canvas asked for at all it is the picture's own size, which is
+     what the page opens on and leaves nothing to invent. */
+  const bare = await json("uncrop", PHOTO);
+  ok("a bare command is the picture's own size, with nothing to invent yet",
+    bare.plan.width === 800 && bare.plan.height === 600
+      && bare.plan.passes === 0 && bare.plan.exact === true,
+    JSON.stringify([bare.plan.width, bare.plan.height, bare.plan.passes]));
+
   /* A shape keeps the width and works the height out, which on this picture
      makes the canvas shorter than the picture — so some of it is cut, and the
      page says how much rather than cropping quietly. */
   const wide = await json("uncrop", PHOTO, "--ratio", "16:9");
   ok("--ratio keeps the width and reshapes the height",
-    wide.plan.width === 1000 && wide.plan.height === 563,
+    wide.plan.width === 800 && wide.plan.height === 450,
     `${wide.plan.width}×${wide.plan.height}`);
   ok("and a canvas that cuts the picture says what share of it goes",
-    Math.abs(wide.plan.cropped - (1 - 563 / 600)) < 0.002
-      && /6% of the picture/.test(wide.plan.note),
+    Math.abs(wide.plan.cropped - 0.25) < 0.002
+      && /25% of the picture/.test(wide.plan.note),
     `${wide.plan.cropped}: ${wide.plan.note}`);
 
   /* Half the picture's own pixels is 400 × 300, which leaves 400 either side
@@ -656,6 +664,18 @@ const BARE = [
     put.plan.gaps.left === 0 && put.plan.gaps.top === 0
       && put.plan.gaps.right === 400 && put.plan.gaps.bottom === 300,
     JSON.stringify(put.plan.gaps));
+
+  /* The nine buttons on the page, as words. */
+  const corner = await json("uncrop", PHOTO, "--canvas", "1200x900", "--align", "bottom right");
+  const edge = await json("uncrop", PHOTO, "--canvas", "1200x900", "--align", "left");
+  ok("--align is the page's align pad, by corner and by edge",
+    corner.plan.gaps.left === 400 && corner.plan.gaps.top === 300
+      && corner.plan.gaps.right === 0 && corner.plan.gaps.bottom === 0
+      && edge.plan.gaps.left === 0 && edge.plan.gaps.top === 150,
+    JSON.stringify([corner.plan.gaps, edge.plan.gaps]));
+  const bothWays = await run("uncrop", PHOTO, "--align", "top", "--at", "0,0");
+  ok("and saying where twice over is refused rather than one winning quietly",
+    bothWays.code === 1 && /use one/.test(bothWays.err), bothWays.err.trim());
 
   /* The files. Two formats, one of which no browser can write. */
   const asPng = path.join(WORK, "cli-uncrop.png");

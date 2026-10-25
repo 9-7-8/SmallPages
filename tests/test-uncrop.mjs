@@ -114,11 +114,66 @@ await open(BANDS);
 
 {
   const s = await state();
-  ok('a picture that lands gets a canvas a quarter bigger than itself',
-    s.target.w === 150 && s.target.h === 100, JSON.stringify(s.target));
-  ok('and is centred on it',
-    s.rect.x === 15 && s.rect.y === 10 && s.rect.w === 120 && s.rect.h === 80,
-    JSON.stringify(s.rect));
+  ok('the canvas a picture lands on is the picture itself',
+    s.target.w === 120 && s.target.h === 80
+      && s.rect.x === 0 && s.rect.y === 0 && s.rect.w === 120 && s.rect.h === 80,
+    JSON.stringify([s.target, s.rect]));
+  const p = await page.evaluate(() => window.UNCROP.currentPlan());
+  ok('with nothing to invent yet, said in those words rather than as a crop',
+    p.level === 'none' && p.exact === true && p.passes === 0
+      && /nothing to invent yet/.test(p.note), JSON.stringify(p));
+  ok('and the button still offers to uncrop rather than to crop',
+    (await page.textContent('#run')).trim() === 'Uncrop',
+    await page.textContent('#run'));
+}
+
+/* A width or a height has to be clearable. The field used to be rewritten
+   from the canvas on every keystroke, which put 16 back under the cursor the
+   moment it was emptied and made 1920 come out as something else entirely. */
+{
+  await page.fill('#w', '640');
+  await page.fill('#h', '480');
+  const before = (await state()).target;
+
+  await page.locator('#w').focus();
+  await page.fill('#w', '');
+  const emptied = { field: await page.locator('#w').inputValue(), target: (await state()).target };
+  await page.locator('#w').type('1920');
+  const typed = { field: await page.locator('#w').inputValue(), target: (await state()).target };
+
+  ok('a size field can be emptied, and the canvas keeps the last size it was given',
+    emptied.field === '' && emptied.target.w === 640,
+    `${JSON.stringify(emptied)} after ${JSON.stringify(before)}`);
+  ok('and typing a new one into the empty field gets that number, not a mangled one',
+    typed.field === '1920' && typed.target.w === 1920, JSON.stringify(typed));
+
+  /* The same thing by way of 0, which is the other way somebody clears a
+     number field. */
+  await page.fill('#h', '0');
+  const zeroed = { field: await page.locator('#h').inputValue(), target: (await state()).target };
+  await page.locator('#h').type('80');
+  const after = (await state()).target;
+  ok('nor does typing 0 drag the canvas down to the smallest one allowed',
+    zeroed.field === '0' && zeroed.target.h === 480, JSON.stringify(zeroed));
+  ok('and 0 then 80 is eighty, not eight hundred and something',
+    after.h === 80, JSON.stringify(after));
+
+  /* And what is being typed stays what is being typed. The canvas takes whole
+     pixels, so 640.7 becomes 641 — and writing that 641 back into the field
+     under the cursor is the other half of how a number being typed turns into
+     something else. */
+  await page.fill('#w', '640.7');
+  ok('the field keeps the number being typed even where the canvas rounds it',
+    (await page.locator('#w').inputValue()) === '640.7' && (await state()).target.w === 641,
+    `${await page.locator('#w').inputValue()} in the field, ${(await state()).target.w} on the canvas`);
+
+  /* And an abandoned half-number does not sit in the field looking like a
+     setting. */
+  await page.fill('#w', '');
+  await page.locator('#w').blur();
+  ok('leaving a field empty puts the canvas\'s own figure back into it',
+    (await page.locator('#w').inputValue()) === '641',
+    await page.locator('#w').inputValue());
 }
 
 await page.click('button[data-size="1920x1080"]');
@@ -171,6 +226,62 @@ ok('a big canvas leaves a small picture at its own pixels rather than blowing it
     one.x === before.x + 1 && ten.x === one.x + 10, `${before.x} -> ${one.x} -> ${ten.x}`);
 }
 
+/* The nine align buttons. Each one is checked against the arithmetic it
+   stands for rather than against the others, and the pad is checked as a
+   readout too: it lights the cell the picture is on, and nothing at all once
+   the picture has been dragged somewhere that is not one of them. */
+await page.click('button[data-size="1920x1080"]');
+{
+  const cells = [
+    ['left top', 0, 0], ['centre top', 900, 0], ['right top', 1800, 0],
+    ['left centre', 0, 500], ['centre centre', 900, 500], ['right centre', 1800, 500],
+    ['left bottom', 0, 1000], ['centre bottom', 900, 1000], ['right bottom', 1800, 1000],
+  ];
+  const wrong = [];
+  for (const [where, x, y] of cells) {
+    await page.click(`button[data-align="${where}"]`);
+    const r = (await state()).rect;
+    if (r.x !== x || r.y !== y) wrong.push(`${where} went to ${r.x},${r.y} not ${x},${y}`);
+    const lit = await page.evaluate(() => [...document.querySelectorAll('#align button')]
+      .filter(b => b.getAttribute('aria-pressed') === 'true').map(b => b.dataset.align));
+    if (JSON.stringify(lit) !== JSON.stringify([where])) wrong.push(`${where} lit ${lit}`);
+  }
+  ok('each of the nine align buttons puts the picture where it says, and lights up',
+    wrong.length === 0, wrong.join(' | '));
+
+  await page.evaluate(() => window.UNCROP.place({ x: 337, y: 211 }));
+  const lit = await page.evaluate(() => [...document.querySelectorAll('#align button')]
+    .filter(b => b.getAttribute('aria-pressed') === 'true').length);
+  ok('and a picture dragged off them lights none of them',
+    lit === 0, `${lit} still lit`);
+}
+
+/* The same nine as words, which is how the terminal asks for them. */
+{
+  const said = await page.evaluate(() => {
+    const out = {};
+    for (const spec of ['top left', 'bottom-right', 'centre', 'left', 'TOP', 'center']) {
+      try {
+        window.UNCROP.placeAs({ size: '1920x1080', align: spec });
+        out[spec] = `${window.UNCROP.state.rect.x},${window.UNCROP.state.rect.y}`;
+      } catch (e) { out[spec] = `refused: ${e.message}`; }
+    }
+    return out;
+  });
+  ok('a corner or an edge can be asked for in words, spelled either way',
+    said['top left'] === '0,0' && said['bottom-right'] === '1800,1000'
+      && said.centre === '900,500' && said.left === '0,500'
+      && said.TOP === '900,0' && said.center === '900,500',
+    JSON.stringify(said));
+
+  const bad = await page.evaluate(() => {
+    try { window.UNCROP.placeAs({ align: 'sideways' }); return 'took it'; }
+    catch (e) { return e.message; }
+  });
+  ok('and a word that is neither is refused with the list',
+    /not a corner or an edge/.test(bad), bad);
+}
+
 /* The slider reads as a share of fitting the canvas, so it is read at the one
    place that share is known: Fit inside puts it at 100. */
 await page.click('#fitBtn');
@@ -178,7 +289,8 @@ await page.click('#fitBtn');
   const before = (await state()).rect;
   const was = Number(await page.locator('#scale').inputValue());
   ok('Fit inside fits the picture to the canvas, and the slider says 100',
-    was === 100 && (before.w === 2560 || before.h === 1440), `${was}: ${JSON.stringify(before)}`);
+    was === 100 && (before.w === 1920 || before.h === 1080),
+    `${was}: ${JSON.stringify(before)}`);
   await page.locator('#scale').fill('50');
   await page.locator('#scale').dispatchEvent('input');
   const after = (await state()).rect;
@@ -687,6 +799,21 @@ await page.evaluate(() => { window.UNCROP.setSize(800, 800); window.UNCROP.centr
 await page.click('#run');
 await page.waitForFunction(() => /Pass 1/.test(document.getElementById('step').textContent),
   null, { timeout: 20000 });
+/* The working panel, while it is actually working. The spinner is a 26-pixel
+   circle and has to stay one: it is a flex item in a row whose other child is
+   the text, and a rule meant for the text stretched it across the whole panel
+   as a diagonal streak — which looked like a broken page and passed every
+   check there was, because nothing here had ever measured it. */
+{
+  const spinner = await page.locator('#working .spinner').boundingBox();
+  const bar = await page.locator('#bar').evaluate(n => n.classList.contains('waiting'));
+  ok('the spinner stays a small circle rather than stretching across the panel',
+    spinner.width <= 30 && Math.abs(spinner.width - spinner.height) <= 1,
+    JSON.stringify(spinner));
+  ok('and a step that cannot say how far along it is sweeps instead of filling',
+    bar === true, 'the bar was in filling mode during inference');
+}
+
 await page.click('#stop');
 await page.waitForFunction(() => !document.body.classList.contains('busy'), null, { timeout: 30000 });
 {

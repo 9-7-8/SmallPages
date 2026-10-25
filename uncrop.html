@@ -68,6 +68,30 @@
   #view.dragging { cursor: grabbing; }
   #view:focus-visible { outline: 2px solid var(--neon); outline-offset: 2px; }
 
+  /* Nine cells sharing their borders, the way .seg does in theme.css, so the
+     pad reads as one control rather than nine buttons. Which one is lit is
+     where the picture actually sits, so it is a readout as much as a
+     control. */
+  .pad-label { display: block; font-size: 0.78rem; margin-bottom: 0.4rem; }
+  .pad {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    width: fit-content;
+    border: 1px solid var(--line);
+  }
+  .pad button {
+    width: 30px;
+    height: 28px;
+    padding: 0;
+    border: none;
+    border-right: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    font-size: 0.8rem;
+    line-height: 1;
+  }
+  .pad button:nth-child(3n) { border-right: none; }
+  .pad button:nth-child(n+7) { border-bottom: none; }
+
   .figures { font-size: 0.85rem; }
   .figures b { color: var(--neon); font-weight: 400; }
 
@@ -117,7 +141,11 @@
   }
   @keyframes spin { to { transform: rotate(360deg); } }
 
-  .working > div { flex: 1; min-width: 0; }
+  /* Named rather than reached for as `.working > div`: that is a class and an
+     element, which outranks `.spinner` on its own and stretched the spinner
+     across the panel as a diagonal streak instead of spinning a small
+     circle. */
+  .working .said { flex: 1; min-width: 0; }
   .step { font-size: 0.92rem; }
   .step-detail { font-size: 0.78rem; color: var(--text-dim); margin-top: 0.15rem; }
 
@@ -133,13 +161,15 @@
   /* A download knows how far along it is. Inference does not report anything
      as it goes, so for that the bar sweeps instead of filling. */
   .bar.waiting i {
-    width: 32%;
+    width: 30%;
     transition: none;
-    animation: sweep 1.5s ease-in-out infinite;
+    animation: sweep 1.4s linear infinite;
   }
+  /* Linear, and out of sight at both ends, so an endless loop has no moment
+     where it slows down and jumps back to the start. */
   @keyframes sweep {
     0%   { transform: translateX(-100%); }
-    100% { transform: translateX(412%); }
+    100% { transform: translateX(433%); }
   }
 
   /* Specific enough to beat `.row > label` above it, which is a class and an
@@ -216,7 +246,20 @@
       <label>Picture size
         <input type="range" id="scale" min="2" max="400" step="1" value="100">
       </label>
-      <button class="ghost" id="centre">Centre</button>
+      <div class="aligner">
+        <span class="pad-label" id="align-label">Align</span>
+        <div class="pad" id="align" role="group" aria-labelledby="align-label">
+          <button data-align="left top" aria-pressed="false" title="Top left" aria-label="Top left">&#8598;</button>
+          <button data-align="centre top" aria-pressed="false" title="Top" aria-label="Top">&#8593;</button>
+          <button data-align="right top" aria-pressed="false" title="Top right" aria-label="Top right">&#8599;</button>
+          <button data-align="left centre" aria-pressed="false" title="Left" aria-label="Left">&#8592;</button>
+          <button data-align="centre centre" id="centre" aria-pressed="false" title="Centre" aria-label="Centre">&#8226;</button>
+          <button data-align="right centre" aria-pressed="false" title="Right" aria-label="Right">&#8594;</button>
+          <button data-align="left bottom" aria-pressed="false" title="Bottom left" aria-label="Bottom left">&#8601;</button>
+          <button data-align="centre bottom" aria-pressed="false" title="Bottom" aria-label="Bottom">&#8595;</button>
+          <button data-align="right bottom" aria-pressed="false" title="Bottom right" aria-label="Bottom right">&#8600;</button>
+        </div>
+      </div>
       <button class="ghost" id="fitBtn">Fit inside</button>
       <button class="ghost" id="actual">Actual pixels</button>
     </div>
@@ -243,7 +286,7 @@
 
     <div class="working" id="working" role="status" aria-live="polite">
       <div class="spinner" aria-hidden="true"></div>
-      <div>
+      <div class="said">
         <div class="step" id="step">Working</div>
         <div class="step-detail" id="stepDetail"></div>
         <div class="bar" id="bar"><i></i></div>
@@ -332,7 +375,7 @@ const el = {
   setup: $("setup"), w: $("w"), h: $("h"), swap: $("swap"),
   ratios: $("ratios"), presets: $("presets"),
   view: $("view"), scale: $("scale"),
-  centre: $("centre"), fit: $("fitBtn"), actual: $("actual"),
+  align: $("align"), fit: $("fitBtn"), actual: $("actual"),
   figures: $("figures"), flag: $("flag"),
   fillCard: $("fillCard"), methods: $("methods"), cost: $("cost"),
   methodNote: $("methodNote"), run: $("run"), stop: $("stop"), runNote: $("runNote"),
@@ -344,6 +387,7 @@ const el = {
 
 /* ----------------------------------------------------------------- state -- */
 
+const MIN_SIDE = 16;             // under this it is not a canvas, it is a typo
 const MAX_SIDE = 16384;          // the largest canvas a browser will hand out
 const MAX_MP = 64;               // and what this page is willing to hold a few copies of
 const WORK = 512;                // the view both models were trained at
@@ -445,14 +489,16 @@ function plan(o) {
       bottom: Math.max(0, size.h - (rect.y + rect.h)),
     },
     passes: frames ? frames.length : 0,
+    exact: false,
     level: "ok",
     blocked: "",
     note: "",
   };
 
-  if (!Number.isFinite(size.w) || !Number.isFinite(size.h) || size.w < 16 || size.h < 16) {
+  if (!Number.isFinite(size.w) || !Number.isFinite(size.h)
+      || size.w < MIN_SIDE || size.h < MIN_SIDE) {
     out.level = "stop";
-    out.blocked = "A canvas has to be at least 16 pixels each way.";
+    out.blocked = `A canvas has to be at least ${MIN_SIDE} pixels each way.`;
   } else if (size.w > MAX_SIDE || size.h > MAX_SIDE) {
     out.level = "stop";
     out.blocked = `${size.w} × ${size.h} is over ${MAX_SIDE} pixels on a side, which is the`
@@ -467,8 +513,18 @@ function plan(o) {
     out.blocked = "The picture is not on the canvas at all. Move it back inside, or press Centre.";
   } else if (!frames.length) {
     out.level = "none";
-    out.note = "The picture covers the whole canvas, so there is nothing to invent:"
-      + " this is a crop, and Uncrop will just cut it out for you.";
+    /* Two different things wear the same answer. A canvas that is exactly the
+       picture is where every picture starts, and saying "this is a crop" of
+       it reads as a complaint about something nobody has done yet. A picture
+       hanging over the edges really is a crop. */
+    out.exact = vis.w === size.w && vis.h === size.h
+      && rect.w === size.w && rect.h === size.h;
+    out.note = out.exact
+      ? "The canvas is the picture itself, so there is nothing to invent yet."
+        + " Make it bigger, or move the picture about on it, and the new border"
+        + " is what gets painted in."
+      : "The picture covers the whole canvas, so there is nothing to invent:"
+        + " this is a crop, and Uncrop will just cut it out for you.";
   } else if (mp > 32 || Math.max(size.w, size.h) > 8192) {
     out.level = "huge";
     out.note = `${out.megapixels} megapixels is a lot of canvas. Every copy of it is`
@@ -593,14 +649,21 @@ function currentPlan() {
 
 function update() {
   if (!src) return;
-  el.w.value = target.w;
-  el.h.value = target.h;
+  /* Never into a field somebody is typing in: putting the canvas's figure
+     back under the cursor on every keystroke is exactly what made it
+     impossible to clear one and start again. */
+  if (document.activeElement !== el.w) el.w.value = target.w;
+  if (document.activeElement !== el.h) el.h.value = target.h;
   const f = fitScale();
   el.scale.value = String(Math.round(Math.min(400, Math.max(2, place.scale / f * 100))));
+  const lit = alignNow();
+  for (const b of el.align.querySelectorAll("button[data-align]")) {
+    b.setAttribute("aria-pressed", String(b.dataset.align === lit));
+  }
   const p = currentPlan();
   say(p);
   el.run.disabled = busy || !!p.blocked;
-  el.run.textContent = p.passes ? "Uncrop" : "Crop it";
+  el.run.textContent = (p.passes || p.exact) ? "Uncrop" : "Crop it";
   drawView();
   methodNote();
   return p;
@@ -613,17 +676,43 @@ function update() {
    `plan`, which says what is wrong and turns the button off. */
 function setSize(w, h) {
   target = {
-    w: Math.max(16, Math.round(w) || 16),
-    h: Math.max(16, Math.round(h) || 16),
+    w: Math.max(MIN_SIDE, Math.round(w) || MIN_SIDE),
+    h: Math.max(MIN_SIDE, Math.round(h) || MIN_SIDE),
   };
   place.scale = clampScale(place.scale);
   update();
 }
 
-function centre() {
+/* Where the picture sits against the canvas. One table does both axes
+   because "centre" means the same thing on each, and a side that is not named
+   is left where it was — so aligning left keeps whatever height it was at. */
+const ALIGN = { left: 0, top: 0, centre: 0.5, right: 1, bottom: 1 };
+
+function align(across, down) {
   const r = rectOf();
-  place.x = Math.round((target.w - r.w) / 2);
-  place.y = Math.round((target.h - r.h) / 2);
+  if (across in ALIGN) place.x = Math.round((target.w - r.w) * ALIGN[across]);
+  if (down in ALIGN) place.y = Math.round((target.h - r.h) * ALIGN[down]);
+}
+
+const centre = () => align("centre", "centre");
+
+/* Which of the nine the picture is actually on, if it is on one of them. A
+   picture that has been dragged is usually on none, and the pad then says so
+   by having nothing lit. */
+function alignNow() {
+  const r = rectOf();
+  const where = (at, span, room) => {
+    if (room <= 0) return at === 0 ? "both" : null;
+    if (at === 0) return "start";
+    if (at === room) return "end";
+    return at === Math.round(room / 2) ? "mid" : null;
+  };
+  const x = where(place.x, r.w, target.w - r.w);
+  const y = where(place.y, r.h, target.h - r.h);
+  if (!x || !y) return "";
+  const across = { start: "left", end: "right", mid: "centre", both: "centre" }[x];
+  const down = { start: "top", end: "bottom", mid: "centre", both: "centre" }[y];
+  return `${across} ${down}`;
 }
 
 /* ---------------------------------------------------------------- inputs -- */
@@ -675,13 +764,13 @@ async function load(fileOrBlob) {
     result = null;
     el.outCard.classList.add("hid");
 
-    /* A quarter more canvas all round, the picture's own shape, at its own
-       pixels — enough that there is visibly something to fill, and the shape
-       buttons are right there for anything else. */
-    const grow = 1.25;
+    /* The canvas a picture lands on is the picture, at its own pixels, with
+       nothing to invent yet. Starting it bigger meant every picture arrived
+       with an arbitrary border already decided for it; starting it here means
+       the first thing you type is the thing you wanted. */
     place = { x: 0, y: 0, scale: 1 };
-    setSize(Math.round(src.w * grow), Math.round(src.h * grow));
-    centre();
+    setSize(src.w, src.h);
+    align("centre", "centre");
     el.setup.classList.remove("hid");
     el.fillCard.classList.remove("hid");
     el.loadNote.textContent = `${src.w} × ${src.h}, ${src.name}`;
@@ -693,8 +782,24 @@ async function load(fileOrBlob) {
   }
 }
 
-el.w.addEventListener("input", () => setSize(el.w.value, target.h));
-el.h.addEventListener("input", () => setSize(target.w, el.h.value));
+/* A width or a height can be cleared, or taken down to nothing, and typed
+   into again. Nothing is applied while the field holds something that is not
+   a canvas yet — empty, or 0, or the 1 on the way to 1920 — so the canvas
+   keeps the last size it was really given, and the field keeps whatever is
+   being typed. Leaving the field puts the canvas's own figure back into it,
+   so an abandoned half-number does not sit there looking like a setting. */
+function typeable(field, apply) {
+  field.addEventListener("input", () => {
+    const said = field.value.trim();
+    const n = Number(said);
+    if (said === "" || !Number.isFinite(n) || n < MIN_SIDE) return;
+    apply(n);
+  });
+  field.addEventListener("blur", () => update());
+}
+
+typeable(el.w, (n) => setSize(n, target.h));
+typeable(el.h, (n) => setSize(target.w, n));
 el.swap.addEventListener("click", () => { setSize(target.h, target.w); centre(); update(); });
 
 el.ratios.addEventListener("click", (e) => {
@@ -726,7 +831,13 @@ el.scale.addEventListener("input", () => {
   update();
 });
 
-el.centre.addEventListener("click", () => { centre(); update(); });
+el.align.addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-align]");
+  if (!b || !src) return;
+  const [across, down] = b.dataset.align.split(" ");
+  align(across, down);
+  update();
+});
 el.fit.addEventListener("click", () => { place.scale = fitScale(); centre(); update(); });
 el.actual.addEventListener("click", () => { place.scale = clampScale(1); centre(); update(); });
 
@@ -1726,6 +1837,30 @@ function presetNamed(name) {
   return null;
 }
 
+/* "top left", "bottom-right", "centre", "left" — a corner, an edge, or one
+   axis on its own. An axis the words do not mention is left where it is. */
+function alignFrom(spec) {
+  const words = String(spec).toLowerCase().replace(/center/g, "centre")
+    .split(/[\s_-]+/).filter(Boolean);
+  let across = "", down = "", middles = 0;
+  for (const w of words) {
+    if (w === "left" || w === "right") across = w;
+    else if (w === "top" || w === "bottom") down = w;
+    else if (w === "centre" || w === "middle") middles++;
+    else {
+      throw new Error(`"${w}" is not a corner or an edge — it is top, bottom, left,`
+        + ` right, centre, or two of those like "top left"`);
+    }
+  }
+  if (middles) {
+    if (!across && !down) { across = "centre"; down = "centre"; }
+    else if (!across) across = "centre";
+    else if (!down) down = "centre";
+  }
+  if (!across && !down) throw new Error(`there is nothing to align to in "${spec}"`);
+  return { across, down };
+}
+
 function placeAs(o) {
   if (typeof o.grow === "number") setSize(src.w * o.grow, src.h * o.grow);
   if (o.size) {
@@ -1757,6 +1892,11 @@ function placeAs(o) {
   if (typeof o.x === "number" || typeof o.y === "number") {
     if (typeof o.x === "number") place.x = o.x;
     if (typeof o.y === "number") place.y = o.y;
+  } else if (o.align) {
+    const where = alignFrom(o.align);
+    /* An axis the words leave out is centred rather than left alone, because
+       a command has no "where it was" to leave it at. */
+    align(where.across || "centre", where.down || "centre");
   } else {
     centre();
   }
@@ -1795,7 +1935,7 @@ window.CLI = {
         shapes: [...el.ratios.querySelectorAll("button[data-ratio]")].map((b) => ({
           name: b.dataset.ratio, label: b.textContent.trim(),
         })),
-        grow: 1.25,
+        grow: 1,
       };
     },
 
@@ -1869,6 +2009,7 @@ window.UNCROP = {
   plan, framesFor, viewFor, maskFor, polarityFrom, encode, tiffBytes,
   currentPlan, setSize, update, fitScale, placeAs, markedCanvas, presetNamed,
   centre: () => { centre(); update(); },
+  align, alignNow, alignFrom,
   place: (p) => { Object.assign(place, p); update(); },
   resultCanvas: () => result && result.canvas,
 };
