@@ -140,8 +140,8 @@ const json = async (...args) => {
 {
   const got = await run();
   ok("with nothing asked for it lists what has a command line",
-    got.code === 0 && ["color-picker", "image-compressor", "playlist-to-audio", "uncrop"]
-      .every((tool) => got.out.includes(tool)), got.out.slice(0, 400));
+    got.code === 0 && ["color-picker", "image-compressor", "playlist-to-audio",
+      "ruler", "uncrop"].every((tool) => got.out.includes(tool)), got.out.slice(0, 400));
   const help = await run("color-picker", "--help");
   ok("a tool's --help names its commands",
     ["convert", "palette", "pixel", "contrast", "gradient", "match"]
@@ -1312,6 +1312,108 @@ const ihdrOf = (file) => {
       + `${fs.statSync(path.join(BATCH_OUT, "cover-2-uncropped.png")).size} from the batch`);
 
   ok("no page errors from uncrop.html", errs.length === 0, errs.join(" | "));
+  await browser.close();
+}
+
+/* --------------------------- the same answer as the tab, measuring -- */
+
+/* ruler.html is the one page here whose whole point is a physical length, and
+   a terminal has no glass to put one against. What it can have is the
+   arithmetic, and the arithmetic is the half that goes wrong quietly: where
+   each tick falls at a given density is a sum nobody checks by eye.
+
+   So the command is run on figures that are not in doubt — ten centimetres at
+   96 pixels to the inch is 377.95 pixels, and two inches in sixteenths is
+   thirty-three ticks — and then the page is opened, set to the same density
+   by typing in its own box, and the ticks it *drew* are read back off the
+   canvas and held against the ones the command printed. A command line that
+   had grown its own idea of how long a centimetre is would pass the first
+   half and fail the second. */
+{
+  const d = await json("ruler", "ticks", "10cm", "--dpi", "96");
+  ok("ticks gives every millimetre of ten centimetres",
+    d.ticks.length === 101 && d.step === 1, `${d.ticks.length} ticks`);
+  ok("and the figures sit on the centimetres",
+    d.counts.join(",") === "11,10,80"
+      && d.ticks.filter((t) => t.label !== null).map((t) => t.label).join("")
+         === "012345678910",
+    d.counts.join(","));
+  ok("ten centimetres is 377.95 px at 96 to the inch, and the tick is there",
+    d.ticks[100].px === 377.953 && d.lengthPx === 377.95,
+    `${d.ticks[100].px} px`);
+
+  const imp = await json("ruler", "ticks", "2in", "--units", "imperial",
+    "--finest", "1/16", "--dpi", "96");
+  ok("two inches in sixteenths is thirty-three ticks, halving all the way down",
+    imp.ticks.length === 33 && imp.counts.join(",") === "3,2,4,8,16",
+    imp.counts.join(","));
+  ok("and an inch is 96 px at 96 px to the inch",
+    imp.ticks[16].px === 96, String(imp.ticks[16].px));
+
+  const conv = await json("ruler", "convert", "85.6mm", "--dpi", "96");
+  ok("convert spells a bank card every way the readout does",
+    conv.mm === 85.6 && conv.cm === 8.56 && conv.inches === 3.37008
+      && conv.imperial === "3 3/8\u2033" && conv.px === 323.53,
+    JSON.stringify(conv.imperial + " " + conv.px));
+
+  const dial = await json("ruler", "dial", "6cm", "--degrees", "5", "--at", "37.5");
+  ok("the dial marks 72 times at five degrees, with six rings in six centimetres",
+    dial.ticks.length === 72 && dial.rings.length === 6, `${dial.ticks.length} marks`);
+  ok("and reads the arm's tip where trigonometry puts it",
+    Math.abs(dial.at.acrossMm - Math.cos(37.5 * Math.PI / 180) * 60) < 0.01
+      && Math.abs(dial.at.upMm - Math.sin(37.5 * Math.PI / 180) * 60) < 0.01,
+    `${dial.at.acrossMm}, ${dial.at.upMm}`);
+
+  const refused = await run("ruler", "ticks", "--finest", "1/5");
+  ok("a division the page has not got is refused in the page's own words",
+    refused.code === 1 && /no 1\/5 division/.test(refused.err)
+      && /5mm, 2mm, 1mm, 0.5mm/.test(refused.err), refused.err.trim());
+
+  /* And now the page itself, driven by hand. */
+  const browser = await chromium.launch({ executablePath: CHROMIUM_BIN });
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 1000 } });
+  const page = await ctx.newPage();
+  const errs = [];
+  page.on("pageerror", (e) => errs.push("pageerror: " + e.message));
+  page.on("console", (m) => {
+    if (m.type() === "error" && !/favicon|404/.test(m.text())) errs.push(m.text());
+  });
+
+  await page.goto(`file://${path.join(REPO, "ruler.html")}`);
+  await page.waitForFunction(() => window.RULER && window.CLI);
+  await page.fill("#ppiIn", "96");
+  await page.waitForFunction(() => Math.abs(window.RULER.state.cssPpi - 96) < 0.001);
+
+  const drawn = await page.evaluate(() => {
+    const c = document.getElementById("rule");
+    const dpr = window.devicePixelRatio || 1;
+    const img = c.getContext("2d").getImageData(0, 0, c.width, Math.round(7 * dpr));
+    const found = [];
+    for (let x = 0; x < c.width; x++) {
+      for (let y = Math.ceil(2 * dpr); y < img.height; y++) {
+        if (img.data[(y * c.width + x) * 4 + 3] > 40) { found.push(x / dpr); break; }
+      }
+    }
+    return found;
+  });
+  const wanted = d.ticks.map((t) => Math.round(t.px));
+  ok("every tick the command printed is a tick the page drew, to the pixel",
+    wanted.every((px, i) => drawn[i] === px),
+    `${drawn.slice(0, 4)} drawn against ${wanted.slice(0, 4)} printed`);
+
+  /* The readout under the rule against `convert` on the same length: two
+     different routes into the page's own arithmetic, which have to meet. */
+  const rule = await page.locator("#rule").boundingBox();
+  await page.mouse.click(rule.x + 200, rule.y + 40);
+  await page.waitForFunction(() => window.RULER.state.markMm !== null);
+  const onScreen = await page.textContent("#reading");
+  const printed = await json("ruler", "convert", "52.9166666667mm", "--dpi", "96");
+  ok("and a mark 200 px along reads what convert says 200 px is",
+    onScreen.includes(printed.metric) && onScreen.includes(printed.imperial)
+      && onScreen.includes("200 px"),
+    `${onScreen.trim()} against ${printed.metric} / ${printed.imperial}`);
+
+  ok("no page errors from ruler.html", errs.length === 0, errs.join(" | "));
   await browser.close();
 }
 

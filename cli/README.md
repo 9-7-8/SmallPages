@@ -428,7 +428,30 @@ to remember that it happened.
       three tools needed: not just *do not work the answer out*, but *do not
       keep a copy of the question either*.
 
-Four of the forty-seven pages in the index. The rest are below, grouped by the
+- [x] **`ruler.html`** &mdash; `screen`, `ticks`, `dial`, `convert`, `objects`,
+      with `--units`, `--finest`, `--degrees`, `--zero`, `--at`, `--dpi` and
+      `--diagonal`.
+
+      The first whose own job a terminal cannot do. The page is a length held
+      against the glass; a shell has no glass, and no way of finding out how
+      dense a screen it is not looking at. So what it offers is the
+      arithmetic under the page &mdash; where every tick falls at a given
+      density, what a length is in the other system, what a screen of a given
+      diagonal works out at &mdash; and `--dpi` is how a density gets in,
+      meaning what the page's own box means: pixels to the inch on the page.
+      With nothing said the scale is the page's own opening guess rather than
+      a figure invented here, which is why `screen` can say *guess* and mean
+      it.
+
+      Four of its flags are handed over exactly as they were typed, because
+      which divisions a scale has, and which steps a dial is marked in, is
+      the page's business: `--finest 1/5` comes back with the list the page
+      really has. The lengths are the page's too &mdash; `30cm`, `300mm`,
+      `12in`, `4ft`, or a bare number meaning whatever that scale counts in
+      &mdash; so there is no second parser in Node to disagree with the box
+      on the page.
+
+Five of the forty-eight pages in the index. The rest are below, grouped by the
 shape of the work rather than by where they sit in the hub, because pages of
 the same shape are the same job twice and the second one is an afternoon.
 

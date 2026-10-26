@@ -1,0 +1,1690 @@
+<!DOCTYPE html>
+<!-- Ruler, from SmallPages <https://github.com/9-7-8/SmallPages>
+     Copyright (C) 2026 Ixora. SPDX-License-Identifier: GPL-3.0-or-later
+     Free software with no warranty, under the GNU General Public License,
+     version 3 or later: see LICENSE in the repository, or
+     <https://www.gnu.org/licenses/>. -->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ruler</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  /* Layout and sizing only. Colour, type and component styling live in theme.css. */
+
+  body { margin: 0; padding: 3rem 1.5rem 5rem; }
+  main { max-width: 1120px; margin: 0 auto; }
+  p.lede { margin: 0 0 2.2rem; max-width: 62ch; }
+  .card { margin-bottom: 1.5rem; }
+  h2 { margin: 0 0 1rem; }
+  h3 {
+    margin: 2rem 0 0.9rem;
+    font-weight: 400;
+    font-size: 0.8rem;
+    letter-spacing: 0.04em;
+    color: var(--text-dim);
+  }
+
+  .rank { display: flex; flex-wrap: wrap; gap: 1.2rem; align-items: flex-end; }
+  .rank + .rank { margin-top: 1.2rem; }
+  .field { display: flex; flex-direction: column; gap: 0.35rem; }
+  /* display:flex above beats the browser's own rule for [hidden], so the
+     controls that belong to the other shape would stay on screen. */
+  .field[hidden] { display: none; }
+  .field label { font-size: 0.8rem; }
+  .field .unit { font-size: 0.72rem; }
+  .field input[type="number"] { width: 7rem; font-family: var(--mono); }
+  .acts { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-left: auto; }
+
+  /* ------------------------------------------------------- the instrument -- */
+
+  /* No padding on this one: a ruler's nought has to sit on the edge of its own
+     box, as close to the edge of the glass as the window will allow. Which is
+     also what the fullscreen button is for. */
+  .plate { padding: 0; overflow: hidden; line-height: 0; }
+  .plate canvas { display: block; touch-action: none; outline-offset: -2px; }
+  /* Down the page the card shrinks to the rule rather than leaving a tall
+     black field beside it. */
+  .plate.down { display: flex; width: fit-content; }
+
+  .plate:fullscreen {
+    margin: 0;
+    border: none;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-start;
+    background: var(--bg);
+  }
+  .plate.dial:fullscreen { align-items: center; justify-content: center; }
+
+  /* ---------------------------------------------------------- the reading -- */
+
+  .reading {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 0.4rem 1.1rem;
+    margin: 0 0 0.4rem;
+  }
+  .reading .big {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 1.6rem;
+    font-weight: 300;
+    color: var(--neon);
+    text-shadow: var(--text-glow);
+  }
+  .reading .also {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.95rem;
+    color: var(--text-dim);
+  }
+  .reading .idle { font-size: 0.85rem; color: var(--text-faint); }
+  .span { font-size: 0.78rem; margin: 0 0 1.6rem; }
+
+  /* -------------------------------------------------------------- scaling -- */
+
+  .now { font-size: 0.85rem; margin: 0 0 1.3rem; }
+  .now b { color: var(--neon); font-weight: 400; }
+  .now .src { color: var(--text-faint); }
+
+  .sizes { margin-top: 0.7rem; }
+  .sizes button { font-size: 0.75rem; padding: 0.35rem 0.6rem; }
+
+  .held { display: flex; flex-wrap: wrap; gap: 1.4rem; align-items: flex-start; }
+  .held .grow { flex: 1; min-width: 240px; }
+  .held input[type="range"] { width: 100%; }
+  .held .field + .field { margin-top: 0.9rem; }
+  .nudges { display: flex; gap: 0.4rem; margin-top: 0.6rem; }
+  .nudges button { font-size: 0.72rem; padding: 0.3rem 0.55rem; }
+
+  /* The outline the real thing is held against. Width and height are set in
+     pixels from the scale, so this box *is* the claim the page is making. */
+  .objbox {
+    border: 1px solid var(--neon);
+    box-shadow: var(--glow-soft);
+    position: relative;
+    flex: none;
+  }
+  .objbox.round { border-radius: 50%; }
+  .objbox::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: hsl(var(--tint) / 0.3);
+  }
+  .objnote { font-size: 0.75rem; margin: 0.5rem 0 0; max-width: 42ch; color: var(--text-faint); }
+  .objnote.error {
+    color: var(--neon-hot);
+    text-shadow: var(--text-glow);
+    border-left: 2px solid var(--neon);
+    padding-left: 0.6rem;
+  }
+
+  .facts {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 0.4rem 1.2rem;
+    margin: 0;
+    font-size: 0.8rem;
+  }
+  .facts dt { color: var(--text-faint); }
+  .facts dd {
+    margin: 0;
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--text);
+  }
+  .facts dd em { font-family: var(--sans); font-style: normal; color: var(--text-faint); }
+
+  .note { font-size: 0.78rem; margin: 0 0 1.1rem; max-width: 72ch; }
+  .note strong { color: var(--text-dim); font-weight: 400; }
+
+  @media (max-width: 620px) {
+    body { padding: 2rem 1rem 4rem; }
+    .acts { margin-left: 0; width: 100%; }
+    .reading .big { font-size: 1.3rem; }
+    .facts { grid-template-columns: 1fr; gap: 0.1rem 0; }
+    .facts dd { margin-bottom: 0.5rem; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <a class="home" href="index.html">&larr; index</a>
+  <h1>Ruler</h1>
+  <p class="lede">A ruler at its real size, and a protractor to go with it: millimetres or
+  sixteenths of an inch along a straight edge, degrees around a dial. Nothing can tell a browser
+  how big your screen actually is, so the page works out what it can from the screen itself and
+  then lets you settle it against something real &mdash; a bank card, a coin, a sheet of A4
+  &mdash; and remembers what you said.</p>
+
+  <div class="card">
+    <div class="rank">
+      <div class="field">
+        <label>Shape</label>
+        <div class="seg" id="shapeSeg">
+          <button type="button" data-shape="straight" aria-pressed="true">Straight</button>
+          <button type="button" data-shape="dial" aria-pressed="false">Radial</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Units</label>
+        <div class="seg" id="unitSeg">
+          <button type="button" data-units="metric" aria-pressed="true">Metric</button>
+          <button type="button" data-units="imperial" aria-pressed="false">Imperial</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="fineSel">Smallest division</label>
+        <select id="fineSel"></select>
+        <span class="unit">the finest line on the scale</span>
+      </div>
+
+      <div class="field" id="degField" hidden>
+        <label for="degSel">Smallest degree</label>
+        <select id="degSel">
+          <option value="5">5&deg;</option>
+          <option value="2">2&deg;</option>
+          <option value="1" selected>1&deg;</option>
+        </select>
+      </div>
+
+      <div class="field" id="lieField">
+        <label>Lying</label>
+        <div class="seg" id="lieSeg">
+          <button type="button" data-lie="across" aria-pressed="true">Across</button>
+          <button type="button" data-lie="down" aria-pressed="false">Down</button>
+        </div>
+      </div>
+
+      <div class="field" id="zeroField" hidden>
+        <label>Nought at</label>
+        <div class="seg" id="zeroSeg">
+          <button type="button" data-zero="east" aria-pressed="true">Right</button>
+          <button type="button" data-zero="north" aria-pressed="false">Top</button>
+        </div>
+      </div>
+
+      <div class="acts">
+        <button type="button" id="bothBtn" class="ghost" aria-pressed="true">Other unit on the far edge</button>
+        <button type="button" id="fullBtn" class="ghost">Fullscreen</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card plate" id="stage">
+    <canvas id="rule" tabindex="0" aria-label="The ruler. Click or drag to put a mark on it; the arrow keys move the mark."></canvas>
+  </div>
+
+  <p class="reading" id="reading"></p>
+  <p class="span" id="span"></p>
+
+  <div class="card" id="scaleCard">
+    <h2>The scale</h2>
+    <p class="now" id="scaleNow"></p>
+
+    <div class="rank">
+      <div class="field">
+        <label for="ppiIn">Pixels to the inch</label>
+        <input type="number" id="ppiIn" min="24" max="900" step="0.1">
+        <span class="unit">on this page, at this zoom</span>
+      </div>
+
+      <div class="field">
+        <label for="diagIn">Screen diagonal</label>
+        <input type="number" id="diagIn" min="2" max="140" step="0.05">
+        <span class="unit">inches, corner to corner</span>
+      </div>
+
+      <div class="acts">
+        <button type="button" id="resetBtn" class="ghost">Back to the guess</button>
+      </div>
+    </div>
+    <div class="seg sizes" id="diagPresets"></div>
+
+    <h3>Or hold something real against the screen</h3>
+    <div class="held">
+      <div class="grow">
+        <div class="field">
+          <label for="objSel">Something you have</label>
+          <select id="objSel"></select>
+        </div>
+        <div class="field">
+          <label for="ppiRange">Drag until the outline matches it</label>
+          <input type="range" id="ppiRange" min="24" max="500" step="0.2">
+        </div>
+        <div class="nudges">
+          <button type="button" id="downBtn" class="ghost">&minus; smaller</button>
+          <button type="button" id="upBtn" class="ghost">bigger +</button>
+        </div>
+        <p class="objnote" id="objNote"></p>
+      </div>
+      <div class="objbox" id="objBox"></div>
+    </div>
+
+    <h3>What the browser will say for itself</h3>
+    <dl class="facts" id="facts"></dl>
+  </div>
+
+  <p class="note"><strong>Why it has to ask.</strong> A CSS pixel is <em>defined</em> as a
+  ninety-sixth of an inch, and on a great many screens it is nothing of the sort: a phone runs
+  about 160 of them to the inch, a 4K monitor at no scaling about 163, a Retina laptop about 113.
+  A browser will tell you how many device pixels go into one of its pixels and how many of its
+  pixels go across the screen; what it will never tell you is how many inches that screen is,
+  because it does not know. So everything above is arithmetic on top of one number you have to
+  supply once &mdash; and the figure under <em>this scale implies</em> is there to catch a wrong
+  one: if the page reckons your screen is nineteen inches across the diagonal and it is plainly
+  a laptop, the scale is wrong rather than the laptop.</p>
+
+  <p class="note"><strong>Zoom is already accounted for.</strong> What gets kept is the screen's
+  own density in device pixels to the inch, which does not change when you zoom; the pixels to
+  the inch <em>on the page</em> is that divided by the device pixel ratio, and zooming changes
+  the ratio. So a ruler calibrated at one zoom level stays true at another. Dragging the window
+  to a second monitor of a different density is the case this cannot catch, because the browser
+  reports the move the same way it reports a zoom.</p>
+
+  <p class="note"><strong>The ticks are snapped to whole device pixels</strong> so that every
+  line on the scale is one hard pixel rather than two grey ones. That moves each tick by up to
+  half a device pixel &mdash; a twentieth of a millimetre on a dense screen, a tenth on a
+  sparse one &mdash; and the error does not accumulate along the rule, because every tick is
+  placed from nought rather than from the one before it.</p>
+
+  <p class="note"><strong>Against the glass, not against a window.</strong> Measure on the
+  fullscreen view where you can: the nought of the straight rule sits on the edge of its own
+  box, and in fullscreen that edge is the edge of the screen. Escape comes back out, and the
+  reading rides on the rule beside the mark so that it is there either way. A ruler is also only as long as
+  the glass, which is why the line under it says how long this one came out &mdash; and why
+  <em>Down</em> is worth having on a phone, where the long way is the useful way.</p>
+
+  <p class="note"><strong>The radial one</strong> is a protractor and a radial rule at once: the
+  dial is marked every degree with the figures every ten, the rings are a centimetre or an inch
+  apart, and the scale along nought is the straight rule's own, to the same smallest division.
+  Drag anywhere in it to swing the arm, and the arm's angle and its length are both read out
+  underneath. <em>Nought at the right</em> counts anticlockwise, the way a protractor is
+  printed; <em>nought at the top</em> counts clockwise, the way a bearing is quoted.</p>
+</main>
+
+<script>
+"use strict";
+
+const el = (id) => document.getElementById(id);
+const MM_IN = 25.4;
+const round = (n, p) => Math.round(n * 10 ** p) / 10 ** p;
+const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
+
+/* ============================================================ the scale === */
+
+/* One number sits under everything on this page: the screen's own density, in
+   device pixels to the inch. That is what gets kept, rather than the figure
+   the drawing actually uses, because a screen's density never changes and the
+   page's does — zoom in and a CSS pixel covers more glass, so fewer of them
+   go to the inch while the panel is exactly as dense as it was. Dividing by
+   the device pixel ratio at the moment of drawing is what makes a ruler
+   calibrated at one zoom level still true at another. */
+let ppi = null;          // device pixels to the inch
+let how = "guess";       // where that came from: guess, diagonal, object, typed, device
+let calDpr = 1;          // the ratio it was settled at, so a zoom since can be noticed
+
+const dpr = () => window.devicePixelRatio || 1;
+const nativeW = () => Math.round(screen.width * dpr());
+const nativeH = () => Math.round(screen.height * dpr());
+const nativeDiag = () => Math.hypot(nativeW(), nativeH());
+
+const cssPpi = () => ppi / dpr();            // pixels to the inch on this page
+const pxMm = () => cssPpi() / MM_IN;         // pixels to the millimetre
+const impliedDiag = () => nativeDiag() / ppi;
+
+/* The opening guess, and it is only a guess. A CSS pixel is defined as a
+   ninety-sixth of an inch and desktop screens are usually within a tenth of
+   that; handhelds run theirs off a 160-to-the-inch baseline instead and come
+   out half again as dense. Which of the two this is gets decided by the
+   pointer, because that is the only thing a browser will say about the device
+   that bears on how its pixels were sized. */
+function guessCss() {
+  const handheld = window.matchMedia
+    && matchMedia("(any-pointer: coarse)").matches
+    && Math.min(screen.width, screen.height) <= 820;
+  return handheld ? 160 : 96;
+}
+
+/* The one resolution a browser will answer for, found by asking until it stops
+   saying yes. It is the device pixel ratio times 96 and nothing more, which is
+   worth printing exactly so that it is plain it carries no physical fact. */
+function reportedDpi() {
+  if (!window.matchMedia || !matchMedia("(min-resolution: 1dpi)").matches) return null;
+  let lo = 1, hi = 8000;
+  for (let i = 0; i < 26; i++) {
+    const mid = (lo + hi) / 2;
+    if (matchMedia(`(min-resolution: ${mid}dpi)`).matches) lo = mid;
+    else hi = mid;
+  }
+  return round(lo, 1);
+}
+
+/* ======================================================== the settings === */
+
+let units = "metric";
+let fineName = { metric: "1mm", imperial: "1/16" };
+let degStep = 1;
+let shape = "straight";
+let lie = "across";
+let zero = "east";
+let both = true;
+let thingName = "card";
+
+let markMm = null;                  // the mark on the straight rule
+let armDeg = 30, armMm = null;      // the arm on the dial
+
+const FINEST = {
+  metric: [
+    { name: "5mm", label: "5 mm", mm: 5 },
+    { name: "2mm", label: "2 mm", mm: 2 },
+    { name: "1mm", label: "1 mm", mm: 1 },
+    { name: "0.5mm", label: "half a millimetre", mm: 0.5 },
+  ],
+  imperial: [
+    { name: "1/4", label: "a quarter inch", per: 4 },
+    { name: "1/8", label: "an eighth", per: 8 },
+    { name: "1/16", label: "a sixteenth", per: 16 },
+    { name: "1/32", label: "a thirty-second", per: 32 },
+  ],
+};
+const DEFAULT_FINE = { metric: "1mm", imperial: "1/16" };
+const DEGREES = [5, 2, 1];
+
+/* Things most people have within reach, with the size they are made to. A
+   bigger object calibrates better — a disc is nearly five times a coin — so
+   the list runs big to small rather than alphabetically. */
+const THINGS = [
+  { name: "card", label: "Bank or ID card", mm: 85.6, deep: 53.98,
+    note: "ISO/IEC 7810 ID-1, which every bank card, driving licence and door "
+        + "pass is cut to: 85.60 by 53.98 mm." },
+  { name: "cd", label: "CD or DVD", mm: 120, round: true,
+    note: "A disc is 120 mm across, and the biggest round thing most people "
+        + "have. The bigger the object, the less a slip of the eye costs." },
+  { name: "a4", label: "A4 sheet, short edge", mm: 210, deep: 56,
+    note: "A4 is 210 by 297 mm. Match the short edge against the width of the "
+        + "box; the box is deliberately shallower than the sheet." },
+  { name: "letter", label: "US Letter, short edge", mm: 215.9, deep: 56,
+    note: "US Letter is 8.5 by 11 inches, so the short edge is 215.9 mm. "
+        + "Match the width only." },
+  { name: "dollar", label: "US dollar bill", mm: 156, deep: 66.3,
+    note: "Every denomination of US paper money is the same size: 156 by "
+        + "66.3 mm." },
+  { name: "euro10", label: "10 euro note", mm: 127, deep: 67,
+    note: "The 10 euro note is 127 by 67 mm. The other denominations are not "
+        + "— they grow with the value." },
+  { name: "quarter", label: "US quarter", mm: 24.26, round: true,
+    note: "A quarter is 24.26 mm across. A coin is small enough that being a "
+        + "pixel out matters, so use something bigger if you have it." },
+  { name: "euro1", label: "1 euro coin", mm: 23.25, round: true,
+    note: "The 1 euro coin is 23.25 mm across." },
+  { name: "pound1", label: "1 pound coin", mm: 23.43, round: true,
+    note: "The twelve-sided pound coin is 23.43 mm across the flats, which is "
+        + "what the outline shows." },
+];
+const thing = () => THINGS.find((t) => t.name === thingName) || THINGS[0];
+
+/* A name the page has no answer for is a sentence rather than a quiet fall
+   back to the default, because the command line hands these through exactly
+   as somebody typed them. */
+function wantUnits(name) {
+  if (name === undefined || name === null || name === "") return units;
+  const want = String(name).trim().toLowerCase();
+  if (["metric", "mm", "cm", "metres", "si"].includes(want)) return "metric";
+  if (["imperial", "in", "inch", "inches"].includes(want)) return "imperial";
+  throw new Error(`units are metric or imperial, not "${name}"`);
+}
+
+function wantFine(system, name) {
+  const list = FINEST[system];
+  const held = () => list.find((f) => f.name === fineName[system])
+    || list.find((f) => f.name === DEFAULT_FINE[system]);
+  if (name === undefined || name === null || name === "" || name === true) return held();
+  const want = String(name).trim().toLowerCase()
+    .replace(/\s+/g, "").replace(/(inch|in|"|″)$/, "");
+  const found = list.find((f) => f.name.toLowerCase() === want);
+  if (!found) {
+    throw new Error(`the ${system} scale has no ${name} division — it goes `
+      + list.map((f) => f.name).join(", "));
+  }
+  return found;
+}
+
+function wantDegrees(value) {
+  if (value === undefined || value === null || value === "" || value === true) return degStep;
+  const n = Number(String(value).replace(/\s|°|deg/gi, ""));
+  if (!DEGREES.includes(n)) {
+    throw new Error(`the dial is marked every ${DEGREES.join(", ")} degrees — not ${value}`);
+  }
+  return n;
+}
+
+/* A length as somebody would type one: "30cm", "300 mm", "12in", 12", or a
+   bare number, which means whatever the figures on that scale are counted in
+   — centimetres on the metric one, inches on the imperial one. */
+function wantLength(text, system) {
+  const s = String(text).trim().toLowerCase();
+  const m = /^(\d*\.?\d+)\s*(mm|cm|m|in|inch|inches|"|″|ft|')?$/.exec(s);
+  if (!m) {
+    throw new Error(`"${text}" is not a length — try 30cm, 300mm, 12in, or a `
+      + "bare number for " + (system === "imperial" ? "inches" : "centimetres"));
+  }
+  const n = Number(m[1]);
+  const unit = m[2] || (system === "imperial" ? "in" : "cm");
+  const mm = unit === "mm" ? n
+    : unit === "cm" ? n * 10
+    : unit === "m" ? n * 1000
+    : unit === "ft" || unit === "'" ? n * 12 * MM_IN
+    : n * MM_IN;
+  if (!(mm > 0)) throw new Error("a length has to be more than nothing");
+  return mm;
+}
+
+/* ========================================================== the plans === */
+
+/* The two scales, worked out as data: where every tick goes, how important it
+   is, and what it says if it says anything. The drawing below reads these and
+   so does the command line, which is the only way the figures in a terminal
+   can be the figures on the glass. Positions are in millimetres from nought,
+   because a millimetre is a millimetre whatever the scale is set to; the
+   pixels only happen at the moment of drawing. */
+
+/* Rank 0 is the tick that carries a figure, and each one after it is a
+   shorter line. Metric divides by five and then by two; imperial halves all
+   the way down, which is why it has six ranks and why its ticks step down in
+   smaller jumps. */
+const SPACING = {
+  metric: [10, 5, 1, 0.5],
+  imperial: [MM_IN, MM_IN / 2, MM_IN / 4, MM_IN / 8, MM_IN / 16, MM_IN / 32],
+};
+
+function linearPlan(o = {}) {
+  const system = wantUnits(o.units);
+  const fine = wantFine(system, o.finest);
+  const lengthMm = o.lengthMm > 0 ? o.lengthMm : 0;
+  const ticks = [];
+
+  if (system === "metric") {
+    /* Counted in half-millimetres so that every step is a whole number and
+       nothing drifts: a thousand additions of 0.1 mm would not land on 100. */
+    const step = Math.round(fine.mm * 2);
+    const last = Math.floor((lengthMm * 2 + 1e-6) / step);
+    for (let i = 0; i <= last; i++) {
+      const h = i * step;
+      const rank = h % 20 === 0 ? 0 : h % 10 === 0 ? 1 : h % 2 === 0 ? 2 : 3;
+      ticks.push({ mm: h / 2, rank, label: rank === 0 ? String(h / 20) : null });
+    }
+  } else {
+    // The same trick in thirty-seconds of an inch.
+    const step = 32 / fine.per;
+    const last = Math.floor((lengthMm / MM_IN * 32 + 1e-6) / step);
+    for (let i = 0; i <= last; i++) {
+      const k = i * step;
+      const rank = k % 32 === 0 ? 0 : k % 16 === 0 ? 1 : k % 8 === 0 ? 2
+        : k % 4 === 0 ? 3 : k % 2 === 0 ? 4 : 5;
+      /* Rounded, because a thirty-second of an inch in millimetres is a
+         recurring figure in binary and three inches comes out as
+         76.19999999999999 — which is a hundred-millionth of a millimetre
+         out and reads like a bug in every listing it appears in. */
+      ticks.push({ mm: round(k * MM_IN / 32, 6), rank,
+                   label: rank === 0 ? String(k / 32) : null });
+    }
+  }
+
+  return {
+    units: system,
+    finest: fine.name,
+    step: system === "metric" ? fine.mm : MM_IN / fine.per,
+    spacing: SPACING[system].slice(0, system === "metric" ? 4 : 6),
+    lengthMm: round(lengthMm, 3),
+    figures: system === "metric" ? "centimetres" : "inches",
+    ticks,
+  };
+}
+
+function dialPlan(o = {}) {
+  const system = wantUnits(o.units);
+  const step = wantDegrees(o.degrees);
+  const radiusMm = o.radiusMm > 0 ? o.radiusMm : 0;
+  const ticks = [];
+  for (let d = 0; d < 360; d += step) {
+    const rank = d % 30 === 0 ? 0 : d % 10 === 0 ? 1 : d % 5 === 0 ? 2 : 3;
+    ticks.push({ deg: d, rank, label: rank <= 1 ? String(d) : null });
+  }
+
+  /* One ring to the centimetre or to the inch, and the scale along nought is
+     the straight rule's own, so the two views cannot disagree about where a
+     centimetre is. */
+  const ringMm = system === "metric" ? 10 : MM_IN;
+  const rings = [];
+  for (let n = 1; n * ringMm <= radiusMm + 1e-6; n++) {
+    rings.push({ mm: n * ringMm, label: String(n) });
+  }
+
+  return {
+    units: system,
+    degrees: step,
+    zero: o.zero === "north" ? "north" : "east",
+    turning: o.zero === "north" ? "clockwise" : "anticlockwise",
+    radiusMm: round(radiusMm, 3),
+    ring: system === "metric" ? "1 cm" : "1 in",
+    ticks,
+    rings,
+    scale: linearPlan({ units: system, finest: o.finest, lengthMm: radiusMm }),
+  };
+}
+
+/* ======================================================== the readings === */
+
+/* Inches the way a rule says them: whole inches and a fraction in the lowest
+   terms it will go into, down to the division that is showing. */
+function inchText(inches, den) {
+  const sign = inches < 0 ? "−" : "";
+  const n = Math.round(Math.abs(inches) * den);
+  const whole = Math.floor(n / den);
+  let rem = n % den, d = den;
+  while (rem && rem % 2 === 0) { rem /= 2; d /= 2; }
+  const parts = [];
+  if (whole || !rem) parts.push(String(whole));
+  if (rem) parts.push(`${rem}/${d}`);
+  return sign + parts.join(" ") + "″";
+}
+
+const mmText = (mm) => Math.abs(mm) < 10
+  ? `${round(mm, 1)} mm`
+  : `${round(mm / 10, 2)} cm`;
+
+function reading(mm) {
+  const den = units === "imperial" ? wantFine("imperial", fineName.imperial).per : 16;
+  return {
+    mm: round(mm, 3),
+    cm: round(mm / 10, 4),
+    inches: round(mm / MM_IN, 5),
+    px: round(mm * pxMm(), 2),
+    metric: mmText(mm),
+    imperial: inchText(mm / MM_IN, den),
+  };
+}
+
+/* =========================================================== drawing === */
+
+const canvas = el("rule");
+const ctx = canvas.getContext("2d");
+let box = { w: 0, h: 0 };
+let lastWide = -1;
+
+/* The theme's own colours, resolved, so the canvas follows --sat and --h
+   rather than carrying a palette of its own. */
+function inks() {
+  const cs = getComputedStyle(document.documentElement);
+  const pick = (name, fall) => cs.getPropertyValue(name).trim() || fall;
+  return {
+    neon: pick("--neon", "#fff"),
+    deep: pick("--neon-deep", "#8a8a8a"),
+    text: pick("--text", "#eeeeee"),
+    dim: pick("--text-dim", "#999999"),
+    faint: pick("--text-faint", "#666666"),
+    line: pick("--line", "#333333"),
+    bg: pick("--bg", "#000000"),
+    mono: pick("--mono", "monospace"),
+  };
+}
+
+/* One hard device pixel rather than two grey ones. The page's own note says
+   what this costs: up to half a device pixel per tick, and nothing
+   cumulative, because every tick is placed from nought. */
+const snap = (v) => Math.round(v * dpr()) / dpr();
+const thin = () => 1 / dpr();
+
+function fit() {
+  const stage = el("stage");
+  const full = document.fullscreenElement === stage;
+  stage.classList.toggle("down", shape === "straight" && lie === "down");
+  stage.classList.toggle("dial", shape === "dial");
+
+  let w, h;
+  if (shape === "dial") {
+    /* Square, and as big as the glass will take without the figures under it
+       being pushed off the bottom. Fullscreen is where a big dial lives. */
+    w = stage.clientWidth;
+    const room = full ? window.innerHeight : window.innerHeight * 0.62;
+    h = clamp(Math.min(w, room), 300, full ? 4000 : 640);
+  } else if (lie === "across") {
+    w = stage.clientWidth;
+    /* Deep enough for two scales, their figures, and a clear strip down the
+       middle for the reading to sit in without covering either. */
+    h = both ? 168 : 112;
+  } else {
+    /* Down the page the rule is as long as the glass and no wider than it has
+       to be, so the card shrinks to it rather than leaving a tall black
+       field beside it. */
+    w = both ? 186 : 136;
+    h = Math.max(320, full ? window.innerHeight : window.innerHeight - 180);
+  }
+
+  box = { w, h };
+  lastWide = stage.clientWidth;
+  const d = dpr();
+  canvas.width = Math.round(w * d);
+  canvas.height = Math.round(h * d);
+  canvas.style.width = w + "px";
+  canvas.style.height = h + "px";
+  ctx.setTransform(d, 0, 0, d, 0, 0);
+}
+
+/* How far down the band each rank of tick reaches, as a fraction of it.
+   Metric divides by five and then by two, so three steps are enough to tell
+   its ranks apart; imperial halves five times and needs smaller steps. */
+const REACH = {
+  metric: [1, 0.68, 0.42, 0.28],
+  imperial: [1, 0.78, 0.62, 0.48, 0.36, 0.26],
+};
+
+/* A scale whose finest lines land on top of each other is a smudge rather
+   than a scale, so ranks are dropped from the bottom until what is left can
+   be told apart. The same cut takes out the ranks finer than the division
+   that was actually asked for. */
+function deepest(plan) {
+  let r = plan.spacing.length - 1;
+  while (r > 0 && (plan.spacing[r] < plan.step - 1e-9
+                   || plan.spacing[r] * pxMm() < 1.6)) r--;
+  return r;
+}
+
+/* Figures crowd long before ticks do, so only every nth one is written. */
+function labelEvery(plan) {
+  const gap = plan.spacing[0] * pxMm();
+  let n = 1;
+  while (gap * n < 22) n++;
+  return n;
+}
+
+function writeFigure(text, a, depth, side) {
+  if (lie === "across") {
+    ctx.textAlign = "left";
+    ctx.textBaseline = side === "near" ? "top" : "bottom";
+    ctx.fillText(text, snap(a) + 3, side === "near" ? depth + 2 : box.h - depth - 2);
+  } else {
+    ctx.textAlign = side === "near" ? "left" : "right";
+    ctx.textBaseline = "top";
+    ctx.fillText(text, side === "near" ? depth + 4 : box.w - depth - 4, snap(a) + 2);
+  }
+}
+
+function runScale(plan, side, band, ink, lit) {
+  const across = lie === "across";
+  const reach = REACH[plan.units];
+  const cut = deepest(plan);
+  const every = labelEvery(plan);
+  const figures = `${lit ? 11 : 10}px ${ink.mono}`;
+
+  for (const t of plan.ticks) {
+    if (t.rank > cut) continue;
+    const a = t.mm * pxMm();
+    const depth = Math.max(2, band * reach[t.rank]);
+    ctx.fillStyle = t.rank === 0 ? (lit ? ink.neon : ink.dim)
+      : t.rank === 1 ? (lit ? ink.text : ink.faint)
+      : (lit ? ink.dim : ink.faint);
+    if (across) {
+      ctx.fillRect(snap(a), side === "near" ? 0 : box.h - depth, thin(), depth);
+    } else {
+      ctx.fillRect(side === "near" ? 0 : box.w - depth, snap(a), depth, thin());
+    }
+
+    if (t.label === null) continue;
+    if (Math.round(t.mm / plan.spacing[0]) % every) continue;
+    ctx.font = figures;
+    ctx.fillStyle = lit ? ink.text : ink.faint;
+    writeFigure(t.label, a, depth, side);
+
+    /* Which scale is which, said once beside its nought, because a rule with
+       centimetres on one edge and sixteenths on the other is two rules. */
+    if (t.mm === 0) {
+      ctx.fillStyle = lit ? ink.dim : ink.faint;
+      const word = plan.units === "metric" ? "cm" : "in";
+      if (across) {
+        ctx.fillText(word, 3 + ctx.measureText(t.label).width + 5,
+          side === "near" ? depth + 2 : box.h - depth - 2);
+      } else {
+        ctx.textBaseline = "top";
+        ctx.fillText(word, side === "near" ? depth + 4 : box.w - depth - 4, 16);
+      }
+    }
+  }
+}
+
+function drawMark(ink, along) {
+  const a = snap(clamp(markMm * pxMm(), 0, along));
+  ctx.fillStyle = ink.neon;
+  if (lie === "across") {
+    ctx.fillRect(a, 0, Math.max(1, thin()), box.h);
+    ctx.beginPath();
+    ctx.moveTo(a - 5, 0); ctx.lineTo(a + 5, 0); ctx.lineTo(a, 8);
+  } else {
+    ctx.fillRect(0, a, box.w, Math.max(1, thin()));
+    ctx.beginPath();
+    ctx.moveTo(0, a - 5); ctx.lineTo(0, a + 5); ctx.lineTo(8, a);
+  }
+  ctx.closePath();
+  ctx.fill();
+}
+
+/* The reading, written on the canvas beside the mark itself. The line under
+   the rule says the same thing, but fullscreen is where a rule is actually
+   held against something and the line under it is not on the screen then. */
+function sayHere(ink, text, x, y, align) {
+  ctx.font = `12px ${ink.mono}`;
+  const wide = ctx.measureText(text).width;
+  const left = align === "right" ? x - wide : x;
+  ctx.fillStyle = ink.bg;
+  ctx.fillRect(left - 4, y - 9, wide + 8, 18);
+  ctx.fillStyle = ink.neon;
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  ctx.fillText(text, left, y);
+}
+
+function drawStraight(ink) {
+  const across = lie === "across";
+  const along = across ? box.w : box.h;
+  const over = across ? box.h : box.w;
+  /* Each scale gets half the width, less a strip for its figures: without
+     that the longest ticks of one scale and the figures of the other land in
+     the same place, which is how this looked the first time. */
+  const band = both ? over / 2 - 24 : over - 24;
+  const lengthMm = along / pxMm();
+  // A window that shrank can leave the mark off the end of the rule.
+  if (markMm !== null) markMm = clamp(markMm, 0, lengthMm);
+
+  const main = linearPlan({ units, finest: fineName[units], lengthMm });
+  const other = both ? linearPlan({
+    units: units === "metric" ? "imperial" : "metric",
+    finest: units === "metric" ? DEFAULT_FINE.imperial : DEFAULT_FINE.metric,
+    lengthMm,
+  }) : null;
+
+  /* The span from nought to the mark, washed in under everything, so a
+     measurement reads as a length rather than as a line somewhere. */
+  if (markMm !== null) {
+    ctx.save();
+    ctx.globalAlpha = 0.09;
+    ctx.fillStyle = ink.neon;
+    const a = clamp(markMm * pxMm(), 0, along);
+    if (across) ctx.fillRect(0, 0, a, box.h);
+    else ctx.fillRect(0, 0, box.w, a);
+    ctx.restore();
+  }
+
+  // The edges the scales hang off: the measuring edge, and the far one.
+  ctx.fillStyle = ink.line;
+  if (across) {
+    ctx.fillRect(0, 0, box.w, thin());
+    if (other) ctx.fillRect(0, box.h - thin(), box.w, thin());
+  } else {
+    ctx.fillRect(0, 0, thin(), box.h);
+    if (other) ctx.fillRect(box.w - thin(), 0, thin(), box.h);
+  }
+
+  runScale(main, "near", band, ink, true);
+  if (other) runScale(other, "far", band, ink, false);
+  if (markMm !== null) {
+    drawMark(ink, along);
+    const read = reading(markMm);
+    const said = units === "metric" ? read.metric : read.imperial;
+    const a = snap(clamp(markMm * pxMm(), 0, along));
+    /* On the far side of the line when the end of the rule is too close to
+       fit it, which is where a measurement most often ends up. */
+    const room = along - a > 90;
+    /* Down the middle where there are two scales, and under the figures
+       where there is one. */
+    const line = both ? box.h / 2 : box.h - 10;
+    if (across) sayHere(ink, said, a + (room ? 7 : -7), line, room ? "left" : "right");
+    /* Stood on end it goes against the far edge, where it covers the other
+       system's ticks rather than this one's figures. */
+    else sayHere(ink, said, box.w - 8, a + (room ? 13 : -13), "right");
+  }
+}
+
+/* --------------------------------------------------------------- the dial -- */
+
+const dialGeom = () => {
+  const side = Math.min(box.w, box.h);
+  return { cx: box.w / 2, cy: box.h / 2, R: side / 2 - 26 };
+};
+
+/* Nought at the right counts anticlockwise, which is how a protractor is
+   printed; nought at the top counts clockwise, which is how a bearing is
+   quoted. Screen y runs downwards, which is the sign in here. */
+const screenRad = (deg) =>
+  zero === "north" ? (deg - 90) * Math.PI / 180 : -deg * Math.PI / 180;
+
+const atXY = (g, deg, r) =>
+  [g.cx + r * Math.cos(screenRad(deg)), g.cy + r * Math.sin(screenRad(deg))];
+
+function degOf(dx, dy) {
+  const raw = Math.atan2(dy, dx) * 180 / Math.PI;
+  const d = zero === "north" ? raw + 90 : -raw;
+  return ((d % 360) + 360) % 360;
+}
+
+function drawDial(ink) {
+  const g = dialGeom();
+  const radiusMm = g.R / pxMm();
+  const plan = dialPlan({
+    units, finest: fineName[units], degrees: degStep, radiusMm, zero,
+  });
+  if (armMm === null) armMm = radiusMm * 0.72;
+  const arm = clamp(armMm, 0, radiusMm);
+
+  ctx.lineWidth = thin();
+
+  // The swept angle, so the figure in the readout has a shape on the page.
+  ctx.save();
+  ctx.globalAlpha = 0.1;
+  ctx.fillStyle = ink.neon;
+  ctx.beginPath();
+  ctx.moveTo(g.cx, g.cy);
+  ctx.arc(g.cx, g.cy, arm * pxMm(), screenRad(0), screenRad(armDeg), zero !== "north");
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+
+  // A ring to the centimetre, or to the inch.
+  ctx.strokeStyle = ink.line;
+  for (const ring of plan.rings) {
+    ctx.beginPath();
+    ctx.arc(g.cx, g.cy, ring.mm * pxMm(), 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  // The straight edge through nought, and the one square to it.
+  for (const d of [0, 90]) {
+    const [x1, y1] = atXY(g, d, g.R);
+    const [x2, y2] = atXY(g, d + 180, g.R);
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+  }
+
+  ctx.strokeStyle = ink.deep;
+  ctx.beginPath();
+  ctx.arc(g.cx, g.cy, g.R, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // The degrees, hanging inwards off the rim with the figures outside it.
+  const DEEP = [15, 11, 7, 4];
+  const sparse = 2 * Math.PI * (g.R + 13) / 36 < 26;
+  ctx.font = `11px ${ink.mono}`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  for (const t of plan.ticks) {
+    const [x1, y1] = atXY(g, t.deg, g.R);
+    const [x2, y2] = atXY(g, t.deg, g.R - DEEP[t.rank]);
+    ctx.strokeStyle = t.rank === 0 ? ink.neon : t.rank === 1 ? ink.text : ink.dim;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    if (t.label === null || (sparse && t.rank === 1)) continue;
+    const [lx, ly] = atXY(g, t.deg, g.R + 13);
+    ctx.fillStyle = t.rank === 0 ? ink.text : ink.faint;
+    ctx.fillText(t.label, lx, ly);
+  }
+
+  /* The scale along nought is the straight rule's own plan, drawn in the
+     rotated frame, so a centimetre here is the centimetre there. */
+  const reach = REACH[plan.scale.units];
+  const cut = deepest(plan.scale);
+  ctx.save();
+  ctx.translate(g.cx, g.cy);
+  ctx.rotate(screenRad(0));
+  for (const t of plan.scale.ticks) {
+    if (t.rank > cut) continue;
+    const depth = Math.max(2, 14 * reach[t.rank]);
+    ctx.fillStyle = t.rank === 0 ? ink.neon : t.rank === 1 ? ink.text : ink.dim;
+    ctx.fillRect(snap(t.mm * pxMm()), -depth, thin(), depth);
+  }
+  ctx.restore();
+
+  // The rings' figures, up and to the left, out of the arm's usual way.
+  const ringGap = (plan.rings.length > 1 ? plan.rings[0].mm : 10) * pxMm() * Math.SQRT1_2;
+  const ringEvery = ringGap < 14 ? Math.ceil(14 / Math.max(1, ringGap)) : 1;
+  ctx.font = `10px ${ink.mono}`;
+  ctx.textAlign = "right";
+  ctx.textBaseline = "bottom";
+  ctx.fillStyle = ink.faint;
+  for (const ring of plan.rings) {
+    if (Number(ring.label) % ringEvery) continue;
+    const r = ring.mm * pxMm() * Math.SQRT1_2;
+    ctx.fillText(ring.label, g.cx - r + 1, g.cy - r - 1);
+  }
+
+  // The arm, and the centre it swings on.
+  const [ax, ay] = atXY(g, armDeg, arm * pxMm());
+  ctx.strokeStyle = ink.neon;
+  ctx.lineWidth = Math.max(1, thin());
+  ctx.beginPath();
+  ctx.moveTo(g.cx, g.cy);
+  ctx.lineTo(ax, ay);
+  ctx.stroke();
+  ctx.fillStyle = ink.neon;
+  ctx.beginPath();
+  ctx.arc(ax, ay, 3.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = ink.neon;
+  ctx.beginPath();
+  ctx.arc(g.cx, g.cy, 3, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // And the angle beside the tip, for the same reason as on the straight one.
+  const out = atXY(g, armDeg, Math.min(arm * pxMm() + 16, g.R - 4));
+  sayHere(ink, `${round(armDeg, 1)}°`, out[0], out[1], out[0] > g.cx ? "left" : "right");
+}
+
+function draw() {
+  fit();
+  const ink = inks();
+  ctx.clearRect(0, 0, box.w, box.h);
+  if (shape === "dial") drawDial(ink);
+  else drawStraight(ink);
+  tellReading();
+  tellSpan();
+}
+
+/* ========================================================== what it says == */
+
+function tellReading() {
+  const line = el("reading");
+  line.textContent = "";
+  const put = (cls, text) => {
+    const span = document.createElement("span");
+    span.className = cls;
+    span.textContent = text;
+    line.appendChild(span);
+  };
+
+  if (shape === "dial") {
+    const g = dialGeom();
+    const read = reading(clamp(armMm === null ? 0 : armMm, 0, g.R / pxMm()));
+    put("big", `${round(armDeg, 1)}°`);
+    put("also", `arm ${units === "metric" ? read.metric : read.imperial}`);
+    put("also", units === "metric" ? read.imperial : read.metric);
+    put("idle", `counted ${zero === "north" ? "clockwise from the top"
+      : "anticlockwise from the right"} — drag anywhere in the dial to swing it`);
+    return;
+  }
+
+  if (markMm === null) {
+    put("idle", "Click or drag along the rule to mark a length. The arrow keys "
+      + "move the mark by one division, with Shift for ten; Escape takes it off.");
+    return;
+  }
+
+  const read = reading(markMm);
+  put("big", units === "metric" ? read.metric : read.imperial);
+  put("also", units === "metric" ? read.imperial : read.metric);
+  put("also", `${read.px} px`);
+}
+
+function tellSpan() {
+  if (shape === "dial") {
+    const read = reading(dialGeom().R / pxMm());
+    el("span").textContent = `The dial runs ${read.metric} (${read.imperial}) from `
+      + `the centre to the rim, one ring to the `
+      + `${units === "metric" ? "centimetre" : "inch"}, marked every ${degStep}°.`;
+    return;
+  }
+  const read = reading((lie === "across" ? box.w : box.h) / pxMm());
+  el("span").textContent = `This rule is ${read.metric} (${read.imperial}) long, which `
+    + `is as ${lie === "across" ? "wide as the window is"
+      : "much of the height as the window will give it"}. `
+    + "Fullscreen gives you the rest of the glass.";
+}
+
+const SOURCE = {
+  guess: "That is a guess from the kind of device this is, not a measurement: "
+       + "settle it against something real and it will be right.",
+  diagonal: "Worked out from the screen diagonal you gave.",
+  object: "Matched against something held up to the screen.",
+  typed: "Typed in by hand.",
+  device: "Set from the screen's own density.",
+};
+
+let fromStore = false;
+const zoomMoved = () => how !== "guess" && Math.abs(calDpr - dpr()) > 0.001;
+
+function tellScale() {
+  const now = el("scaleNow");
+  now.textContent = "";
+  const lit = document.createElement("b");
+  lit.textContent = `${round(cssPpi(), 1)} px to the inch`;
+  const rest = document.createElement("span");
+  rest.className = "src";
+  rest.textContent = ` — ${round(pxMm(), 3)} px to the millimetre, which makes `
+    + `this screen ${round(ppi, 0)} ppi and ${round(impliedDiag(), 1)} inches across `
+    + `the diagonal. ${SOURCE[how] || ""}`
+    + (fromStore ? " Remembered from last time." : "")
+    + (zoomMoved() ? " The page's zoom has changed since, and the scale has "
+      + "followed it." : "");
+  now.append(lit, rest);
+}
+
+function tellFacts() {
+  const rep = reportedDpi();
+  const rows = [
+    ["device pixel ratio", String(round(dpr(), 4)), "device pixels to one of the page's"],
+    ["screen", `${screen.width} × ${screen.height}`, "in CSS pixels"],
+    ["which is", `${nativeW()} × ${nativeH()}`, "device pixels"],
+    ["reported resolution", rep === null ? "not answered" : `${rep} dpi`,
+      "the ratio times 96, and nothing more"],
+    ["CSS reckons", "96 px to the inch", `so a 1cm box is ${round(960 / MM_IN, 1)} px wide`],
+    ["this page", `${round(cssPpi(), 1)} px to the inch`,
+      `${round(pxMm(), 3)} px to the millimetre`],
+    ["the screen itself", `${round(ppi, 1)} ppi`, "kept, because zoom cannot change it"],
+    ["which implies", `${round(impliedDiag(), 2)} inches`,
+      "across the diagonal — the figure to sanity-check"],
+  ];
+
+  const list = el("facts");
+  list.textContent = "";
+  for (const [term, said, aside] of rows) {
+    const dt = document.createElement("dt");
+    dt.textContent = term;
+    const dd = document.createElement("dd");
+    dd.append(document.createTextNode(said));
+    if (aside) {
+      const em = document.createElement("em");
+      em.textContent = "  " + aside;
+      dd.append(em);
+    }
+    list.append(dt, dd);
+  }
+}
+
+/* ============================================================ the scale === */
+
+const KEY = "smallpages.ruler";
+
+function keep() {
+  try {
+    localStorage.setItem(KEY, JSON.stringify({
+      ppi, how, dpr: calDpr, when: Date.now(),
+      units, finest: { ...fineName }, deg: degStep,
+      shape, lie, zero, both, thing: thingName,
+    }));
+  } catch { /* private mode, fine */ }
+}
+
+function load() {
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(KEY) || "null"); } catch { saved = null; }
+
+  ppi = guessCss() * dpr();
+  how = "guess";
+  calDpr = dpr();
+  if (!saved || typeof saved !== "object") return null;
+
+  const kept = Number(saved.ppi);
+  if (Number.isFinite(kept) && kept >= 24 && kept <= 2400) {
+    ppi = kept;
+    how = ["diagonal", "object", "typed", "device"].includes(saved.how) ? saved.how : "guess";
+    calDpr = Number(saved.dpr) || dpr();
+    fromStore = how !== "guess";
+  }
+  units = saved.units === "imperial" ? "imperial" : "metric";
+  for (const system of ["metric", "imperial"]) {
+    const name = saved.finest && saved.finest[system];
+    if (FINEST[system].some((f) => f.name === name)) fineName[system] = name;
+  }
+  if (DEGREES.includes(Number(saved.deg))) degStep = Number(saved.deg);
+  shape = saved.shape === "dial" ? "dial" : "straight";
+  lie = saved.lie === "down" ? "down" : "across";
+  zero = saved.zero === "north" ? "north" : "east";
+  both = saved.both !== false;
+  if (THINGS.some((t) => t.name === saved.thing)) thingName = saved.thing;
+  return saved;
+}
+
+/* A bank card is the opening choice because nearly everybody has one — and on
+   a phone a bank card is wider than the screen, so there would be nothing on
+   screen to match it against. If it will not fit, the page opens on the
+   biggest thing that will, which on a phone is a coin. Only ever when nothing
+   was remembered: a choice somebody made themselves is theirs to keep. */
+function pickThing(saved) {
+  if (saved && THINGS.some((t) => t.name === saved.thing)) return;
+  const room = el("scaleCard").clientWidth - 48;
+  if (thing().mm * pxMm() <= room) return;
+  const fits = THINGS.filter((t) => t.mm * pxMm() <= room)
+    .sort((a, b) => b.mm - a.mm);
+  if (!fits.length) return;
+  thingName = fits[0].name;
+  el("objSel").value = thingName;
+}
+
+/* The scale is only ever set through here, so every route into it — the
+   slider, the diagonal, a typed figure, the command line — is refused the
+   same way and remembered the same way. */
+function setPpi(value, source) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 24 || n > 2400) {
+    throw new Error(`${value} device pixels to the inch is not a screen; it has `
+      + "to be between 24 and 2400");
+  }
+  ppi = n;
+  how = source;
+  calDpr = dpr();
+  fromStore = false;
+  keep();
+  refresh();
+  return cssPpi();
+}
+
+const setCssPpi = (value, source) => {
+  const n = Number(value);
+  if (!Number.isFinite(n)) throw new Error(`"${value}" is not a number of pixels`);
+  return setPpi(n * dpr(), source);
+};
+
+function setDiagonal(inches) {
+  const n = Number(inches);
+  if (!Number.isFinite(n) || n < 1 || n > 200) {
+    throw new Error(`a screen ${inches} inches across the diagonal is not one; `
+      + "it has to be between 1 and 200");
+  }
+  return setPpi(nativeDiag() / n, "diagonal");
+}
+
+/* =========================================================== the page ==== */
+
+function press(id, key, value) {
+  for (const button of el(id).querySelectorAll("button")) {
+    button.setAttribute("aria-pressed", String(button.dataset[key] === String(value)));
+  }
+}
+
+function buildFine() {
+  const sel = el("fineSel");
+  sel.textContent = "";
+  for (const fine of FINEST[units]) {
+    const option = document.createElement("option");
+    option.value = fine.name;
+    option.textContent = units === "metric"
+      ? fine.name.replace("mm", " mm")
+      : `${fine.name} in`;
+    sel.appendChild(option);
+  }
+  sel.value = fineName[units];
+}
+
+function buildThings() {
+  const sel = el("objSel");
+  sel.textContent = "";
+  for (const item of THINGS) {
+    const option = document.createElement("option");
+    option.value = item.name;
+    option.textContent = `${item.label} — ${round(item.mm, 2)} mm`;
+    sel.appendChild(option);
+  }
+  sel.value = thingName;
+}
+
+function buildDiagonals() {
+  const wrap = el("diagPresets");
+  wrap.textContent = "";
+  for (const inches of [6.1, 6.7, 10.9, 12.9, 13.3, 14, 15.6, 16, 21.5, 24, 27, 32]) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.dataset.diag = String(inches);
+    button.textContent = `${inches}″`;
+    wrap.appendChild(button);
+  }
+}
+
+function showThing() {
+  const item = thing();
+  const shown = el("objBox");
+  shown.classList.toggle("round", !!item.round);
+  const wide = item.mm * pxMm();
+  const deep = (item.round ? item.mm : item.deep) * pxMm();
+  shown.style.width = `${wide}px`;
+  shown.style.height = `${deep}px`;
+
+  /* An outline wider than the window is no use for matching anything: both
+     its edges have to be on screen at once. Shrinking it to fit would be a
+     lie about a size, and clipping it is the same lie with the evidence cut
+     off, so it is taken down and the sentence says why. */
+  const room = el("scaleCard").clientWidth - 48;
+  const fits = wide <= room;
+  shown.hidden = !fits;
+  const size = `${round(item.mm, 2)} mm (${inchText(item.mm / MM_IN, 32)}) across`;
+  el("objNote").textContent = fits
+    ? `${item.note} It is ${size}, which at this scale is ${round(wide, 1)} px.`
+    : `${item.label} is ${size}, which at this scale is ${round(wide, 1)} px `
+      + `— wider than this window, so there is nothing to hold it against. `
+      + `Turn the screen if it would fit the other way, or pick something `
+      + `smaller: a coin is in the list for exactly this.`;
+}
+
+function fields() {
+  el("degField").hidden = shape !== "dial";
+  el("zeroField").hidden = shape !== "dial";
+  el("lieField").hidden = shape !== "straight";
+  el("bothBtn").hidden = shape !== "straight";
+  el("fineSel").value = fineName[units];
+  el("degSel").value = String(degStep);
+  press("shapeSeg", "shape", shape);
+  press("unitSeg", "units", units);
+  press("lieSeg", "lie", lie);
+  press("zeroSeg", "zero", zero);
+  el("bothBtn").setAttribute("aria-pressed", String(both));
+}
+
+/* Everything that depends on the scale, in one place, so no route into it can
+   leave half the page describing the old one. An input being typed into is
+   left alone: rewriting it under the cursor fights whoever is typing. */
+function refresh() {
+  const busy = document.activeElement;
+  if (el("ppiIn") !== busy) el("ppiIn").value = String(round(cssPpi(), 1));
+  if (el("diagIn") !== busy) el("diagIn").value = String(round(impliedDiag(), 2));
+  if (el("ppiRange") !== busy) {
+    el("ppiRange").value = String(clamp(round(cssPpi(), 1), 24, 500));
+  }
+  showThing();
+  tellFacts();
+  tellScale();
+  draw();
+}
+
+/* ------------------------------------------------------------- the input -- */
+
+function aim(e) {
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+
+  if (shape === "dial") {
+    const g = dialGeom();
+    const dx = x - g.cx;
+    const dy = y - g.cy;
+    const far = Math.hypot(dx, dy);
+    if (far < 3) return;
+    armDeg = round(degOf(dx, dy), 1);
+    armMm = Math.min(far, g.R) / pxMm();
+  } else {
+    const along = lie === "across" ? x : y;
+    markMm = clamp(along / pxMm(), 0, (lie === "across" ? box.w : box.h) / pxMm());
+  }
+  draw();
+}
+
+canvas.addEventListener("pointerdown", (e) => {
+  /* preventScroll, because focusing an element taller than the window scrolls
+     it into view — which moves the canvas out from under the pointer between
+     the press and this handler reading where the pointer was, and leaves the
+     mark somewhere nobody pressed. */
+  canvas.focus({ preventScroll: true });
+  canvas.setPointerCapture(e.pointerId);
+  aim(e);
+  e.preventDefault();
+});
+canvas.addEventListener("pointermove", (e) => {
+  if (e.buttons) aim(e);
+});
+
+canvas.addEventListener("keydown", (e) => {
+  const step = (e.shiftKey ? 10 : 1);
+  const fine = wantFine(units, fineName[units]);
+  const stepMm = (units === "metric" ? fine.mm : MM_IN / fine.per) * step;
+
+  if (e.key === "Escape") {
+    /* In fullscreen the Escape key is the way out, and the way out is worth
+       more than clearing a mark. */
+    if (document.fullscreenElement || shape === "dial") return;
+    markMm = null;
+    draw();
+    e.preventDefault();
+    return;
+  }
+
+  let moved = false;
+  if (shape === "dial") {
+    const g = dialGeom();
+    if (armMm === null) armMm = g.R / pxMm() * 0.72;
+    if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+      armDeg = round((armDeg + degStep * step) % 360, 1);
+      moved = true;
+    } else if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+      armDeg = round((armDeg - degStep * step + 360) % 360, 1);
+      moved = true;
+    } else if (e.key === "+" || e.key === "=") {
+      armMm = clamp(armMm + stepMm, 0, g.R / pxMm());
+      moved = true;
+    } else if (e.key === "-") {
+      armMm = clamp(armMm - stepMm, 0, g.R / pxMm());
+      moved = true;
+    }
+  } else {
+    const run = (lie === "across" ? box.w : box.h) / pxMm();
+    const forward = lie === "across" ? "ArrowRight" : "ArrowDown";
+    const back = lie === "across" ? "ArrowLeft" : "ArrowUp";
+    if (e.key === forward || e.key === back) {
+      const was = markMm === null ? 0 : markMm;
+      markMm = clamp(was + (e.key === forward ? stepMm : -stepMm), 0, run);
+      moved = true;
+    }
+  }
+  if (moved) {
+    draw();
+    e.preventDefault();
+  }
+});
+
+/* ---------------------------------------------------------- the controls -- */
+
+el("shapeSeg").addEventListener("click", (e) => {
+  const button = e.target.closest("button");
+  if (!button) return;
+  shape = button.dataset.shape;
+  fields();
+  keep();
+  draw();
+});
+
+el("unitSeg").addEventListener("click", (e) => {
+  const button = e.target.closest("button");
+  if (!button) return;
+  units = button.dataset.units;
+  buildFine();
+  fields();
+  keep();
+  refresh();
+});
+
+el("lieSeg").addEventListener("click", (e) => {
+  const button = e.target.closest("button");
+  if (!button) return;
+  lie = button.dataset.lie;
+  markMm = null;
+  fields();
+  keep();
+  draw();
+});
+
+el("zeroSeg").addEventListener("click", (e) => {
+  const button = e.target.closest("button");
+  if (!button) return;
+  zero = button.dataset.zero;
+  fields();
+  keep();
+  draw();
+});
+
+el("fineSel").addEventListener("change", () => {
+  fineName[units] = el("fineSel").value;
+  keep();
+  draw();
+});
+
+el("degSel").addEventListener("change", () => {
+  degStep = Number(el("degSel").value);
+  keep();
+  draw();
+});
+
+el("bothBtn").addEventListener("click", () => {
+  both = !both;
+  fields();
+  keep();
+  draw();
+});
+
+el("fullBtn").addEventListener("click", () => {
+  if (document.fullscreenElement) document.exitFullscreen();
+  else el("stage").requestFullscreen?.().catch(() => {
+    // No fullscreen on offer: the rule is as long as the window either way.
+  });
+});
+
+document.addEventListener("fullscreenchange", () => {
+  el("fullBtn").textContent = document.fullscreenElement ? "Leave fullscreen" : "Fullscreen";
+  draw();
+});
+
+/* ------------------------------------------------------- the calibration -- */
+
+function tryIt(work) {
+  try {
+    work();
+    el("objNote").classList.remove("error");
+  } catch (err) {
+    el("objNote").textContent = err.message;
+    el("objNote").classList.add("error");
+  }
+}
+
+el("objSel").addEventListener("change", () => {
+  thingName = el("objSel").value;
+  keep();
+  showThing();
+});
+
+el("ppiRange").addEventListener("input", () => {
+  tryIt(() => setCssPpi(el("ppiRange").value, "object"));
+});
+
+const nudge = (by) => tryIt(() => setCssPpi(round(cssPpi() + by, 2), "object"));
+el("downBtn").addEventListener("click", () => nudge(-0.2));
+el("upBtn").addEventListener("click", () => nudge(0.2));
+
+el("ppiIn").addEventListener("input", () => {
+  const value = Number(el("ppiIn").value);
+  if (!Number.isFinite(value) || value * dpr() < 24) return;   // mid-typing
+  tryIt(() => setCssPpi(value, "typed"));
+});
+
+el("diagIn").addEventListener("input", () => {
+  const value = Number(el("diagIn").value);
+  if (!Number.isFinite(value) || value < 2) return;            // mid-typing
+  tryIt(() => setDiagonal(value));
+});
+
+el("diagPresets").addEventListener("click", (e) => {
+  const button = e.target.closest("button");
+  if (!button) return;
+  tryIt(() => setDiagonal(button.dataset.diag));
+});
+
+el("resetBtn").addEventListener("click", () => {
+  tryIt(() => {
+    setPpi(guessCss() * dpr(), "guess");
+    showThing();
+  });
+});
+
+/* ------------------------------------------------------------- the glass -- */
+
+/* A zoom moves the device pixel ratio, and with it how many of the page's
+   pixels go to the inch. Nothing kept has to change — the screen is as dense
+   as it was — but everything drawn does. */
+let watching = null;
+function watchZoom() {
+  if (watching) watching.onchange = null;
+  watching = matchMedia(`(resolution: ${dpr()}dppx)`);
+  watching.onchange = () => { watchZoom(); refresh(); };
+}
+
+window.addEventListener("resize", () => draw());
+new ResizeObserver(() => {
+  if (shape === "straight" && lie === "down") return;   // its width is its own
+  if (Math.abs(el("stage").clientWidth - lastWide) < 0.5) return;
+  draw();
+}).observe(el("stage"));
+
+const remembered = load();
+buildFine();
+buildThings();
+buildDiagonals();
+fields();
+pickThing(remembered);
+watchZoom();
+refresh();
+
+/* ============================================================== the CLI === */
+
+/* The jobs the command line calls, which are the page's own functions and the
+   page's own plans: the ticks printed in a terminal are the ticks drawn on
+   the glass, because they come out of `linearPlan` either way. What a
+   terminal cannot have is the glass — it has no idea how dense a screen it is
+   not looking at — so `--dpi` is how a scale gets in, and the default is the
+   96 that CSS itself assumes. */
+window.CLI = {
+  page: "ruler",
+  jobs: {
+    screen() {
+      return {
+        dpr: round(dpr(), 4),
+        cssWidth: screen.width,
+        cssHeight: screen.height,
+        deviceWidth: nativeW(),
+        deviceHeight: nativeH(),
+        reportedDpi: reportedDpi(),
+        cssAssumes: 96,
+        ppi: round(ppi, 2),
+        cssPpi: round(cssPpi(), 3),
+        pxPerMm: round(pxMm(), 4),
+        impliedDiagonal: round(impliedDiag(), 2),
+        from: how,
+      };
+    },
+
+    /* Set the scale the way the page's own controls set it, and give back
+       what the page then thinks it is. */
+    scale(o = {}) {
+      if (o.dpi !== undefined && o.dpi !== null) setCssPpi(o.dpi, "typed");
+      else if (o.ppi !== undefined && o.ppi !== null) setPpi(o.ppi, "device");
+      else if (o.diagonal !== undefined && o.diagonal !== null) setDiagonal(o.diagonal);
+      return window.CLI.jobs.screen();
+    },
+
+    ticks(o = {}) {
+      if (o.dpi !== undefined || o.ppi !== undefined || o.diagonal !== undefined) {
+        window.CLI.jobs.scale(o);
+      }
+      const system = wantUnits(o.units);
+      const lengthMm = wantLength(o.length === undefined ? (system === "imperial" ? "12in" : "30cm") : o.length, system);
+      const plan = linearPlan({ units: system, finest: o.finest, lengthMm });
+      const counts = [];
+      for (const tick of plan.ticks) counts[tick.rank] = (counts[tick.rank] || 0) + 1;
+      return {
+        ...plan,
+        pxPerMm: round(pxMm(), 4),
+        cssPpi: round(cssPpi(), 3),
+        lengthPx: round(lengthMm * pxMm(), 2),
+        counts: Array.from(counts, (n) => n || 0),
+        ticks: plan.ticks.map((t) => ({ ...t, px: round(t.mm * pxMm(), 3) })),
+      };
+    },
+
+    dial(o = {}) {
+      if (o.dpi !== undefined || o.ppi !== undefined || o.diagonal !== undefined) {
+        window.CLI.jobs.scale(o);
+      }
+      const system = wantUnits(o.units);
+      const radiusMm = wantLength(o.radius === undefined ? (system === "imperial" ? "4in" : "10cm") : o.radius, system);
+      const plan = dialPlan({
+        units: system, finest: o.finest, degrees: o.degrees, radiusMm,
+        zero: o.zero === undefined ? zero : o.zero,
+      });
+      const at = o.at === undefined || o.at === null ? null : Number(o.at);
+      if (at !== null && !Number.isFinite(at)) {
+        throw new Error(`"${o.at}" is not an angle`);
+      }
+      return {
+        ...plan,
+        pxPerMm: round(pxMm(), 4),
+        radiusPx: round(radiusMm * pxMm(), 2),
+        at: at === null ? null : (() => {
+          const deg = ((at % 360) + 360) % 360;
+          const rad = deg * Math.PI / 180;
+          /* Where the arm's tip falls, in millimetres across the page and up
+             it, which is the other half of reading a protractor. */
+          const across = (plan.zero === "north" ? Math.sin(rad) : Math.cos(rad)) * radiusMm;
+          const up = (plan.zero === "north" ? Math.cos(rad) : Math.sin(rad)) * radiusMm;
+          return {
+            deg: round(deg, 2),
+            radians: round(rad, 5),
+            acrossMm: round(across, 3),
+            upMm: round(up, 3),
+            arm: reading(radiusMm),
+          };
+        })(),
+      };
+    },
+
+    /* One length, spelled every way the page spells it, which is what the
+       readout under the rule says. */
+    convert(o = {}) {
+      if (o.dpi !== undefined || o.ppi !== undefined || o.diagonal !== undefined) {
+        window.CLI.jobs.scale(o);
+      }
+      const system = wantUnits(o.units);
+      if (o.length === undefined || o.length === null || o.length === "") {
+        throw new Error("convert needs a length: 30cm, 300mm, 12in, or a bare "
+          + "number for " + (system === "imperial" ? "inches" : "centimetres"));
+      }
+      const mm = wantLength(o.length, system);
+      const fine = wantFine(system, o.finest);
+      return {
+        asked: String(o.length),
+        units: system,
+        ...reading(mm),
+        imperial: inchText(mm / MM_IN, system === "imperial" ? fine.per : 16),
+        division: fine.name,
+        cssPpi: round(cssPpi(), 3),
+      };
+    },
+
+    objects() {
+      return THINGS.map((item) => ({
+        name: item.name,
+        label: item.label,
+        mm: item.mm,
+        inches: round(item.mm / MM_IN, 4),
+        round: !!item.round,
+        note: item.note,
+      }));
+    },
+  },
+};
+
+/* The page's own innards, for `tests/test-ruler.mjs`. A suite that can only
+   reach the hook cannot tell a scale that is drawn wrong from one that is
+   worked out wrong, and the drawing is the half that matters here. */
+window.RULER = {
+  plans: { linearPlan, dialPlan },
+  geom: { dialGeom, atXY, degOf, screenRad, pxMm, cssPpi },
+  text: { inchText, mmText, reading },
+  get state() {
+    return {
+      ppi, how, calDpr, dpr: dpr(), cssPpi: cssPpi(), pxMm: pxMm(),
+      units, finest: { ...fineName }, degStep, shape, lie, zero, both,
+      markMm, armDeg, armMm, box: { ...box }, thing: thingName,
+    };
+  },
+  draw,
+};
+</script>
+</body>
+</html>

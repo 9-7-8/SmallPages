@@ -483,6 +483,37 @@ Suites are named for the page they exercise. The ones worth knowing about:
   answer rather than a count of frames — measured against `Date.now()` on the
   node side. Both are reloaded mid-run, because a reload that stops the clock
   is the bug a person notices first.
+- **`test-ruler.mjs`** — the true-size rule, where everything rests on one
+  number: how many of the page's pixels go to the inch. So the ticks are read
+  back off the canvas rather than out of the plan that drew them — a plan
+  that is right and a drawing half a millimetre out is exactly the bug this
+  page would have, and reading the plan back would not see it. Ten
+  centimetres at 96 px to the inch is 377.95 px and the page is not allowed
+  to disagree, the ranks have to be a hierarchy on the glass as well as in
+  the data, and the dial's arm has to be drawn on the side the convention
+  says — a sign error there mirrors every reading off it.
+
+  Two of its checks were passing for the wrong reason, and both are the
+  lesson in *Prove every check can fail* twice over. The tick-depth check
+  read the lowest lit pixel in a column, which is the *figure* under the
+  tick, so it stayed green with the ranks deliberately collapsed; it now
+  measures the run of pixels from the measuring edge and stops at the first
+  gap. The fraction check asked for `3 5/16` back, which is already in its
+  lowest terms and so never exercised the reduction at all; there is a second
+  mark at three and a half inches now, which has to come back as a half and
+  not as eight sixteenths. Deliberately breaking the page fourteen ways is
+  what found those, and it also found a real bug on the page: focusing the
+  canvas scrolled it out from under the pointer between the press and the
+  handler reading where the press was.
+
+  What it cannot check is whether the scale is *true*. Nothing in a headless
+  browser can hold a bank card against the glass, so the suite checks that
+  the page draws what its own scale claims and that the claim follows the
+  arithmetic — a person with a real rule is the only check on the last step.
+  The device-pixel snapping is nearly as awkward: at a ratio of 1 it is the
+  same arithmetic as snapping to the page's own pixels, so the one check that
+  can tell them apart runs in a second context at a ratio of 2, which is also
+  where the division that makes a zoom harmless is checked.
 - **`test-caps*.mjs`** — the caption fetcher's route ladder, against
   `stubs/stub-yt.py`, which stands in for both a CORS relay and YouTube behind
   it so the whole path can be walked with neither reachable.
