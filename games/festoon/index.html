@@ -1,0 +1,1201 @@
+<!DOCTYPE html>
+<!-- Festoon, from SmallPages <https://github.com/9-7-8/SmallPages>
+     Copyright (C) 2026 Ixora. SPDX-License-Identifier: GPL-3.0-or-later
+     Free software with no warranty, under the GNU General Public License,
+     version 3 or later: see LICENSE in the repository, or
+     <https://www.gnu.org/licenses/>. -->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Festoon</title>
+<link rel="stylesheet" href="../../theme.css">
+<link rel="icon" type="image/svg+xml" href="../../favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="../../favicon-32.png">
+<link rel="apple-touch-icon" href="../../apple-touch-icon.png">
+<style>
+  /* Layout and sizing only. Colour, type and component styling live in
+     theme.css — with the one exception this game is made of: the whole point
+     is which bulb is which colour and how that colour travels, so the bulbs
+     carry hues of their own. Every hue is paired with a shape that says the
+     same thing, so the board reads without telling the hues apart at all, and
+     the palettes are there partly for that: Beacon is six colours chosen to
+     stay distinct. They live in the script, next to the shapes. Nothing else
+     on the page is coloured — the chrome stays at the theme's white glow, so
+     colour here only ever means "this bulb and that bulb are the same". */
+
+  body { margin: 0; padding: 2.6rem 1.5rem 5rem; min-height: 100vh; }
+  main { max-width: 1040px; margin: 0 auto; }
+  h1 { margin-bottom: 0.4rem; }
+  p.lede { margin: 0 0 1.8rem; max-width: 56ch; }
+
+  /* ----------------------------------------------------------- the bar --- */
+
+  .bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.6rem 1rem;
+    padding-bottom: 0.9rem;
+    margin-bottom: 1.1rem;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .bar select { min-width: 10.5rem; }
+  .bar .seed {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    color: var(--text-faint);
+    margin-left: auto;
+  }
+  .goal { margin: 0 0 1.1rem; font-size: 0.82rem; color: var(--text-dim); max-width: 70ch; }
+
+  /* ---------------------------------------------------------- the room --- */
+
+  .room {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    width: 100%;
+    background: var(--sunken);
+    border: 1px solid var(--line-soft);
+  }
+  /* Drawn at a whole number of pixels and shown at that size, so a flex stays
+     one pixel wide wherever the window is. */
+  #cv {
+    display: block;
+    max-width: 100%;
+    touch-action: none;      /* a drag sweeps the lights, it does not scroll */
+    cursor: crosshair;
+  }
+
+  .banner {
+    position: absolute;
+    inset: auto 0 0 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 1rem;
+    padding: 0.9rem 1.1rem;
+    background: hsl(0 0% 0% / 0.82);
+    border-top: 1px solid var(--line);
+  }
+  .banner[hidden] { display: none; }
+  .banner .head { font-weight: 500; letter-spacing: 0.04em; color: var(--neon); }
+  .banner .why { font-size: 0.82rem; color: var(--text-dim); flex: 1 1 14rem; }
+  .banner button { padding: 0.35rem 0.8rem; font-size: 0.8rem; }
+
+  /* ---------------------------------------------------------- controls --- */
+
+  .controls { display: flex; flex-wrap: wrap; gap: 0.7rem; margin: 1rem 0 1.2rem; }
+  .controls button { padding: 0.5rem 0.9rem; font-size: 0.82rem; }
+
+  /* ------------------------------------------------------------- stats --- */
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+    border-top: 1px solid var(--line-soft);
+    border-left: 1px solid var(--line-soft);
+  }
+  .stats div {
+    padding: 0.7rem 0.9rem 0.8rem;
+    border-right: 1px solid var(--line-soft);
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .stats span {
+    display: block;
+    font-size: 0.66rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+  }
+  .stats b {
+    display: block;
+    margin-top: 0.25rem;
+    font-weight: 300;
+    font-size: 1.15rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--text);
+  }
+  .stats .hot b { color: var(--neon-hot); text-shadow: var(--text-glow); }
+
+  #say { min-height: 1.5rem; margin: 0.9rem 0 0; font-size: 0.85rem; }
+
+  /* ------------------------------------------------------------ legend --- */
+
+  .key {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem 1.4rem;
+    margin: 1rem 0 0;
+    padding: 0;
+    list-style: none;
+    font-size: 0.8rem;
+    color: var(--text-dim);
+  }
+  .key li { display: flex; align-items: center; gap: 0.45rem; }
+  .key canvas { width: 20px; height: 20px; flex: none; }
+  .key b { font-weight: 400; color: var(--text); font-variant-numeric: tabular-nums; }
+
+  /* ------------------------------------------------------------- prose --- */
+
+  .notes { margin-top: 2.6rem; display: grid; gap: 1.2rem; }
+  .notes h2 { margin: 0 0 0.5rem; }
+  .notes h3 { margin: 1rem 0 0.35rem; font-size: 0.82rem; font-weight: 500; letter-spacing: 0.03em; }
+  .notes p, .notes li { font-size: 0.86rem; }
+  .notes p { margin: 0 0 0.7rem; max-width: 66ch; }
+  .notes ul { margin: 0 0 0.7rem; padding-left: 1.1rem; max-width: 66ch; }
+  .notes li { margin-bottom: 0.4rem; }
+  .notes kbd { font-family: var(--mono); font-size: 0.78em; border: 1px solid var(--line); padding: 0 0.3em; }
+
+  @media (max-width: 560px) {
+    body { padding: 1.8rem 1rem 4rem; }
+    .bar .seed { margin-left: 0; }
+    .controls button { padding: 0.45rem 0.7rem; font-size: 0.78rem; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <a class="home" href="../index.html">&larr; games</a>
+  <h1>Festoon</h1>
+  <p class="lede">A rail of lights on long flexes. Sweep your hand through them and they
+  gather, swing and knock together &mdash; and when two bulbs knock, the one going faster
+  paints its colour onto the other. Get enough of them matching without smashing the
+  glass.</p>
+
+  <div class="bar">
+    <select id="festoonSel" aria-label="Festoon"></select>
+    <select id="ruleSel" aria-label="Colour rule"></select>
+    <select id="paletteSel" aria-label="Palette"></select>
+    <span class="seed" id="seed"></span>
+  </div>
+
+  <p class="goal" id="goal"></p>
+
+  <div class="room" id="room">
+    <canvas id="cv" width="1000" height="600" role="img" aria-label="The festoon"></canvas>
+    <div class="banner" id="banner" hidden>
+      <span class="head" id="bHead"></span>
+      <span class="why" id="bWhy"></span>
+      <button type="button" id="bAgain">Same festoon again</button>
+      <button type="button" id="bFresh" class="ghost">New festoon</button>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="seg">
+      <button type="button" id="play">Start</button>
+      <button type="button" id="again">Restart</button>
+    </div>
+    <div class="seg">
+      <button type="button" id="fresh" class="ghost">New festoon</button>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div id="stLit"><span>Lit</span><b>0</b></div>
+    <div id="stSwing"><span>Swinging</span><b>0</b></div>
+    <div id="stLead"><span>Matching</span><b>0</b></div>
+    <div id="stCrack"><span>Cracked</span><b>0</b></div>
+    <div id="stDark"><span>Dark</span><b>0</b></div>
+    <div id="stTime"><span>Time</span><b>0:00</b></div>
+    <div id="stBest"><span>Best here</span><b>&mdash;</b></div>
+  </div>
+
+  <p class="status" id="say"></p>
+
+  <ul class="key" id="key"></ul>
+
+  <div class="notes">
+    <section class="card">
+      <h2>How it goes</h2>
+      <p>Move the pointer over the room, or hold the arrow keys. Everything within the ring
+      is drawn toward your hand, so a slow pass gathers the flexes and a quick one throws
+      them. Nothing happens until you start; a festoon left alone hangs still for ever.</p>
+      <ul>
+        <li><b>Colour travels by contact, and only on the knock.</b> Two bulbs that meet
+        settle which of them changes, and the <em>colour rule</em> above the room says how.
+        Once they are touching they are done arguing: they have to come apart and meet
+        again. A bulb that has just changed also sits out a quarter of a second, so a pair
+        rattling against each other does not flicker between the two.</li>
+        <li><b>Speed settles it.</b> Of two bulbs that knock, the one going faster paints
+        the other &mdash; and the difference does not have to be much, so a bunch gathered
+        in your hand argues itself down to whatever colour it is mostly made of. Only two
+        bulbs going at very nearly the same speed leave each other alone. A bulb moving
+        enough to matter is drawn with a ring round it, and the readout counts them.</li>
+        <li><b>Glass breaks.</b> Meet hard enough and both bulbs crack, and a knock that
+        hard passes no colour either &mdash; it is too busy breaking. A bulb with two cracks
+        goes dark: it still hangs there and still gets in the way, but it is out of the game
+        and can neither take a colour nor give one. Let more go dark than the festoon allows
+        and that is the end of it. Whipping the lights about is not a short cut and not a
+        waste of time either: it sometimes reaches the count before the glass gives and
+        about as often loses the festoon, which is the only gamble on offer here.</li>
+        <li><b>You win when enough of them match.</b> Each festoon says how many &mdash;
+        nine of the ten on Porch, sixteen of the twenty-six on Cathedral &mdash; and the
+        number is a count rather than a share, so breaking bulbs never brings it closer.
+        Every bulb on one colour is not the goal and is not meant to be: a festoon is a row,
+        each bulb only ever meets the one beside it, and the last two of the wrong colour
+        sit at a boundary that wanders. Time is the score.</li>
+      </ul>
+      <h3>The colour rules</h3>
+      <ul>
+        <li><b>Catch</b> &mdash; the faster bulb paints the slower. The plain one: pick the
+        colour you want up and carry it into the lights standing still.</li>
+        <li><b>Settle</b> &mdash; the slower bulb paints the faster. Everything you learn
+        about aiming under Catch is backwards here: you are not delivering a colour, you are
+        posting bulbs into one that is already sitting still.</li>
+        <li><b>Blend</b> &mdash; the colours in play sit on a wheel, and two bulbs that meet
+        each take one step round it toward the other, so a red and a green meet at the amber
+        between them, whoever was going faster. Only when they are already neighbours does
+        speed decide it. With two colours in play every pair is already
+        neighbours, so Blend and Catch are the same game on Porch.</li>
+        <li><b>Fade</b> &mdash; Catch, but a borrowed colour only lasts seven seconds and
+        then the bulb goes back to the colour it started as. The count has to be met at one
+        moment, so this is the hurried one.</li>
+      </ul>
+      <p>The <em>palette</em> only changes how it looks: the shape on each bulb carries the
+      same information as its colour, and never moves between palettes &mdash; the globe is
+      always the first colour, the drop always the second. <em>Beacon</em> is the one to
+      pick if the hues are hard to tell apart.</p>
+      <p><kbd>Space</kbd> starts and pauses, <kbd>R</kbd> restarts the same festoon,
+      <kbd>N</kbd> hangs a new one. The arrow keys or <kbd>WASD</kbd> move your hand, which
+      is slower than a pointer but steadier, and steady is worth a lot under Settle.</p>
+    </section>
+    <section class="card">
+      <h2>What it is not</h2>
+      <p>Not a lighting rig and not a cloth simulation. A flex is a chain of beads held at a
+      fixed distance from each other by a few passes of a solver, which is cheap and stable
+      and quite wrong: a real cable resists bending, this one does not, so a flex folds back
+      on itself where a cable would bow. There is no air, no stretch, no twist and no third
+      dimension &mdash; every strand is in the same flat plane, which is why they pass
+      through each other rather than tangling. Only the bulbs collide, and only with each
+      other: a bulb and somebody else's flex do not notice one another at all. Your hand is
+      not a hand: it draws everything near it inward, which nothing you could put in a room
+      does, and it is the only thing in here that can push a flex at all.</p>
+      <p>The flexes are not cut the way anybody would cut them. Each one is a link longer or
+      shorter than the one beside it and never more, so the drops wander gently along the
+      rail rather than varying as they please. That is not decoration: a bulb hanging a
+      hundred units clear of its neighbours can never touch one, so it can never change
+      colour or pass its own on, and a festoon with two of those in it cannot be finished.
+      Lengths drawn freely do that about as often as not.</p>
+      <p>The glass is not glass either. A bulb cracks on the speed two of them meet at and
+      on nothing else &mdash; not the angle, not the weight, not where it was hit &mdash;
+      and the damage stops at two cracks and darkness. Colour is settled on an instant in
+      the same way: whichever bulb was going faster on the frame the two met has it, by
+      however little, and a lean afterwards says nothing however hard either of them is
+      pulled. The ring that marks a bulb as moving is drawn off a line across one number
+      too, and means nothing to the rules &mdash; it is there to be looked at. Nothing falls, nothing swings free,
+      nothing lands on the floor; a dark bulb hangs on its flex exactly as it did before.
+      Light is drawn as a glow around the bulb and lights nothing else in the room.</p>
+      <p>Colour is not mixed as light or as paint. The colours in play are a short list and
+      a bulb is always exactly one of them, so <em>Blend</em> steps round that list rather
+      than averaging anything; two bulbs meeting in the middle is arithmetic on a wheel of
+      four or five positions, not on a spectrum.</p>
+      <p>The simulation is a fixed step of a sixtieth of a second, and the only randomness
+      is one seeded generator laying the festoon out and dealing the starting colours, so
+      the same seed hangs the same festoon every time. What it cannot repeat is you: the
+      hand is read live, so the same seed twice is the same lights and never the same run.
+      Pausing stops everything, including your hand. Nothing is uploaded; your best time on
+      each festoon and rule is kept in this browser.</p>
+    </section>
+  </div>
+</main>
+
+<script>
+"use strict";
+
+/* ========================================================== the pieces === */
+
+/* The room, in its own units. The canvas is scaled to this, so nothing below
+   has to know how big the window is. */
+const FW = 1000, FH = 600;
+const RAIL = 46;             // the bar everything hangs from
+
+const STEP  = 1 / 60;
+const SEG   = 22;            // the length of one link of flex
+const GRAV  = 0.30;          // units per step, per step
+const DRAG  = 0.985;         // how much of its speed a bead keeps each step
+const RELAX = 6;             // passes of the constraint solver per step
+const BULB  = 11;            // the radius of a bulb
+const HAND  = 48;            // how far your hand reaches
+const GRIP  = 0.5;           // how much of your hand's own motion a bead takes
+const DRAW  = 1.6;           // and how fast it is gathered inward, units a step
+const EASE  = 0.5;           // how quickly the hand itself follows the pointer
+const HTOP  = 16;            // and the furthest it may travel in one step
+const KEYS  = 400;           // units a second, when the hand is on the keys
+
+const SMASH  = 520;          // closing speed that cracks both bulbs
+const SWING  = 150;          // above this a bulb is drawn as swinging rather than hanging
+const TIE    = 12;           // and two speeds within this of each other settle nothing
+const COOL   = 0.25;         // seconds before a bulb will change colour again
+const APART  = 4;            // how far two must part before they can knock again
+const BOUNCE = 0.45;         // how much of a knock comes back as a bounce
+const HOLD   = 7;            // Fade: how long a borrowed colour lasts
+
+/* Six colours, each a hue and a shape saying the same thing. The shape is
+   fixed to the position: the first colour is always the globe whatever the
+   palette, so a palette is a change of light and never a change of meaning. */
+const SHAPES = ["Globe", "Drop", "Diamond", "Hex", "Star", "Block"];
+
+const PALETTES = [
+  { id: "carnival", name: "Carnival",
+    hues: [[48, 92, 62], [150, 74, 52], [196, 90, 60], [278, 84, 68], [332, 86, 64], [12, 88, 58]] },
+  { id: "harbour", name: "Harbour",
+    hues: [[168, 72, 66], [194, 88, 56], [212, 84, 66], [238, 64, 70], [262, 70, 60], [292, 76, 68]] },
+  { id: "ember", name: "Ember",
+    hues: [[8, 86, 58], [26, 92, 56], [44, 96, 62], [350, 80, 66], [318, 74, 60], [60, 88, 66]] },
+  { id: "beacon", name: "Beacon",
+    hues: [[0, 0, 92], [200, 96, 58], [44, 98, 60], [332, 90, 66], [146, 76, 48], [272, 86, 70]] },
+];
+
+const RULES = [
+  { id: "catch",  name: "Catch",
+    blurb: "Catch: the faster bulb paints the slower. Carry the colour you want into the lights that are standing still." },
+  { id: "settle", name: "Settle",
+    blurb: "Settle: the slower bulb paints the faster. Sweep the lights you want to change into the colour that is already sitting still." },
+  { id: "blend",  name: "Blend",
+    blurb: "Blend: two bulbs each step one place round the colour wheel toward the other, and speed only decides it between neighbours." },
+  { id: "fade",   name: "Fade",
+    blurb: "Fade: the faster bulb paints the slower, but a borrowed colour goes home after seven seconds. The count has to be met at one moment." },
+];
+
+/* Each festoon is a count of strands, how many colours are dealt across them,
+   how many of one colour it takes to finish, how many bulbs may go dark first,
+   and how long the flexes are.
+
+   `goal` is not a round number anybody chose. The suite plays every festoon
+   fifteen times with a hand that only stirs — no aim, no idea which colour it
+   is spreading — and these are the best that got to. So the goal is reachable
+   with no skill at all on a good run and nowhere near it on an ordinary one,
+   which is the shape a target wants. What is emphatically not the goal is
+   every bulb on one colour: a festoon is a row, each bulb only ever meets the
+   one beside it, and the last two or three of the wrong colour sit at a
+   boundary that wanders back and forth for ever. The harness spent a long
+   afternoon proving that is luck rather than play.
+
+   `allow` is never more than `strands - goal`, and that is load bearing
+   rather than tidy: let a festoon break more bulbs than the count can spare
+   and it becomes unwinnable without ever being lost, which is a game that
+   sits there. The suite checks the arithmetic on every one of them. */
+const FESTOONS = [
+  { id: "porch",     name: "Porch",     strands: 10, colours: 2, goal: 9,  allow: 1, lo: 9,  hi: 16,
+    hint: "Ten lights, two colours, nine of them to match &mdash; and one bulb's worth of glass to spend." },
+  { id: "hallway",   name: "Hallway",   strands: 14, colours: 3, goal: 10, allow: 3, lo: 8,  hi: 19,
+    hint: "Three colours now, and ten of the fourteen to gather." },
+  { id: "ballroom",  name: "Ballroom",  strands: 20, colours: 4, goal: 11, allow: 3, lo: 7,  hi: 21,
+    hint: "Twenty close together and four colours between them. Eleven on one of them." },
+  { id: "cathedral", name: "Cathedral", strands: 26, colours: 5, goal: 16, allow: 3, lo: 6,  hi: 22,
+    hint: "Five colours, packed tight, sixteen to gather and still only three bulbs' worth of glass." },
+];
+
+/* ============================================================== state === */
+
+/* One seeded generator hangs the whole festoon — where the flexes are, how
+   long they are and which colour each bulb starts as — and nothing else in
+   here is random at all, so a seed is a whole room and the same one hangs it
+   again exactly. */
+function seeded(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+let S = null;
+
+/* How fast a bead is going, in units a second. Verlet keeps no velocity of
+   its own: the distance from where it was last step is the velocity, which is
+   the number both the colour rules and the glass are decided on. */
+const speed = (p) => Math.hypot(p.x - p.ox, p.y - p.oy) / STEP;
+
+function begin(level, rule, palette, seed) {
+  const rand = seeded(seed);
+
+  /* A deal with the same number of each colour in it, shuffled. Dealing each
+     bulb a colour independently gives a festoon that is nine tenths one
+     colour about once in every few seeds, which is not a game. */
+  const deal = [];
+  for (let i = 0; i < level.strands; i++) deal.push(i % level.colours);
+  for (let i = deal.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [deal[i], deal[j]] = [deal[j], deal[i]];
+  }
+
+  const gap = Math.min(56, (FW - 150) / level.strands);
+  const left = (FW - gap * (level.strands - 1)) / 2;
+  const strands = [];
+  /* The drops are a walk along the rail that only ever goes up or down by one
+     link, which is both what a festoon looks like and the only way the game
+     works at all. Drawing each length independently is the obvious thing and
+     it quietly breaks the whole page: a bulb hanging a hundred and fifty
+     units above its neighbours can never touch one of them whatever you do
+     with it, so its colour can neither be changed nor spread, and the festoon
+     can never come to one colour. It took a solver stalling at eight bulbs
+     out of ten, over and over, to see why. */
+  let links = Math.round((level.lo + level.hi) / 2);
+  for (let i = 0; i < level.strands; i++) {
+    links += Math.floor(rand() * 3) - 1;
+    links = Math.min(level.hi, Math.max(level.lo, links));
+    const x = left + gap * i + (rand() - 0.5) * gap * 0.3;
+    const pts = [];
+    for (let j = 0; j <= links; j++) {
+      const y = RAIL + j * SEG;
+      pts.push({ x, y, ox: x, oy: y });
+    }
+    strands.push({
+      i, pts, bulb: pts[pts.length - 1],
+      c: deal[i], home: deal[i],
+      cracks: 0, out: false, cool: 0, heat: 0, lit: 0,
+    });
+  }
+
+  S = {
+    level, rule, palette, seed, strands,
+    colours: level.colours,
+    hand: { x: FW / 2, y: FH * 0.55, tx: FW / 2, ty: FH * 0.55,
+            vx: 0, vy: 0, on: false, keys: false },
+    met: new Set(),
+    t: 0, cracks: 0, dark: 0,
+    running: false, over: null, announced: false,
+    unit: 1, flash: null,
+  };
+  /* Let it hang before anybody sees it. A flex laid out bead by bead is a
+     hair longer than the solver will have it, so the whole festoon twitches
+     for its first few seconds; stepping it here with nothing touching it and
+     then forgetting the speeds leaves a room that is genuinely still. */
+  for (let i = 0; i < 180; i++) step(STEP);
+  for (const s of S.strands) {
+    for (const p of s.pts) { p.ox = p.x; p.oy = p.y; }
+    s.cool = 0; s.lit = 0; s.cracks = 0; s.out = false;
+  }
+  S.t = 0; S.cracks = 0; S.dark = 0; S.over = null;
+  for (let i = 0; i < S.strands.length; i++) { S.strands[i].c = deal[i]; S.strands[i].home = deal[i]; }
+
+  return S;
+}
+
+/* ============================================================ the step === */
+
+function step(dt) {
+  if (S.over) return;
+  S.t += dt;
+
+  /* Your hand is eased toward the pointer rather than teleported to it, so
+     that it has a speed of its own worth reading: a bead deep in the grip
+     takes that speed, which is what makes how fast you move the thing that
+     decides every argument below. */
+  const h = S.hand;
+  const wasX = h.x, wasY = h.y;
+  let hdx = (h.tx - h.x) * EASE, hdy = (h.ty - h.y) * EASE;
+  const far = Math.hypot(hdx, hdy);
+  if (far > HTOP) { hdx = hdx / far * HTOP; hdy = hdy / far * HTOP; }
+  h.x += hdx; h.y += hdy;
+  h.vx = h.x - wasX; h.vy = h.y - wasY;
+
+  // --- the flexes: one verlet integration, then your hand, then the solver ---
+  for (const s of S.strands) {
+    for (let i = 1; i < s.pts.length; i++) {
+      const p = s.pts[i];
+      const vx = (p.x - p.ox) * DRAG, vy = (p.y - p.oy) * DRAG;
+      p.ox = p.x; p.oy = p.y;
+      p.x += vx; p.y += vy + GRAV;
+      if (!h.on) continue;
+      const dx = h.x - p.x, dy = h.y - p.y;
+      const d = Math.hypot(dx, dy);
+      if (d < 0.001 || d > HAND) continue;
+      /* Drawn toward the hand rather than pushed away from it, which is what
+         makes a pass gather the flexes into a bunch instead of parting them.
+         What is handed to the bead is a speed, not a shove: your hand's own
+         speed, plus a slow draw inward, mixed in by how deep in the ring it
+         is. A shove was the first version and it was wrong in a way that took
+         a while to see — a shove adds to whatever the bead is already doing,
+         every step, so holding the pointer still in a bunch wound them up to
+         a thousand units a second and every meeting was a smash. */
+      const grab = ((HAND - d) / HAND) ** 2;
+      const nowX = p.x - p.ox, nowY = p.y - p.oy;
+      const pull = Math.min(d, DRAW);
+      const wantX = h.vx + (dx / d) * pull;
+      const wantY = h.vy + (dy / d) * pull;
+      const mix = grab * GRIP;
+      p.ox = p.x - (nowX + (wantX - nowX) * mix);
+      p.oy = p.y - (nowY + (wantY - nowY) * mix);
+    }
+  }
+
+  for (let pass = 0; pass < RELAX; pass++) {
+    for (const s of S.strands) {
+      for (let i = 1; i < s.pts.length; i++) {
+        const a = s.pts[i - 1], b = s.pts[i];
+        const dx = b.x - a.x, dy = b.y - a.y;
+        const d = Math.hypot(dx, dy) || 0.0001;
+        const off = (d - SEG) / d;
+        /* The top bead of every flex is screwed to the rail, so the one below
+           it takes the whole correction; everywhere else the two share it. */
+        const share = i > 1 ? 0.5 : 1;
+        b.x -= dx * off * share; b.y -= dy * off * share;
+        if (i > 1) { a.x += dx * off * 0.5; a.y += dy * off * 0.5; }
+      }
+    }
+  }
+
+  for (const s of S.strands) {
+    for (let i = 1; i < s.pts.length; i++) {
+      const p = s.pts[i];
+      p.x = Math.min(FW - 6, Math.max(6, p.x));
+      p.y = Math.min(FH - 6, Math.max(RAIL - 2, p.y));
+    }
+    if (s.cool > 0) s.cool -= dt;
+    if (s.lit > 0) s.lit -= dt;
+    /* Fade: a borrowed colour only lasts so long, and then the bulb goes back
+       to whatever it was when the festoon was hung. */
+    if (S.rule.id === "fade" && s.heat > 0 && !s.out) {
+      s.heat -= dt;
+      if (s.heat <= 0 && s.c !== s.home) { s.c = s.home; s.lit = 0.35; }
+    }
+  }
+
+  meetings();
+  verdict();
+}
+
+/* Every pair of bulbs that is touching: part them, and on the frame they
+   first met, let them argue.
+
+   On the frame they first met is the whole of it. An earlier version argued
+   every frame a pair was in contact, which sounds like the same thing and is
+   not: parting two bulbs is a shove, and a shove leaves them travelling at
+   nearly the same speed, so a pair that had been leaning on each other for
+   half a second always looked like two bulbs going the same way and neither
+   could ever win the argument. Colour stopped spreading after the first pass
+   of the hand and no festoon above the first could be finished at all.
+   Meeting is an event; the speed it happened at is the speed on that frame,
+   and a lean afterwards says nothing. They have to come APART again before
+   they count as meeting afresh, or a pair sitting exactly on the line knocks
+   every other frame. */
+function meetings() {
+  const all = S.strands;
+  const now = new Set();
+  for (let i = 0; i < all.length; i++) {
+    for (let j = i + 1; j < all.length; j++) {
+      const a = all[i].bulb, b = all[j].bulb;
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const d = Math.hypot(dx, dy);
+      if (d >= BULB * 2 + APART || d < 0.0001) continue;
+
+      const key = i * all.length + j;
+      const leaning = S.met.has(key);
+      const touching = d < BULB * 2;
+      if (touching || leaning) now.add(key);
+      if (!touching) continue;
+
+      /* Everything the knock is judged on is read here, before the two are
+         parted, because parting them is a shove and a shove is a speed: do
+         it the other way round and both bulbs come out of it travelling at
+         nearly the same rate, which is a tie whoever arrived faster. */
+      const rel = Math.hypot((a.x - a.ox) - (b.x - b.ox),
+                             (a.y - a.oy) - (b.y - b.oy)) / STEP;
+      const sa = speed(a), sb = speed(b);
+
+      const push = (BULB * 2 - d) / d * 0.5;
+      a.x -= dx * push; a.y -= dy * push;
+      b.x += dx * push; b.y += dy * push;
+
+      if (leaning) continue;                     // a lean is not a knock
+
+      /* Glass bounces off glass, and it has to, or a bunch gathered in your
+         hand sits in one permanent contact and never knocks again. The
+         impulse goes on through the old positions, which is where verlet
+         keeps its velocities. */
+      const nx = dx / d, ny = dy / d;
+      const closing = ((b.x - b.ox) - (a.x - a.ox)) * nx
+                    + ((b.y - b.oy) - (a.y - a.oy)) * ny;
+      if (closing < 0) {
+        const imp = -(1 + BOUNCE) * closing * 0.5;
+        a.ox += nx * imp; a.oy += ny * imp;
+        b.ox -= nx * imp; b.oy -= ny * imp;
+      }
+
+      const A = all[i], B = all[j];
+      if (rel > SMASH) { crack(A); crack(B); }
+      else argue(A, B, sa, sb);
+    }
+  }
+  S.met = now;
+}
+
+function crack(s) {
+  if (s.out) return;
+  s.cracks++;
+  S.cracks++;
+  if (s.cracks >= 2) { s.out = true; S.dark++; }
+}
+
+/* Which of two bulbs changes colour, and to what. This is the whole game and
+   it is a dozen lines; everything else on the page exists to let you aim it.
+
+   A bulb is either swinging or hanging — one speed, one line — and the two
+   have to differ for anything to happen at all. That is deliberate and it
+   took a rewrite to arrive at. Comparing the two speeds against each other
+   was the obvious rule and it made the game unwinnable: inside a bunch
+   gathered in your hand everything moves at nearly the same speed, so which
+   of two bulbs was marginally quicker was a coin toss, colour wandered back
+   and forth across a boundary and a hundred changes of colour in a run left
+   the festoon exactly where it started. With a line drawn across it instead,
+   a bunch you are carrying is all swinging and settles nothing among itself,
+   and everything it meets on the way is hanging and takes its colour. That is
+   a direction, and a direction is what makes a stroke worth aiming. */
+function argue(A, B, sa, sb) {
+  if (A.out || B.out || A.c === B.c) return;
+  const rule = S.rule.id;
+
+  if (rule === "blend") {
+    const n = S.colours;
+    const up = ((B.c - A.c) % n + n) % n;
+    const down = n - up;
+    if (Math.min(up, down) > 1) {
+      const dir = up <= down ? 1 : -1;
+      if (!A.cool) paint(A, (A.c + dir + n) % n);
+      if (!B.cool) paint(B, (B.c - dir + n) % n);
+      return;
+    }
+    /* Neighbours on the wheel have nowhere to meet in the middle, so swinging
+       against hanging has it — otherwise a pair would swap places for ever
+       and a festoon of two colours could never come together at all. */
+  }
+
+  if (Math.abs(sa - sb) < TIE) return;
+  const quick = sa > sb ? A : B;
+  const giver = rule === "settle" ? (quick === A ? B : A) : quick;
+  const taker = giver === A ? B : A;
+  if (!taker.cool) paint(taker, giver.c);
+}
+
+const swinging = (s) => speed(s.bulb) > SWING;
+
+function paint(s, colour) {
+  if (s.c === colour) return;
+  s.c = colour;
+  s.cool = COOL;
+  s.lit = 0.35;                                 // a flare, so a change is seen
+  if (S.rule.id === "fade") s.heat = colour === s.home ? 0 : HOLD;
+}
+
+function verdict() {
+  if (S.over) return;
+  if (S.dark > S.level.allow) {
+    S.over = {
+      win: false,
+      head: "Too much broken glass",
+      why: `${cap(count(S.dark))} bulb${S.dark === 1 ? "" : "s"} dark, and the festoon allows`
+        + ` ${S.level.allow}. Sweep more slowly: it is the speed they meet at that breaks them.`,
+    };
+    return;
+  }
+  const n = tallies();
+  const lead = Math.max(...n);
+  if (lead < S.level.goal) return;
+  S.over = {
+    win: true,
+    head: "They match",
+    why: `${cap(count(lead))} of the ${count(S.strands.length)} on the`
+      + ` ${SHAPES[n.indexOf(lead)].toLowerCase()}, in ${clock(S.t)}`
+      + `${S.dark ? `, with ${count(S.dark)} dark` : " and nothing broken"}.`,
+  };
+}
+
+/* How many bulbs of each colour are still lit. The win is read off this and
+   so is the legend, so there is one count rather than two that can disagree. */
+function tallies() {
+  const n = new Array(6).fill(0);
+  for (const s of S.strands) if (!s.out) n[s.c]++;
+  return n;
+}
+
+const NUMBERS = ["none", "one", "two", "three", "four", "five", "six", "seven", "eight",
+  "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen",
+  "seventeen", "eighteen", "nineteen", "twenty", "twenty-one", "twenty-two",
+  "twenty-three", "twenty-four", "twenty-five", "twenty-six"];
+const count = (n) => NUMBERS[n] || String(n);
+const cap = (w) => w[0].toUpperCase() + w.slice(1);
+const clock = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
+
+/* =============================================================== paint === */
+
+const cv = document.getElementById("cv");
+const ctx = cv.getContext("2d");
+const room = document.getElementById("room");
+
+/* Canvas cannot read a stylesheet, so the chrome is pulled out of the theme
+   once and painted with. Only the bulbs bring colour of their own. */
+let INK = {};
+function readTheme() {
+  const cs = getComputedStyle(document.body);
+  const pick = (n, f) => (cs.getPropertyValue(n) || "").trim() || f;
+  INK = {
+    line: pick("--line", "#2a2a2a"),
+    soft: pick("--line-soft", "#1a1a1a"),
+    raised: pick("--raised", "#0f0f0f"),
+    faint: pick("--text-faint", "#616161"),
+    dim: pick("--text-dim", "#949494"),
+    text: pick("--text", "#f0f0f0"),
+    neon: pick("--neon", "#fafafa"),
+    hot: pick("--neon-hot", "#ffffff"),
+    deep: pick("--neon-deep", "#9e9e9e"),
+  };
+}
+
+function tone(c, lift = 0, alpha = 1) {
+  const [h, s, l] = (S ? S.palette : PALETTES[0]).hues[c % 6];
+  return `hsl(${h} ${s}% ${Math.min(96, l + lift)}% / ${alpha})`;
+}
+
+function fit() {
+  const wide = Math.max(240, room.clientWidth || 900);
+  const tall = Math.max(220, Math.round((window.innerHeight || 900) * 0.66));
+  const scale = Math.min(1, wide / FW, tall / FH);
+  const dpr = Math.min(3, window.devicePixelRatio || 1);
+  S.unit = scale;
+  cv.width = Math.round(FW * scale * dpr);
+  cv.height = Math.round(FH * scale * dpr);
+  cv.style.width = `${Math.round(FW * scale)}px`;
+  cv.style.height = `${Math.round(FH * scale)}px`;
+  ctx.setTransform(dpr * scale, 0, 0, dpr * scale, 0, 0);
+}
+
+/* The shape that repeats what the colour says. One function, used by the
+   board and by the swatches in the legend, so the two cannot drift apart. */
+function shape(g, c, x, y, r) {
+  g.beginPath();
+  if (c === 0) {                                   // globe
+    g.arc(x, y, r, 0, Math.PI * 2);
+  } else if (c === 1) {                            // drop
+    g.moveTo(x, y - r * 1.35);
+    g.quadraticCurveTo(x + r * 1.02, y - r * 0.1, x + r * 0.84, y + r * 0.3);
+    g.arc(x, y + r * 0.3, r * 0.84, 0, Math.PI);
+    g.quadraticCurveTo(x - r * 1.02, y - r * 0.1, x, y - r * 1.35);
+  } else if (c === 2) {                            // diamond
+    g.moveTo(x, y - r * 1.3); g.lineTo(x + r * 0.95, y);
+    g.lineTo(x, y + r * 1.3); g.lineTo(x - r * 0.95, y);
+    g.closePath();
+  } else if (c === 3) {                            // hex
+    for (let i = 0; i < 6; i++) {
+      const a = -Math.PI / 2 + (i / 6) * Math.PI * 2;
+      g[i ? "lineTo" : "moveTo"](x + Math.cos(a) * r * 1.1, y + Math.sin(a) * r * 1.1);
+    }
+    g.closePath();
+  } else if (c === 4) {                            // star
+    for (let i = 0; i < 12; i++) {
+      const a = -Math.PI / 2 + (i / 12) * Math.PI * 2;
+      const rr = i % 2 ? r * 0.56 : r * 1.4;
+      g[i ? "lineTo" : "moveTo"](x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+    }
+    g.closePath();
+  } else {                                         // block
+    g.rect(x - r * 0.92, y - r * 0.92, r * 1.84, r * 1.84);
+  }
+}
+
+let dirty = true;
+const repaint = () => { dirty = true; };
+
+function draw() {
+  if (!S) return;
+  ctx.clearRect(0, 0, FW, FH);
+
+  // the rail, and a screw for every flex
+  ctx.strokeStyle = INK.line;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(-2, RAIL - 0.5); ctx.lineTo(FW + 2, RAIL - 0.5);
+  ctx.stroke();
+  ctx.fillStyle = INK.raised;
+  // a couple of units past each end, or rounding leaves a sliver of black
+  ctx.fillRect(-2, 0, FW + 4, RAIL - 1);
+  ctx.strokeStyle = INK.soft;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (const s of S.strands) {
+    ctx.moveTo(Math.round(s.pts[0].x) + 0.5, RAIL - 9);
+    ctx.lineTo(Math.round(s.pts[0].x) + 0.5, RAIL);
+  }
+  ctx.stroke();
+
+  // the flexes
+  ctx.strokeStyle = INK.line;
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  for (const s of S.strands) {
+    ctx.moveTo(s.pts[0].x, s.pts[0].y);
+    for (let i = 1; i < s.pts.length; i++) ctx.lineTo(s.pts[i].x, s.pts[i].y);
+  }
+  ctx.stroke();
+
+  // your hand
+  if (S.hand.on) {
+    ctx.save();
+    ctx.strokeStyle = INK.line;
+    ctx.setLineDash([3, 7]);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(S.hand.x, S.hand.y, HAND, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.strokeStyle = INK.deep;
+    ctx.beginPath();
+    ctx.arc(S.hand.x, S.hand.y, 4, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // the bulbs
+  for (const s of S.strands) {
+    const b = s.bulb;
+    if (s.out) {
+      // dark: an outline and a hatch, because a darker grey on black is nothing
+      ctx.save();
+      ctx.strokeStyle = INK.line;
+      ctx.lineWidth = 1.2;
+      shape(ctx, s.c, b.x, b.y, BULB);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(b.x - BULB * 0.6, b.y - BULB * 0.6);
+      ctx.lineTo(b.x + BULB * 0.6, b.y + BULB * 0.6);
+      ctx.moveTo(b.x + BULB * 0.6, b.y - BULB * 0.6);
+      ctx.lineTo(b.x - BULB * 0.6, b.y + BULB * 0.6);
+      ctx.stroke();
+      ctx.restore();
+      continue;
+    }
+    const flare = s.lit > 0 ? 1 : 0;
+    ctx.save();
+    ctx.fillStyle = tone(s.c, flare * 18, s.cracks ? 0.72 : 1);
+    ctx.shadowColor = tone(s.c, 0, 0.9);
+    ctx.shadowBlur = (s.cracks ? 9 : 18) + flare * 14;
+    shape(ctx, s.c, b.x, b.y, BULB);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    /* A ring says this one is swinging, which is the one thing about a bulb
+       that decides everything and cannot otherwise be seen in a still frame.
+       It is a ring and not a brighter hue on purpose: the hue is already
+       carrying which colour this is. */
+    if (swinging(s)) {
+      ctx.strokeStyle = tone(s.c, 22, 0.85);
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, BULB * 1.75, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    if (s.cracks) {
+      // a crack, drawn as a crack rather than signalled by a colour
+      ctx.strokeStyle = "hsl(0 0% 4%)";
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.moveTo(b.x - BULB * 0.85, b.y - BULB * 0.25);
+      ctx.lineTo(b.x - BULB * 0.15, b.y + BULB * 0.1);
+      ctx.lineTo(b.x + BULB * 0.2, b.y - BULB * 0.45);
+      ctx.lineTo(b.x + BULB * 0.8, b.y + BULB * 0.3);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+}
+
+/* =============================================================== input === */
+
+function at(ev) {
+  const r = cv.getBoundingClientRect();
+  return {
+    x: ((ev.clientX - r.left) / r.width) * FW,
+    y: ((ev.clientY - r.top) / r.height) * FH,
+  };
+}
+
+function hold(ev) {
+  if (!S) return;
+  const p = at(ev);
+  S.hand.tx = Math.min(FW, Math.max(0, p.x));
+  S.hand.ty = Math.min(FH, Math.max(0, p.y));
+  S.hand.on = true;
+  S.hand.keys = false;
+  repaint();
+}
+
+cv.addEventListener("pointerdown", (ev) => {
+  ev.preventDefault();
+  cv.setPointerCapture(ev.pointerId);
+  hold(ev);
+});
+cv.addEventListener("pointermove", hold);
+cv.addEventListener("pointerup", (ev) => {
+  if (ev.pointerType !== "mouse") { S.hand.on = false; repaint(); }
+});
+cv.addEventListener("pointercancel", () => { S.hand.on = false; repaint(); });
+cv.addEventListener("pointerleave", (ev) => {
+  if (ev.pointerType === "mouse") { S.hand.on = false; repaint(); }
+});
+cv.addEventListener("contextmenu", (ev) => ev.preventDefault());
+
+/* The keys move the same hand the pointer does, at a fixed speed. Slower than
+   a pointer, and steadier, which under Settle is an advantage rather than a
+   consolation. */
+const down = new Set();
+const PRESSED = {
+  ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1],
+  a: [-1, 0], d: [1, 0], w: [0, -1], s: [0, 1],
+};
+
+function steer(dt) {
+  let dx = 0, dy = 0;
+  for (const k of down) { dx += PRESSED[k][0]; dy += PRESSED[k][1]; }
+  if (!dx && !dy) {
+    if (S.hand.keys) { S.hand.on = false; S.hand.keys = false; repaint(); }
+    return;
+  }
+  const len = Math.hypot(dx, dy) || 1;
+  S.hand.tx = Math.min(FW, Math.max(0, S.hand.tx + (dx / len) * KEYS * dt));
+  S.hand.ty = Math.min(FH, Math.max(0, S.hand.ty + (dy / len) * KEYS * dt));
+  S.hand.on = true;
+  S.hand.keys = true;
+  repaint();
+}
+
+/* ============================================================== chrome === */
+
+const el = (id) => document.getElementById(id);
+const fSel = el("festoonSel"), rSel = el("ruleSel"), pSel = el("paletteSel");
+const goalEl = el("goal"), seedEl = el("seed"), sayEl = el("say"), keyEl = el("key");
+const banner = el("banner"), bHead = el("bHead"), bWhy = el("bWhy"), playBtn = el("play");
+
+const STORE = "festoon.best";
+const KEPT = "festoon.look";
+const slot = () => `${S.level.id}.${S.rule.id}`;
+
+function bests() {
+  try { return JSON.parse(localStorage.getItem(STORE)) || {}; } catch { return {}; }
+}
+function remember(key, secs) {
+  const all = bests();
+  if (all[key] !== undefined && all[key] <= secs) return;
+  all[key] = Math.round(secs * 10) / 10;
+  try { localStorage.setItem(STORE, JSON.stringify(all)); } catch { /* private window */ }
+}
+function recall() {
+  try { return JSON.parse(localStorage.getItem(KEPT)) || {}; } catch { return {}; }
+}
+function keep(look) {
+  try { localStorage.setItem(KEPT, JSON.stringify(look)); } catch { /* private window */ }
+}
+
+function say(words) { sayEl.textContent = words || ""; }
+
+let at_ = 0, rule_ = 0, pal_ = 0;
+
+function fillMenus() {
+  const best = bests();
+  fSel.innerHTML = "";
+  FESTOONS.forEach((f, i) => {
+    const o = document.createElement("option");
+    o.value = String(i);
+    const mine = best[`${f.id}.${RULES[rule_].id}`];
+    o.textContent = `${i + 1}. ${f.name}${mine !== undefined ? `  · best ${clock(mine)}` : ""}`;
+    fSel.append(o);
+  });
+  fSel.value = String(at_);
+  if (!rSel.options.length) {
+    RULES.forEach((r, i) => {
+      const o = document.createElement("option");
+      o.value = String(i);
+      o.textContent = r.name;
+      rSel.append(o);
+    });
+    PALETTES.forEach((p, i) => {
+      const o = document.createElement("option");
+      o.value = String(i);
+      o.textContent = p.name;
+      pSel.append(o);
+    });
+  }
+  rSel.value = String(rule_);
+  pSel.value = String(pal_);
+}
+
+function fillKey() {
+  keyEl.innerHTML = "";
+  for (let c = 0; c < S.colours; c++) {
+    const li = document.createElement("li");
+    const pip = document.createElement("canvas");
+    pip.width = 40; pip.height = 40;
+    const g = pip.getContext("2d");
+    g.scale(2, 2);
+    g.fillStyle = tone(c);
+    shape(g, c, 10, 10, 6.6);
+    g.fill();
+    const tally = document.createElement("b");
+    tally.id = `tally${c}`;
+    li.append(pip, document.createTextNode(`${SHAPES[c]} `), tally);
+    keyEl.append(li);
+  }
+}
+
+function load(which, seed, rule, palette) {
+  if (which !== undefined && which !== null) {
+    at_ = typeof which === "string" ? FESTOONS.findIndex((f) => f.id === which) : (which | 0);
+    if (at_ < 0) at_ = 0;
+  }
+  if (rule !== undefined) {
+    const found = typeof rule === "string" ? RULES.findIndex((r) => r.id === rule) : (rule | 0);
+    if (found >= 0) rule_ = found;
+  }
+  if (palette !== undefined) {
+    const found = typeof palette === "string"
+      ? PALETTES.findIndex((p) => p.id === palette) : (palette | 0);
+    if (found >= 0) pal_ = found;
+  }
+  begin(FESTOONS[at_], RULES[rule_], PALETTES[pal_],
+    seed === undefined || seed === null ? (Math.random() * 0xffffffff) >>> 0 : seed >>> 0);
+  fit();
+  fillMenus();
+  fillKey();
+  keep({ rule: RULES[rule_].id, palette: PALETTES[pal_].id });
+  goalEl.textContent = `${S.level.hint} ${S.rule.blurb}`;
+  seedEl.textContent = `Seed ${S.seed.toString(36)}`;
+  banner.hidden = true;
+  playBtn.textContent = "Start";
+  say("");
+  refresh();
+  repaint();
+  return S;
+}
+
+function refresh() {
+  if (!S) return;
+  const set = (id, text, hot) => {
+    const node = el(id);
+    node.querySelector("b").textContent = text;
+    node.classList.toggle("hot", !!hot);
+  };
+  const n = tallies();
+  const live = S.strands.length - S.dark;
+  const lead = Math.max(...n);
+  const which = n.indexOf(lead);
+  const swung = S.strands.filter((s) => !s.out && swinging(s)).length;
+  set("stLit", `${live} of ${S.strands.length}`);
+  set("stSwing", String(swung), swung > 0);
+  set("stLead", `${lead} of ${S.level.goal}`, lead >= S.level.goal);
+  set("stCrack", String(S.strands.filter((s) => s.cracks === 1 && !s.out).length),
+    S.strands.some((s) => s.cracks === 1 && !s.out));
+  set("stDark", `${S.dark} of ${S.level.allow}`, S.dark >= S.level.allow);
+  set("stTime", clock(S.t));
+  const mine = bests()[slot()];
+  set("stBest", mine === undefined ? "—" : clock(mine));
+  for (let c = 0; c < S.colours; c++) {
+    const b = el(`tally${c}`);
+    if (b) b.textContent = String(n[c]);
+  }
+  cv.setAttribute("aria-label",
+    `${S.level.name}, ${S.rule.name}: ${live} of ${S.strands.length} lit, ${swung} swinging,`
+    + ` biggest colour ${lead} ${SHAPES[which].toLowerCase()} of the ${S.level.goal} wanted,`
+    + ` ${S.dark} dark of ${S.level.allow} allowed, ${clock(S.t)} gone.`);
+}
+
+function finish() {
+  S.announced = true;
+  S.running = false;
+  playBtn.textContent = "Start";
+  if (S.over.win) { remember(slot(), S.t); fillMenus(); }
+  banner.hidden = false;
+  bHead.textContent = S.over.head;
+  bWhy.textContent = S.over.why;
+  refresh();
+  repaint();
+}
+
+playBtn.addEventListener("click", () => {
+  if (!S || S.over) return;
+  S.running = !S.running;
+  playBtn.textContent = S.running ? "Pause" : "Resume";
+  say(S.running ? "" : "Paused. Nothing moves, your hand included.");
+});
+el("again").addEventListener("click", () => { load(at_, S.seed); say("The same festoon again."); });
+el("fresh").addEventListener("click", () => { load(at_); say("A new festoon."); });
+el("bAgain").addEventListener("click", () => load(at_, S.seed));
+el("bFresh").addEventListener("click", () => load(at_));
+fSel.addEventListener("change", () => load(Number(fSel.value)));
+rSel.addEventListener("change", () => load(at_, S.seed, Number(rSel.value)));
+pSel.addEventListener("change", () => load(at_, S.seed, undefined, Number(pSel.value)));
+
+document.addEventListener("keydown", (ev) => {
+  if (ev.target.matches("input, select, textarea")) return;
+  if (ev.code === "Space") { playBtn.click(); ev.preventDefault(); return; }
+  if (ev.key === "r" || ev.key === "R") { load(at_, S.seed); return; }
+  if (ev.key === "n" || ev.key === "N") { load(at_); return; }
+  const k = ev.key.length === 1 ? ev.key.toLowerCase() : ev.key;
+  if (PRESSED[k]) { down.add(k); ev.preventDefault(); }
+});
+document.addEventListener("keyup", (ev) => {
+  const k = ev.key.length === 1 ? ev.key.toLowerCase() : ev.key;
+  down.delete(k);
+});
+window.addEventListener("blur", () => down.clear());
+
+/* ================================================================ loop === */
+
+let last = null, acc = 0, statAcc = 0;
+
+function frame(now) {
+  requestAnimationFrame(frame);
+  const dt = last === null ? 0 : Math.min(0.1, (now - last) / 1000);
+  last = now;
+  const live = S && S.running && !S.over;
+  if (live) {
+    steer(dt);
+    acc += dt;
+    let guard = 12;                              // a stalled tab must not spiral
+    while (acc >= STEP && guard-- > 0) { acc -= STEP; step(STEP); if (S.over) break; }
+    dirty = true;
+  }
+  if (dirty) { draw(); dirty = false; }
+  if (S && S.over && !S.announced) finish();
+  statAcc += dt;
+  if (live && statAcc > 0.15) { statAcc = 0; refresh(); }
+}
+
+let sizer = null;
+window.addEventListener("resize", () => {
+  clearTimeout(sizer);
+  sizer = setTimeout(() => { fit(); repaint(); }, 80);
+});
+
+readTheme();
+const look = recall();
+rule_ = Math.max(0, RULES.findIndex((r) => r.id === look.rule));
+pal_ = Math.max(0, PALETTES.findIndex((p) => p.id === look.palette));
+load(0, 1);
+requestAnimationFrame(frame);
+
+/* What the test suite drives. The same step() the page runs, called without
+   waiting for a real sixtieth of a second, and the same hand the pointer
+   moves, put somewhere by hand. */
+window.GAME = {
+  get S() { return S; },
+  FESTOONS, RULES, PALETTES, SHAPES, FW, FH, RAIL, STEP, BULB, HAND, GRIP, DRAW, SMASH, SWING, TIE, COOL, APART, BOUNCE, HOLD,
+  load, step, draw, refresh, speed, swinging, tallies, argue, paint,
+  start() { S.running = true; playBtn.textContent = "Pause"; },
+  grip(x, y) { S.hand.tx = x; S.hand.ty = y; S.hand.on = true; },
+  drop() { S.hand.on = false; },
+  fast(seconds, watch) {
+    const n = Math.round(seconds / STEP);
+    for (let i = 0; i < n && !S.over; i++) { step(STEP); if (watch) watch(i); }
+    if (S.over && !S.announced) finish();
+    refresh(); draw();
+    return S.over;
+  },
+};
+</script>
+</body>
+</html>

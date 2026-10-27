@@ -317,6 +317,41 @@ Suites are named for the page they exercise. The ones worth knowing about:
   sampled every half second, which is not often enough for two darts closing
   head-on, and let a pair through that collided nine seconds into a shift the
   player had not touched.
+- **`games/test-festoon.mjs`** — the hanging lights. Two rules carry the game
+  and both are about an instant rather than a state, so most of the suite sets
+  a knock up on purpose and reads what came out: the faster bulb painting the
+  slower under Catch and the slower painting the faster under Settle, two
+  bulbs arriving together settling nothing, Blend walking both of them one
+  step round the wheel and taking the short way round, a borrowed colour under
+  Fade going home after its seven seconds. Setting a knock up turned out to be
+  the hard part and took three goes. Moving a bulb where it is wanted hauls on
+  the flex it hangs from and the solver hauls back on the same step: put two
+  together loosely and they are pulled out of contact before the page looks at
+  them, put them together tightly and the solver's kick decides which was
+  faster rather than the speed the test asked for. So nothing is moved — the
+  two that already hang closest are picked, one is given a speed toward the
+  other, and the page is stepped until they meet on their own.
+  The check worth the most is *a lean is not a knock*. Colour was first
+  settled every frame a pair was in contact, which sounds like the same rule
+  and is not: parting two bulbs is a shove, and a shove leaves them travelling
+  at nearly the same speed, so a pair leaning on each other could never settle
+  anything, colour stopped spreading after the first pass of the hand, and no
+  festoon above the first could be finished. The suite holds two bulbs
+  together for half a second, hands one of them a decisive speed, and fails if
+  anything changes colour; then parts them and fails if the next knock does
+  not count. The same bug in miniature was still in the page a day later —
+  colour was being judged on the speeds *after* the two had been shoved apart
+  rather than on arrival — and these are what found it.
+  Glass is checked as a ladder rather than two numbers, because what a bulb is
+  going when it arrives is not what it was handed: it asks whether there is a
+  speed below which nothing ever breaks and above which everything does, and
+  whether the game crosses it once. Then the goals, which are not numbers
+  anybody chose: a hand that only stirs plays each festoon eighteen times, and
+  each goal sits one above the middle of what that reaches, so the suite fails
+  if a blind hand can never get there and fails again if an ordinary run of
+  one already does. A hand that chased the odd bulb out instead of stirring
+  was tried and is worse on all four, which is why the stirring one is the
+  yardstick.
 - **`games/test-gridlock.mjs`** — the traffic game. Drawing is done with real
   pointer drags and checked as road: one-way the way it was dragged, two-way
   only after a drag back over it, refused into a blob that makes cars or out

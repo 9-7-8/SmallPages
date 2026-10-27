@@ -13,6 +13,7 @@ a timer.
 | | |
 | --- | --- |
 | [`approach/`](approach/) | Air traffic. Drag each aircraft a route down to the strip of its own colour, and keep any two of them apart. |
+| [`festoon/`](festoon/) | Hanging lights on long flexes. Gather them so colour spreads from bulb to bulb, under whichever of four rules you pick, without breaking the glass. |
 | [`gridlock/`](gridlock/) | Traffic puzzle. Blobs make cars, blobs eat them, you draw the one-way roads in between. |
 
 ## To build
