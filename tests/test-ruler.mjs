@@ -72,9 +72,18 @@ const columns = () => page.evaluate(() => {
     /96 px to the inch/.test(said) && /guess/.test(said), said.slice(0, 90));
   ok('the implied diagonal is the cross-check on it',
     /16\.3 inches across the diagonal/.test(said), said.slice(0, 160));
-  ok('and the straight rule is what it opens on',
-    s.shape === 'straight' && s.lie === 'across' && s.both === true
+  ok('and the straight rule, lying flat, is what it opens on',
+    s.shape === 'straight' && s.angle === 0 && s.both === true
       && s.units === 'metric' && s.finest.metric === '1mm', JSON.stringify(s.finest));
+
+  /* The rule is no use inset from the glass: its nought has to be as near the
+     edge of the screen as the browser will put it, which means the plate
+     steps out of the column the rest of the page is written in. */
+  const plate = await page.locator('#stage').boundingBox();
+  ok('the rule runs the whole width of the window, not of the column',
+    plate.x === 0 && Math.abs(plate.width - 1200) < 1
+      && s.box.w >= 1199 && s.nought.x === 0,
+    `${plate.x}+${plate.width} of 1200, nought at ${s.nought.x}`);
 }
 
 /* -------------------------------------------------- the ticks, as drawn --- */
@@ -183,26 +192,104 @@ const columns = () => page.evaluate(() => {
   ok('Escape takes the mark off', (await state()).markMm === null);
 }
 
-/* The rule stood on end reads the length down it, which is a different
-   coordinate off the same pointer — and nothing above would notice if it
-   went on reading the one across. */
+/* Turned, the rule is the same rule: a mark is how far along *it* the
+   pointer was, which at forty-five degrees is neither of the two numbers the
+   pointer arrived with. Nothing above would notice if it went on reading the
+   distance across the screen. */
 {
-  await page.click('#lieSeg button[data-lie="down"]');
-  await page.waitForFunction(() => window.RULER.state.lie === 'down');
-  const rule = await page.locator('#rule').boundingBox();
-  await page.mouse.click(rule.x + 40, rule.y + 150);
+  await page.click('#turnSeg button[data-turn="90"]');
+  await page.waitForFunction(() => window.RULER.state.angle === 90);
+  const upright = await state();
+  ok('upright is ninety degrees, and the rule turns rather than being redrawn',
+    upright.angle === 90 && upright.box.h > 300 && upright.nought.x === 168,
+    JSON.stringify({ a: upright.angle, n: upright.nought, h: upright.box.h }));
+
+  await page.evaluate(() => document.getElementById('stage').scrollIntoView());
+  let rule = await page.locator('#rule').boundingBox();
+  await page.mouse.click(rule.x + upright.nought.x - 40, rule.y + 150);
   await page.waitForFunction(() => window.RULER.state.markMm !== null);
-  const s = await state();
-  ok('standing the rule on end, a mark is how far down it the pointer was',
-    Math.abs(s.markMm - 150 / (96 / MM_IN)) < 0.3, String(s.markMm));
+  ok('a mark on the upright rule is how far down it the pointer was',
+    Math.abs((await state()).markMm - 150 / (96 / MM_IN)) < 0.3,
+    String((await state()).markMm));
+
+  /* Forty-five degrees, where along-the-rule and across-the-screen part
+     company: 200 px right and 200 px down the rule from its nought is
+     283 px along it, and nothing else. */
   await page.locator('#rule').press('Escape');
-  await page.click('#lieSeg button[data-lie="across"]');
-  await page.waitForFunction(() => window.RULER.state.lie === 'across');
+  await page.click('#turnSeg button[data-turn="45"]');
+  await page.waitForFunction(() => window.RULER.state.angle === 45);
+  const tilt = await state();
+  await page.evaluate(() => document.getElementById('stage').scrollIntoView());
+  rule = await page.locator('#rule').boundingBox();
+  await page.mouse.click(rule.x + tilt.nought.x + 200, rule.y + tilt.nought.y + 200);
+  await page.waitForFunction(() => window.RULER.state.markMm !== null);
+  const diagonal = (await state()).markMm;
+  ok('and at forty-five degrees it is the distance along the rule, not across the screen',
+    Math.abs(diagonal - Math.hypot(200, 200) / (96 / MM_IN)) < 0.4,
+    `${diagonal} mm, where 200 px across would be ${200 / (96 / MM_IN)}`);
+
+  /* The knob swings it. Dragged to a point 30° below the nought it has to
+     come back as 30, and the rule has to stay where it was put rather than
+     jumping back to the corner. */
+  await page.locator('#rule').press('Escape');
+  const knob = await page.evaluate(() => window.RULER.geom.turnGrip());
+  await page.mouse.move(rule.x + knob[0], rule.y + knob[1]);
+  await page.mouse.down();
+  const reach = 380;
+  await page.mouse.move(rule.x + tilt.nought.x + reach * Math.cos(30 * Math.PI / 180),
+                        rule.y + tilt.nought.y + reach * Math.sin(30 * Math.PI / 180),
+                        { steps: 6 });
+  await page.mouse.up();
+  const swung = await state();
+  const landed = await page.evaluate(() => window.RULER.geom.turnGrip());
+  const bearing = Math.atan2(landed[1] - swung.nought.y, landed[0] - swung.nought.x)
+    * 180 / Math.PI;
+  /* The knob keeps the direction the hand is in, which is not quite the
+     rule's own angle: the knob sits half a band's depth off the axis, so it
+     runs a few degrees ahead of it — and how far ahead depends on how long
+     the rule came out, which the turn itself changed. The rule is where the
+     hand pointed; it is not at thirty degrees, and should not be. */
+  ok('dragging the knob swings the rule to follow the hand',
+    Math.abs(bearing - 30) < 3 && Math.abs(swung.angle - 45) > 5,
+    `knob bears ${Math.round(bearing)}°, rule at ${swung.angle}°`);
+  ok('and the rule stays where it was rather than going back to the corner',
+    swung.nought.x === tilt.nought.x && swung.nought.y === tilt.nought.y,
+    `${JSON.stringify(swung.nought)} against ${JSON.stringify(tilt.nought)}`);
+
+  /* The square slides it. */
+  const grip = await page.evaluate(() => window.RULER.geom.moveGrip());
+  await page.mouse.move(rule.x + grip[0], rule.y + grip[1]);
+  await page.mouse.down();
+  await page.mouse.move(rule.x + grip[0] + 120, rule.y + grip[1] + 60, { steps: 5 });
+  await page.mouse.up();
+  const slid = await state();
+  ok('dragging the square slides the whole rule, keeping its angle',
+    Math.abs(slid.nought.x - swung.nought.x - 120) < 1.5
+      && Math.abs(slid.nought.y - swung.nought.y - 60) < 1.5
+      && slid.angle === swung.angle,
+    `${JSON.stringify(slid.nought)} from ${JSON.stringify(swung.nought)}`);
+
+  /* And a turn cannot put the band off the canvas: the nought is pushed
+     back in by however far it went over. */
+  await page.fill('#angleIn', '200');
+  await page.waitForFunction(() => window.RULER.state.angle === 200);
+  const over = await state();
+  ok('a turn that would swing the band off the canvas pushes the rule back on',
+    over.nought.x >= 0 && over.nought.y >= 0
+      && over.nought.x <= over.box.w && over.nought.y <= over.box.h
+      && over.length > 0,
+    JSON.stringify({ n: over.nought, box: over.box, len: Math.round(over.length) }));
+
+  await page.click('#turnSeg button[data-turn="0"]');
+  await page.waitForFunction(() => window.RULER.state.angle === 0);
+  await page.locator('#rule').press('Escape');
+  await page.evaluate(() => window.scrollTo(0, 0));
 }
 
 /* ------------------------------------------------------------ imperial --- */
 
 {
+  await page.locator('#rule').press('Escape');
   await page.click('#unitSeg button[data-units="imperial"]');
   await page.waitForFunction(() => window.RULER.state.units === 'imperial');
   const cols = await columns();
@@ -386,6 +473,50 @@ const columns = () => page.evaluate(() => {
   await page.click('#upBtn');
   ok('the nudge moves it by two tenths of a pixel to the inch',
     Math.abs((await state()).cssPpi - 150.2) < 0.001, String((await state()).cssPpi));
+
+  /* Dragged rather than filled in, which is how anybody actually uses it,
+     and how the one bug a person reported here was found. The outline used
+     to sit beside the slider as a flex item whose width was the number the
+     slider set, so the track narrowed as the outline grew, the same pointer
+     position then meant a bigger number, and that grew the outline again:
+     twelve pixels of travel went from six pixels-to-the-inch to seventy-six.
+     An even drag is the whole test. A control may not be sized by the thing
+     it controls. */
+  await page.locator('#ppiRange').scrollIntoViewIfNeeded();
+  const track = await page.locator('#ppiRange').boundingBox();
+  /* Across the middle of whatever width the track has, rather than a fixed
+     number of pixels from its left edge: a drag that misses the track
+     entirely moves nothing, and a check that cannot tell that from an even
+     drag passes whatever the page does. */
+  const at = (f) => track.x + track.width * f;
+  await page.mouse.move(at(0.2), track.y + track.height / 2);
+  await page.mouse.down();
+  const walk = [];
+  const widths = new Set();
+  for (let i = 0; i <= 6; i++) {
+    await page.mouse.move(at(0.2 + i * 0.1), track.y + track.height / 2);
+    walk.push(await page.evaluate(() => window.RULER.state.cssPpi));
+    widths.add(Math.round((await page.locator('#ppiRange').boundingBox()).width));
+  }
+  await page.mouse.up();
+  const gaps = walk.slice(1).map((v, i) => Math.round((v - walk[i]) * 100) / 100);
+  const mean = gaps.reduce((a, b) => a + b, 0) / gaps.length;
+  ok('the drag moves the scale at all',
+    walk[walk.length - 1] - walk[0] > 20, walk.map(Math.round).join(" "));
+  ok('and moves it by the same amount every time',
+    mean > 3 && Math.max(...gaps) - Math.min(...gaps) < mean * 0.25,
+    `${gaps.join(" ")} — mean ${Math.round(mean * 10) / 10}`);
+  ok('because the slider is not resized by the number it is setting',
+    widths.size === 1, [...widths].join(" then "));
+  /* The outline follows the drag — or, if the drag took the scale past the
+     point where a disc still fits on the screen, says so. Reading .width off
+     it either way is how this check used to fall over with a null rather
+     than fail, which took the rest of the suite with it. */
+  const outline = await page.locator('#objBox').boundingBox();
+  ok('and the outline it is matched against follows the drag',
+    outline ? Math.abs(outline.width - 120 * (await state()).cssPpi / MM_IN) < 1.5
+      : /wider than this window/.test(await page.textContent('#objNote')),
+    outline ? String(outline.width) : (await page.textContent('#objNote')).slice(0, 80));
 }
 
 /* ----------------------------------------------------------- remembering -- */
@@ -452,6 +583,13 @@ const columns = () => page.evaluate(() => {
   ok('a tick is snapped to a device pixel rather than one of the page\u2019s',
     ten.some((x) => !Number.isInteger(x)),
     `${ten.slice(100, 104)} — none of them a half`);
+
+  /* What cannot be checked from out here: that the snapping is *dropped*
+     once the rule is turned off square. Rounding a position in the rule's
+     own turned frame moves a tick about a fifth of a pixel along it, and the
+     line is drawn across a grid of squares either way, so the pixels look
+     the same whichever is done. Snapping there is wrong because it rounds
+     the measurement rather than because it shows. */
 
   ok('the status line owns up to the zoom having moved',
     /zoom has changed since/.test(await tab.textContent('#scaleNow')),

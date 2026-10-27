@@ -14,7 +14,9 @@
   /* Layout and sizing only. Colour, type and component styling live in theme.css. */
 
   body { margin: 0; padding: 3rem 1.5rem 5rem; }
-  main { max-width: 1120px; margin: 0 auto; }
+  /* The column is set on main's children rather than on main, so that one of
+     them — the rule — can step out of it and run the width of the glass. */
+  main > * { max-width: 1120px; margin-left: auto; margin-right: auto; }
   p.lede { margin: 0 0 2.2rem; max-width: 62ch; }
   .card { margin-bottom: 1.5rem; }
   h2 { margin: 0 0 1rem; }
@@ -35,18 +37,28 @@
   .field label { font-size: 0.8rem; }
   .field .unit { font-size: 0.72rem; }
   .field input[type="number"] { width: 7rem; font-family: var(--mono); }
+  .turn { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; }
+  .turn input[type="number"] { width: 5.2rem; }
   .acts { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-left: auto; }
 
   /* ------------------------------------------------------- the instrument -- */
 
-  /* No padding on this one: a ruler's nought has to sit on the edge of its own
-     box, as close to the edge of the glass as the window will allow. Which is
-     also what the fullscreen button is for. */
-  .plate { padding: 0; overflow: hidden; line-height: 0; }
+  /* No padding, no column, and the body's own margin cancelled on both
+     sides: a rule inset from the window is a rule you cannot lay anything
+     against, so this one runs from one edge of the glass to the other and
+     its nought sits on the left edge. Fullscreen takes the last few pixels
+     the browser's own chrome is holding. */
+  .plate {
+    padding: 0;
+    overflow: hidden;
+    line-height: 0;
+    max-width: none;
+    margin-left: -1.5rem;
+    margin-right: -1.5rem;
+    border-left: none;
+    border-right: none;
+  }
   .plate canvas { display: block; touch-action: none; outline-offset: -2px; }
-  /* Down the page the card shrinks to the rule rather than leaving a tall
-     black field beside it. */
-  .plate.down { display: flex; width: fit-content; }
 
   .plate:fullscreen {
     margin: 0;
@@ -95,9 +107,15 @@
   .sizes { margin-top: 0.7rem; }
   .sizes button { font-size: 0.75rem; padding: 0.35rem 0.6rem; }
 
-  .held { display: flex; flex-wrap: wrap; gap: 1.4rem; align-items: flex-start; }
-  .held .grow { flex: 1; min-width: 240px; }
-  .held input[type="range"] { width: 100%; }
+  /* The outline goes under the controls rather than beside them, and this is
+     not a matter of taste. Beside them it is a flex item whose width is the
+     number the slider sets, so the slider's own track narrowed as the outline
+     grew — the same pointer position then meant a bigger number, which grew
+     the outline again. Dragging it ran away: twelve pixels of travel went
+     from six pixels-to-the-inch to seventy-six. A control may not be sized by
+     the thing it controls. */
+  .held { display: block; }
+  .held input[type="range"] { width: 100%; max-width: 520px; display: block; }
   .held .field + .field { margin-top: 0.9rem; }
   .nudges { display: flex; gap: 0.4rem; margin-top: 0.6rem; }
   .nudges button { font-size: 0.72rem; padding: 0.3rem 0.55rem; }
@@ -105,6 +123,7 @@
   /* The outline the real thing is held against. Width and height are set in
      pixels from the scale, so this box *is* the claim the page is making. */
   .objbox {
+    margin: 1.2rem 0 0;
     border: 1px solid var(--neon);
     box-shadow: var(--glow-soft);
     position: relative;
@@ -149,6 +168,7 @@
 
   @media (max-width: 620px) {
     body { padding: 2rem 1rem 4rem; }
+    .plate { margin-left: -1rem; margin-right: -1rem; }
     .acts { margin-left: 0; width: 100%; }
     .reading .big { font-size: 1.3rem; }
     .facts { grid-template-columns: 1fr; gap: 0.1rem 0; }
@@ -199,12 +219,17 @@
         </select>
       </div>
 
-      <div class="field" id="lieField">
-        <label>Lying</label>
-        <div class="seg" id="lieSeg">
-          <button type="button" data-lie="across" aria-pressed="true">Across</button>
-          <button type="button" data-lie="down" aria-pressed="false">Down</button>
+      <div class="field" id="turnField">
+        <label for="angleIn">Turned</label>
+        <div class="turn">
+          <input type="number" id="angleIn" min="-360" max="360" step="1" value="0">
+          <div class="seg" id="turnSeg">
+            <button type="button" data-turn="0" aria-pressed="true">Flat</button>
+            <button type="button" data-turn="45" aria-pressed="false">45&deg;</button>
+            <button type="button" data-turn="90" aria-pressed="false">Upright</button>
+          </div>
         </div>
+        <span class="unit">degrees clockwise, or drag the knob on the rule</span>
       </div>
 
       <div class="field" id="zeroField" hidden>
@@ -223,7 +248,7 @@
   </div>
 
   <div class="card plate" id="stage">
-    <canvas id="rule" tabindex="0" aria-label="The ruler. Click or drag to put a mark on it; the arrow keys move the mark."></canvas>
+    <canvas id="rule" tabindex="0" aria-label="The ruler. Drag along it to mark a length, drag the square to slide it and the knob to turn it; the left and right arrow keys move the mark and the up and down keys turn the rule."></canvas>
   </div>
 
   <p class="reading" id="reading"></p>
@@ -254,21 +279,19 @@
 
     <h3>Or hold something real against the screen</h3>
     <div class="held">
-      <div class="grow">
-        <div class="field">
-          <label for="objSel">Something you have</label>
-          <select id="objSel"></select>
-        </div>
-        <div class="field">
-          <label for="ppiRange">Drag until the outline matches it</label>
-          <input type="range" id="ppiRange" min="24" max="500" step="0.2">
-        </div>
-        <div class="nudges">
-          <button type="button" id="downBtn" class="ghost">&minus; smaller</button>
-          <button type="button" id="upBtn" class="ghost">bigger +</button>
-        </div>
-        <p class="objnote" id="objNote"></p>
+      <div class="field">
+        <label for="objSel">Something you have</label>
+        <select id="objSel"></select>
       </div>
+      <div class="field">
+        <label for="ppiRange">Drag until the outline matches it</label>
+        <input type="range" id="ppiRange" min="24" max="500" step="0.2">
+      </div>
+      <div class="nudges">
+        <button type="button" id="downBtn" class="ghost">&minus; smaller</button>
+        <button type="button" id="upBtn" class="ghost">bigger +</button>
+      </div>
+      <p class="objnote" id="objNote"></p>
       <div class="objbox" id="objBox"></div>
     </div>
 
@@ -299,12 +322,20 @@
   sparse one &mdash; and the error does not accumulate along the rule, because every tick is
   placed from nought rather than from the one before it.</p>
 
-  <p class="note"><strong>Against the glass, not against a window.</strong> Measure on the
-  fullscreen view where you can: the nought of the straight rule sits on the edge of its own
-  box, and in fullscreen that edge is the edge of the screen. Escape comes back out, and the
-  reading rides on the rule beside the mark so that it is there either way. A ruler is also only as long as
-  the glass, which is why the line under it says how long this one came out &mdash; and why
-  <em>Down</em> is worth having on a phone, where the long way is the useful way.</p>
+  <p class="note"><strong>Against the glass, not against a window.</strong> The rule runs the
+  whole width of the page rather than sitting in the column the rest of this is written in, so
+  its nought is as near the left edge of the screen as the browser will put it. Fullscreen takes
+  the last of it; Escape comes back out, and the reading rides on the rule beside the mark so
+  that it is there either way. A rule is only ever as long as the glass, which is why the line
+  under it says how long this one came out.</p>
+
+  <p class="note"><strong>It turns.</strong> Drag the knob at the far end to swing the rule about
+  its nought, or type the angle; the square at the nought end slides the whole thing about, so a
+  measurement can start wherever the thing being measured does. Up and down turn it a degree at
+  a time and Shift makes that fifteen, dragging included. <em>Upright</em> is ninety degrees and
+  nothing else: the rule is drawn in its own turned frame, so there is no separate vertical
+  ruler here to disagree with the flat one. Turned into a corner it reaches furthest &mdash; the
+  longest thing this page can measure is the diagonal of the screen.</p>
 
   <p class="note"><strong>The radial one</strong> is a protractor and a radial rule at once: the
   dial is marked every degree with the figures every ten, the rings are a centimetre or an inch
@@ -377,7 +408,8 @@ let units = "metric";
 let fineName = { metric: "1mm", imperial: "1/16" };
 let degStep = 1;
 let shape = "straight";
-let lie = "across";
+let angle = 0;                 // degrees clockwise from flat
+let nought = { x: 0, y: 0 };   // where the rule's nought sits on the canvas
 let zero = "east";
 let both = true;
 let thingName = "card";
@@ -650,27 +682,24 @@ const thin = () => 1 / dpr();
 function fit() {
   const stage = el("stage");
   const full = document.fullscreenElement === stage;
-  stage.classList.toggle("down", shape === "straight" && lie === "down");
   stage.classList.toggle("dial", shape === "dial");
 
-  let w, h;
+  const w = stage.clientWidth;
+  let h;
   if (shape === "dial") {
     /* Square, and as big as the glass will take without the figures under it
        being pushed off the bottom. Fullscreen is where a big dial lives. */
-    w = stage.clientWidth;
     const room = full ? window.innerHeight : window.innerHeight * 0.62;
     h = clamp(Math.min(w, room), 300, full ? 4000 : 640);
-  } else if (lie === "across") {
-    w = stage.clientWidth;
-    /* Deep enough for two scales, their figures, and a clear strip down the
-       middle for the reading to sit in without covering either. */
+  } else if (angle % 180 === 0) {
+    /* Lying flat the rule wants no more depth than it has: two scales, their
+       figures, and a clear strip down the middle for the reading. A field of
+       black under it would only be something to scroll past. */
     h = both ? 168 : 112;
   } else {
-    /* Down the page the rule is as long as the glass and no wider than it has
-       to be, so the card shrinks to it rather than leaving a tall black
-       field beside it. */
-    w = both ? 186 : 136;
-    h = Math.max(320, full ? window.innerHeight : window.innerHeight - 180);
+    /* Turned, it wants room to turn in, and the longest thing it can measure
+       is the diagonal of whatever it is given. */
+    h = full ? window.innerHeight : clamp(window.innerHeight - 240, 320, 760);
   }
 
   box = { w, h };
@@ -710,20 +739,114 @@ function labelEvery(plan) {
   return n;
 }
 
-function writeFigure(text, a, depth, side) {
-  if (lie === "across") {
-    ctx.textAlign = "left";
-    ctx.textBaseline = side === "near" ? "top" : "bottom";
-    ctx.fillText(text, snap(a) + 3, side === "near" ? depth + 2 : box.h - depth - 2);
-  } else {
-    ctx.textAlign = side === "near" ? "left" : "right";
-    ctx.textBaseline = "top";
-    ctx.fillText(text, side === "near" ? depth + 4 : box.w - depth - 4, snap(a) + 2);
+/* ------------------------------------------------- the rule, as an object --
+
+   The rule is a thing lying on the canvas rather than a thing bolted to its
+   edges: it has a nought, an angle, and a depth, and it is drawn in its own
+   turned frame where +x runs along it from nought and +y runs across it into
+   the band. Everything below is written in that frame, which is why there is
+   no second copy of any of it for the rule stood on end — upright is a turn
+   of ninety degrees and nothing more. */
+
+const RAD = Math.PI / 180;
+const dirV = () => [Math.cos(angle * RAD), Math.sin(angle * RAD)];
+const perpV = () => [-Math.sin(angle * RAD), Math.cos(angle * RAD)];
+const depth = () => (both ? 168 : 112);
+
+/* A tick is snapped to a whole device pixel only when the rule is square to
+   the screen, which is the only time that means anything: a line at thirteen
+   degrees is drawn across a grid of squares whatever is done to it, and
+   rounding its position would move it off the measurement rather than onto a
+   pixel. So a turned rule is drawn at its exact position and left soft. */
+const square = () => angle % 90 === 0;
+const snapOn = (v) => (square() ? snap(v) : v);
+
+/* How far the rule reaches before an edge of the canvas stops it. */
+function runTo(x, y, ux, uy) {
+  let t = Infinity;
+  if (ux > 1e-9) t = Math.min(t, (box.w - x) / ux);
+  if (ux < -1e-9) t = Math.min(t, -x / ux);
+  if (uy > 1e-9) t = Math.min(t, (box.h - y) / uy);
+  if (uy < -1e-9) t = Math.min(t, -y / uy);
+  return Math.max(0, Number.isFinite(t) ? t : Math.hypot(box.w, box.h));
+}
+
+/* Both long edges have to stay on the canvas, so the rule is as long as the
+   shorter of the two runs. Without that the far scale runs off the corner
+   while the near one is still going. */
+function ruleLength() {
+  const [ux, uy] = dirV();
+  const [sx, sy] = perpV();
+  const D = depth();
+  return Math.min(runTo(nought.x, nought.y, ux, uy),
+                  runTo(nought.x + sx * D, nought.y + sy * D, ux, uy));
+}
+
+/* Where a rule turned to a given angle wants to start: the corner it is
+   pointing away from, so that it has the whole canvas to run across. Putting
+   it back at the top left whatever the angle was the first try, and at two
+   hundred degrees — pointing up and to the left — that is a rule with
+   nowhere to go and a length of nothing. */
+function place() {
+  const [ux, uy] = dirV();
+  nought.x = ux >= 0 ? 0 : box.w;
+  nought.y = uy >= 0 ? 0 : box.h;
+}
+
+/* Turning the rule about its nought swings the band out of the canvas, so
+   the nought is pushed back in by however far the band went over. */
+function settle() {
+  const [sx, sy] = perpV();
+  const D = depth();
+  const xs = [nought.x, nought.x + sx * D];
+  const ys = [nought.y, nought.y + sy * D];
+  const over = (list, size) => {
+    const lo = Math.min(...list), hi = Math.max(...list);
+    if (lo < 0) return -lo;
+    if (hi > size) return size - hi;
+    return 0;
+  };
+  nought.x += over(xs, box.w);
+  nought.y += over(ys, box.h);
+  nought.x = clamp(nought.x, -D, box.w + D);
+  nought.y = clamp(nought.y, -D, box.h + D);
+  if (square()) {
+    nought.x = snap(nought.x);
+    nought.y = snap(nought.y);
   }
 }
 
-function runScale(plan, side, band, ink, lit) {
-  const across = lie === "across";
+/* Where the pointer is in the rule's own frame: how far along it, and how
+   far across it. Everything the pointer does to the rule is decided on
+   these two numbers. */
+function onRule(x, y) {
+  const [ux, uy] = dirV();
+  const [sx, sy] = perpV();
+  const dx = x - nought.x;
+  const dy = y - nought.y;
+  return { along: dx * ux + dy * uy, across: dx * sx + dy * sy };
+}
+
+const atRule = (along, across) => {
+  const [ux, uy] = dirV();
+  const [sx, sy] = perpV();
+  return [nought.x + ux * along + sx * across, nought.y + uy * along + sy * across];
+};
+
+/* The two knobs on the rule: one at the nought end to slide it about, one at
+   the far end to swing it round. Both sit on the rule's centre line, which
+   with two scales is the empty strip between them. */
+const GRIP = 11;
+const moveGrip = () => atRule(20, depth() / 2);
+const turnGrip = () => atRule(Math.max(44, ruleLength() - 20), depth() / 2);
+
+function writeFigure(text, a, deep, side, D) {
+  ctx.textAlign = "left";
+  ctx.textBaseline = side === "near" ? "top" : "bottom";
+  ctx.fillText(text, snapOn(a) + 3, side === "near" ? deep + 2 : D - deep - 2);
+}
+
+function runScale(plan, side, band, ink, lit, D) {
   const reach = REACH[plan.units];
   const cut = deepest(plan);
   const every = labelEvery(plan);
@@ -732,60 +855,59 @@ function runScale(plan, side, band, ink, lit) {
   for (const t of plan.ticks) {
     if (t.rank > cut) continue;
     const a = t.mm * pxMm();
-    const depth = Math.max(2, band * reach[t.rank]);
+    const deep = Math.max(2, band * reach[t.rank]);
     ctx.fillStyle = t.rank === 0 ? (lit ? ink.neon : ink.dim)
       : t.rank === 1 ? (lit ? ink.text : ink.faint)
       : (lit ? ink.dim : ink.faint);
-    if (across) {
-      ctx.fillRect(snap(a), side === "near" ? 0 : box.h - depth, thin(), depth);
-    } else {
-      ctx.fillRect(side === "near" ? 0 : box.w - depth, snap(a), depth, thin());
-    }
+    ctx.fillRect(snapOn(a), side === "near" ? 0 : D - deep, thin(), deep);
 
     if (t.label === null) continue;
     if (Math.round(t.mm / plan.spacing[0]) % every) continue;
     ctx.font = figures;
     ctx.fillStyle = lit ? ink.text : ink.faint;
-    writeFigure(t.label, a, depth, side);
+    writeFigure(t.label, a, deep, side, D);
 
     /* Which scale is which, said once beside its nought, because a rule with
        centimetres on one edge and sixteenths on the other is two rules. */
     if (t.mm === 0) {
       ctx.fillStyle = lit ? ink.dim : ink.faint;
       const word = plan.units === "metric" ? "cm" : "in";
-      if (across) {
-        ctx.fillText(word, 3 + ctx.measureText(t.label).width + 5,
-          side === "near" ? depth + 2 : box.h - depth - 2);
-      } else {
-        ctx.textBaseline = "top";
-        ctx.fillText(word, side === "near" ? depth + 4 : box.w - depth - 4, 16);
-      }
+      ctx.fillText(word, 3 + ctx.measureText(t.label).width + 5,
+        side === "near" ? deep + 2 : D - deep - 2);
     }
   }
 }
 
-function drawMark(ink, along) {
-  const a = snap(clamp(markMm * pxMm(), 0, along));
+function drawMark(ink, a, D) {
+  const x = snapOn(a);
   ctx.fillStyle = ink.neon;
-  if (lie === "across") {
-    ctx.fillRect(a, 0, Math.max(1, thin()), box.h);
-    ctx.beginPath();
-    ctx.moveTo(a - 5, 0); ctx.lineTo(a + 5, 0); ctx.lineTo(a, 8);
-  } else {
-    ctx.fillRect(0, a, box.w, Math.max(1, thin()));
-    ctx.beginPath();
-    ctx.moveTo(0, a - 5); ctx.lineTo(0, a + 5); ctx.lineTo(8, a);
-  }
+  ctx.fillRect(x, 0, Math.max(1, thin()), D);
+  ctx.beginPath();
+  ctx.moveTo(x - 5, 0);
+  ctx.lineTo(x + 5, 0);
+  ctx.lineTo(x, 8);
   ctx.closePath();
   ctx.fill();
 }
 
-/* The reading, written on the canvas beside the mark itself. The line under
-   the rule says the same thing, but fullscreen is where a rule is actually
-   held against something and the line under it is not on the screen then. */
+/* The reading, written on the rule beside the mark itself. The line under
+   the stage says the same thing, but fullscreen is where a rule is actually
+   held against something and the line under it is not on the screen then.
+   The figures on the scale turn with the rule, as the printing on a real one
+   does; this is a readout rather than part of the instrument, so it is kept
+   the right way up. */
 function sayHere(ink, text, x, y, align) {
+  ctx.save();
   ctx.font = `12px ${ink.mono}`;
   const wide = ctx.measureText(text).width;
+  const upsidedown = angle > 90 && angle < 270;
+  if (upsidedown) {
+    ctx.translate(x, y);
+    ctx.rotate(Math.PI);
+    x = 0;
+    y = 0;
+    align = align === "right" ? "left" : "right";
+  }
   const left = align === "right" ? x - wide : x;
   ctx.fillStyle = ink.bg;
   ctx.fillRect(left - 4, y - 9, wide + 8, 18);
@@ -793,18 +915,50 @@ function sayHere(ink, text, x, y, align) {
   ctx.textAlign = "left";
   ctx.textBaseline = "middle";
   ctx.fillText(text, left, y);
+  ctx.restore();
+}
+
+function drawGrips(ink, along, D) {
+  ctx.fillStyle = ink.bg;
+  ctx.strokeStyle = ink.neon;
+  ctx.lineWidth = Math.max(1, thin());
+
+  // The one that slides it, at the nought end.
+  ctx.beginPath();
+  ctx.rect(20 - GRIP / 2, D / 2 - GRIP / 2, GRIP, GRIP);
+  ctx.fill();
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(14, D / 2); ctx.lineTo(26, D / 2);
+  ctx.moveTo(20, D / 2 - 6); ctx.lineTo(20, D / 2 + 6);
+  ctx.stroke();
+
+  // And the one that swings it, at the far end.
+  const turn = Math.max(44, along - 20);
+  ctx.beginPath();
+  ctx.arc(turn, D / 2, GRIP / 2 + 1, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(turn, D / 2, GRIP / 2 - 2.5, 0.6, 5.1);
+  ctx.stroke();
 }
 
 function drawStraight(ink) {
-  const across = lie === "across";
-  const along = across ? box.w : box.h;
-  const over = across ? box.h : box.w;
-  /* Each scale gets half the width, less a strip for its figures: without
+  /* A turn asked for by a control rather than by the knob puts the rule back
+     where it has room — and that waits until here, because the canvas is a
+     different height once the rule is off square and the corner to put it in
+     is a corner of the new one. */
+  if (replace) { place(); replace = false; }
+  settle();
+  const D = depth();
+  /* Each scale gets half the depth, less a strip for its figures: without
      that the longest ticks of one scale and the figures of the other land in
      the same place, which is how this looked the first time. */
-  const band = both ? over / 2 - 24 : over - 24;
+  const band = both ? D / 2 - 24 : D - 24;
+  const along = ruleLength();
   const lengthMm = along / pxMm();
-  // A window that shrank can leave the mark off the end of the rule.
+  // A window that shrank, or a turn, can leave the mark off the end.
   if (markMm !== null) markMm = clamp(markMm, 0, lengthMm);
 
   const main = linearPlan({ units, finest: fineName[units], lengthMm });
@@ -814,46 +968,42 @@ function drawStraight(ink) {
     lengthMm,
   }) : null;
 
+  ctx.save();
+  ctx.translate(nought.x, nought.y);
+  ctx.rotate(angle * RAD);
+
   /* The span from nought to the mark, washed in under everything, so a
      measurement reads as a length rather than as a line somewhere. */
   if (markMm !== null) {
     ctx.save();
     ctx.globalAlpha = 0.09;
     ctx.fillStyle = ink.neon;
-    const a = clamp(markMm * pxMm(), 0, along);
-    if (across) ctx.fillRect(0, 0, a, box.h);
-    else ctx.fillRect(0, 0, box.w, a);
+    ctx.fillRect(0, 0, clamp(markMm * pxMm(), 0, along), D);
     ctx.restore();
   }
 
   // The edges the scales hang off: the measuring edge, and the far one.
   ctx.fillStyle = ink.line;
-  if (across) {
-    ctx.fillRect(0, 0, box.w, thin());
-    if (other) ctx.fillRect(0, box.h - thin(), box.w, thin());
-  } else {
-    ctx.fillRect(0, 0, thin(), box.h);
-    if (other) ctx.fillRect(box.w - thin(), 0, thin(), box.h);
-  }
+  ctx.fillRect(0, 0, along, thin());
+  if (other) ctx.fillRect(0, D - thin(), along, thin());
 
-  runScale(main, "near", band, ink, true);
-  if (other) runScale(other, "far", band, ink, false);
+  runScale(main, "near", band, ink, true, D);
+  if (other) runScale(other, "far", band, ink, false, D);
+
   if (markMm !== null) {
-    drawMark(ink, along);
+    const a = clamp(markMm * pxMm(), 0, along);
+    drawMark(ink, a, D);
     const read = reading(markMm);
     const said = units === "metric" ? read.metric : read.imperial;
-    const a = snap(clamp(markMm * pxMm(), 0, along));
-    /* On the far side of the line when the end of the rule is too close to
+    /* On the near side of the line when the end of the rule is too close to
        fit it, which is where a measurement most often ends up. */
     const room = along - a > 90;
-    /* Down the middle where there are two scales, and under the figures
-       where there is one. */
-    const line = both ? box.h / 2 : box.h - 10;
-    if (across) sayHere(ink, said, a + (room ? 7 : -7), line, room ? "left" : "right");
-    /* Stood on end it goes against the far edge, where it covers the other
-       system's ticks rather than this one's figures. */
-    else sayHere(ink, said, box.w - 8, a + (room ? 13 : -13), "right");
+    const line = both ? D / 2 : D - 10;
+    sayHere(ink, said, snapOn(a) + (room ? 7 : -7), line, room ? "left" : "right");
   }
+
+  drawGrips(ink, along, D);
+  ctx.restore();
 }
 
 /* --------------------------------------------------------------- the dial -- */
@@ -1027,8 +1177,10 @@ function tellReading() {
   }
 
   if (markMm === null) {
-    put("idle", "Click or drag along the rule to mark a length. The arrow keys "
-      + "move the mark by one division, with Shift for ten; Escape takes it off.");
+    put("idle", "Drag along the rule to mark a length, the square to slide the "
+      + "rule about, the knob at its end to turn it. Left and right move the "
+      + "mark by a division, up and down turn the rule by a degree, Shift "
+      + "makes either ten; Escape takes the mark off.");
     return;
   }
 
@@ -1046,11 +1198,11 @@ function tellSpan() {
       + `${units === "metric" ? "centimetre" : "inch"}, marked every ${degStep}°.`;
     return;
   }
-  const read = reading((lie === "across" ? box.w : box.h) / pxMm());
-  el("span").textContent = `This rule is ${read.metric} (${read.imperial}) long, which `
-    + `is as ${lie === "across" ? "wide as the window is"
-      : "much of the height as the window will give it"}. `
-    + "Fullscreen gives you the rest of the glass.";
+  const read = reading(ruleLength() / pxMm());
+  el("span").textContent = `This rule is ${read.metric} (${read.imperial}) long, which is `
+    + `as far as it reaches ${angle % 180 === 0 ? "across the glass"
+      : `at ${round(angle, 1)}°`}. Drag the square to slide it and the knob to `
+    + "turn it; fullscreen gives it the rest of the screen.";
 }
 
 const SOURCE = {
@@ -1122,7 +1274,7 @@ function keep() {
     localStorage.setItem(KEY, JSON.stringify({
       ppi, how, dpr: calDpr, when: Date.now(),
       units, finest: { ...fineName }, deg: degStep,
-      shape, lie, zero, both, thing: thingName,
+      shape, angle, zero, both, thing: thingName,
     }));
   } catch { /* private mode, fine */ }
 }
@@ -1150,7 +1302,11 @@ function load() {
   }
   if (DEGREES.includes(Number(saved.deg))) degStep = Number(saved.deg);
   shape = saved.shape === "dial" ? "dial" : "straight";
-  lie = saved.lie === "down" ? "down" : "across";
+  /* The angle is remembered; where on the canvas it was dragged to is not,
+     because a canvas is a different size on every screen and a nought
+     remembered off the edge of this one is a rule nobody can find. */
+  const turned = Number(saved.angle);
+  angle = Number.isFinite(turned) ? ((turned % 360) + 360) % 360 : 0;
   zero = saved.zero === "north" ? "north" : "east";
   both = saved.both !== false;
   if (THINGS.some((t) => t.name === saved.thing)) thingName = saved.thing;
@@ -1280,13 +1436,14 @@ function showThing() {
 function fields() {
   el("degField").hidden = shape !== "dial";
   el("zeroField").hidden = shape !== "dial";
-  el("lieField").hidden = shape !== "straight";
+  el("turnField").hidden = shape !== "straight";
   el("bothBtn").hidden = shape !== "straight";
   el("fineSel").value = fineName[units];
   el("degSel").value = String(degStep);
   press("shapeSeg", "shape", shape);
   press("unitSeg", "units", units);
-  press("lieSeg", "lie", lie);
+  el("angleIn").value = String(round(angle, 1));
+  press("turnSeg", "turn", angle);
   press("zeroSeg", "zero", zero);
   el("bothBtn").setAttribute("aria-pressed", String(both));
 }
@@ -1309,7 +1466,24 @@ function refresh() {
 
 /* ------------------------------------------------------------- the input -- */
 
-function aim(e) {
+/* Which of the three things the pointer is doing: sliding the rule, swinging
+   it, or marking a length on it. Decided once, when the pointer goes down,
+   and held for the whole drag — a grip that is only under the pointer at the
+   moment it is grabbed would be let go of the first time the hand moved
+   faster than the rule. */
+let doing = null;
+let hold = { x: 0, y: 0, a: 0 };
+let replace = false;
+
+function grab(x, y) {
+  if (shape === "dial") return "arm";
+  const near = (p) => Math.hypot(x - p[0], y - p[1]) <= GRIP;
+  if (near(turnGrip())) return "turn";
+  if (near(moveGrip())) return "move";
+  return "mark";
+}
+
+function aim(e, what) {
   const rect = canvas.getBoundingClientRect();
   const x = e.clientX - rect.left;
   const y = e.clientY - rect.top;
@@ -1322,9 +1496,20 @@ function aim(e) {
     if (far < 3) return;
     armDeg = round(degOf(dx, dy), 1);
     armMm = Math.min(far, g.R) / pxMm();
+  } else if (what === "move") {
+    /* Held by the point it was picked up at, rather than snapped to the
+       pointer: a rule that jumps as you touch it is a rule you have to aim
+       twice. */
+    nought.x = x - hold.x;
+    nought.y = y - hold.y;
+  } else if (what === "turn") {
+    const bearing = Math.atan2(y - nought.y, x - nought.x) / RAD;
+    let turned = bearing - hold.a;
+    if (e.shiftKey) turned = Math.round(turned / 15) * 15;
+    setAngle(turned, true);
+    return;
   } else {
-    const along = lie === "across" ? x : y;
-    markMm = clamp(along / pxMm(), 0, (lie === "across" ? box.w : box.h) / pxMm());
+    markMm = clamp(onRule(x, y).along / pxMm(), 0, ruleLength() / pxMm());
   }
   draw();
 }
@@ -1336,12 +1521,33 @@ canvas.addEventListener("pointerdown", (e) => {
      mark somewhere nobody pressed. */
   canvas.focus({ preventScroll: true });
   canvas.setPointerCapture(e.pointerId);
-  aim(e);
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  doing = grab(x, y);
+  hold = {
+    x: x - nought.x,
+    y: y - nought.y,
+    a: Math.atan2(y - nought.y, x - nought.x) / RAD - angle,
+  };
+  aim(e, doing);
   e.preventDefault();
 });
+
 canvas.addEventListener("pointermove", (e) => {
-  if (e.buttons) aim(e);
+  if (e.buttons) { aim(e, doing || "mark"); return; }
+  /* Nothing held: say what is under the pointer rather than making people
+     find the knobs by trying. */
+  const rect = canvas.getBoundingClientRect();
+  const what = grab(e.clientX - rect.left, e.clientY - rect.top);
+  canvas.style.cursor = what === "move" ? "move"
+    : what === "turn" ? "grab"
+    : shape === "dial" ? "crosshair" : "ew-resize";
 });
+
+for (const done of ["pointerup", "pointercancel"]) {
+  canvas.addEventListener(done, () => { doing = null; });
+}
 
 canvas.addEventListener("keydown", (e) => {
   const step = (e.shiftKey ? 10 : 1);
@@ -1375,15 +1581,18 @@ canvas.addEventListener("keydown", (e) => {
       armMm = clamp(armMm - stepMm, 0, g.R / pxMm());
       moved = true;
     }
-  } else {
-    const run = (lie === "across" ? box.w : box.h) / pxMm();
-    const forward = lie === "across" ? "ArrowRight" : "ArrowDown";
-    const back = lie === "across" ? "ArrowLeft" : "ArrowUp";
-    if (e.key === forward || e.key === back) {
-      const was = markMm === null ? 0 : markMm;
-      markMm = clamp(was + (e.key === forward ? stepMm : -stepMm), 0, run);
-      moved = true;
-    }
+  } else if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+    /* Along the rule rather than across the screen, because at thirty
+       degrees those are not the same direction and the rule is the thing
+       being read. */
+    const was = markMm === null ? 0 : markMm;
+    const by = e.key === "ArrowRight" ? stepMm : -stepMm;
+    markMm = clamp(was + by, 0, ruleLength() / pxMm());
+    moved = true;
+  } else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+    setAngle(angle + (e.key === "ArrowDown" ? 1 : -1) * (e.shiftKey ? 15 : 1), true);
+    e.preventDefault();
+    return;
   }
   if (moved) {
     draw();
@@ -1412,14 +1621,40 @@ el("unitSeg").addEventListener("click", (e) => {
   refresh();
 });
 
-el("lieSeg").addEventListener("click", (e) => {
-  const button = e.target.closest("button");
-  if (!button) return;
-  lie = button.dataset.lie;
-  markMm = null;
-  fields();
+/* The one way the rule is turned, whichever control asked for it: the knob
+   on the rule, the box, the presets or the arrow keys. `turning` is on while
+   the knob is being dragged, when the rule stays where it is; everything
+   else puts it back in the corner, because a preset that leaves the rule
+   halfway off the canvas is not a preset. */
+function setAngle(deg, turning) {
+  const n = Number(deg);
+  if (!Number.isFinite(n)) throw new Error(`"${deg}" is not an angle to turn to`);
+  angle = ((n % 360) + 360) % 360;
+  if (!turning) replace = true;
+  if (el("angleIn") !== document.activeElement) {
+    el("angleIn").value = String(round(angle, 1));
+  }
+  for (const button of el("turnSeg").querySelectorAll("button")) {
+    button.setAttribute("aria-pressed", String(Number(button.dataset.turn) === angle));
+  }
   keep();
   draw();
+}
+
+el("turnSeg").addEventListener("click", (e) => {
+  const button = e.target.closest("button");
+  if (!button) return;
+  setAngle(button.dataset.turn, false);
+});
+
+el("angleIn").addEventListener("input", () => {
+  const value = Number(el("angleIn").value);
+  if (!Number.isFinite(value) || el("angleIn").value === "") return;   // mid-typing
+  /* A typed angle is a jump rather than a nudge, so the rule is put back
+     where that angle has room to run. The knob and the arrow keys are the
+     other way about: they are fine tuning, and a rule that hopped back to a
+     corner every degree could not be aimed at anything. */
+  setAngle(value, false);
 });
 
 el("zeroSeg").addEventListener("click", (e) => {
@@ -1527,7 +1762,6 @@ function watchZoom() {
 
 window.addEventListener("resize", () => draw());
 new ResizeObserver(() => {
-  if (shape === "straight" && lie === "down") return;   // its width is its own
   if (Math.abs(el("stage").clientWidth - lastWide) < 0.5) return;
   draw();
 }).observe(el("stage"));
@@ -1674,12 +1908,14 @@ window.CLI = {
    worked out wrong, and the drawing is the half that matters here. */
 window.RULER = {
   plans: { linearPlan, dialPlan },
-  geom: { dialGeom, atXY, degOf, screenRad, pxMm, cssPpi },
+  geom: { dialGeom, atXY, degOf, screenRad, pxMm, cssPpi, onRule, atRule,
+          moveGrip, turnGrip, ruleLength },
   text: { inchText, mmText, reading },
   get state() {
     return {
       ppi, how, calDpr, dpr: dpr(), cssPpi: cssPpi(), pxMm: pxMm(),
-      units, finest: { ...fineName }, degStep, shape, lie, zero, both,
+      units, finest: { ...fineName }, degStep, shape, zero, both,
+      angle, nought: { ...nought }, length: shape === "straight" ? ruleLength() : null,
       markMm, armDeg, armMm, box: { ...box }, thing: thingName,
     };
   },

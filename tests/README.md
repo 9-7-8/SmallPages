@@ -493,18 +493,48 @@ Suites are named for the page they exercise. The ones worth knowing about:
   the data, and the dial's arm has to be drawn on the side the convention
   says — a sign error there mirrors every reading off it.
 
-  Two of its checks were passing for the wrong reason, and both are the
-  lesson in *Prove every check can fail* twice over. The tick-depth check
+  The rule turns to any angle, which is the same rule drawn in its own
+  turned frame rather than a second rule: a mark is how far along *it* the
+  pointer was, and at forty-five degrees that is neither of the two numbers
+  the pointer arrived with. Its checks drag the knob and the slide grip
+  rather than setting the angle in a box, and what they assert of the knob
+  is that it follows the hand — the knob sits half a band's depth off the
+  axis, so the rule itself ends a few degrees shy of where the pointer is,
+  and should.
+
+  Four of this suite's checks have been passing for the wrong reason at one
+  time or another, which is the lesson in *Prove every check can fail* four
+  times over. The tick-depth check
   read the lowest lit pixel in a column, which is the *figure* under the
   tick, so it stayed green with the ranks deliberately collapsed; it now
   measures the run of pixels from the measuring edge and stops at the first
   gap. The fraction check asked for `3 5/16` back, which is already in its
   lowest terms and so never exercised the reduction at all; there is a second
   mark at three and a half inches now, which has to come back as a half and
-  not as eight sixteenths. Deliberately breaking the page fourteen ways is
-  what found those, and it also found a real bug on the page: focusing the
-  canvas scrolled it out from under the pointer between the press and the
-  handler reading where the press was.
+  not as eight sixteenths.
+
+  The third and fourth came from the one bug here a person reported rather
+  than a check caught: the calibration outline sat beside the slider as a
+  flex item whose width was the number the slider set, so the track narrowed
+  as the outline grew, the same pointer position then meant a bigger number,
+  and that grew the outline again — twelve pixels of travel went from six
+  pixels-to-the-inch to seventy-six, which reads as a slider snapping back
+  and forth under your hand. The check written for it dragged a fixed number
+  of pixels from the track's left edge and asserted the steps were even;
+  with the bug put back, the drag missed the collapsed track altogether,
+  moved nothing, and six steps of zero are perfectly even. It now drags
+  across a fraction of whatever width the track has, asks whether the scale
+  moved at all before asking whether it moved evenly, and watches the
+  track's own width as it goes — a control may not be sized by the thing it
+  controls. Its neighbour read `.width` off an outline that is taken down
+  when it would be wider than the window, so under half the breakages it
+  threw a null and took the rest of the suite down with it rather than
+  failing.
+
+  Deliberately breaking the page twenty-odd ways is what found those, and it
+  also found a real bug on the page: focusing the canvas scrolled it out
+  from under the pointer between the press and the handler reading where
+  the press was.
 
   What it cannot check is whether the scale is *true*. Nothing in a headless
   browser can hold a bank card against the glass, so the suite checks that
