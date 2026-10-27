@@ -197,6 +197,61 @@ Suites are named for the page they exercise. The ones worth knowing about:
   first arrival, smears everything after it, drags the peak back towards the
   onset and reports the opposite of what is there. Those checks take the
   median of each figure measured on its own render instead.
+- **`test-quote.mjs`** — the quote maker, and the suite where a check turned
+  out to be a tautology in the most instructive way available.
+
+  Nearly everything that page does rests on one measurement — how large the
+  type has to be to fit the box — so the checks read the ink back off the
+  canvas rather than the plan that made it. A webfont that has not arrived
+  does not draw wrong, it *measures* wrong: the fitter sizes the quote to the
+  fallback's metrics, the real face lands a frame later, and the words run off
+  the edge with nothing having complained. The check that catches that sets
+  the same quote in Georgia and in League Gothic and insists the two disagree,
+  because if the fitter were measuring a fallback they would come out
+  identical.
+
+  The instructive part is the photographs. The page fetches them from
+  `images.pexels.com`, so the suite intercepts the CDN with `page.route` and
+  answers it itself. The first version of the refusal check served the stub
+  *without* `Access-Control-Allow-Origin` and asserted the page noticed. It
+  passed. It could not have failed: Playwright fulfils a routed request
+  inside the browser, past the point where cross-origin rules are applied, so
+  a fulfilled response is taken whatever headers it carries. Serving it both
+  ways gave identical results, which is what a tautology looks like from the
+  outside — a check that would pass whatever the page did.
+
+  What replaced it is two real things. The rejection path is exercised with
+  `route.abort`, which is genuinely the same code path a CORS refusal takes,
+  because `fetch` reports "the CDN would not have you" and "there is no
+  network" as the same `TypeError` on purpose. And the *premise* is tested
+  against a second origin rather than simulated: `localhost` and `127.0.0.1`
+  are the same server and two different origins, and the suites' own static
+  server sends no CORS header, so the suite can show a real browser refusing a
+  real cross-origin fetch, and then show the same picture loading fine as a
+  plain `<img>` and poisoning a canvas it is drawn on. That is the hazard the
+  page is built to avoid, proved rather than asserted, and it is what would
+  start failing if the reasoning behind the page ever went out of date.
+
+  Both of those deliberate failures are console errors the page is right to
+  log, so each is taken off the error list where it is caused, with a check
+  saying whose it was — including one that asserts the browser *did* log the
+  refusal, since that log is the evidence the refusal was real.
+
+  Seventeen deliberate breakages went through the page afterwards, and three
+  of them earned their keep. Drawing the block of words from the top of the
+  canvas instead of the middle was noticed by exactly one check and only by
+  luck — the ink was still inside the margin, so only the bound nearest the
+  top complained — so centring is now stated outright, on a square canvas and
+  on a wide one, with a tolerance that scales with the type rather than a flat
+  number, because the ink is only ever centred to within its own side
+  bearings. Taking the width test out of the fitter was noticed by *nothing*,
+  and should not have been: the wrap it is checking has already made it true,
+  so it is a second guard and the suite now says so instead of pretending to
+  cover it. And the one that mattered most was the easiest to write — pointing
+  an `<img>` at the CDN instead of fetching the bytes — which did not fail a
+  check so much as detonate: `Tainted canvases may not be exported`, from
+  inside the save, which is precisely the bug the page is shaped to avoid.
+
 - **`test-noise*.mjs`, `test-breath.mjs`** — the noise machine's nine lanes.
   Loop seams measured as a sample step against the signal's own typical step,
   isochronic envelopes against the formula they claim to implement, breath

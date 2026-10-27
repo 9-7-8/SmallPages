@@ -1,0 +1,1587 @@
+<!DOCTYPE html>
+<!-- Quote Maker, from SmallPages <https://github.com/9-7-8/SmallPages>
+     Copyright (C) 2026 Ixora. SPDX-License-Identifier: GPL-3.0-or-later
+     Free software with no warranty, under the GNU General Public License,
+     version 3 or later: see LICENSE in the repository, or
+     <https://www.gnu.org/licenses/>. -->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quote Maker</title>
+<link rel="stylesheet" href="theme.css">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style>
+  /* Layout and sizing only. Colour, type and component styling live in theme.css. */
+
+  /* The faces a quote can be set in. Files in vendor/fonts/, the same drawer
+     make-cd-image.html and make-cassette-image.html set their titles from —
+     one drawer rather than three with the same thirty-one files in each.
+     font-display: block matters here: a face that has not arrived does not
+     draw wrong, it *measures* wrong, and the fitter below would size the
+     quote to a fallback and then set it in something else. */
+  @font-face { font-family: "Another"; src: url("vendor/fonts/Another_.ttf"); font-display: block; }
+  @font-face { font-family: "Berosong"; src: url("vendor/fonts/Berosong-Regular.ttf"); font-display: block; }
+  @font-face { font-family: "Bitmgothic"; src: url("vendor/fonts/Bitmgothic.otf"); font-display: block; }
+  @font-face { font-family: "Black Takora"; src: url("vendor/fonts/BlackTakora-Regular.ttf"); font-display: block; }
+  @font-face { font-family: "Blackout Oldskull"; src: url("vendor/fonts/BlackoutOldskull.ttf"); font-display: block; }
+  @font-face { font-family: "Brush Story"; src: url("vendor/fonts/BrushStory.ttf"); font-display: block; }
+  @font-face { font-family: "Bubble Stacked"; src: url("vendor/fonts/Bubble-Stacked.ttf"); font-display: block; }
+  @font-face { font-family: "Chewy Bubble"; src: url("vendor/fonts/Chewy-Bubble.otf"); font-display: block; }
+  @font-face { font-family: "Children"; src: url("vendor/fonts/Children.ttf"); font-display: block; }
+  @font-face { font-family: "Cubby Brush"; src: url("vendor/fonts/Cubby-Brush.ttf"); font-display: block; }
+  @font-face { font-family: "Festival Valentine"; src: url("vendor/fonts/Festival-Valentine.otf"); font-display: block; }
+  @font-face { font-family: "Flaster"; src: url("vendor/fonts/FLASTER.ttf"); font-display: block; }
+  @font-face { font-family: "Flunkies BB"; src: url("vendor/fonts/FlunkiesBB.otf"); font-display: block; }
+  @font-face { font-family: "Higher Jump"; src: url("vendor/fonts/Higher-Jump.ttf"); font-display: block; }
+  @font-face { font-family: "Holitter Gothic"; src: url("vendor/fonts/Holitter_Gothic.ttf"); font-display: block; }
+  @font-face { font-family: "Jawarde"; src: url("vendor/fonts/Jawarde.ttf"); font-display: block; }
+  @font-face { font-family: "KALOOT"; src: url("vendor/fonts/KALOOT.ttf"); font-display: block; }
+  @font-face { font-family: "Kids Line"; src: url("vendor/fonts/KidsLineDemo.otf"); font-display: block; }
+  @font-face { font-family: "Kind Handwriting"; src: url("vendor/fonts/Kind-Handwriting.ttf"); font-display: block; }
+  @font-face { font-family: "League Gothic"; src: url("vendor/fonts/LeagueGothic-Regular.otf"); font-display: block; }
+  @font-face { font-family: "Peppermint Pen"; src: url("vendor/fonts/Peppermint-Pen.otf"); font-display: block; }
+  @font-face { font-family: "Permanent Marker"; src: url("vendor/fonts/PermanentMarker.ttf"); font-display: block; }
+  @font-face { font-family: "Puppy Love Brush"; src: url("vendor/fonts/Puppy-Love-Brush.ttf"); font-display: block; }
+  @font-face { font-family: "Roasted Ketchup"; src: url("vendor/fonts/Roasted-Ketchup.ttf"); font-display: block; }
+  @font-face { font-family: "Saphifen"; src: url("vendor/fonts/Saphifen.ttf"); font-display: block; }
+  @font-face { font-family: "Sevarothz"; src: url("vendor/fonts/Sevarothz.ttf"); font-display: block; }
+  @font-face { font-family: "Sketch Gothic"; src: url("vendor/fonts/Sketch-Gothic-School.ttf"); font-display: block; }
+  @font-face { font-family: "Smiley"; src: url("vendor/fonts/Smiley.ttf"); font-display: block; }
+  @font-face { font-family: "Stylish Marker"; src: url("vendor/fonts/Stylish-Marker-demo.ttf"); font-display: block; }
+  @font-face { font-family: "Sunny Brush"; src: url("vendor/fonts/Sunny-Brush.ttf"); font-display: block; }
+  @font-face { font-family: "Ye Olde Oak"; src: url("vendor/fonts/Ye-Olde-Oak.ttf"); font-display: block; }
+
+  main { max-width: 1180px; margin: 0 auto; padding: 2.2rem 1.4rem 4rem; }
+  h1 { margin-bottom: 0.4rem; }
+  p.lede { margin: 0 0 2rem; max-width: 64ch; }
+
+  /* The canvas on the left at whatever width is going, the controls on the
+     right in a column that does not grow. One column under 980px. */
+  .panes {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 20rem;
+    gap: 1.2rem;
+    align-items: start;
+  }
+  @media (max-width: 980px) { .panes { grid-template-columns: minmax(0, 1fr); } }
+
+  .stage { padding: 1rem; display: flex; flex-direction: column; gap: 0.8rem; }
+  /* .stage carries the transparency check, which is right for a page whose
+     output has alpha in it and wrong for this one: the canvas here is always
+     fully painted, so a check behind it says "there is nothing here" about
+     the one thing on the page that is always something. */
+  .stage { background-image: none; }
+
+  /* The preview *is* the file: one canvas at the full resolution, scaled down
+     by CSS to whatever room there is. So there is nothing to go stale between
+     what is on screen and what gets saved. Both caps are maxima on an
+     otherwise automatic size, which is what keeps a 5120 × 1440 canvas the
+     shape it is rather than squashing it into the taller of the two.  */
+  #canvas {
+    display: block;
+    width: auto;
+    height: auto;
+    max-width: 100%;
+    max-height: 70vh;
+    background: #000;
+    border: 1px solid var(--line-soft);
+  }
+  .shot { display: flex; justify-content: center; min-width: 0; }
+
+  .held { display: flex; flex-direction: column; gap: 1rem; }
+  .card { padding: 1.1rem 1.2rem; }
+  .card h2 {
+    margin: 0 0 0.8rem;
+    font-size: 0.7rem;
+    font-weight: 400;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+
+  .field { display: flex; flex-direction: column; gap: 0.3rem; }
+  .field + .field { margin-top: 0.85rem; }
+  .field label { font-size: 0.78rem; }
+  .field select, .field input[type="text"], .field textarea { width: 100%; }
+  .field textarea { min-height: 5.4rem; resize: vertical; line-height: 1.45; }
+
+  .rank { display: flex; gap: 0.6rem; align-items: flex-end; }
+  .rank .field { flex: 1; min-width: 0; margin-top: 0; }
+  .rank + .field, .rank + .rank { margin-top: 0.85rem; }
+  .rank input[type="number"] { width: 100%; font-family: var(--mono); }
+
+  /* A colour well and a dice beside it, so the two ways of choosing sit
+     together rather than the random one hiding at the foot of the card. */
+  .withDice { display: flex; gap: 0.4rem; align-items: stretch; }
+  .withDice > :first-child { flex: 1; min-width: 0; }
+  .withDice button { padding: 0.4rem 0.6rem; line-height: 1; }
+  input[type="color"] {
+    width: 100%;
+    height: 2.1rem;
+    padding: 2px;
+    background: var(--sunken);
+    border: 1px solid var(--line);
+    border-radius: 0;
+    cursor: pointer;
+  }
+
+  .slide { display: flex; gap: 0.6rem; align-items: center; }
+  .slide input[type="range"] { flex: 1; min-width: 0; }
+  .slide output {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    color: var(--neon);
+    min-width: 2.6rem;
+    text-align: right;
+  }
+
+  .dropzone { padding: 0.9rem; text-align: center; font-size: 0.78rem; cursor: pointer; }
+  .dropzone p { margin: 0; color: var(--text-dim); }
+
+  .acts { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.85rem; }
+  .acts button { flex: 1; min-width: 7rem; }
+
+  /* What the picture is and who took it. A credit with a dead link in it is
+     worse than none, so the whole line is only ever written from the entry
+     the photo came from. */
+  .credit { font-size: 0.76rem; color: var(--text-faint); margin: 0; }
+  .credit a { color: var(--text-dim); }
+  .credit a:hover { color: var(--neon); }
+
+  .status { font-size: 0.82rem; margin: 0; min-height: 1.2rem; }
+  .figures {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 1.2rem;
+    font-family: var(--mono);
+    font-size: 0.74rem;
+    color: var(--text-faint);
+  }
+  .figures b { color: var(--neon); font-weight: 400; }
+  .note { font-size: 0.76rem; color: var(--text-faint); margin: 0.6rem 0 0; }
+</style>
+</head>
+<body>
+<main>
+  <a class="home" href="index.html">&larr; index</a>
+  <h1>Quote Maker</h1>
+  <p class="lede">A quote set over a photograph, at whatever size you need it: a square for a
+  post, or your own screen's resolution for a wallpaper. Bring your own picture or take one of
+  the mountains below, pick a face and a colour or let the dice pick them, and save it as a PNG,
+  a JPEG or a WebP. The canvas on the left is the file &mdash; there is no separate render
+  step.</p>
+
+  <div class="panes">
+    <section class="stage">
+      <div class="shot"><canvas id="canvas" width="1000" height="1000"></canvas></div>
+      <p class="status" id="status"></p>
+      <div class="figures" id="figures"></div>
+      <p class="credit" id="credit"></p>
+    </section>
+
+    <div class="held">
+      <section class="card">
+        <h2>The quote</h2>
+        <div class="field">
+          <label for="text">Words</label>
+          <textarea id="text" spellcheck="true"
+            placeholder="Type the quote. A blank line starts a new one.">The mountains are calling and I must go.</textarea>
+        </div>
+        <div class="field">
+          <label for="author">Who said it <span class="unit">&mdash; optional</span></label>
+          <input type="text" id="author" value="John Muir" placeholder="left blank, nothing is drawn">
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Canvas</h2>
+        <div class="field">
+          <label for="preset">Preset</label>
+          <select id="preset"></select>
+        </div>
+        <div class="rank">
+          <div class="field">
+            <label for="width">Width</label>
+            <input type="number" id="width" min="64" max="16384" step="1" value="1000">
+          </div>
+          <div class="field">
+            <label for="height">Height</label>
+            <input type="number" id="height" min="64" max="16384" step="1" value="1000">
+          </div>
+          <button type="button" class="ghost" id="swapBtn" title="Swap width and height" aria-label="Swap width and height">&#8646;</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Type</h2>
+        <div class="field">
+          <label for="font">Face</label>
+          <div class="withDice">
+            <select id="font"></select>
+            <button type="button" class="ghost" id="randFont" title="A face at random" aria-label="A face at random"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" style="fill:none;stroke:currentColor;stroke-width:1.5"><rect x="3.5" y="3.5" width="17" height="17"/><circle cx="8.5" cy="8.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="15.5" cy="8.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.1" fill="currentColor" stroke="none"/><circle cx="8.5" cy="15.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="15.5" cy="15.5" r="1.1" fill="currentColor" stroke="none"/></svg></button>
+          </div>
+        </div>
+        <div class="field">
+          <label for="colour">Colour</label>
+          <div class="withDice">
+            <input type="color" id="colour" value="#ffffff">
+            <button type="button" class="ghost" id="randColour"
+              title="A colour at random, light or dark to suit the picture" aria-label="A colour at random"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" style="fill:none;stroke:currentColor;stroke-width:1.5"><rect x="3.5" y="3.5" width="17" height="17"/><circle cx="8.5" cy="8.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="15.5" cy="8.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.1" fill="currentColor" stroke="none"/><circle cx="8.5" cy="15.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="15.5" cy="15.5" r="1.1" fill="currentColor" stroke="none"/></svg></button>
+          </div>
+        </div>
+        <div class="field">
+          <label for="fill">Size <span class="unit">&mdash; share of the space it fills</span></label>
+          <div class="slide">
+            <input type="range" id="fill" min="20" max="100" step="1" value="80">
+            <output id="fillOut">80</output>
+          </div>
+        </div>
+        <div class="field">
+          <label>Align</label>
+          <div class="seg" id="alignSeg">
+            <button type="button" data-align="left" aria-pressed="false">Left</button>
+            <button type="button" data-align="center" aria-pressed="true">Centre</button>
+            <button type="button" data-align="right" aria-pressed="false">Right</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Behind it</h2>
+        <label class="dropzone" id="drop" for="photoFile" tabindex="0">
+          <p id="dropText">Drop a picture, or click to choose one</p>
+          <input type="file" id="photoFile" accept="image/*" hidden>
+        </label>
+        <div class="acts">
+          <button type="button" id="pexelsBtn">A mountain, at random</button>
+          <button type="button" class="ghost" id="clearPhoto" disabled>No picture</button>
+        </div>
+        <div class="field">
+          <label for="bgColour">Plain colour <span class="unit">&mdash; under or instead of the picture</span></label>
+          <input type="color" id="bgColour" value="#0b0b10">
+        </div>
+        <div class="field">
+          <label for="shade">Shade <span class="unit">&mdash; how far the picture is pushed back</span></label>
+          <div class="slide">
+            <input type="range" id="shade" min="0" max="100" step="1" value="35">
+            <output id="shadeOut">35</output>
+          </div>
+        </div>
+        <p class="note" id="shadeNote"></p>
+      </section>
+
+      <section class="card">
+        <h2>Save</h2>
+        <div class="rank">
+          <div class="field">
+            <label for="format">Format</label>
+            <select id="format"></select>
+          </div>
+        </div>
+        <div class="field" id="qualityFld">
+          <label for="quality">Quality</label>
+          <div class="slide">
+            <input type="range" id="quality" min="20" max="100" step="1" value="92">
+            <output id="qualityOut">92</output>
+          </div>
+        </div>
+        <div class="acts">
+          <button type="button" id="saveBtn">Save it</button>
+          <button type="button" class="ghost" id="shuffleBtn">Shuffle the lot</button>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+
+<script>
+(() => {
+"use strict";
+
+/* ===========================================================================
+   Quote Maker
+
+   One canvas at the resolution asked for, a photograph drawn to cover it, a
+   scrim over that, and the words fitted into what is left. The canvas on
+   screen is the canvas that gets saved, so there is no second code path that
+   can drift from the preview.
+
+   Two things in here are worth reading before changing anything.
+
+   The fitter is the only thing that decides how big the words are, and it
+   decides by *measuring* — which means the face has to have arrived before it
+   runs, or it sizes the quote against a fallback and then draws it in the
+   real face. Every render awaits `document.fonts.load` for the face it is
+   about to use, and says so on screen when the face never turned up.
+
+   The photographs are fetched as bytes and handed to the canvas as a blob,
+   never as a remote `<img>` src. `images.pexels.com` does answer with
+   `Access-Control-Allow-Origin: *` — every path in the list below was checked
+   — so pointing an `<img>` straight at one would work today. It is still not
+   what this page does, because the failure shape if that ever changed is the
+   worst one there is: a cross-origin picture drawn onto a canvas taints it,
+   and a tainted canvas previews perfectly right up until the Save button
+   throws. Fetched as bytes, the canvas is only ever handed a same-origin
+   blob, so a CDN that stopped allowing this origin would fail loudly at the
+   fetch and Save could not break at all. See PEXELS below.
+   ========================================================================= */
+
+/* ------------------------------------------------------------- the faces -- */
+
+/* `family` is what `document.fonts.load` is asked for; `css` is what the
+   canvas is set to, so a face that genuinely is not there falls back to
+   something readable rather than to the browser's default serif. */
+const VENDORED = [
+  "Another", "Berosong", "Bitmgothic", "Black Takora", "Blackout Oldskull",
+  "Brush Story", "Bubble Stacked", "Chewy Bubble", "Children", "Cubby Brush",
+  "Festival Valentine", "Flaster", "Flunkies BB", "Higher Jump",
+  "Holitter Gothic", "Jawarde", "KALOOT", "Kids Line", "Kind Handwriting",
+  "League Gothic", "Peppermint Pen", "Permanent Marker", "Puppy Love Brush",
+  "Roasted Ketchup", "Saphifen", "Sevarothz", "Sketch Gothic", "Smiley",
+  "Stylish Marker", "Sunny Brush", "Ye Olde Oak",
+];
+
+/* The ones that come from whatever machine is looking at the page. Nothing is
+   fetched for these, which is why they are the ones a quote opens in. */
+const LOCAL = [
+  { name: "Georgia", family: "Georgia", css: 'Georgia, "Times New Roman", serif' },
+  { name: "Times New Roman", family: "Times New Roman", css: '"Times New Roman", Times, serif' },
+  { name: "Lexend Deca", family: "Lexend Deca", css: '"Lexend Deca", Helvetica, Arial, sans-serif' },
+  { name: "Arial", family: "Arial", css: "Arial, Helvetica, sans-serif" },
+  { name: "Verdana", family: "Verdana", css: "Verdana, Geneva, sans-serif" },
+  { name: "Impact", family: "Impact", css: "Impact, Haettenschweiler, sans-serif" },
+  { name: "Courier New", family: "Courier New", css: '"Courier New", Courier, monospace' },
+];
+
+const FONTS = [
+  ...LOCAL.map((f) => ({ ...f, where: "local" })),
+  ...VENDORED.map((name) => ({
+    name, family: name, css: `"${name}", Georgia, serif`, where: "vendor",
+  })),
+];
+
+const DEFAULT_FONT = "Georgia";
+
+/* ------------------------------------------------------------- the sizes -- */
+
+/* Monitors first, because that is what a wallpaper wants, then the shapes a
+   quote usually gets posted at. `name` is the geometry, because for a canvas
+   the geometry *is* the name; `alias` is only there for the handful everybody
+   says out loud. */
+const SIZES = [
+  { w: 1000, h: 1000, label: "1000 × 1000", group: "To start with", alias: "square", note: "the default" },
+
+  { w: 1280, h: 720, label: "1280 × 720", group: "Monitors", alias: "720p", note: "HD" },
+  { w: 1280, h: 1024, label: "1280 × 1024", group: "Monitors", note: "5:4" },
+  { w: 1366, h: 768, label: "1366 × 768", group: "Monitors", note: "laptops" },
+  { w: 1440, h: 900, label: "1440 × 900", group: "Monitors", note: "WXGA+" },
+  { w: 1600, h: 900, label: "1600 × 900", group: "Monitors", note: "HD+" },
+  { w: 1680, h: 1050, label: "1680 × 1050", group: "Monitors", note: "WSXGA+" },
+  { w: 1920, h: 1080, label: "1920 × 1080", group: "Monitors", alias: "1080p", note: "FHD" },
+  { w: 1920, h: 1200, label: "1920 × 1200", group: "Monitors", note: "WUXGA" },
+  { w: 2560, h: 1080, label: "2560 × 1080", group: "Monitors", note: "ultrawide FHD" },
+  { w: 2560, h: 1440, label: "2560 × 1440", group: "Monitors", alias: "1440p", note: "QHD" },
+  { w: 2560, h: 1600, label: "2560 × 1600", group: "Monitors", note: "WQXGA" },
+  { w: 3440, h: 1440, label: "3440 × 1440", group: "Monitors", alias: "ultrawide", note: "ultrawide QHD" },
+  { w: 3840, h: 1600, label: "3840 × 1600", group: "Monitors", note: "ultrawide 4K" },
+  { w: 3840, h: 2160, label: "3840 × 2160", group: "Monitors", alias: "4k", note: "UHD" },
+  { w: 5120, h: 1440, label: "5120 × 1440", group: "Monitors", note: "super ultrawide" },
+
+  { w: 1080, h: 1920, label: "1080 × 1920", group: "Phones", alias: "phone", note: "9:16" },
+  { w: 1170, h: 2532, label: "1170 × 2532", group: "Phones", note: "iPhone 12–15" },
+  { w: 1440, h: 3120, label: "1440 × 3120", group: "Phones", note: "QHD+" },
+
+  { w: 1080, h: 1080, label: "1080 × 1080", group: "Posts", note: "square" },
+  { w: 1080, h: 1350, label: "1080 × 1350", group: "Posts", note: "4:5 portrait" },
+  { w: 1200, h: 630, label: "1200 × 630", group: "Posts", note: "link card" },
+];
+
+/* What a browser will actually paint, measured rather than remembered: a
+   canvas past either of these comes back fully transparent instead of
+   refusing, so nothing but a check here would ever say so. In Chromium
+   65535 × 1000 paints and 65536 × 1000 does not; 16384 × 16384 paints, which
+   is 2^28 pixels exactly, and 16500 × 16500 does not.
+
+   The boxes on screen stop at 16384 a side, which is larger than any monitor
+   anybody is making — but a number box does not stop somebody *typing* 99999
+   into it, so these are the backstop under that, not decoration. */
+const MAX_SIDE = 65535;
+const MAX_AREA = 268435456;
+
+/* ---------------------------------------------------------- the pictures -- */
+
+/* PEXELS
+
+   A curated handful rather than a search, because searching needs an API key
+   and a key in a page anybody can read is a key anybody can spend. These are
+   direct CDN paths, so nothing here needs an account and nothing is proxied.
+
+   Every entry was read off a Pexels search page: `path` is the path out of
+   the `srcset` the site itself serves, `slug` is the photo's own page, and
+   `by` is the photographer as the download filename spells them — which is
+   why a handle stays a handle rather than being guessed into a name.
+
+   Pexels photos are free to use and attribution is not required, which is no
+   reason not to give it: the credit line under the canvas names whoever took
+   whichever one is showing, and links to their photo. Nothing is copied into
+   this repo — the pictures are fetched when asked for and are the
+   photographer's, not ours. */
+const PEXELS = [
+  { id: 26926327, path: "26926327/pexels-photo-26926327/free-photo-of-majestic-machapuchare-mountain.jpeg", slug: "majestic-machapuchare-mountain-26926327", by: "Razone Gn", what: "Machapuchare under cloud, Nepal" , ar: 1.2455 },
+  { id: 1327354, path: "1327354/pexels-photo-1327354.jpeg", slug: "green-trees-and-mountain-under-cloudy-sky-1327354", by: "Alex Blokstra", what: "the Tatras under a cloudy sky" , ar: 1.5 },
+  { id: 19952916, path: "19952916/pexels-photo-19952916/free-photo-of-scenic-view-of-rocky-mountains.jpeg", slug: "scenic-view-of-rocky-mountains-19952916", by: "Lebele", what: "Welsh peaks in sunlight" , ar: 1.5 },
+  { id: 39390976, path: "39390976/pexels-photo-39390976/free-photo-of-scenic-canadian-rockies-highway-view.jpeg", slug: "scenic-canadian-rockies-highway-view-39390976", by: "Maja Dorjsuren", what: "a highway through the Canadian Rockies" , ar: 1.3333 },
+  { id: 31346405, path: "31346405/pexels-photo-31346405/free-photo-of-majestic-dolomite-mountain-at-sunset.jpeg", slug: "majestic-dolomite-mountain-at-sunset-31346405", by: "Marek Piwnicki", what: "a Dolomite peak at sunset" , ar: 2.3201 },
+  { id: 9801160, path: "9801160/pexels-photo-9801160.jpeg", slug: "rocky-mountain-peak-covered-in-clouds-9801160", by: "lazarevkirill", what: "a peak shrouded in mist" , ar: 1.5 },
+  { id: 40159916, path: "40159916/pexels-photo-40159916/free-photo-of-majestic-view-of-jagged-mountain-peaks.jpeg", slug: "majestic-view-of-jagged-mountain-peaks-40159916", by: "Ox R", what: "jagged peaks under cloud" , ar: 1.3333 },
+  { id: 12600618, path: "12600618/pexels-photo-12600618.jpeg", slug: "a-rocky-mountain-12600618", by: "eberhardgross", what: "rocky peaks in cloud" , ar: 1.5 },
+  { id: 290422, path: "290422/pexels-photo-290422.jpeg", slug: "snow-covered-mountains-under-blue-sky-290422", by: "Pixabay", what: "snow-covered mountains, blue sky" , ar: 1.5 },
+  { id: 8447813, path: "8447813/pexels-photo-8447813.jpeg", slug: "high-snowcapped-mountain-landscape-8447813", by: "Zakhar", what: "a snowcapped ridge in Spain" , ar: 1.4987 },
+  { id: 20566900, path: "20566900/pexels-photo-20566900/free-photo-of-snow-on-mountains-peaks.jpeg", slug: "snow-on-mountains-peaks-20566900", by: "Francesco Ungaro", what: "snow on a clear-sky peak" , ar: 1.7765 },
+  { id: 28966697, path: "28966697/pexels-photo-28966697/free-photo-of-snow-capped-mountain-peak-in-innsbruck-austria.jpeg", slug: "snow-capped-mountain-peak-in-innsbruck-austria-28966697", by: "notsoaakash", what: "Innsbruck, under cloud" , ar: 1.5 },
+  { id: 34720645, path: "34720645/pexels-photo-34720645/free-photo-of-majestic-sunlit-peaks-of-the-dolomites.jpeg", slug: "majestic-sunlit-peaks-of-the-dolomites-34720645", by: "Marek Piwnicki", what: "the Dolomites, sunlit" , ar: 1.5694 },
+  { id: 40374074, path: "40374074/pexels-photo-40374074/free-photo-of-dramatic-black-and-white-tatra-mountains-landscape.jpeg", slug: "dramatic-black-and-white-tatra-mountains-landscape-40374074", by: "Jiri Ikonomidis", what: "the Tatras in black and white" , ar: 1.5 },
+  { id: 26382487, path: "26382487/pexels-photo-26382487/free-photo-of-clouds-over-mountains.jpeg", slug: "clouds-over-mountains-26382487", by: "altinrrahmani", what: "cloud over Sixt-Fer-à-Cheval" , ar: 1.5 },
+  { id: 5878944, path: "5878944/pexels-photo-5878944.jpeg", slug: "landscape-of-a-snowcapped-mountain-under-blue-sky-5878944", by: "lysenkow", what: "the French Alps" , ar: 1.5 },
+  { id: 5922224, path: "5922224/pexels-photo-5922224.jpeg", slug: "scenic-view-of-the-snowy-mountains-5922224", by: "nishantvy", what: "Golden, British Columbia" , ar: 1.504 },
+  { id: 9081613, path: "9081613/pexels-photo-9081613.jpeg", slug: "view-of-a-green-mountain-9081613", by: "jonast", what: "green peaks under a dark sky" , ar: 1.1948 },
+  { id: 30884391, path: "30884391/pexels-photo-30884391/free-photo-of-majestic-snow-capped-mountain-peak-at-dawn.jpeg", slug: "majestic-snow-capped-mountain-peak-at-dawn-30884391", by: "leventsimsek", what: "a peak rising out of cloud at dawn" , ar: 1.5 },
+  { id: 33891284, path: "33891284/pexels-photo-33891284/free-photo-of-stunning-alpine-mountain-landscape-in-fall.jpeg", slug: "stunning-alpine-mountain-landscape-in-fall-33891284", by: "Leon Aschemann", what: "the Alps in autumn" , ar: 1.5011 },
+  { id: 1677344, path: "1677344/pexels-photo-1677344.jpeg", slug: "grey-and-green-mountain-1677344", by: "Brian De Karma", what: "a grey and green summit" , ar: 1.4999 },
+  { id: 28365754, path: "28365754/pexels-photo-28365754/free-photo-of-living-the-canadian-rockies-life.jpeg", slug: "living-the-canadian-rockies-life-28365754", by: "lureofadventure", what: "Banff, Alberta" , ar: 1.4993 },
+  { id: 291732, path: "291732/pexels-photo-291732.jpeg", slug: "panoramic-photography-of-alps-291732", by: "punttim", what: "the Alps, misted, with trees" , ar: 1.496 },
+  { id: 13922604, path: "13922604/pexels-photo-13922604.jpeg", slug: "snow-covered-mountain-under-blue-sky-13922604", by: "Marek Piwnicki", what: "Mont Blanc on a clear day" , ar: 2.0482 },
+  { id: 933473, path: "933473/pexels-photo-933473.jpeg", slug: "photo-of-trees-on-mountains-933473", by: "vittoriostaffolani", what: "Visso, Italy" , ar: 1.7778 },
+  { id: 32261500, path: "32261500/pexels-photo-32261500/free-photo-of-majestic-view-of-snow-capped-mountain-peak.jpeg", slug: "majestic-view-of-snow-capped-mountain-peak-32261500", by: "Urtimud 89", what: "a snow-capped peak against dark sky" , ar: 1.5 },
+  { id: 3379550, path: "3379550/pexels-photo-3379550.jpeg", slug: "aerial-photography-of-mountain-alps-3379550", by: "jcosta", what: "a Swiss summit from the air" , ar: 1.7789 },
+];
+
+/* The CDN resizes on the way out, so a 1000-pixel square does not fetch the
+   twenty-megapixel original: `w=1200` on one of these comes back 1200 px wide
+   and about 200 kB where the original is a megabyte.
+
+   How wide to ask for is the whole of the arithmetic, and asking for the
+   canvas width is the wrong answer. The picture is cropped to *cover*, so a
+   landscape photo on a square canvas is scaled until its *height* matches and
+   most of its width is thrown away — a 3:2 photo covering 1000 × 1000 has to
+   be 1500 px wide, not 1000. Which is why every entry carries `ar`, the shape
+   the Pexels grid itself gives for it: with that, the width that covers a
+   canvas exactly is arithmetic rather than a guess, and a 4K wallpaper gets
+   the 3840 px it needs while a square gets 1500 and not a byte more.
+
+   The ceiling is what the biggest preset here asks for and no higher; the CDN
+   stops at the original's own width anyway, so a photo that was never that
+   big simply comes back smaller. */
+const PEXELS_MAX = 5200;
+const pexelsWidth = (photo, w, h) =>
+  clamp(Math.round(Math.max(w, h * photo.ar)), 1200, PEXELS_MAX);
+const pexelsUrl = (photo, w, h) => "https://images.pexels.com/photos/" + photo.path
+  + "?auto=compress&cs=tinysrgb&w=" + pexelsWidth(photo, w, h);
+const pexelsPage = (photo) => "https://www.pexels.com/photo/" + photo.slug + "/";
+
+/* ------------------------------------------------------------- the files -- */
+
+const FORMATS = [
+  { name: "PNG", ext: "png", type: "image/png", lossy: false,
+    note: "every pixel exactly, biggest file" },
+  { name: "JPEG", ext: "jpg", type: "image/jpeg", lossy: true,
+    note: "smallest, and soft on hard edges" },
+  { name: "WebP", ext: "webp", type: "image/webp", lossy: true,
+    note: "smaller than JPEG at the same quality" },
+];
+
+/* --------------------------------------------------------------- the DOM -- */
+
+const el = (id) => document.getElementById(id);
+const canvas = el("canvas");
+const ctx = canvas.getContext("2d");
+const statusEl = el("status");
+const figuresEl = el("figures");
+const creditEl = el("credit");
+const presetSel = el("preset");
+const widthIn = el("width");
+const heightIn = el("height");
+const fontSel = el("font");
+const colourIn = el("colour");
+const fillIn = el("fill");
+const fillOut = el("fillOut");
+const shadeIn = el("shade");
+const shadeOut = el("shadeOut");
+const shadeNote = el("shadeNote");
+const bgColourIn = el("bgColour");
+const textIn = el("text");
+const authorIn = el("author");
+const formatSel = el("format");
+const qualityIn = el("quality");
+const qualityOut = el("qualityOut");
+const qualityFld = el("qualityFld");
+const photoFile = el("photoFile");
+const dropZone = el("drop");
+const dropText = el("dropText");
+const clearPhotoBtn = el("clearPhoto");
+const pexelsBtn = el("pexelsBtn");
+const alignSeg = el("alignSeg");
+
+/* The background on its own, so the text can be redrawn without the photo
+   being scaled again, and so a random colour has something to read the
+   backdrop off. */
+const bg = document.createElement("canvas");
+const bgCtx = bg.getContext("2d");
+
+/* Whatever picture is behind the words: an ImageBitmap-ish thing the canvas
+   can draw, plus where it came from, because the credit line is written from
+   the entry and never from the URL. */
+let photo = null;          /* { src, w, h, from: "file"|"pexels", name, entry } */
+let align = "center";
+let renders = 0;           /* bumped on every finished draw; what to wait on */
+let busy = false;
+let missingFace = null;    /* a face that was asked for and never arrived */
+let lastPlan = null;
+
+/* --------------------------------------------------------------- helpers -- */
+
+/* mulberry32. The dice are only interesting if they can be made to roll the
+   same way twice — a suite cannot check a random face otherwise, and neither
+   can a person trying to get back the one they liked. */
+function rng(seed) {
+  let a = (seed >>> 0) || 1;
+  return () => {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
+
+function hexToRgb(hex) {
+  const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(String(hex || "").trim());
+  if (!m) return null;
+  const s = m[1].length === 3 ? m[1].replace(/./g, (c) => c + c) : m[1];
+  const n = parseInt(s, 16);
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+}
+
+const toHex = (r, g, b) => "#" + [r, g, b]
+  .map((v) => clamp(Math.round(v), 0, 255).toString(16).padStart(2, "0")).join("");
+
+/* WCAG relative luminance, which is what decides every light-or-dark question
+   on this page: which way the scrim goes, and whether a random colour should
+   be a pale one or a deep one. */
+function luminance({ r, g, b }) {
+  const lin = (v) => {
+    const c = v / 255;
+    return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  };
+  return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+}
+
+const contrastRatio = (a, b) => {
+  const la = luminance(a), lb = luminance(b);
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+};
+
+function hslToHex(h, s, l) {
+  const k = (n) => (n + h / 30) % 12;
+  const a = s * Math.min(l, 1 - l);
+  const f = (n) => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+  return toHex(f(0) * 255, f(8) * 255, f(4) * 255);
+}
+
+function setStatus(message, isError = false) {
+  statusEl.textContent = message;
+  statusEl.classList.toggle("error", !!isError);
+}
+
+const fontEntry = (name) => FONTS.find((f) => f.name === name) || FONTS[0];
+const formatEntry = () => FORMATS.find((f) => f.type === formatSel.value) || FORMATS[0];
+
+/* A select that has to land on one of its own options, because setting it to
+   anything else leaves it quietly where it was. Lifted from
+   color-picker.html, for the same reason it exists there. */
+function wantOption(sel, value, what) {
+  const opts = Array.from(sel.options).map((o) => o.value);
+  const hit = opts.find((v) => v.toLowerCase() === String(value).toLowerCase());
+  if (!hit) {
+    throw new Error("no " + what + ' called "' + value + '" — there is '
+      + opts.join(", "));
+  }
+  sel.value = hit;
+  return hit;
+}
+
+/* --------------------------------------------------------- the type fitter -- */
+
+/* How much of the canvas is left alone round the edge, and how far apart the
+   lines sit. Both are proportions rather than pixels so that the same quote
+   at 1000 square and at 3840 × 2160 is the same picture at two sizes. */
+const MARGIN = 0.09;        /* of the shorter side */
+const LINE = 1.26;          /* of the type size */
+const AUTHOR = 0.46;        /* the attribution, as a share of the quote size */
+const AUTHOR_GAP = 0.75;    /* the space above it, as a share of the quote size */
+
+const fontSpec = (size, entry) => Math.round(size) + "px " + entry.css;
+
+/* Greedy word wrap at a given size, with a word wider than the box broken by
+   character — without that a single long word means nothing ever fits and the
+   search below bottoms out at four pixels. */
+function wrapAt(size, entry, text, boxW) {
+  ctx.font = fontSpec(size, entry);
+  const lines = [];
+  let widest = 0;
+  const push = (s) => {
+    lines.push(s);
+    widest = Math.max(widest, ctx.measureText(s).width);
+  };
+
+  for (const para of String(text).split(/\r?\n/)) {
+    if (!para.trim()) { lines.push(""); continue; }
+    let line = "";
+    for (const word of para.trim().split(/\s+/)) {
+      if (ctx.measureText(word).width > boxW) {
+        if (line) { push(line); line = ""; }
+        let chunk = "";
+        for (const ch of word) {
+          if (chunk && ctx.measureText(chunk + ch).width > boxW) { push(chunk); chunk = ch; }
+          else chunk += ch;
+        }
+        line = chunk;
+        continue;
+      }
+      const probe = line ? line + " " + word : word;
+      if (line && ctx.measureText(probe).width > boxW) { push(line); line = word; }
+      else line = probe;
+    }
+    if (line) push(line);
+  }
+  if (!lines.length) lines.push("");
+  return { lines, widest };
+}
+
+function blockHeight(size, lineCount, hasAuthor) {
+  let h = lineCount * size * LINE;
+  if (hasAuthor) h += size * AUTHOR_GAP + size * AUTHOR * LINE;
+  return h;
+}
+
+/* The whole answer about where the words go, as data. The drawing below reads
+   this and nothing else, which is also what lets a terminal ask for the plan
+   without a file being written. */
+function plan() {
+  const w = canvas.width, h = canvas.height;
+  const margin = Math.round(Math.min(w, h) * MARGIN);
+  const boxW = Math.max(16, w - margin * 2);
+  const boxH = Math.max(16, h - margin * 2);
+
+  const entry = fontEntry(fontSel.value);
+  const text = textIn.value;
+  const author = authorIn.value.trim();
+  const hasAuthor = author.length > 0;
+  const hasText = text.trim().length > 0;
+
+  /* The largest size the quote fits the box at. Both bounds are real: four
+     pixels is too small to read and the box height is an upper bound no
+     single line can beat. */
+  let lo = 4, hi = Math.max(8, Math.floor(boxH));
+  let best = null;
+  for (let step = 0; step < 24 && lo <= hi; step++) {
+    const mid = Math.floor((lo + hi) / 2);
+    const laid = wrapAt(mid, entry, text, boxW);
+    /* The width half of this is a second guard rather than the one doing the
+       work, and it is worth knowing which: `wrapAt` already breaks a line
+       before it passes boxW and breaks an over-long word by letter, so a wrap
+       wider than the box is not something it can normally hand back. Deleting
+       the test changes nothing you can see, which is exactly why it is being
+       said here instead of being discovered later. It is kept for the one
+       case the wrap cannot solve — a single *character* wider than the box,
+       which has nowhere to be broken — and because the day somebody adds a
+       rule about where a line may not break is the day it starts mattering. */
+    if (blockHeight(mid, laid.lines.length, hasAuthor) <= boxH && laid.widest <= boxW) {
+      best = { size: mid, ...laid };
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
+    }
+  }
+  if (!best) best = { size: 4, ...wrapAt(4, entry, text, boxW) };
+
+  /* And then as much of that as the slider asked for. Smaller can only wrap
+     to fewer lines and lead more tightly, so anything under the fitted size
+     still fits — the slider cannot push the words off the canvas. */
+  const share = clamp(Number(fillIn.value) || 100, 20, 100) / 100;
+  const size = Math.max(4, Math.round(best.size * share));
+  const laid = size === best.size ? best : wrapAt(size, entry, text, boxW);
+
+  const authorSize = Math.max(3, Math.round(size * AUTHOR));
+  const total = blockHeight(size, laid.lines.length, hasAuthor);
+  const top = Math.round((h - total) / 2);
+
+  const x = align === "left" ? margin
+    : align === "right" ? w - margin
+    : Math.round(w / 2);
+
+  return {
+    width: w, height: h, margin, box: { w: boxW, h: boxH },
+    font: entry.name, family: entry.family, where: entry.where,
+    colour: colourIn.value, align, x, top,
+    fill: Number(fillIn.value), fitted: best.size, size, authorSize,
+    lines: laid.lines, widest: Math.round(laid.widest),
+    author: hasAuthor ? author : null,
+    blockHeight: Math.round(total),
+    empty: !hasText && !hasAuthor,
+  };
+}
+
+/* --------------------------------------------------------------- drawing -- */
+
+/* Which way the scrim goes. Light words want the picture pushed down, dark
+   words want it pushed up — so there is one knob rather than two, and it
+   always does the readable thing. */
+function scrim() {
+  const ink = hexToRgb(colourIn.value) || { r: 255, g: 255, b: 255 };
+  return luminance(ink) > 0.4 ? "#000000" : "#ffffff";
+}
+
+function drawBackground() {
+  const w = canvas.width, h = canvas.height;
+  if (bg.width !== w || bg.height !== h) { bg.width = w; bg.height = h; }
+
+  bgCtx.setTransform(1, 0, 0, 1, 0, 0);
+  bgCtx.globalAlpha = 1;
+  bgCtx.fillStyle = bgColourIn.value;
+  bgCtx.fillRect(0, 0, w, h);
+
+  if (photo) {
+    /* Cover: scaled to the larger of the two ratios and centred, so the
+       canvas is always full and the overflow is cropped evenly. */
+    const scale = Math.max(w / photo.w, h / photo.h);
+    const dw = photo.w * scale, dh = photo.h * scale;
+    bgCtx.imageSmoothingQuality = "high";
+    bgCtx.drawImage(photo.src, (w - dw) / 2, (h - dh) / 2, dw, dh);
+
+    const shade = clamp(Number(shadeIn.value) || 0, 0, 100) / 100;
+    if (shade > 0) {
+      bgCtx.globalAlpha = shade;
+      bgCtx.fillStyle = scrim();
+      bgCtx.fillRect(0, 0, w, h);
+      bgCtx.globalAlpha = 1;
+    }
+  }
+}
+
+function drawText(p) {
+  ctx.save();
+  ctx.fillStyle = p.colour;
+  ctx.textAlign = p.align === "left" ? "left" : p.align === "right" ? "right" : "center";
+  ctx.textBaseline = "middle";
+
+  const entry = fontEntry(p.font);
+  ctx.font = fontSpec(p.size, entry);
+  let y = p.top;
+  for (const line of p.lines) {
+    if (line) ctx.fillText(line, p.x, y + (p.size * LINE) / 2);
+    y += p.size * LINE;
+  }
+
+  if (p.author) {
+    y += p.size * AUTHOR_GAP;
+    ctx.font = fontSpec(p.authorSize, entry);
+    /* An em dash unless the person wrote their own, so "— John Muir" and
+       "John Muir" both come out as an attribution and "~ anon" is left as
+       typed. */
+    const said = /^[—–-]/.test(p.author) ? p.author : "— " + p.author;
+    ctx.fillText(said, p.x, y + (p.authorSize * LINE) / 2);
+  }
+  ctx.restore();
+}
+
+/* The size the canvas is actually allowed to be, and whether that is the size
+   that was asked for. A canvas past either limit comes back blank. */
+function wantedSize() {
+  const asked = {
+    w: clamp(Math.round(Number(widthIn.value) || 0), 1, 1e6),
+    h: clamp(Math.round(Number(heightIn.value) || 0), 1, 1e6),
+  };
+  let { w, h } = asked;
+  let capped = false;
+  if (w > MAX_SIDE || h > MAX_SIDE) {
+    const k = MAX_SIDE / Math.max(w, h);
+    w = Math.max(1, Math.floor(w * k)); h = Math.max(1, Math.floor(h * k)); capped = true;
+  }
+  if (w * h > MAX_AREA) {
+    const k = Math.sqrt(MAX_AREA / (w * h));
+    w = Math.max(1, Math.floor(w * k)); h = Math.max(1, Math.floor(h * k)); capped = true;
+  }
+  return { w, h, asked: { width: asked.w, height: asked.h }, capped };
+}
+
+/* The face has to be here before anything is measured. `document.fonts.load`
+   resolves either way, so what it says is checked rather than trusted. */
+async function haveFace(entry) {
+  missingFace = null;
+  if (entry.where !== "vendor") return;
+  try {
+    await document.fonts.load('400 48px "' + entry.family + '"');
+  } catch { /* said below, by the check */ }
+  try {
+    if (!document.fonts.check('400 48px "' + entry.family + '"')) missingFace = entry.name;
+  } catch { /* a browser with no FontFaceSet is not one of ours */ }
+}
+
+async function render() {
+  busy = true;
+  try {
+    const size = wantedSize();
+    if (canvas.width !== size.w) canvas.width = size.w;
+    if (canvas.height !== size.h) canvas.height = size.h;
+
+    await haveFace(fontEntry(fontSel.value));
+
+    drawBackground();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(bg, 0, 0);
+
+    const p = plan();
+    if (!p.empty) drawText(p);
+    lastPlan = { ...p, capped: size.capped, asked: size.asked };
+
+    say(lastPlan);
+  } finally {
+    busy = false;
+    renders++;
+  }
+}
+
+/* A render is cheap but not free at 8 megapixels, and a slider sends an event
+   a pixel. One frame of coalescing, and `renders` only moves when a real
+   answer has landed. */
+let queued = null;
+function schedule() {
+  if (queued) return;
+  queued = requestAnimationFrame(() => { queued = null; render(); });
+}
+
+/* ------------------------------------------------------------ what it says -- */
+
+/* The mean backdrop under the words, which is what the contrast figure below
+   is against. Read off a small downscale of the background rather than every
+   pixel: a 3840 × 2160 canvas is eight million reads otherwise, and the
+   answer to two decimal places is the same. */
+function backdrop(from = bg) {
+  const w = from.width, h = from.height;
+  if (!w || !h) return { r: 0, g: 0, b: 0 };
+  const small = document.createElement("canvas");
+  small.width = 24; small.height = 24;
+  const sx = small.getContext("2d");
+  const margin = Math.min(w, h) * MARGIN;
+  const bw = Math.max(1, w - margin * 2), bh = Math.max(1, h - margin * 2);
+  sx.drawImage(from, margin, margin, bw, bh, 0, 0, 24, 24);
+  const px = sx.getImageData(0, 0, 24, 24).data;
+  let r = 0, g = 0, b = 0;
+  for (let i = 0; i < px.length; i += 4) { r += px[i]; g += px[i + 1]; b += px[i + 2]; }
+  const n = px.length / 4;
+  return { r: r / n, g: g / n, b: b / n };
+}
+
+function say(p) {
+  const ink = hexToRgb(p.colour) || { r: 255, g: 255, b: 255 };
+  const under = backdrop();
+  const ratio = contrastRatio(ink, under);
+
+  figuresEl.textContent = "";
+  const figure = (label, value) => {
+    const span = document.createElement("span");
+    span.append(document.createTextNode(label + " "));
+    const b = document.createElement("b");
+    b.textContent = value;
+    span.append(b);
+    figuresEl.append(span);
+  };
+  figure("canvas", p.width + "×" + p.height);
+  figure("type", p.size + "px");
+  figure("lines", String(p.lines.filter((l) => l).length));
+  figure("contrast", ratio.toFixed(1) + ":1");
+
+  const trouble = [];
+  if (p.capped) {
+    trouble.push(p.asked.w + "×" + p.asked.h + " is past what a browser will paint, "
+      + "so the canvas came down to " + p.width + "×" + p.height + ".");
+  }
+  if (missingFace) {
+    trouble.push(missingFace + " did not load from vendor/fonts, so the quote is "
+      + "set in the fallback — which also means it was fitted to the fallback.");
+  }
+  if (trouble.length) { setStatus(trouble.join(" "), true); return; }
+
+  if (p.empty) { setStatus("Nothing typed yet, so the canvas is just the backdrop."); return; }
+  if (ratio < 3) {
+    setStatus("At " + ratio.toFixed(1) + ":1 against the picture the words will be hard "
+      + "to read. More shade, or a lighter or darker colour, fixes it.");
+    return;
+  }
+  setStatus(p.lines.filter((l) => l).length + " line"
+    + (p.lines.filter((l) => l).length === 1 ? "" : "s")
+    + " at " + p.size + "px in " + p.font
+    + (p.size < p.fitted ? " (" + p.fitted + "px is as large as it fits)" : "")
+    + ".");
+}
+
+function sayShade() {
+  shadeNote.textContent = photo
+    ? (scrim() === "#000000"
+      ? "Darkening the picture, because the words are light."
+      : "Lightening the picture, because the words are dark.")
+    : "Nothing to shade until there is a picture behind the words.";
+}
+
+function sayCredit() {
+  creditEl.textContent = "";
+  if (!photo) return;
+  if (photo.from === "file") {
+    creditEl.textContent = "Your own picture: " + photo.name
+      + " · " + photo.w + "×" + photo.h + ", and it never left the tab.";
+    return;
+  }
+  const e = photo.entry;
+  creditEl.append(document.createTextNode("Photo by "));
+  const who = document.createElement("a");
+  who.href = pexelsPage(e);
+  who.target = "_blank";
+  who.rel = "noopener noreferrer";
+  who.textContent = e.by;
+  creditEl.append(who, document.createTextNode(" on Pexels — " + e.what
+    + " · " + photo.w + "×" + photo.h + "."));
+}
+
+/* ------------------------------------------------------------- the picture -- */
+
+/* Bytes in, a drawable out. Fetched rather than pointed at, so the canvas is
+   never tainted and Save cannot fail later on for a reason nothing on screen
+   mentioned. The cost of that is that a CDN which does not answer with
+   `Access-Control-Allow-Origin` fails *here*, visibly, instead of succeeding
+   and poisoning the save — which is the trade this page wants. */
+async function fromBytes(blob) {
+  const url = URL.createObjectURL(blob);
+  try {
+    const img = new Image();
+    img.decoding = "sync";
+    await new Promise((settle, fail) => {
+      img.onload = settle;
+      img.onerror = () => fail(new Error("the browser would not decode that picture"));
+      img.src = url;
+    });
+    /* An ImageBitmap would be tidier and is not kept, because a bitmap has to
+       be closed by hand and a page that swaps pictures all day leaks them. */
+    const keep = document.createElement("canvas");
+    keep.width = img.naturalWidth;
+    keep.height = img.naturalHeight;
+    keep.getContext("2d").drawImage(img, 0, 0);
+    return { src: keep, w: img.naturalWidth, h: img.naturalHeight };
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+async function takeFile(file) {
+  if (!file) return;
+  if (!/^image\//.test(file.type || "")) {
+    setStatus(file.name + " is not a picture a browser can open.", true);
+    return;
+  }
+  setStatus("Opening " + file.name + "…");
+  try {
+    const got = await fromBytes(file);
+    photo = { ...got, from: "file", name: file.name, entry: null };
+  } catch (err) {
+    setStatus(file.name + " would not open: " + err.message, true);
+    return;
+  }
+  afterPhoto();
+}
+
+/* One of the mountains. `want` is a photo id, an index, or nothing for the
+   dice; `seed` makes the dice repeatable. */
+async function takePexels({ id, index, seed } = {}) {
+  let entry = null;
+  if (id != null) {
+    entry = PEXELS.find((p) => String(p.id) === String(id));
+    if (!entry) throw new Error("no photo with the id " + id + " in the list of " + PEXELS.length);
+  } else if (index != null) {
+    const i = Number(index);
+    if (!Number.isInteger(i) || i < 0 || i >= PEXELS.length) {
+      throw new Error("the list runs 0 to " + (PEXELS.length - 1) + ", so " + index + " is off the end");
+    }
+    entry = PEXELS[i];
+  } else {
+    const seeded = seed != null;
+    const roll = seeded ? rng(Number(seed))() : Math.random();
+    /* Not the one already up, so the dice always visibly do something — but
+       only when they are really dice. A seeded roll reads the whole list, or
+       it would answer differently depending on what was showing first. */
+    const pool = !seeded && photo && photo.entry
+      ? PEXELS.filter((p) => p.id !== photo.entry.id) : PEXELS;
+    entry = pool[Math.min(pool.length - 1, Math.floor(roll * pool.length))];
+  }
+
+  const size = wantedSize();
+  const asked = pexelsWidth(entry, size.w, size.h);
+  const url = pexelsUrl(entry, size.w, size.h);
+  let blob;
+  try {
+    const res = await fetch(url, { mode: "cors", credentials: "omit" });
+    if (!res.ok) throw new Error("Pexels answered " + res.status + " for that photo");
+    blob = await res.blob();
+  } catch (err) {
+    /* A CORS refusal and a dead connection are the same `TypeError` from
+       `fetch`, by design — the browser will not say which, so neither will
+       this. Both have the same answer, which is the useful half. */
+    throw new Error("couldn't fetch the photo from Pexels (" + err.message + "). "
+      + "Either there is no network, or the CDN refused this page's origin. "
+      + "Opening the photo on Pexels and dropping the file in always works.");
+  }
+  const got = await fromBytes(blob);
+  photo = { ...got, from: "pexels", name: entry.slug + ".jpeg", entry, asked };
+  return entry;
+}
+
+/* A photo fetched for a 1000-pixel square is not big enough for a 4K
+   wallpaper, and nothing on screen would say so — it would just go soft. So
+   growing the canvas past what the picture in hand covers fetches the same
+   photo again at the size it now needs. Shrinking does not: the one in hand
+   is already more than enough.
+
+   Only Pexels photos; a file somebody dropped in is the only copy there is. */
+async function refitPexels() {
+  if (!photo || photo.from !== "pexels" || !photo.entry) return false;
+  const size = wantedSize();
+  if (pexelsWidth(photo.entry, size.w, size.h) <= (photo.asked || 0)) return false;
+  await takePexels({ id: photo.entry.id });
+  sayCredit();
+  return true;
+}
+
+function afterPhoto() {
+  clearPhotoBtn.disabled = !photo;
+  dropText.textContent = photo
+    ? (photo.from === "file" ? photo.name : "Drop a picture, or click to choose one")
+    : "Drop a picture, or click to choose one";
+  sayCredit();
+  sayShade();
+  schedule();
+}
+
+/* ------------------------------------------------------------- the random -- */
+
+/* A face at random, which is nearly the whole of it: every one of them is a
+   face somebody might want and none is a mistake.
+
+   The exception is worth spelling out. Rolling the dice on screen skips the
+   face already showing, because a button that can do nothing looks broken —
+   but that makes the answer depend on what was showing when it was pressed,
+   and a seed whose answer depends on the state before it is not a seed. So
+   the skip is for the button, and a seeded roll reads the whole list. The
+   same rule, for the same reason, is why `takePexels` takes a seed. */
+function randomFace(seed) {
+  const seeded = seed != null;
+  const roll = seeded ? rng(Number(seed))() : Math.random();
+  const pool = seeded ? FONTS : FONTS.filter((f) => f.name !== fontSel.value);
+  const pick = pool[Math.min(pool.length - 1, Math.floor(roll * pool.length))];
+  fontSel.value = pick.name;
+  return pick.name;
+}
+
+/* A colour at random is only worth having if it can be read. So the hue is
+   free, and the lightness is not: it goes to the opposite end from whatever
+   the picture is doing behind the words, which is read off the background
+   *before* the scrim, because the scrim's direction is decided by the colour
+   this is about to choose. */
+function randomColour(seed) {
+  const roll = seed == null ? Math.random : rng(Number(seed));
+  /* The canvas that is about to be drawn, not the one that was drawn last:
+     `make` can resize and roll the dice in the same breath, and the shape of
+     the canvas decides which part of the photograph the words end up over. */
+  const want = wantedSize();
+  const plain = document.createElement("canvas");
+  plain.width = want.w;
+  plain.height = want.h;
+  const px = plain.getContext("2d");
+  px.fillStyle = bgColourIn.value;
+  px.fillRect(0, 0, plain.width, plain.height);
+  if (photo) {
+    const scale = Math.max(plain.width / photo.w, plain.height / photo.h);
+    const dw = photo.w * scale, dh = photo.h * scale;
+    px.drawImage(photo.src, (plain.width - dw) / 2, (plain.height - dh) / 2, dw, dh);
+  }
+  const under = luminance(backdrop(plain));
+
+  const hue = Math.floor(roll() * 360);
+  const sat = roll() * 0.7;
+  /* Pale on a dark picture, deep on a light one, with enough room either side
+     that the dice still have something to choose. */
+  const light = under > 0.42 ? 0.10 + roll() * 0.18 : 0.80 + roll() * 0.18;
+  const hex = hslToHex(hue, sat, light);
+  colourIn.value = hex;
+  return hex;
+}
+
+/* --------------------------------------------------------------- the save -- */
+
+/* What the page would call the file. Wanted by the button and by a `--out`
+   naming a directory rather than a file, so it is said in one place. */
+function saveName(ext = formatEntry().ext) {
+  const from = (textIn.value.trim() || authorIn.value.trim() || "quote")
+    .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  const words = from.split("-").filter(Boolean).slice(0, 6).join("-");
+  return "quote-" + (words || "quote").slice(0, 60) + "." + ext;
+}
+
+async function bytes() {
+  const f = formatEntry();
+  const q = clamp(Number(qualityIn.value) || 92, 20, 100) / 100;
+  const blob = await new Promise((settle) => {
+    canvas.toBlob(settle, f.type, f.lossy ? q : undefined);
+  });
+  if (!blob) throw new Error("this browser would not write a " + f.name);
+  /* A browser that cannot write WebP hands back a PNG under the type it was
+     asked for rather than refusing, so the blob is asked what it is. */
+  if (blob.type && blob.type !== f.type) {
+    throw new Error("this browser wrote a " + blob.type.replace("image/", "")
+      + " when asked for a " + f.name + " — pick another format");
+  }
+  return blob;
+}
+
+async function save() {
+  try {
+    const blob = await bytes();
+    const name = saveName();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = name;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    setStatus("Saved " + name + " — " + (blob.size / 1024).toFixed(0) + " kB.");
+  } catch (err) {
+    setStatus(err.message, true);
+  }
+}
+
+/* ------------------------------------------------------------------ wiring -- */
+
+function fillSelects() {
+  let group = null;
+  for (const s of SIZES) {
+    if (s.group !== (group && group.label)) {
+      group = document.createElement("optgroup");
+      group.label = s.group;
+      presetSel.append(group);
+    }
+    const o = document.createElement("option");
+    o.value = s.w + "x" + s.h;
+    o.textContent = s.label + (s.note ? "  ·  " + s.note : "");
+    group.append(o);
+  }
+
+  let where = null;
+  for (const f of FONTS) {
+    const label = f.where === "local" ? "From your machine" : "In the repo";
+    if (label !== (where && where.label)) {
+      where = document.createElement("optgroup");
+      where.label = label;
+      fontSel.append(where);
+    }
+    const o = document.createElement("option");
+    o.value = f.name;
+    o.textContent = f.name;
+    o.style.fontFamily = f.css;
+    where.append(o);
+  }
+  fontSel.value = DEFAULT_FONT;
+
+  for (const f of FORMATS) {
+    const o = document.createElement("option");
+    o.value = f.type;
+    o.textContent = f.name + "  ·  " + f.note;
+    formatSel.append(o);
+  }
+  formatSel.value = FORMATS[0].type;
+}
+
+/* A canvas asked for by name rather than by two numbers: a geometry, one of
+   the aliases, or a preset's own label. Which names there are is the page's
+   business and not a terminal's, so the command line hands the string over as
+   it was typed and this is what resolves it or refuses it — the same bargain
+   uncrop.html's --canvas strikes, for the same reason. */
+function resolveCanvas(said) {
+  const want = String(said).trim().toLowerCase();
+  const geometry = /^(\d+)\s*[x\u00d7*]\s*(\d+)$/.exec(want);
+  if (geometry) return { w: Number(geometry[1]), h: Number(geometry[2]) };
+
+  const hit = SIZES.find((s) => (s.alias || "").toLowerCase() === want
+    || s.label.toLowerCase().replace(/\s+/g, "") === want.replace(/\s+/g, "")
+    || (s.w + "x" + s.h) === want);
+  if (hit) return { w: hit.w, h: hit.h };
+
+  const names = SIZES.map((s) => s.w + "x" + s.h
+    + (s.alias ? " (" + s.alias + ")" : ""));
+  throw new Error('no canvas called "' + said + '" — give it as 1920x1080, or '
+    + "use one of " + names.join(", "));
+}
+
+function syncPreset() {
+  const want = widthIn.value + "x" + heightIn.value;
+  const has = Array.from(presetSel.options).some((o) => o.value === want);
+  presetSel.value = has ? want : "";
+  if (!has) {
+    /* The box is showing a size no preset has, and a select that still reads
+       1920 × 1080 while the boxes say something else is a select that lies. */
+    if (!presetSel.querySelector('option[value=""]')) {
+      const o = document.createElement("option");
+      o.value = "";
+      o.textContent = "Your own size";
+      presetSel.prepend(o);
+    }
+    presetSel.value = "";
+  }
+}
+
+function syncQuality() {
+  qualityOut.textContent = qualityIn.value;
+  qualityFld.hidden = !formatEntry().lossy;
+}
+
+fillSelects();
+syncQuality();
+
+/* Every way the canvas can change size goes through here, because every one
+   of them can leave a Pexels photo too small for the new canvas. The redraw
+   happens either way and first, so the new size is on screen while the
+   bigger photo is still coming. */
+async function resized() {
+  syncPreset();
+  schedule();
+  try {
+    if (await refitPexels()) schedule();
+  } catch (err) {
+    setStatus("The canvas is the new size, but the photo could not be fetched "
+      + "again to suit it, so it is being scaled up: " + err.message, true);
+  }
+}
+
+presetSel.addEventListener("change", () => {
+  const m = /^(\d+)x(\d+)$/.exec(presetSel.value);
+  if (!m) return;
+  widthIn.value = m[1];
+  heightIn.value = m[2];
+  resized();
+});
+
+for (const box of [widthIn, heightIn]) box.addEventListener("input", resized);
+
+el("swapBtn").addEventListener("click", () => {
+  const w = widthIn.value;
+  widthIn.value = heightIn.value;
+  heightIn.value = w;
+  resized();
+});
+
+for (const box of [textIn, authorIn]) box.addEventListener("input", schedule);
+fontSel.addEventListener("change", schedule);
+colourIn.addEventListener("input", () => { sayShade(); schedule(); });
+bgColourIn.addEventListener("input", schedule);
+fillIn.addEventListener("input", () => { fillOut.textContent = fillIn.value; schedule(); });
+shadeIn.addEventListener("input", () => { shadeOut.textContent = shadeIn.value; schedule(); });
+formatSel.addEventListener("change", syncQuality);
+qualityIn.addEventListener("input", syncQuality);
+
+alignSeg.addEventListener("click", (e) => {
+  const button = e.target.closest("button[data-align]");
+  if (!button) return;
+  align = button.dataset.align;
+  for (const b of alignSeg.querySelectorAll("button")) {
+    b.setAttribute("aria-pressed", String(b === button));
+  }
+  schedule();
+});
+
+el("randFont").addEventListener("click", () => {
+  setStatus("Set in " + randomFace() + ".");
+  schedule();
+});
+el("randColour").addEventListener("click", () => {
+  randomColour();
+  sayShade();
+  schedule();
+});
+el("shuffleBtn").addEventListener("click", async () => {
+  randomFace();
+  randomColour();
+  sayShade();
+  pexelsBtn.disabled = true;
+  try {
+    const entry = await takePexels({});
+    afterPhoto();
+    setStatus("A photo by " + entry.by + ", set in " + fontSel.value + ".");
+  } catch (err) {
+    schedule();
+    setStatus(err.message + " The face and the colour still changed.", true);
+  } finally {
+    pexelsBtn.disabled = false;
+  }
+});
+
+pexelsBtn.addEventListener("click", async () => {
+  pexelsBtn.disabled = true;
+  setStatus("Fetching a mountain…");
+  try {
+    const entry = await takePexels({});
+    afterPhoto();
+    setStatus("Photo by " + entry.by + " — " + entry.what + ".");
+  } catch (err) {
+    setStatus(err.message, true);
+  } finally {
+    pexelsBtn.disabled = false;
+  }
+});
+
+clearPhotoBtn.addEventListener("click", () => {
+  photo = null;
+  photoFile.value = "";
+  afterPhoto();
+  setStatus("Back to the plain colour.");
+});
+
+photoFile.addEventListener("change", () => takeFile(photoFile.files[0]));
+
+for (const kind of ["dragenter", "dragover"]) {
+  dropZone.addEventListener(kind, (e) => {
+    e.preventDefault();
+    dropZone.classList.add("drag");
+  });
+}
+for (const kind of ["dragleave", "drop"]) {
+  dropZone.addEventListener(kind, () => dropZone.classList.remove("drag"));
+}
+dropZone.addEventListener("drop", (e) => {
+  e.preventDefault();
+  const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+  if (file) takeFile(file);
+});
+dropZone.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" || e.key === " ") { e.preventDefault(); photoFile.click(); }
+});
+
+el("saveBtn").addEventListener("click", save);
+
+/* ------------------------------------------------------- the command line -- */
+
+/* node cli/run.mjs quote-maker "…" — see cli/tools/quote-maker.mjs. Every job
+   here sets the page's own controls and calls the page's own render, so a
+   terminal cannot be told a size, a wrap or a colour the tab would disagree
+   with. */
+window.CLI = {
+  page: "quote-maker",
+
+  /* Whether there is an answer on the canvas to ask about. `renders` moves on
+     every finished draw, which is what a runner handing a file in waits on —
+     waiting on `ready` alone reads the previous picture's answer. */
+  image() {
+    return {
+      ready: !busy && renders > 0,
+      failed: statusEl.classList.contains("error"),
+      renders,
+      note: statusEl.textContent.trim(),
+      photo: photo
+        ? { from: photo.from, name: photo.name, width: photo.w, height: photo.h,
+            by: photo.entry ? photo.entry.by : null }
+        : null,
+    };
+  },
+
+  jobs: {
+    /* The faces the page really offers, asked rather than copied — so a face
+       added to the drawer turns up at the terminal without a second list. */
+    fonts() {
+      return {
+        fonts: FONTS.map((f) => ({
+          name: f.name, where: f.where, default: f.name === fontSel.value,
+        })),
+        note: "the ones in the repo are files in vendor/fonts; the rest come "
+          + "from whatever machine is looking at the page",
+      };
+    },
+
+    /* And the canvas presets, with the limits a browser puts on either side. */
+    sizes() {
+      return {
+        sizes: SIZES.map((s) => ({
+          name: s.w + "x" + s.h, width: s.w, height: s.h,
+          label: s.label, group: s.group, alias: s.alias || null, note: s.note || null,
+        })),
+        limits: { maxSide: MAX_SIDE, maxArea: MAX_AREA },
+        formats: FORMATS.map((f) => ({ name: f.name, ext: f.ext, type: f.type, lossy: f.lossy })),
+      };
+    },
+
+    /* The pool the dice roll over. No network: this is the list, not the
+       pictures. */
+    photos() {
+      return {
+        photos: PEXELS.map((p, i) => ({
+          index: i, id: p.id, by: p.by, what: p.what, page: pexelsPage(p),
+        })),
+        note: "fetched from images.pexels.com when asked for, never stored here",
+      };
+    },
+
+    /* One of them, fetched. Throws a sentence when there is no network or the
+       CDN will not have this origin, because both look the same from here. */
+    async pexels(o = {}) {
+      const entry = await takePexels(o);
+      afterPhoto();
+      await render();
+      return { id: entry.id, by: entry.by, what: entry.what, page: pexelsPage(entry),
+               width: photo.w, height: photo.h };
+    },
+
+    /* Back to the plain colour, which is the No picture button. */
+    async clearPhoto() {
+      photo = null;
+      photoFile.value = "";
+      afterPhoto();
+      await render();
+      return { photo: null, background: bgColourIn.value };
+    },
+
+    /* The quote, drawn. Everything optional; what is left out is left at
+       whatever the page opens on, which is what the bare command means. */
+    async make(o = {}) {
+      if (o.canvas != null && (o.width != null || o.height != null)) {
+        throw new Error("--canvas and --width/--height both say how big, so "
+          + "give one or the other");
+      }
+      if (o.canvas != null) {
+        const got = resolveCanvas(o.canvas);
+        o = { ...o, width: got.w, height: got.h };
+      }
+      if (o.width != null || o.height != null) {
+        for (const [key, box] of [["width", widthIn], ["height", heightIn]]) {
+          if (o[key] == null) continue;
+          const n = Number(o[key]);
+          if (!Number.isInteger(n) || n < Number(box.min) || n > Number(box.max)) {
+            throw new Error("--" + key + " is a whole number from " + box.min
+              + " to " + box.max + ", not " + o[key]);
+          }
+          box.value = String(n);
+        }
+        syncPreset();
+        /* The same as resizing on screen: a photo fetched for the old canvas
+           would be scaled up to fill the new one. */
+        await refitPexels();
+      }
+      if (o.font != null) wantOption(fontSel, o.font, "face");
+      if (o.format != null) wantOption(formatSel, o.format, "format");
+      if (o.align != null) {
+        /* The button on the page says Centre, so that is a word this has to
+           take — a flag that refuses the spelling on screen is a bug. */
+        const said = String(o.align).toLowerCase() === "centre" ? "center" : String(o.align);
+        if (!["left", "center", "right"].includes(said)) {
+          throw new Error("--align is left, centre or right — not " + o.align);
+        }
+        align = said;
+        for (const b of alignSeg.querySelectorAll("button")) {
+          b.setAttribute("aria-pressed", String(b.dataset.align === align));
+        }
+      }
+      if (o.text != null) textIn.value = String(o.text);
+      if (o.author != null) authorIn.value = String(o.author);
+
+      for (const [key, box] of [["fill", fillIn], ["shade", shadeIn], ["quality", qualityIn]]) {
+        if (o[key] == null) continue;
+        const n = Number(o[key]);
+        if (!Number.isFinite(n) || n < Number(box.min) || n > Number(box.max)) {
+          throw new Error("--" + key + " runs " + box.min + " to " + box.max
+            + ", so " + o[key] + " is off the end of it");
+        }
+        box.value = String(n);
+      }
+      fillOut.textContent = fillIn.value;
+      shadeOut.textContent = shadeIn.value;
+
+      for (const [key, box] of [["colour", colourIn], ["background", bgColourIn]]) {
+        if (o[key] == null) continue;
+        const rgb = hexToRgb(o[key]);
+        if (!rgb) throw new Error("--" + key + " wants a hex colour like #ff8800, not " + o[key]);
+        box.value = toHex(rgb.r, rgb.g, rgb.b);
+      }
+
+      /* The dice, after the explicit settings, so `--font X --random-font` is
+         a random face and not a confusing half of each. */
+      const rolled = {};
+      if (o.randomFont) rolled.font = randomFace(o.seed);
+      if (o.randomColour) rolled.colour = randomColour(o.seed);
+
+      syncQuality();
+      sayShade();
+      if (queued) { cancelAnimationFrame(queued); queued = null; }
+      await render();
+
+      /* No check on the status line here, deliberately. image-compressor.html
+         has to look at it because its encoder reports failure by writing on
+         screen and leaving the *previous* blob in place, so the sentence is
+         the only thing that says whether the answer is about this run. This
+         page has no such path: anything that can fail — a file that will not
+         decode, a photo the CDN will not hand over — throws where it happens,
+         and everything render() puts on screen in red is a real canvas that
+         is simply not quite what was asked for. Those come back as data
+         below, which is what a reader can actually act on. */
+      const p = lastPlan;
+      const ink = hexToRgb(p.colour);
+      const answer = {
+        width: p.width, height: p.height,
+        asked: p.capped ? p.asked : null, capped: p.capped,
+        missingFace: missingFace,
+        font: p.font, where: p.where, colour: p.colour,
+        background: bgColourIn.value, shade: Number(shadeIn.value),
+        align: p.align, fill: p.fill, size: p.size, fitted: p.fitted,
+        lines: p.lines, widest: p.widest, author: p.author,
+        contrast: Number(contrastRatio(ink, backdrop()).toFixed(2)),
+        rolled: Object.keys(rolled).length ? rolled : null,
+        format: formatEntry().name, quality: formatEntry().lossy ? Number(qualityIn.value) : null,
+        photo: photo ? { from: photo.from, name: photo.name, width: photo.w, height: photo.h,
+                         by: photo.entry ? photo.entry.by : null,
+                         page: photo.entry ? pexelsPage(photo.entry) : null } : null,
+        name: saveName(),
+        status: statusEl.textContent.trim(),
+        bytes: null,
+      };
+      /* A blob cannot survive the trip out of the tab, so the file leaves as
+         the numbers in it and the tool module is what writes them. */
+      if (o.bytes) {
+        const blob = await bytes();
+        answer.bytes = Array.from(new Uint8Array(await blob.arrayBuffer()));
+        answer.fileBytes = blob.size;
+      }
+      return answer;
+    },
+  },
+};
+
+/* ---------------------------------------------------------------- opening -- */
+
+syncPreset();
+sayShade();
+render();
+})();
+</script>
+</body>
+</html>

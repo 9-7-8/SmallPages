@@ -353,6 +353,19 @@ job can reach settings a person would have to go and open first, which is
 convenient and worth being deliberate about: `--quality` is read against
 whichever card is up, so the flag means the same thing the box does.
 
+**A canvas that a cross-origin picture has touched previews perfectly and
+throws on the way out.** `quote-maker.html` puts a photograph from
+`images.pexels.com` behind the words, and the obvious way to do that &mdash;
+an `<img>` whose `src` is the CDN &mdash; works right up to the moment
+anybody tries to save, because drawing a cross-origin image taints the canvas
+and `toBlob` then refuses. Nothing on screen says so; the picture is there,
+the words are on it, and the only symptom is a Save button that does nothing.
+The page fetches the bytes and hands the canvas a blob instead, which is one
+extra step and moves the failure to where somebody can read it. The CDN does
+send `Access-Control-Allow-Origin: *` today, so this is not a workaround for
+anything currently broken &mdash; it is a choice about which way round to
+fail if it ever changes.
+
 **A path is not a URL on Windows.** `import("C:\\…\\tool.mjs")` is read as a
 URL whose scheme is `c:` and refused with `ERR_UNSUPPORTED_ESM_URL_SCHEME`,
 which is why nothing here ran on Windows at all until `run.mjs` and
@@ -451,7 +464,42 @@ to remember that it happened.
       &mdash; so there is no second parser in Node to disagree with the box
       on the page.
 
-Five of the forty-eight pages in the index. The rest are below, grouped by the
+- [x] **`quote-maker.html`** &mdash; `"<the quote>" --by --canvas --width
+      --height --font --colour --fill --align --random-font --random-colour
+      --seed --photo --background --shade --out --format --quality`, plus
+      `fonts`, `sizes` and `photos`.
+
+      ```
+      node cli/run.mjs quote-maker "The mountains are calling and I must go." \
+        --by "John Muir" --canvas 4k --photo random --out wall.png
+      ```
+
+      The second page whose `--canvas` is not parsed in `cli/` &mdash; uncrop
+      settled that &mdash; and the first where the same bargain is struck
+      twice over, because `--font` is not parsed here either. Which faces
+      there are is a folder in `vendor/fonts/`, and a list of them kept in
+      Node would be a list to forget to update; the string is handed over as
+      it was typed and the page answers with the names it really has.
+      `fonts` and `sizes` are that same question asked out loud.
+
+      `--photo` is the one flag that means four things, and a path is tried
+      first, so a file actually called `random` still works: a file goes in
+      through the page's own file input, `random` and an id go through the
+      page's fetch, and `none` is the No picture button. The two that need
+      the network say so in a sentence rather than hanging &mdash; and
+      because the page fetches bytes rather than pointing an `<img>` at the
+      CDN, a run that cannot reach Pexels fails *there* rather than writing
+      a file that turns out to be a `SecurityError`.
+
+      `--seed` is what makes `--random-font` and `--random-colour` worth
+      having at a terminal: the same seed rolls the same face and the same
+      colour, so a wallpaper you liked can be made again. The dice on the
+      page skip whatever is already showing, so that pressing the button
+      always does something visible; a seeded roll deliberately does not,
+      because an answer that depends on what was showing first is not an
+      answer a seed can promise. That difference cost a check.
+
+Six of the forty-nine pages in the index. The rest are below, grouped by the
 shape of the work rather than by where they sit in the hub, because pages of
 the same shape are the same job twice and the second one is an afternoon.
 

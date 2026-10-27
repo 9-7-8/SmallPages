@@ -141,7 +141,8 @@ const json = async (...args) => {
   const got = await run();
   ok("with nothing asked for it lists what has a command line",
     got.code === 0 && ["color-picker", "image-compressor", "playlist-to-audio",
-      "ruler", "uncrop"].every((tool) => got.out.includes(tool)), got.out.slice(0, 400));
+      "quote-maker", "ruler", "uncrop"].every((tool) => got.out.includes(tool)),
+    got.out.slice(0, 400));
   const help = await run("color-picker", "--help");
   ok("a tool's --help names its commands",
     ["convert", "palette", "pixel", "contrast", "gradient", "match"]
@@ -1414,6 +1415,173 @@ const ihdrOf = (file) => {
     `${onScreen.trim()} against ${printed.metric} / ${printed.imperial}`);
 
   ok("no page errors from ruler.html", errs.length === 0, errs.join(" | "));
+  await browser.close();
+}
+
+/* --------------------------- the same answer as the tab, setting a quote -- */
+
+/* quote-maker.html decides one number — how large the type has to be for the
+   words to wrap inside the margin — and everything else follows from it. That
+   is a measurement, which means it depends on the face, the canvas and the
+   wrap all agreeing; and it is exactly the sort of thing a command line grows
+   its own version of, because "fit some text in a box" looks like arithmetic
+   anybody could redo in Node.
+
+   So the command is run against figures that are not in doubt — the margin is
+   nine per cent of the shorter side, so a 1200 x 800 canvas has a 1056-pixel
+   box and no line may be wider than that — and then the page is opened, given
+   the same quote through its own boxes, and asked what it made of it. The two
+   have to agree to the pixel.
+
+   No photograph in any of this: a suite that needed images.pexels.com would
+   fail on a train. The picture half is covered in test-quote.mjs, with the
+   CDN intercepted. */
+{
+  const QUOTE = "The mountains are calling and I must go.";
+  const d = await json("quote-maker", QUOTE, "--by", "John Muir",
+    "--canvas", "1200x800", "--font", "Georgia", "--fill", "100");
+
+  ok("the canvas is the size it was asked for",
+    d.width === 1200 && d.height === 800 && !d.capped, `${d.width}x${d.height}`);
+  ok("and no line is wider than the nine-per-cent margin leaves room for",
+    d.widest <= 1200 - Math.round(800 * 0.09) * 2,
+    `${d.widest} wide in a ${1200 - Math.round(800 * 0.09) * 2} box`);
+  ok("at full size the type is the size that fits and no more",
+    d.size === d.fitted, `${d.size} vs ${d.fitted}`);
+  ok("the words that went in are the words that came out",
+    d.lines.join(" ") === QUOTE && d.author === "John Muir", d.lines.join("|"));
+  ok("and nothing is written without --out",
+    d.wrote === null && d.name.endsWith(".png"), String(d.wrote));
+
+  const half = await json("quote-maker", QUOTE, "--canvas", "1200x800",
+    "--font", "Georgia", "--fill", "50");
+  ok("--fill 50 is half the fitted size, to the rounding",
+    half.size === Math.max(4, Math.round(d.fitted * 0.5)),
+    `${half.size} against ${Math.round(d.fitted * 0.5)}`);
+
+  /* The page resolves the names, so these are the page's answers and not a
+     copy of the list kept here. */
+  const sizes = await json("quote-maker", "sizes");
+  ok("sizes lists the presets with the limits on either side of them",
+    sizes.sizes.length > 15 && sizes.sizes.some((x) => x.alias === "4k")
+      && sizes.limits.maxSide === 65535, `${sizes.sizes.length} sizes`);
+  const fonts = await json("quote-maker", "fonts");
+  ok("fonts lists the drawer in vendor/fonts as well as the machine's own",
+    fonts.fonts.filter((f) => f.where === "vendor").length === 31
+      && fonts.fonts.some((f) => f.name === "Georgia" && f.where === "local"),
+    `${fonts.fonts.length} faces`);
+  const photos = await json("quote-maker", "photos");
+  ok("photos lists the built-in photographs without fetching any of them",
+    photos.photos.length === 27 && photos.photos.every((x) => x.id && x.by && x.page),
+    `${photos.photos.length} photographs`);
+
+  const badFace = await run("quote-maker", QUOTE, "--font", "Comic Papyrus");
+  ok("a face the drawer has not got is refused in the page's own words",
+    badFace.code === 1 && /no face called/.test(badFace.err)
+      && /League Gothic/.test(badFace.err), badFace.err.trim().slice(0, 120));
+  const badSize = await run("quote-maker", QUOTE, "--canvas", "retina-ish");
+  ok("and so is a canvas it has not got",
+    badSize.code === 1 && /no canvas called/.test(badSize.err), badSize.err.trim().slice(0, 100));
+  const clash = await run("quote-maker", QUOTE, "--out", path.join(WORK, "q.jpg"),
+    "--format", "png");
+  ok("an ending and a --format that disagree are refused rather than resolved",
+    clash.code === 1 && /disagree about the format/.test(clash.err), clash.err.trim());
+  const stray = await run("quote-maker", QUOTE, "--colours", "#fff");
+  ok("a flag that is nearly a flag is a sentence naming the real one",
+    stray.code === 1 && /no flag called --colours/.test(stray.err)
+      && /--colour/.test(stray.err), stray.err.trim());
+
+  /* --out, under the three rules image-compressor settled. */
+  const file = path.join(WORK, "cli-quote.png");
+  fs.rmSync(file, { force: true });
+  const wrote = await json("quote-maker", QUOTE, "--canvas", "640x480",
+    "--font", "Georgia", "--out", file);
+  const png = fs.readFileSync(file);
+  ok("--out <file> writes a PNG the size of the canvas",
+    png.readUInt32BE(16) === 640 && png.readUInt32BE(20) === 480
+      && png.length === wrote.fileBytes,
+    `${png.readUInt32BE(16)}x${png.readUInt32BE(20)}, ${png.length} bytes`);
+
+  const dir = path.join(WORK, "cli-quotes");
+  fs.rmSync(dir, { recursive: true, force: true });
+  fs.mkdirSync(dir, { recursive: true });
+  const intoDir = await json("quote-maker", QUOTE, "--canvas", "320x240",
+    "--format", "webp", "--out", dir + path.sep);
+  ok("--out <dir>/ writes it under the name the page's own Save would give it",
+    fs.existsSync(path.join(dir, intoDir.name)) && intoDir.name.endsWith(".webp")
+      && magic(path.join(dir, intoDir.name)) === "webp",
+    intoDir.name);
+
+  /* A picture of its own, through the page's own file input. */
+  const withPhoto = await json("quote-maker", QUOTE, "--canvas", "800x600",
+    "--font", "Georgia", "--photo", PHOTO, "--shade", "60");
+  ok("--photo <file> goes in through the page's own file input",
+    withPhoto.photo && withPhoto.photo.from === "file"
+      && withPhoto.photo.width === 800 && withPhoto.photo.height === 600,
+    JSON.stringify(withPhoto.photo));
+  ok("and the contrast is measured against it rather than against the plain colour",
+    typeof withPhoto.contrast === "number" && withPhoto.contrast > 1,
+    String(withPhoto.contrast));
+
+  /* The same seed twice, which is the only reason a dice roll is worth having
+     from a terminal at all. */
+  const rollA = await json("quote-maker", QUOTE, "--random-font", "--random-colour",
+    "--seed", "42");
+  const rollB = await json("quote-maker", QUOTE, "--random-font", "--random-colour",
+    "--seed", "42");
+  ok("the same seed rolls the same face and colour from one run to the next",
+    rollA.rolled.font === rollB.rolled.font
+      && rollA.rolled.colour === rollB.rolled.colour,
+    JSON.stringify([rollA.rolled, rollB.rolled]));
+  ok("and --random-font did not swallow the quote after it",
+    rollA.lines.join(" ") === QUOTE, rollA.lines.join(" "));
+
+  /* And now the page itself, driven by hand. Georgia rather than one of the
+     faces in vendor/fonts, because a @font-face loaded off file:// is blocked
+     in Chrome and the point here is the fitting, not the fetching. */
+  const browser = await chromium.launch({ executablePath: CHROMIUM_BIN });
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 1000 } });
+  const page = await ctx.newPage();
+  const errs = [];
+  page.on("pageerror", (e) => errs.push("pageerror: " + e.message));
+  page.on("console", (m) => {
+    if (m.type() === "error" && !/favicon|404/.test(m.text())) errs.push(m.text());
+  });
+
+  await page.goto(pathToFileURL(path.join(REPO, "quote-maker.html")).href);
+  await page.waitForFunction(() => window.CLI && window.CLI.image().renders > 0);
+  await page.selectOption("#font", "Georgia");
+  await page.fill("#width", "1200");
+  await page.fill("#height", "800");
+  await page.fill("#text", QUOTE);
+  await page.fill("#author", "John Muir");
+  /* A range input is not one Playwright will `fill`, so the slider is moved
+     the way the page's own listener hears it. */
+  await page.evaluate(() => {
+    const f = document.getElementById("fill");
+    f.value = "100";
+    f.dispatchEvent(new Event("input"));
+  });
+
+  const inTab = await page.evaluate(async () => {
+    /* The page's own plan, asked for the way the page asks itself — no
+       settings handed in, so this is purely what the boxes above say. */
+    const p = await window.CLI.jobs.make({});
+    return { width: p.width, height: p.height, size: p.size, fitted: p.fitted,
+      widest: p.widest, lines: p.lines, author: p.author };
+  });
+
+  ok("the tab lays the same quote out at the same type size as the terminal",
+    inTab.size === d.size && inTab.fitted === d.fitted,
+    `tab ${inTab.size}/${inTab.fitted}, terminal ${d.size}/${d.fitted}`);
+  ok("and wraps it into the same lines, the same width",
+    inTab.lines.join("|") === d.lines.join("|") && inTab.widest === d.widest,
+    `${inTab.lines.join("|")} (${inTab.widest}) against ${d.lines.join("|")} (${d.widest})`);
+  ok("and on the same canvas, with the same attribution",
+    inTab.width === d.width && inTab.height === d.height && inTab.author === d.author,
+    `${inTab.width}x${inTab.height} / ${inTab.author}`);
+
+  ok("no page errors from quote-maker.html", errs.length === 0, errs.join(" | "));
   await browser.close();
 }
 

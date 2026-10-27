@@ -1,12 +1,15 @@
 # vendor/fonts
 
-The display faces [`../../make-cd-image.html`](../../make-cd-image.html) and
-[`../../make-cassette-image.html`](../../make-cassette-image.html) set their titles in.
-Thirty-one of them, named below as the pages list them.
+The display faces [`../../make-cd-image.html`](../../make-cd-image.html),
+[`../../make-cassette-image.html`](../../make-cassette-image.html) and
+[`../../quote-maker.html`](../../quote-maker.html) set their titles, their covers and
+their quotes in. Thirty-one of them, named below as the pages list them.
 
 They sat in `vendor/cd-image/fonts/` until the cassette tool turned up wanting most of
 the same ones. Both tools came out of the same person's folders, so the overlap is not a
-coincidence; one drawer beats two with fourteen files copied between them.
+coincidence; one drawer beats two with fourteen files copied between them. The quote
+maker is the third tool to open the drawer and the first that did not bring anything to
+it, which is the point of having one.
 
 ## Where each came from
 
