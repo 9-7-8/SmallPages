@@ -178,3 +178,14 @@ menu. The two it does not carry at all are `general_plus` and `anime_plus` — t
 RRDBNet-architecture quality models, about 32 MB and 9 MB converted —
 and `models/README.md`, kept beside the weights, says where the original `.pth` files
 are and what to run to convert them.
+
+---
+
+`qrcode-generator/` is [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) 1.4.4 by
+Kazuhiko Arase, the QR encoder behind [`../qr-code.html`](../qr-code.html). MIT (the notice is at the top of
+the file). Its `qrcode.js` is a UMD build that also sets a `qrcode` global when loaded with a plain
+script tag, so it is vendored as it comes.
+
+```
+npm pack qrcode-generator@1.4.4
+```

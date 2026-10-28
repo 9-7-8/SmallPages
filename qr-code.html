@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<!-- QR Code, from SmallPages <https://github.com/9-7-8/SmallPages>
+     Copyright (C) 2026 Ixora. SPDX-License-Identifier: GPL-3.0-or-later
+     Free software with no warranty, under the GNU General Public License,
+     version 3 or later: see LICENSE in the repository, or
+     <https://www.gnu.org/licenses/>. -->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QR Code</title>
+<link rel="stylesheet" href="theme.css">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<script src="vendor/qrcode-generator/qrcode.js"></script>
+<style>
+  /* Layout and sizing only. Colour, type and component styling live in theme.css. */
+  body { margin: 0; padding: 2.2rem 1.5rem 4rem; min-height: 100vh; }
+  main { max-width: 900px; margin: 0 auto; }
+  p.lede { margin: 0 0 1.6rem; max-width: 62ch; }
+  .grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.5rem; align-items: start; }
+  @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } }
+  label { display: block; margin: 0 0 1rem; }
+  label > span { display: block; margin-bottom: .35rem; }
+  textarea { width: 100%; min-height: 6.5rem; box-sizing: border-box; }
+  .row { display: flex; gap: 1rem; flex-wrap: wrap; }
+  .row label { flex: 1 1 8rem; }
+  input[type=number], select { width: 100%; box-sizing: border-box; }
+  .preview { display: flex; align-items: center; justify-content: center; padding: 1rem; }
+  #out { max-width: 100%; height: auto; image-rendering: pixelated; }
+  .acts { display: flex; gap: .6rem; flex-wrap: wrap; margin-top: 1rem; }
+</style>
+</head>
+<body>
+<main>
+  <a class="home" href="index.html">&larr; index</a>
+  <h1>QR Code</h1>
+  <p class="lede">Type a link or any text and get a QR code to scan, saved as a PNG or an SVG,
+    at the size and colours you want. Everything happens in the tab.</p>
+
+  <div class="grid">
+    <div class="card">
+      <label><span>Link or text</span>
+        <textarea id="text" spellcheck="false">https://github.com/9-7-8/SmallPages</textarea></label>
+      <div class="row">
+        <label><span>Size (px)</span><input id="size" type="number" min="64" max="4096" step="8" value="1024"></label>
+        <label><span>Quiet zone (modules)</span><input id="margin" type="number" min="0" max="16" value="4"></label>
+        <label><span>Error correction</span>
+          <select id="ecc">
+            <option value="L">Low (7%)</option>
+            <option value="M" selected>Medium (15%)</option>
+            <option value="Q">Quartile (25%)</option>
+            <option value="H">High (30%)</option>
+          </select></label>
+      </div>
+      <div class="row">
+        <label><span>Dots</span><input id="fg" type="color" value="#000000"></label>
+        <label><span>Background</span><input id="bg" type="color" value="#ffffff"></label>
+        <label><span><input id="clear" type="checkbox"> See-through background</span></label>
+      </div>
+      <p class="status" id="status"></p>
+    </div>
+    <div>
+      <div class="preview checker"><canvas id="out" width="256" height="256"></canvas></div>
+      <div class="acts">
+        <button type="button" id="png">Save PNG</button>
+        <button type="button" id="svg" class="ghost">Save SVG</button>
+      </div>
+    </div>
+  </div>
+</main>
+<script>
+  // The matrix comes from qrcode-generator (vendor/qrcode-generator, MIT). This page only
+  // picks the version (the smallest that fits), draws the modules, and saves the result.
+  const $ = id => document.getElementById(id);
+  const ui = ['text', 'size', 'margin', 'ecc', 'fg', 'bg', 'clear'];
+
+  function matrix(text, ecc) {
+    const qr = qrcode(0, ecc);          // 0 = the smallest version that holds the text
+    qr.addData(text, 'Byte');           // UTF-8, so accents and emoji survive
+    qr.make();
+    const n = qr.getModuleCount(), rows = [];
+    for (let r = 0; r < n; r++) { const row = []; for (let c = 0; c < n; c++) row.push(qr.isDark(r, c)); rows.push(row); }
+    return rows;
+  }
+
+  function options() {
+    return { text: $('text').value, size: Math.max(64, Math.min(4096, +$('size').value || 1024)),
+             margin: Math.max(0, +$('margin').value || 0), ecc: $('ecc').value,
+             fg: $('fg').value, bg: $('clear').checked ? null : $('bg').value };
+  }
+
+  function draw() {
+    const o = options(), cv = $('out'), cx = cv.getContext('2d');
+    let m;
+    try { m = matrix(o.text || ' ', o.ecc); } catch (e) { $('status').textContent = 'Too long for a QR code: shorten it or lower the error correction.'; return; }
+    const n = m.length + o.margin * 2, cell = o.size / n;
+    cv.width = cv.height = o.size;
+    cx.clearRect(0, 0, o.size, o.size);
+    if (o.bg) { cx.fillStyle = o.bg; cx.fillRect(0, 0, o.size, o.size); }
+    cx.fillStyle = o.fg;
+    m.forEach((row, r) => row.forEach((on, c) => {
+      if (on) cx.fillRect(Math.floor((c + o.margin) * cell), Math.floor((r + o.margin) * cell),
+                          Math.ceil(cell), Math.ceil(cell));
+    }));
+    $('status').textContent = m.length + ' × ' + m.length + ' modules, ' + o.size + ' px.';
+  }
+
+  function svgText() {
+    const o = options(), m = matrix(o.text || ' ', o.ecc), n = m.length + o.margin * 2;
+    let d = '';
+    m.forEach((row, r) => row.forEach((on, c) => { if (on) d += 'M' + (c + o.margin) + ' ' + (r + o.margin) + 'h1v1h-1z'; }));
+    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + n + ' ' + n + '" width="' + o.size + '" height="' + o.size +
+      '" shape-rendering="crispEdges">' + (o.bg ? '<rect width="100%" height="100%" fill="' + o.bg + '"/>' : '') +
+      '<path fill="' + o.fg + '" d="' + d + '"/></svg>';
+  }
+
+  function save(blob, name) {
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+
+  ui.forEach(id => $(id).addEventListener('input', draw));
+  $('png').addEventListener('click', () => $('out').toBlob(b => save(b, 'qr-code.png'), 'image/png'));
+  $('svg').addEventListener('click', () => save(new Blob([svgText()], { type: 'image/svg+xml' }), 'qr-code.svg'));
+  const q = new URLSearchParams(location.search).get('text'); if (q) $('text').value = q;
+  draw();
+</script>
+</body>
+</html>
