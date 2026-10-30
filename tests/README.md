@@ -291,11 +291,22 @@ Suites are named for the page they exercise. The ones worth knowing about:
   passed on a broken page. At forty per cent the honest pair is 0.38 levels
   apart and the broken one 2.89, with a null measurement beside it.
 
+  The colour wells are the picker page's square-and-strip, folded away, and
+  they brought two more of these. Folded has to mean *not on screen*: the
+  first version was folded in the script and wide open on screen, because a
+  `display` on the class beats the `hidden` attribute, so the check asks
+  Playwright whether the body is visible rather than whether the attribute
+  is there. And the knobs have to remember where they were when the colour
+  they make has no opinion — black is every hue at once — so the suite drags
+  to the bottom of the square and then asks the hue knob where it is.
+
   What is not checked here: whether it looks like 2006. The two caps on the
   canvas size are reached by typing into the number box rather than through
   the hook, because the hook refuses at the page's own stated limit and a
   number input refuses nothing — without that they are code nothing can
-  reach.
+  reach. And nothing covers the picker skipping its canvases while folded:
+  that early return is an economy rather than a rule, since unfolding
+  repaints from scratch, and taking it out leaves every check passing.
 
 - **`test-noise*.mjs`, `test-breath.mjs`** — the noise machine's nine lanes.
   Loop seams measured as a sample step against the signal's own typical step,

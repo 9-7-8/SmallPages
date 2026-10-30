@@ -79,6 +79,25 @@ const extent = (axis, along) => page.evaluate(([which, n]) => {
 }, [axis, along]);
 
 const luma = ([r, g, b]) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
+
+/* The suite's own copies, used only to say what a colour ought to look like
+   on the canvas — never to work out what the page should have drawn. */
+const hexToRgb = (hex) => {
+  const n = parseInt(hex.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255, 255];
+};
+const toHsl = ([r, g, b]) => {
+  const R = r / 255, G = g / 255, B = b / 255;
+  const max = Math.max(R, G, B), min = Math.min(R, G, B), d = max - min;
+  let h = 0;
+  if (d) {
+    if (max === R) h = ((G - B) / d) % 6;
+    else if (max === G) h = (B - R) / d + 2;
+    else h = (R - G) / d + 4;
+    h = (h * 60 + 360) % 360;
+  }
+  return { h, s: d ? d / (1 - Math.abs(max + min - 1)) : 0, l: (max + min) / 2 };
+};
 const near = (a, b, slack = 2) => a.slice(0, 4).every((v, i) => Math.abs(v - b[i]) <= slack);
 
 /* A file the page has written, handed straight back to the page to be read.
@@ -589,6 +608,166 @@ async function handIn(file) {
   ok('after which the notice is gone',
     !(await page.locator('#satNote').isVisible()), 'still showing');
   await plan({ colour: '#1a7ae0' });
+}
+
+/* ================================================================ the picker */
+
+/* The colour wells are the square-and-strip from color-picker.html, folded
+   away behind their own swatch. Three things are worth holding on to: that
+   folded means folded (a `display` on the class beats the `hidden`
+   attribute, and the first version of this was folded in the script and wide
+   open on screen), that unfolding paints — a hidden element measures zero,
+   so a picker painted while folded gets a one-pixel canvas that stays wrong
+   afterwards — and that the knobs remember where they were when the colour
+   they make has no opinion. */
+const pick = (which, what) => page.locator('#' + which + 'Picker ' + what);
+const knobs = (which) => page.evaluate((id) => {
+  const root = document.getElementById(id + 'Picker');
+  return {
+    sv: root.querySelector('.sv .knob').style.cssText,
+    hue: root.querySelector('.hue .knob').style.top,
+    expanded: root.querySelector('.pick-head').getAttribute('aria-expanded'),
+  };
+}, which);
+
+/* What is actually on the little canvases, which is the only way to tell a
+   painted picker from an unpainted one. */
+const painted = (which) => page.evaluate((id) => {
+  const root = document.getElementById(id + 'Picker');
+  const read = (sel) => {
+    const c = root.querySelector(sel);
+    const g = c.getContext('2d');
+    const at = (x, y) => Array.from(g.getImageData(Math.round(x), Math.round(y), 1, 1).data);
+    return { w: c.width, h: c.height, topLeft: at(2, 2), topRight: at(c.width - 3, 2),
+             bottomLeft: at(2, c.height - 3), middle: at(c.width / 2, c.height / 2) };
+  };
+  return { sv: read('.sv canvas'), hue: read('.hue canvas') };
+}, which);
+
+{
+  const head = pick('base', '.pick-head');
+  ok('the colour well opens folded, saying what the colour is',
+    (await knobs('base')).expanded === 'false'
+      && (await pick('base', '.hex').textContent()) === '#1a7ae0',
+    await pick('base', '.hex').textContent());
+  ok('and folded means not on screen, not merely hidden in the markup',
+    !(await pick('base', '.pick-body').isVisible()), 'the body is showing');
+
+  /* Folded, the swatch and the hex on the head are the whole of the picker,
+     so they have to keep up with a colour set from anywhere else. */
+  await plan({ background: '#c83737' });
+  ok('a folded picker still shows the colour on its head',
+    (await pick('bg', '.hex').textContent()) === '#c83737'
+      && !(await pick('bg', '.pick-body').isVisible()),
+    await pick('bg', '.hex').textContent());
+  await plan({ background: '#ffffff' });
+
+  await head.click();
+  const up = await painted('base');
+  /* What is *not* checked: that a folded picker skips painting its canvases.
+     That early return is an economy rather than a rule — unfolding repaints
+     from scratch, so taking it out leaves every check here passing and only
+     costs two pointless fills per sync. */
+  ok('unfolding paints a square the size it really is, not one pixel',
+    up.sv.w > 100 && up.sv.h > 100 && up.hue.h > 100,
+    `${up.sv.w}x${up.sv.h}, strip ${up.hue.w}x${up.hue.h}`);
+  /* White in the top left corner, the hue itself in the top right, black
+     along the bottom: saturation across and brightness down. */
+  ok('with saturation across it and brightness down it',
+    luma(up.sv.topLeft) > 230 && luma(up.sv.bottomLeft) < 20
+      && up.sv.topRight[2] > 200 && up.sv.topRight[0] < 60,
+    `${up.sv.topLeft} top left, ${up.sv.topRight} top right, ${up.sv.bottomLeft} bottom left`);
+  ok('and the hue strip running through the hues',
+    up.hue.topRight[0] > 200 && up.hue.topRight[1] < 60
+      && up.hue.middle[1] > 120 && up.hue.middle[0] < 120,
+    `${up.hue.topRight} at the top, ${up.hue.middle} in the middle`);
+
+  /* Dragging the square is the page being used, so the orb has to follow. */
+  const box = await pick('base', '.sv').boundingBox();
+  const was = (await state()).renders;
+  await page.mouse.move(box.x + box.width * 0.3, box.y + box.height * 0.7);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width * 0.35, box.y + box.height * 0.65);
+  await page.mouse.up();
+  /* Waited for rather than waited on: a picker that picks a colour and does
+     not redraw the orb would otherwise hang here for thirty seconds and come
+     back as a stack trace, when it is a thing this check can say in a line.
+     It has to be part of the assertion, too — `plan` redraws on its way past,
+     so the canvas would look right either way. */
+  const redrew = await page.waitForFunction((n) => window.CLI.image().renders > n,
+    was, { timeout: 5000 }).then(() => true, () => false);
+
+  const dragged = await plan({});
+  ok('dragging in the square picks a colour and redraws the orb with it',
+    redrew && dragged.base !== '#1a7ae0'
+      && near(await at(...BASE_AT(dragged)), hexToRgb(dragged.base), 6),
+    `${dragged.base} on the canvas as ${await at(...BASE_AT(dragged))}`
+      + (redrew ? '' : ', and the drag did not redraw it'));
+  ok('and the head and the hex box both say the new colour',
+    (await pick('base', '.hex').textContent()) === dragged.base
+      && (await pick('base', '.hexin').inputValue()) === dragged.base,
+    `${await pick('base', '.hex').textContent()} / ${await pick('base', '.hexin').inputValue()}`);
+
+  /* The hue strip, and then the part that a picker which re-derives its
+     knobs from the hex every time gets wrong. */
+  const strip = await pick('base', '.hue').boundingBox();
+  await page.mouse.click(strip.x + strip.width / 2, strip.y + strip.height * 0.35);
+  const hued = await plan({});
+  const hueKnob = (await knobs('base')).hue;
+  ok('dragging the strip moves the hue and leaves the rest alone',
+    Math.abs(toHsl(hexToRgb(hued.base)).h - 126) < 12
+      && Math.abs(hued.saturation - dragged.saturation) < 3,
+    `${hued.base}, hue ${toHsl(hexToRgb(hued.base)).h.toFixed(0)}`);
+
+  const bottom = await pick('base', '.sv').boundingBox();
+  await page.mouse.click(bottom.x + bottom.width * 0.5, bottom.y + bottom.height - 2);
+  const black = await plan({});
+  /* The bottom row is brightness nothing, give or take the pixel the click
+     lands on — near enough that the hue it came from is gone from the hex. */
+  ok('and dragging to the bottom of the square takes it to black',
+    hexToRgb(black.base).slice(0, 3).every((v) => v < 4), black.base);
+  ok('without the hue knob forgetting where it was, black having no hue',
+    (await knobs('base')).hue === hueKnob,
+    `${(await knobs('base')).hue} against ${hueKnob} before`);
+
+  /* Typed in, and arrived from somewhere else. */
+  await pick('base', '.hexin').fill('#8a5be0');
+  const typed = await plan({});
+  ok('a hex typed into the box is the colour on the canvas',
+    typed.base === '#8a5be0'
+      && near(await at(...BASE_AT(typed)), [138, 91, 224, 255], 6),
+    `${typed.base} / ${await at(...BASE_AT(typed))}`);
+
+  await page.locator('#chips button').first().click();
+  const chipped = await plan({});
+  ok('a preset chip sets the colour and the picker follows it',
+    chipped.base === '#1a7ae0'
+      && (await pick('base', '.hex').textContent()) === '#1a7ae0',
+    `${chipped.base} / ${await pick('base', '.hex').textContent()}`);
+
+  const far = await plan({ colour: '#e04b3c' });
+  ok('and so does a colour set from the terminal',
+    (await pick('base', '.hex').textContent()) === '#e04b3c'
+      && (await pick('base', '.hexin').inputValue()) === '#e04b3c',
+    await pick('base', '.hex').textContent());
+  ok('with the knobs moved to it rather than left where they were',
+    Math.abs(Number((await knobs('base')).hue.replace('%', '')) - 5.7 / 360 * 100) < 2,
+    `${(await knobs('base')).hue} for a hue of ${toHsl(hexToRgb(far.base)).h.toFixed(1)}`);
+
+  await head.click();
+  ok('and it folds up again',
+    (await knobs('base')).expanded === 'false'
+      && !(await pick('base', '.pick-body').isVisible()), 'still open');
+
+  /* The background colour is the same component, doing the same job. */
+  await pick('bg', '.pick-head').click();
+  await pick('bg', '.hexin').fill('#2d6a4f');
+  const behind = await plan({});
+  ok('the background has the same picker, and it paints the background',
+    behind.background === '#2d6a4f' && near(await at(3, 3), [45, 106, 79, 255], 2),
+    `${behind.background} / ${await at(3, 3)}`);
+  await pick('bg', '.pick-head').click();
+  await plan({ colour: '#1a7ae0', background: '#ffffff' });
 }
 
 /* ============================================================== the resetting */

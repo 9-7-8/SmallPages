@@ -65,7 +65,7 @@
 
   .field { display: flex; flex-direction: column; gap: 0.3rem; }
   .field + .field { margin-top: 0.85rem; }
-  .field label { font-size: 0.78rem; }
+  .field label, .field .label { font-size: 0.78rem; }
   .field select, .field input[type="text"] { width: 100%; }
 
   .rank { display: flex; gap: 0.6rem; align-items: flex-end; }
@@ -82,6 +82,70 @@
     border-radius: 0;
     cursor: pointer;
   }
+
+  /* A colour well the shape of the one on color-picker.html — drag in the
+     square for saturation and brightness, the strip for hue — folded away
+     behind its own swatch until it is wanted, because a page with two of
+     them open at once is mostly picker. */
+  .picker { border: 1px solid var(--line); background: var(--sunken); }
+  .pick-head {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.35rem 0.45rem;
+    border: none;
+    color: var(--text-dim);
+    letter-spacing: 0;
+  }
+  .pick-head:not(:disabled):hover, .pick-head:not(:disabled):focus-visible {
+    box-shadow: none;
+  }
+  .pick-head .chip { width: 1.7rem; height: 1.7rem; border: 1px solid var(--line); flex: none; }
+  .pick-head .hex { font-family: var(--mono); font-size: 0.78rem; }
+  .pick-head .caret { margin-left: auto; font-size: 0.7rem; color: var(--text-faint); }
+  .pick-head[aria-expanded="true"] .caret { transform: rotate(180deg); }
+
+  /* `display` on a class beats the `hidden` attribute, which is only the
+     browser's own `display: none` — so a folded picker was folded in the
+     script and wide open on screen, with two blank canvases in it. */
+  .pick-body[hidden] { display: none; }
+  .pick-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    border-top: 1px solid var(--line-soft);
+  }
+  .pick-grid { display: grid; grid-template-columns: minmax(0, 1fr) 24px; gap: 0.5rem; }
+  .sv {
+    position: relative;
+    aspect-ratio: 1 / 1;
+    touch-action: none;
+    cursor: crosshair;
+    border: 1px solid var(--line);
+  }
+  .hue {
+    position: relative;
+    touch-action: none;
+    cursor: ns-resize;
+    border: 1px solid var(--line);
+  }
+  .sv canvas, .hue canvas { display: block; width: 100%; height: 100%; }
+  .knob {
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.7), inset 0 0 0 1px rgba(0, 0, 0, 0.5);
+  }
+  .hue .knob { left: 50%; width: calc(100% + 6px); height: 8px; border-radius: 2px; }
+  .pick-foot { display: flex; gap: 0.4rem; align-items: center; }
+  .pick-foot input[type="text"] { flex: 1; min-width: 0; font-family: var(--mono); font-size: 0.78rem; }
+  .pick-foot input[type="color"] { width: 2.6rem; flex: none; }
 
   .slide { display: flex; gap: 0.6rem; align-items: center; }
   .slide input[type="range"] { flex: 1; min-width: 0; }
@@ -155,8 +219,33 @@
       <section class="card">
         <h2>The orb</h2>
         <div class="field">
-          <label for="baseColour">Colour</label>
-          <input type="color" id="baseColour" value="#1a7ae0">
+          <span class="label" id="baseLabel">Colour</span>
+          <div class="picker" id="basePicker">
+            <button type="button" class="pick-head" aria-expanded="false"
+              aria-controls="basePickerBody" aria-labelledby="baseLabel baseHex">
+              <span class="chip" aria-hidden="true"></span>
+              <span class="hex" id="baseHex">#1a7ae0</span>
+              <span class="caret" aria-hidden="true">&#9662;</span>
+            </button>
+            <div class="pick-body" id="basePickerBody" hidden>
+              <div class="pick-grid">
+                <div class="sv" tabindex="0" role="application"
+                  aria-label="Saturation and brightness &mdash; arrow keys adjust it">
+                  <canvas></canvas><div class="knob"></div>
+                </div>
+                <div class="hue" tabindex="0" role="slider" aria-label="Hue"
+                  aria-valuemin="0" aria-valuemax="359" aria-valuenow="211">
+                  <canvas></canvas><div class="knob"></div>
+                </div>
+              </div>
+              <div class="pick-foot">
+                <input type="text" class="hexin" spellcheck="false" autocomplete="off"
+                  maxlength="7" aria-label="The colour as hex">
+                <input type="color" id="baseColour" value="#1a7ae0"
+                  aria-label="The colour, in your browser's own picker">
+              </div>
+            </div>
+          </div>
           <div class="chips" id="chips"></div>
           <p class="note" id="satNote" hidden></p>
         </div>
@@ -205,8 +294,33 @@
           <button type="button" class="ghost" id="clearTexture" disabled>No texture</button>
         </div>
         <div class="field">
-          <label for="bgColour">Colour <span class="unit">&mdash; under or instead of it</span></label>
-          <input type="color" id="bgColour" value="#ffffff">
+          <span class="label" id="bgLabel">Colour <span class="unit">&mdash; under or instead of it</span></span>
+          <div class="picker" id="bgPicker">
+            <button type="button" class="pick-head" aria-expanded="false"
+              aria-controls="bgPickerBody" aria-labelledby="bgLabel bgHex">
+              <span class="chip" aria-hidden="true"></span>
+              <span class="hex" id="bgHex">#ffffff</span>
+              <span class="caret" aria-hidden="true">&#9662;</span>
+            </button>
+            <div class="pick-body" id="bgPickerBody" hidden>
+              <div class="pick-grid">
+                <div class="sv" tabindex="0" role="application"
+                  aria-label="Saturation and brightness &mdash; arrow keys adjust it">
+                  <canvas></canvas><div class="knob"></div>
+                </div>
+                <div class="hue" tabindex="0" role="slider" aria-label="Hue"
+                  aria-valuemin="0" aria-valuemax="359" aria-valuenow="0">
+                  <canvas></canvas><div class="knob"></div>
+                </div>
+              </div>
+              <div class="pick-foot">
+                <input type="text" class="hexin" spellcheck="false" autocomplete="off"
+                  maxlength="7" aria-label="The colour as hex">
+                <input type="color" id="bgColour" value="#ffffff"
+                  aria-label="The colour, in your browser's own picker">
+              </div>
+            </div>
+          </div>
         </div>
         <div class="field">
           <label class="tick" for="transparent">
@@ -356,6 +470,14 @@
     nothing, so a texture blurred at its own size comes out with a pale border all the way
     round. It is scaled up by the blur radius on each side first, which costs nothing and has
     no edge to find.</p>
+    <p class="note"><strong>The colour wells are the picker from
+    <a href="color-picker.html">Colour Picker</a>.</strong> Drag in the square for saturation
+    and brightness, the strip for hue, type a hex, or open your browser's own picker from
+    inside the panel &mdash; and fold the whole thing away again, because two of them open at
+    once is a page that is mostly picker. The knobs keep their own place rather than working it
+    out from the colour each time: black is every hue at once, so a picker that reads the hex
+    back loses where you were the moment you drag to the bottom of the square.</p>
+
     <p class="note"><strong>Transparent means no colour, not no texture.</strong> The two
     stack: a texture is drawn over whatever colour is behind it, so ticking the box with a
     texture loaded turns off a layer you cannot see anyway. It is there for the orb on its own,
@@ -496,6 +618,34 @@ function toHsl({ r, g, b }) {
   else if (max === G) h = (B - R) / d + 2;
   else h = (R - G) / d + 4;
   return { h: (h * 60 + 360) % 360, s: s * 100, l: l * 100 };
+}
+
+/* HSV, which is what the square and the strip are: the square is saturation
+   across and value down, the strip is hue. Kept apart from the HSL above
+   because they are different spaces and conflating them is a classic way to
+   make a picker that drifts a shade every time it is opened. */
+function rgbToHsv({ r, g, b }) {
+  const R = r / 255, G = g / 255, B = b / 255;
+  const max = Math.max(R, G, B), min = Math.min(R, G, B);
+  const d = max - min;
+  let h = 0;
+  if (d) {
+    if (max === R) h = ((G - B) / d) % 6;
+    else if (max === G) h = (B - R) / d + 2;
+    else h = (R - G) / d + 4;
+    h = (h * 60 + 360) % 360;
+  }
+  return { h, s: max ? d / max : 0, v: max };
+}
+
+function hsvToHex({ h, s, v }) {
+  const c = v * s;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = v - c;
+  const n = Math.floor(((h % 360) + 360) % 360 / 60);
+  const [r, g, b] = [[c, x, 0], [x, c, 0], [0, c, x],
+                     [0, x, c], [x, 0, c], [c, 0, x]][n];
+  return toHex((r + m) * 255, (g + m) * 255, (b + m) * 255);
 }
 
 function hslToHex(h, s, l) {
@@ -742,6 +892,7 @@ function sayFigures(p) {
     button.addEventListener("click", () => {
       const hsl = toHsl(hexToRgb(baseIn.value));
       baseIn.value = hslToHex(hsl.h, 85, hsl.l);
+      syncPickers();
       render();
     });
     satNote.append(button);
@@ -822,6 +973,193 @@ function clearTexture() {
   render();
 }
 
+/* ------------------------------------------------------------- the pickers -- */
+
+/* Each colour on the page is held by an `<input type="color">` and shown by
+   one of these: the square-and-strip from color-picker.html, folded behind
+   its own swatch. The input stays the single thing that holds the answer —
+   the drawing reads it, the terminal sets it, and the browser's own picker
+   still works — and this only ever writes to it and reads it back.
+
+   Two things here are less obvious than they look.
+
+   The picker keeps its own h, s and v rather than working them out from the
+   hex every time. It has to: black is every hue at once and grey is every
+   hue at saturation nothing, so a picker that re-derives from #000000 throws
+   away where the knobs were and jumps the moment you drag to the bottom of
+   the square. `sync` only re-derives when the hex it is handed is not the
+   one its own h, s, v already make, which is exactly the case where the
+   colour came from somewhere else.
+
+   And the canvases are only painted while the body is open. A hidden
+   element measures zero, so painting a folded picker gives a 1-pixel canvas
+   that stays wrong after it is unfolded. */
+const pickers = [];
+
+function fitCanvas(canvas, box) {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const w = Math.max(1, Math.round(box.clientWidth * dpr));
+  const h = Math.max(1, Math.round(box.clientHeight * dpr));
+  if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+}
+
+function makePicker(root) {
+  const holder = root.querySelector('input[type="color"]');
+  const head = root.querySelector(".pick-head");
+  const body = root.querySelector(".pick-body");
+  const chip = head.querySelector(".chip");
+  const readout = head.querySelector(".hex");
+  const svBox = root.querySelector(".sv");
+  const svKnob = svBox.querySelector(".knob");
+  const svCanvas = svBox.querySelector("canvas");
+  const hueBox = root.querySelector(".hue");
+  const hueKnob = hueBox.querySelector(".knob");
+  const hueCanvas = hueBox.querySelector("canvas");
+  const hexIn = root.querySelector(".hexin");
+
+  let hsv = rgbToHsv(hexToRgb(holder.value) || { r: 0, g: 0, b: 0 });
+  const open = () => head.getAttribute("aria-expanded") === "true";
+
+  function paint() {
+    const hex = holder.value;
+    chip.style.background = hex;
+    readout.textContent = hex;
+    if (document.activeElement !== hexIn) hexIn.value = hex;
+    hueBox.setAttribute("aria-valuenow", String(Math.round(hsv.h)));
+    if (!open()) return;
+
+    fitCanvas(svCanvas, svBox);
+    const sv = svCanvas.getContext("2d");
+    const w = svCanvas.width, h = svCanvas.height;
+    sv.fillStyle = "hsl(" + hsv.h + ", 100%, 50%)";
+    sv.fillRect(0, 0, w, h);
+    let g = sv.createLinearGradient(0, 0, w, 0);
+    g.addColorStop(0, "rgba(255,255,255,1)");
+    g.addColorStop(1, "rgba(255,255,255,0)");
+    sv.fillStyle = g;
+    sv.fillRect(0, 0, w, h);
+    g = sv.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0, "rgba(0,0,0,0)");
+    g.addColorStop(1, "rgba(0,0,0,1)");
+    sv.fillStyle = g;
+    sv.fillRect(0, 0, w, h);
+
+    fitCanvas(hueCanvas, hueBox);
+    const hc = hueCanvas.getContext("2d");
+    const strip = hc.createLinearGradient(0, 0, 0, hueCanvas.height);
+    for (let i = 0; i <= 12; i++) {
+      strip.addColorStop(i / 12, "hsl(" + (i * 30) + ", 100%, 50%)");
+    }
+    hc.fillStyle = strip;
+    hc.fillRect(0, 0, hueCanvas.width, hueCanvas.height);
+
+    svKnob.style.left = (hsv.s * 100) + "%";
+    svKnob.style.top = ((1 - hsv.v) * 100) + "%";
+    svKnob.style.background = hex;
+    hueKnob.style.top = (hsv.h / 360 * 100) + "%";
+    hueKnob.style.background = "hsl(" + hsv.h + ", 100%, 50%)";
+  }
+
+  /* A move the person made: the input is told, and the page redraws. */
+  function put(next) {
+    hsv = { h: ((next.h % 360) + 360) % 360, s: clamp(next.s, 0, 1), v: clamp(next.v, 0, 1) };
+    holder.value = hsvToHex(hsv);
+    paint();
+    render();
+  }
+
+  /* The colour arrived from somewhere else — a preset, Start again, the
+     browser's own picker, or the command line. */
+  function sync() {
+    if (holder.value !== hsvToHex(hsv)) {
+      hsv = rgbToHsv(hexToRgb(holder.value) || { r: 0, g: 0, b: 0 });
+    }
+    paint();
+  }
+
+  function fold(want) {
+    head.setAttribute("aria-expanded", String(want));
+    body.hidden = !want;
+    if (want) paint();
+  }
+
+  head.addEventListener("click", () => fold(!open()));
+
+  function drag(box, onMove) {
+    let live = false;
+    box.addEventListener("pointerdown", (e) => {
+      live = true;
+      try { box.setPointerCapture(e.pointerId); } catch (err) { /* older browsers */ }
+      onMove(e);
+      e.preventDefault();
+    });
+    box.addEventListener("pointermove", (e) => { if (live) { onMove(e); e.preventDefault(); } });
+    for (const type of ["pointerup", "pointercancel", "lostpointercapture"]) {
+      box.addEventListener(type, () => { live = false; });
+    }
+  }
+
+  drag(svBox, (e) => {
+    const r = svBox.getBoundingClientRect();
+    put({ h: hsv.h, s: clamp((e.clientX - r.left) / r.width, 0, 1),
+          v: 1 - clamp((e.clientY - r.top) / r.height, 0, 1) });
+  });
+  drag(hueBox, (e) => {
+    const r = hueBox.getBoundingClientRect();
+    put({ h: clamp((e.clientY - r.top) / r.height, 0, 1) * 359.99, s: hsv.s, v: hsv.v });
+  });
+
+  svBox.addEventListener("keydown", (e) => {
+    const step = e.shiftKey ? 0.1 : 0.01;
+    let { s, v } = hsv;
+    if (e.key === "ArrowLeft") s -= step;
+    else if (e.key === "ArrowRight") s += step;
+    else if (e.key === "ArrowUp") v += step;
+    else if (e.key === "ArrowDown") v -= step;
+    else return;
+    e.preventDefault();
+    put({ h: hsv.h, s, v });
+  });
+  hueBox.addEventListener("keydown", (e) => {
+    const step = e.shiftKey ? 15 : 1;
+    let h = hsv.h;
+    if (e.key === "ArrowUp" || e.key === "ArrowLeft") h -= step;
+    else if (e.key === "ArrowDown" || e.key === "ArrowRight") h += step;
+    else return;
+    e.preventDefault();
+    put({ h, s: hsv.s, v: hsv.v });
+  });
+
+  /* Typed hex. A half-typed one is left alone rather than corrected under
+     the cursor; what is there when the box is left is what counts. */
+  hexIn.addEventListener("input", () => {
+    const rgb = hexToRgb(hexIn.value);
+    if (!rgb) return;
+    hsv = rgbToHsv(rgb);
+    holder.value = toHex(rgb.r, rgb.g, rgb.b);
+    paint();
+    render();
+  });
+  hexIn.addEventListener("blur", () => { hexIn.value = holder.value; });
+  hexIn.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); hexIn.value = holder.value; hexIn.blur(); }
+  });
+
+  /* The browser's own picker, still there inside the panel. */
+  holder.addEventListener("input", () => { sync(); render(); });
+
+  pickers.push({ sync, paint, open });
+  sync();
+}
+
+const syncPickers = () => { for (const picker of pickers) picker.sync(); };
+
+/* An open picker is a responsive square, so it is repainted when the column
+   it sits in changes width. */
+window.addEventListener("resize", () => {
+  for (const picker of pickers) if (picker.open()) picker.paint();
+});
+
 /* ------------------------------------------------------------------ wiring -- */
 
 function fillSelects() {
@@ -858,7 +1196,11 @@ function fillSelects() {
     b.style.background = hex;
     b.title = hex;
     b.setAttribute("aria-label", "Use " + hex);
-    b.addEventListener("click", () => { baseIn.value = hex; render(); });
+    b.addEventListener("click", () => {
+      baseIn.value = hex;
+      syncPickers();
+      render();
+    });
     el("chips").append(b);
   }
 }
@@ -902,6 +1244,8 @@ function syncOutputs() {
 }
 
 fillSelects();
+makePicker(el("basePicker"));
+makePicker(el("bgPicker"));
 syncPreset();
 syncQuality();
 syncOutputs();
@@ -909,7 +1253,10 @@ syncOutputs();
 for (const id of SLIDERS) {
   el(id).addEventListener("input", () => { syncOutputs(); render(); });
 }
-for (const box of [baseIn, bgIn, transparentIn, blendSel]) {
+/* The two colour wells are not in here: each one is a picker's own business,
+   and the picker redraws the page itself. Two listeners on the same input
+   would draw the same orb twice. */
+for (const box of [transparentIn, blendSel]) {
   box.addEventListener("input", render);
   box.addEventListener("change", render);
 }
@@ -943,6 +1290,7 @@ el("resetBtn").addEventListener("click", () => {
   syncPreset();
   syncQuality();
   syncOutputs();
+  syncPickers();
   render();
 });
 
@@ -1075,6 +1423,7 @@ window.CLI = {
 
       syncQuality();
       syncOutputs();
+      syncPickers();
       const p = render();
 
       /* A slider rounds to its own step and clamps to its own ends without
