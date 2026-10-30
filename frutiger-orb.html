@@ -1,0 +1,1108 @@
+<!DOCTYPE html>
+<!-- Frutiger Orb, from SmallPages <https://github.com/9-7-8/SmallPages>
+     Copyright (C) 2026 Ixora. SPDX-License-Identifier: GPL-3.0-or-later
+     Free software with no warranty, under the GNU General Public License,
+     version 3 or later: see LICENSE in the repository, or
+     <https://www.gnu.org/licenses/>. -->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Frutiger Orb</title>
+<link rel="stylesheet" href="theme.css">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style>
+  /* Layout and sizing only. Colour, type and component styling live in theme.css. */
+
+  main { max-width: 1180px; margin: 0 auto; padding: 2.2rem 1.4rem 4rem; }
+  h1 { margin-bottom: 0.4rem; }
+  p.lede { margin: 0 0 2rem; max-width: 66ch; }
+
+  /* The canvas on the left at whatever width is going, the controls on the
+     right in a column that does not grow. One column under 980px. */
+  .panes {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 20rem;
+    gap: 1.2rem;
+    align-items: start;
+  }
+  @media (max-width: 980px) { .panes { grid-template-columns: minmax(0, 1fr); } }
+
+  .stage { padding: 1rem; display: flex; flex-direction: column; gap: 0.8rem; }
+  .stage { background-image: none; }
+
+  /* The preview *is* the file: one canvas at the full resolution, scaled down
+     by CSS to whatever room there is, so nothing can go stale between what is
+     on screen and what gets saved. Both caps are maxima on an otherwise
+     automatic size, which keeps a 3840 x 2160 canvas the shape it is rather
+     than squashing it into the taller of the two. */
+  #canvas {
+    display: block;
+    width: auto;
+    height: auto;
+    max-width: 100%;
+    max-height: 70vh;
+    border: 1px solid var(--line-soft);
+  }
+  /* The square behind the canvas only ever shows through where the file
+     really is transparent, so it is turned on with the transparent box and
+     off again the moment there is a colour behind the orb. */
+  .shot { display: flex; justify-content: center; min-width: 0; }
+  .shot.checker { --check: 18px; }
+
+  .held { display: flex; flex-direction: column; gap: 1rem; }
+  .card { padding: 1.1rem 1.2rem; }
+  .card h2 {
+    margin: 0 0 0.8rem;
+    font-size: 0.7rem;
+    font-weight: 400;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+
+  .field { display: flex; flex-direction: column; gap: 0.3rem; }
+  .field + .field { margin-top: 0.85rem; }
+  .field label { font-size: 0.78rem; }
+  .field select, .field input[type="text"] { width: 100%; }
+
+  .rank { display: flex; gap: 0.6rem; align-items: flex-end; }
+  .rank .field { flex: 1; min-width: 0; margin-top: 0; }
+  .rank + .field, .rank + .rank { margin-top: 0.85rem; }
+  .rank input[type="number"] { width: 100%; font-family: var(--mono); }
+
+  input[type="color"] {
+    width: 100%;
+    height: 2.1rem;
+    padding: 2px;
+    background: var(--sunken);
+    border: 1px solid var(--line);
+    border-radius: 0;
+    cursor: pointer;
+  }
+
+  .slide { display: flex; gap: 0.6rem; align-items: center; }
+  .slide input[type="range"] { flex: 1; min-width: 0; }
+  .slide output {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    color: var(--neon);
+    min-width: 2.6rem;
+    text-align: right;
+  }
+
+  /* The seven colours the orbs in the original tutorial are, as something to
+     start from rather than as the only answers — the well above them takes
+     anything. */
+  .chips { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.5rem; }
+  .chips button {
+    width: 1.7rem;
+    height: 1.7rem;
+    padding: 0;
+    border: 1px solid var(--line);
+    cursor: pointer;
+  }
+  .chips button:hover, .chips button:focus-visible { border-color: var(--neon); }
+
+  .dropzone { padding: 0.9rem; text-align: center; font-size: 0.78rem; cursor: pointer; }
+  .dropzone p { margin: 0; color: var(--text-dim); }
+
+  .tick { display: flex; gap: 0.45rem; align-items: center; font-size: 0.78rem; }
+  .tick input { margin: 0; }
+
+  .acts { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.85rem; }
+  .acts button { flex: 1; min-width: 7rem; }
+
+  .status { font-size: 0.82rem; margin: 0; min-height: 1.2rem; }
+  .figures {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 1.2rem;
+    font-family: var(--mono);
+    font-size: 0.74rem;
+    color: var(--text-faint);
+  }
+  .figures b { color: var(--neon); font-weight: 400; }
+  .note { font-size: 0.76rem; color: var(--text-faint); margin: 0.6rem 0 0; }
+  .note button { font-size: 0.72rem; padding: 0.15rem 0.5rem; margin-left: 0.4rem; }
+
+  .how { margin-top: 2.4rem; max-width: 74ch; font-size: 0.86rem; }
+  .how h2 { font-size: 0.95rem; margin: 1.6rem 0 0.5rem; }
+  .how ol { padding-left: 1.2rem; }
+  .how li { margin-bottom: 0.4rem; }
+</style>
+</head>
+<body>
+<main>
+  <a class="home" href="index.html">&larr; index</a>
+  <h1>Frutiger Orb</h1>
+  <p class="lede">The glossy bubble every piece of mid-2000s software furniture was made of: a
+  colour, a wide highlight across the top of it and a blurred bloom sitting in the bottom on
+  Overlay. Pick the colour, say how much of what is behind it shows through, drop a texture in
+  behind, and save it as a PNG, a JPEG or a WebP. The canvas below is the file &mdash; there is no
+  separate render step.</p>
+
+  <div class="panes">
+    <section class="stage">
+      <div class="shot" id="shot"><canvas id="canvas" width="1000" height="1000"></canvas></div>
+      <p class="status" id="status"></p>
+      <div class="figures" id="figures"></div>
+    </section>
+
+    <div class="held">
+      <section class="card">
+        <h2>The orb</h2>
+        <div class="field">
+          <label for="baseColour">Colour</label>
+          <input type="color" id="baseColour" value="#1a7ae0">
+          <div class="chips" id="chips"></div>
+          <p class="note" id="satNote" hidden></p>
+        </div>
+        <div class="field">
+          <label for="opacity">Opacity <span class="unit">&mdash; how much shows through it</span></label>
+          <div class="slide">
+            <input type="range" id="opacity" min="0" max="100" step="1" value="100">
+            <output id="opacityOut">100</output>
+          </div>
+        </div>
+        <div class="field">
+          <label for="orbSize">Size <span class="unit">&mdash; share of the shorter side</span></label>
+          <div class="slide">
+            <input type="range" id="orbSize" min="10" max="100" step="1" value="80">
+            <output id="orbSizeOut">80</output>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Canvas</h2>
+        <div class="field">
+          <label for="preset">Preset</label>
+          <select id="preset"></select>
+        </div>
+        <div class="rank">
+          <div class="field">
+            <label for="width">Width</label>
+            <input type="number" id="width" min="64" max="16384" step="1" value="1000">
+          </div>
+          <div class="field">
+            <label for="height">Height</label>
+            <input type="number" id="height" min="64" max="16384" step="1" value="1000">
+          </div>
+          <button type="button" class="ghost" id="swapBtn" title="Swap width and height" aria-label="Swap width and height">&#8646;</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Behind it</h2>
+        <label class="dropzone" id="drop" for="textureFile" tabindex="0">
+          <p id="dropText">Drop a texture, or click to choose one</p>
+          <input type="file" id="textureFile" accept="image/*" hidden>
+        </label>
+        <div class="acts">
+          <button type="button" class="ghost" id="clearTexture" disabled>No texture</button>
+        </div>
+        <div class="field">
+          <label for="bgColour">Colour <span class="unit">&mdash; under or instead of it</span></label>
+          <input type="color" id="bgColour" value="#ffffff">
+        </div>
+        <div class="field">
+          <label class="tick" for="transparent">
+            <input type="checkbox" id="transparent">
+            <span>Transparent <span class="unit">&mdash; no colour behind it</span></span>
+          </label>
+        </div>
+        <div class="field">
+          <label for="textureBlur">Blur <span class="unit">&mdash; the texture only</span></label>
+          <div class="slide">
+            <input type="range" id="textureBlur" min="0" max="100" step="1" value="0">
+            <output id="textureBlurOut">0</output>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>The highlight</h2>
+        <div class="field">
+          <label for="hlStrength">Strength</label>
+          <div class="slide">
+            <input type="range" id="hlStrength" min="0" max="100" step="1" value="95">
+            <output id="hlStrengthOut">95</output>
+          </div>
+        </div>
+        <div class="field">
+          <label for="hlWidth">Width <span class="unit">&mdash; of the orb</span></label>
+          <div class="slide">
+            <input type="range" id="hlWidth" min="10" max="100" step="1" value="72">
+            <output id="hlWidthOut">72</output>
+          </div>
+        </div>
+        <div class="field">
+          <label for="hlHeight">Height <span class="unit">&mdash; of the orb</span></label>
+          <div class="slide">
+            <input type="range" id="hlHeight" min="5" max="100" step="1" value="48">
+            <output id="hlHeightOut">48</output>
+          </div>
+        </div>
+        <div class="field">
+          <label for="hlTop">Inset <span class="unit">&mdash; down from the top edge</span></label>
+          <div class="slide">
+            <input type="range" id="hlTop" min="0" max="40" step="1" value="3">
+            <output id="hlTopOut">3</output>
+          </div>
+        </div>
+        <div class="field">
+          <label for="hlFade">Fade <span class="unit">&mdash; how far down it reaches</span></label>
+          <div class="slide">
+            <input type="range" id="hlFade" min="10" max="250" step="1" value="150">
+            <output id="hlFadeOut">150</output>
+          </div>
+        </div>
+        <div class="field">
+          <label for="hlBlur">Softness</label>
+          <div class="slide">
+            <input type="range" id="hlBlur" min="0" max="20" step="1" value="1">
+            <output id="hlBlurOut">1</output>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>The bloom</h2>
+        <div class="field">
+          <label for="glowStrength">Strength</label>
+          <div class="slide">
+            <input type="range" id="glowStrength" min="0" max="100" step="1" value="100">
+            <output id="glowStrengthOut">100</output>
+          </div>
+        </div>
+        <div class="field">
+          <label for="glowSize">Size <span class="unit">&mdash; of the orb's radius</span></label>
+          <div class="slide">
+            <input type="range" id="glowSize" min="5" max="150" step="1" value="55">
+            <output id="glowSizeOut">55</output>
+          </div>
+        </div>
+        <div class="field">
+          <label for="glowDrop">Drop <span class="unit">&mdash; down from the middle</span></label>
+          <div class="slide">
+            <input type="range" id="glowDrop" min="-100" max="150" step="1" value="48">
+            <output id="glowDropOut">48</output>
+          </div>
+        </div>
+        <div class="field">
+          <label for="glowBlur">Blur</label>
+          <div class="slide">
+            <input type="range" id="glowBlur" min="0" max="40" step="1" value="7">
+            <output id="glowBlurOut">7</output>
+          </div>
+        </div>
+        <div class="field">
+          <label for="glowBlend">How it mixes</label>
+          <select id="glowBlend"></select>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Save</h2>
+        <div class="field">
+          <label for="format">Format</label>
+          <select id="format"></select>
+        </div>
+        <div class="field" id="qualityFld">
+          <label for="quality">Quality</label>
+          <div class="slide">
+            <input type="range" id="quality" min="20" max="100" step="1" value="92">
+            <output id="qualityOut">92</output>
+          </div>
+        </div>
+        <div class="acts">
+          <button type="button" id="saveBtn">Save it</button>
+          <button type="button" class="ghost" id="resetBtn">Start again</button>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <section class="how">
+    <h2>What it is doing</h2>
+    <p>Straight out of yazanoo16's beginner's guide, six steps, every one of them a control
+    above:</p>
+    <ol>
+      <li>A circle in a colour that is <em>not</em> fully saturated &mdash; a pure hue has no
+      room left to brighten into, so the highlight flattens against it and the thing reads as a
+      flat disc. The page says so when the well is pushed that far.</li>
+      <li>A wide, shallow white ellipse laid across the top of it.</li>
+      <li>That ellipse masked by a gradient running down from its top edge, which is what turns
+      it from a white blob into a reflection.</li>
+      <li>A second, larger white circle sitting low in the orb, under the first.</li>
+      <li>Blurred &mdash; by a fraction of the orb rather than a fixed number of pixels, so the
+      same settings give the same orb at 512 pixels and at 4000.</li>
+      <li>Mixed in on Overlay, which is what makes the colour look lit from inside rather than
+      painted over.</li>
+    </ol>
+    <p class="note"><strong>Both white layers are clipped to the orb.</strong> The blur in step
+    five is wider than the circle it is blurring, so without a clip the bloom leaks a soft halo
+    out past the edge and the orb stops looking like glass and starts looking like a sticker
+    photographed badly.</p>
+    <p class="note"><strong>The opacity is the orb's, not the page's.</strong> The orb is built
+    on a canvas of its own and then laid over the background in one go, so what shows through at
+    60% is the texture behind it &mdash; not the highlight showing through the colour, which is
+    what you get by fading each layer separately.</p>
+    <p class="note"><strong>A blurred texture is drawn larger than the canvas.</strong> A blur
+    samples past the edge of what it is blurring, and past the edge of a picture there is
+    nothing, so a texture blurred at its own size comes out with a pale border all the way
+    round. It is scaled up by the blur radius on each side first, which costs nothing and has
+    no edge to find.</p>
+    <p class="note"><strong>Transparent means no colour, not no texture.</strong> The two
+    stack: a texture is drawn over whatever colour is behind it, so ticking the box with a
+    texture loaded turns off a layer you cannot see anyway. It is there for the orb on its own,
+    which is what you want for dropping one onto something else.</p>
+
+    <p class="note"><strong>It runs here.</strong> Nothing is uploaded; the canvas is read back
+    into a file by your own browser. A JPEG has no transparency, so the transparent box is
+    ignored for one and the orb is flattened onto the colour instead &mdash; white, unless you
+    say otherwise.</p>
+    <p class="note">Also from a terminal:
+    <code>node cli/run.mjs frutiger-orb --colour "#1a7ae0" --out orb.png</code>.</p>
+  </section>
+</main>
+
+<script>
+(() => {
+"use strict";
+
+/* ------------------------------------------------------------ the sizes -- */
+
+/* What a browser will actually paint. Past either of these a canvas comes
+   back blank rather than refusing, so the page brings the size down itself
+   and says that it did. The boxes on the page stop at 16384, which is a
+   sensible thing to offer; a number input does not stop anybody typing
+   something larger into it, which is why these two are checked rather than
+   trusted. */
+const MAX_SIDE = 65535;
+const MAX_AREA = 268435456;
+
+const SIZES = [
+  { w: 1000, h: 1000, label: "1000 × 1000", group: "Square", alias: "tutorial",
+    note: "what the guide uses" },
+  { w: 512, h: 512, label: "512 × 512", group: "Square", alias: "icon" },
+  { w: 2000, h: 2000, label: "2000 × 2000", group: "Square" },
+  { w: 1920, h: 1080, label: "1920 × 1080", group: "Screen", alias: "1080p" },
+  { w: 2560, h: 1440, label: "2560 × 1440", group: "Screen", alias: "1440p" },
+  { w: 3840, h: 2160, label: "3840 × 2160", group: "Screen", alias: "4k" },
+  { w: 1170, h: 2532, label: "1170 × 2532", group: "Phone", alias: "phone" },
+  { w: 1080, h: 1350, label: "1080 × 1350", group: "Post", alias: "portrait" },
+];
+
+const FORMATS = [
+  { name: "PNG", ext: "png", type: "image/png", lossy: false, alpha: true,
+    note: "every pixel exactly, and keeps transparency" },
+  { name: "JPEG", ext: "jpg", type: "image/jpeg", lossy: true, alpha: false,
+    note: "smallest, no transparency" },
+  { name: "WebP", ext: "webp", type: "image/webp", lossy: true, alpha: true,
+    note: "smaller than JPEG, keeps transparency" },
+];
+
+/* The modes a canvas really has for this. Overlay is the one the guide asks
+   for and the one the page opens on; the rest are there because the answer
+   to "what if the bloom were lighter" is a mode and not a slider. */
+const BLENDS = [
+  { name: "overlay", label: "Overlay — lit from inside" },
+  { name: "screen", label: "Screen — a plain glow" },
+  { name: "soft-light", label: "Soft light — gentler" },
+  { name: "hard-light", label: "Hard light — harsher" },
+  { name: "color-dodge", label: "Colour dodge — blown out" },
+  { name: "source-over", label: "Normal — white paint" },
+];
+
+/* The orbs on the last panel of the guide, roughly. None of them is fully
+   saturated, which is the point of the row. */
+const CHIPS = ["#1a7ae0", "#21b5d6", "#3fbf4b", "#a8ce2e", "#edb01f", "#e04b3c", "#8a5be0"];
+
+/* --------------------------------------------------------------- the DOM -- */
+
+const el = (id) => document.getElementById(id);
+const canvas = el("canvas");
+const ctx = canvas.getContext("2d");
+const statusEl = el("status");
+const figuresEl = el("figures");
+const shotEl = el("shot");
+const presetSel = el("preset");
+const widthIn = el("width");
+const heightIn = el("height");
+const baseIn = el("baseColour");
+const bgIn = el("bgColour");
+const transparentIn = el("transparent");
+const textureFile = el("textureFile");
+const dropZone = el("drop");
+const dropText = el("dropText");
+const clearTextureBtn = el("clearTexture");
+const blendSel = el("glowBlend");
+const formatSel = el("format");
+const qualityIn = el("quality");
+const qualityFld = el("qualityFld");
+const satNote = el("satNote");
+
+/* Every slider on the page, by the id of the box and of the readout beside
+   it. One list rather than fourteen pairs of listeners, and it is also what
+   the hook below sets and reads back. */
+const SLIDERS = ["opacity", "orbSize", "textureBlur", "hlStrength", "hlWidth",
+  "hlHeight", "hlTop", "hlFade", "hlBlur", "glowStrength", "glowSize",
+  "glowDrop", "glowBlur", "quality"];
+
+/* The orb is built on its own canvas so that the opacity applies to the
+   finished thing rather than to each layer, and the highlight on a third so
+   its gradient mask has something of its own to eat. Both are made once and
+   resized as the canvas is. */
+const orb = document.createElement("canvas");
+const orbCtx = orb.getContext("2d");
+const hl = document.createElement("canvas");
+const hlCtx = hl.getContext("2d");
+
+let texture = null;        /* { bitmap, name, w, h } */
+let renders = 0;           /* bumped on every finished draw; what to wait on */
+let lastPlan = null;
+
+/* --------------------------------------------------------------- helpers -- */
+
+const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
+const num = (box) => Number(box.value);
+
+function hexToRgb(hex) {
+  const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(String(hex || "").trim());
+  if (!m) return null;
+  const s = m[1].length === 3 ? m[1].replace(/./g, (c) => c + c) : m[1];
+  const n = parseInt(s, 16);
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+}
+
+const toHex = (r, g, b) => "#" + [r, g, b]
+  .map((v) => clamp(Math.round(v), 0, 255).toString(16).padStart(2, "0")).join("");
+
+/* HSL, for the one question the guide asks out loud: is this colour fully
+   saturated? */
+function toHsl({ r, g, b }) {
+  const R = r / 255, G = g / 255, B = b / 255;
+  const max = Math.max(R, G, B), min = Math.min(R, G, B);
+  const l = (max + min) / 2;
+  const d = max - min;
+  if (!d) return { h: 0, s: 0, l: l * 100 };
+  const s = d / (1 - Math.abs(2 * l - 1));
+  let h;
+  if (max === R) h = ((G - B) / d) % 6;
+  else if (max === G) h = (B - R) / d + 2;
+  else h = (R - G) / d + 4;
+  return { h: (h * 60 + 360) % 360, s: s * 100, l: l * 100 };
+}
+
+function hslToHex(h, s, l) {
+  const S = s / 100, L = l / 100;
+  const k = (n) => (n + h / 30) % 12;
+  const a = S * Math.min(L, 1 - L);
+  const f = (n) => L - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+  return toHex(f(0) * 255, f(8) * 255, f(4) * 255);
+}
+
+const formatEntry = () => FORMATS.find((f) => f.type === formatSel.value) || FORMATS[0];
+const blendEntry = () => BLENDS.find((b) => b.name === blendSel.value) || BLENDS[0];
+
+function setStatus(message, isError = false) {
+  statusEl.textContent = message;
+  statusEl.classList.toggle("error", !!isError);
+}
+
+/* A select that has to land on one of its own options, because setting it to
+   anything else leaves it quietly where it was and says nothing. Lifted from
+   color-picker.html, for the same reason it exists there. */
+function wantOption(sel, value, what) {
+  const opts = Array.from(sel.options).map((o) => o.value);
+  const hit = opts.find((v) => v.toLowerCase() === String(value).toLowerCase());
+  if (!hit) {
+    throw new Error("no " + what + ' called "' + value + '" — there is '
+      + opts.join(", "));
+  }
+  sel.value = hit;
+  return hit;
+}
+
+/* ---------------------------------------------------------------- the orb -- */
+
+/* Everything the drawing needs, worked out from the controls and from nothing
+   else, and handed back as data. The drawing below reads this and the command
+   line returns it, so the figures in a terminal are the figures on screen by
+   construction rather than by agreement. */
+function makePlan() {
+  /* An empty box, or one with a minus in it, is what the middle of typing
+     looks like rather than a size anybody meant, so it falls back to the one
+     the page opens on. Reported as a size that came down to fit instead, it
+     put "0 x 0 is more than a browser will paint" on screen. */
+  const said = { width: Math.round(num(widthIn)), height: Math.round(num(heightIn)) };
+  const asked = {
+    width: said.width > 0 ? said.width : 1000,
+    height: said.height > 0 ? said.height : 1000,
+  };
+  let w = clamp(asked.width, 1, MAX_SIDE);
+  let h = clamp(asked.height, 1, MAX_SIDE);
+  if (w * h > MAX_AREA) {
+    const k = Math.sqrt(MAX_AREA / (w * h));
+    w = Math.max(1, Math.floor(w * k));
+    h = Math.max(1, Math.floor(h * k));
+  }
+  const capped = w !== asked.width || h !== asked.height;
+
+  const base = baseIn.value;
+  const rgb = hexToRgb(base) || { r: 26, g: 122, b: 224 };
+  const hsl = toHsl(rgb);
+
+  const shorter = Math.min(w, h);
+  const d = shorter * num(el("orbSize")) / 100;
+  const r = d / 2;
+  const cx = w / 2;
+  const cy = h / 2;
+
+  /* The highlight is given in shares of the orb, never in pixels, which is
+     the whole reason a setting that looks right at 1000 still looks right at
+     4000. The guide's own numbers are pixels at one size and do not. */
+  const hlW = d * num(el("hlWidth")) / 100;
+  const hlH = d * num(el("hlHeight")) / 100;
+  const hlTop = cy - r + d * num(el("hlTop")) / 100;
+  const hlFade = Math.max(1, hlH * num(el("hlFade")) / 100);
+
+  const glowR = r * num(el("glowSize")) / 100;
+  const glowY = cy + r * num(el("glowDrop")) / 100;
+
+  return {
+    width: w, height: h, asked, capped,
+    base, saturation: Number(hsl.s.toFixed(1)), lightness: Number(hsl.l.toFixed(1)),
+    flat: hsl.s >= 97 && hsl.l > 15 && hsl.l < 85,
+    opacity: num(el("opacity")),
+    size: num(el("orbSize")),
+    diameter: Number(d.toFixed(2)), cx, cy, radius: r,
+    background: bgIn.value,
+    transparent: transparentIn.checked && formatEntry().alpha,
+    transparentAsked: transparentIn.checked,
+    textureBlur: num(el("textureBlur")),
+    highlight: {
+      strength: num(el("hlStrength")), width: hlW, height: hlH,
+      top: hlTop, fade: hlFade, blur: d * num(el("hlBlur")) / 1000,
+    },
+    bloom: {
+      strength: num(el("glowStrength")), radius: glowR, y: glowY,
+      blur: d * num(el("glowBlur")) / 100, blend: blendSel.value,
+    },
+    format: formatEntry().name,
+    quality: formatEntry().lossy ? num(qualityIn) : null,
+  };
+}
+
+const circle = (c, x, y, rad) => { c.beginPath(); c.arc(x, y, rad, 0, Math.PI * 2); c.closePath(); };
+
+/* The six steps, in order, on the orb's own canvas. The canvas on screen
+   never sees these three layers one at a time, only the finished orb laid
+   down in a single pass — which is what the opacity knob is: half of the
+   orb, not half of each layer. */
+function drawOrb(c, p) {
+  c.clearRect(0, 0, p.width, p.height);
+
+  /* 1. The colour. */
+  c.fillStyle = p.base;
+  circle(c, p.cx, p.cy, p.radius);
+  c.fill();
+
+  /* 4, 5, 6. The bloom: a larger white circle low in the orb, blurred, and
+     mixed in on Overlay. Clipped, because a blur is wider than the thing it
+     blurs and the halo it would otherwise leave outside the orb is the
+     difference between glass and a badly cut-out sticker. */
+  if (p.bloom.strength > 0 && p.bloom.radius > 0) {
+    c.save();
+    circle(c, p.cx, p.cy, p.radius);
+    c.clip();
+    c.globalCompositeOperation = p.bloom.blend;
+    c.globalAlpha = p.bloom.strength / 100;
+    if (p.bloom.blur > 0) c.filter = "blur(" + p.bloom.blur.toFixed(2) + "px)";
+    c.fillStyle = "#ffffff";
+    circle(c, p.cx, p.bloom.y, p.bloom.radius);
+    c.fill();
+    c.restore();
+  }
+
+  /* 2 and 3. The reflection: a wide, shallow ellipse with a gradient mask
+     running down from its top edge. It is built on a canvas of its own
+     because `destination-in` eats whatever it is pointed at, and pointing it
+     at the orb would take the colour with it. */
+  if (p.highlight.strength > 0 && p.highlight.width > 0 && p.highlight.height > 0) {
+    hl.width = p.width;
+    hl.height = p.height;
+    hlCtx.clearRect(0, 0, p.width, p.height);
+    hlCtx.save();
+    if (p.highlight.blur > 0) hlCtx.filter = "blur(" + p.highlight.blur.toFixed(2) + "px)";
+    hlCtx.fillStyle = "#ffffff";
+    hlCtx.beginPath();
+    hlCtx.ellipse(p.cx, p.highlight.top + p.highlight.height / 2,
+      p.highlight.width / 2, p.highlight.height / 2, 0, 0, Math.PI * 2);
+    hlCtx.fill();
+    hlCtx.restore();
+
+    const mask = hlCtx.createLinearGradient(0, p.highlight.top, 0,
+      p.highlight.top + p.highlight.fade);
+    mask.addColorStop(0, "rgba(255,255,255," + (p.highlight.strength / 100) + ")");
+    mask.addColorStop(1, "rgba(255,255,255,0)");
+    hlCtx.globalCompositeOperation = "destination-in";
+    hlCtx.fillStyle = mask;
+    hlCtx.fillRect(0, 0, p.width, p.height);
+    hlCtx.globalCompositeOperation = "source-over";
+
+    c.save();
+    circle(c, p.cx, p.cy, p.radius);
+    c.clip();
+    c.drawImage(hl, 0, 0);
+    c.restore();
+  }
+}
+
+function render() {
+  const p = makePlan();
+  lastPlan = p;
+
+  if (canvas.width !== p.width) canvas.width = p.width;
+  if (canvas.height !== p.height) canvas.height = p.height;
+  orb.width = p.width;
+  orb.height = p.height;
+
+  ctx.clearRect(0, 0, p.width, p.height);
+  if (!p.transparent) {
+    ctx.fillStyle = p.background;
+    ctx.fillRect(0, 0, p.width, p.height);
+  }
+
+  if (texture) {
+    /* Cover, so the texture keeps the shape it arrived with, and overscanned
+       by the blur radius on every side: a blur samples past the edge of the
+       picture, where there is nothing, and a texture blurred at its own size
+       comes back with a pale border all the way round it. */
+    const blur = p.textureBlur / 100 * Math.min(p.width, p.height) * 0.12;
+    const pad = blur * 3;
+    const scale = Math.max((p.width + pad * 2) / texture.w, (p.height + pad * 2) / texture.h);
+    const dw = texture.w * scale;
+    const dh = texture.h * scale;
+    ctx.save();
+    if (blur > 0) ctx.filter = "blur(" + blur.toFixed(2) + "px)";
+    ctx.drawImage(texture.bitmap, (p.width - dw) / 2, (p.height - dh) / 2, dw, dh);
+    ctx.restore();
+  }
+
+  drawOrb(orbCtx, p);
+  ctx.save();
+  ctx.globalAlpha = p.opacity / 100;
+  ctx.drawImage(orb, 0, 0);
+  ctx.restore();
+
+  shotEl.classList.toggle("checker", p.transparent);
+  sayFigures(p);
+  renders++;
+  return p;
+}
+
+/* ------------------------------------------------------------ the figures -- */
+
+function sayFigures(p) {
+  const bits = [
+    ["canvas", p.width + " × " + p.height],
+    ["orb", Math.round(p.diameter) + " px across"],
+    ["colour", p.base],
+    ["saturation", p.saturation + "%"],
+    ["opacity", p.opacity + "%"],
+    /* A texture is drawn over the colour, so a canvas with one on it has a
+       picture behind the orb whatever the transparent box says — that box
+       only turns the colour layer off. Reading it the other way round said
+       "nothing" about a canvas with a photograph on it. */
+    ["behind", texture ? texture.name
+      : (p.transparent ? "nothing" : p.background)],
+  ];
+  figuresEl.replaceChildren(...bits.map(([k, v]) => {
+    const span = document.createElement("span");
+    span.append(k + " ");
+    const b = document.createElement("b");
+    b.textContent = v;
+    span.append(b);
+    return span;
+  }));
+
+  satNote.hidden = !p.flat;
+  if (p.flat) {
+    satNote.replaceChildren("A fully saturated colour has nowhere left to "
+      + "brighten into, so the highlight flattens against it.");
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "ghost";
+    button.textContent = "Ease it off";
+    button.addEventListener("click", () => {
+      const hsl = toHsl(hexToRgb(baseIn.value));
+      baseIn.value = hslToHex(hsl.h, 85, hsl.l);
+      render();
+    });
+    satNote.append(button);
+  }
+
+  if (p.capped) {
+    setStatus(p.asked.width + " × " + p.asked.height + " is more than a browser "
+      + "will paint, so the canvas came down to " + p.width + " × " + p.height + ".", true);
+  } else if (p.transparentAsked && !p.transparent) {
+    setStatus("A " + p.format + " has no transparency, so the orb is flattened onto "
+      + p.background + " instead.");
+  } else {
+    setStatus("");
+  }
+}
+
+/* --------------------------------------------------------------- the save -- */
+
+/* What the page would call the file. Wanted by the button and by an `--out`
+   naming a directory rather than a file, so it is said in one place. */
+function saveName(ext = formatEntry().ext) {
+  return "orb-" + baseIn.value.replace("#", "").toLowerCase() + "." + ext;
+}
+
+async function bytes() {
+  const f = formatEntry();
+  const q = clamp(num(qualityIn) || 92, 20, 100) / 100;
+  const blob = await new Promise((settle) => {
+    canvas.toBlob(settle, f.type, f.lossy ? q : undefined);
+  });
+  if (!blob) throw new Error("this browser would not write a " + f.name);
+  /* A browser that cannot write WebP hands back a PNG under the type it was
+     asked for rather than refusing, so the blob is asked what it is. */
+  if (blob.type && blob.type !== f.type) {
+    throw new Error("this browser wrote a " + blob.type.replace("image/", "")
+      + " when asked for a " + f.name + " — pick another format");
+  }
+  return blob;
+}
+
+async function save() {
+  try {
+    const blob = await bytes();
+    const name = saveName();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = name;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    setStatus("Saved " + name + " — " + (blob.size / 1024).toFixed(0) + " kB.");
+  } catch (err) {
+    setStatus(err.message, true);
+  }
+}
+
+/* ------------------------------------------------------------- the texture -- */
+
+async function openTexture(file) {
+  if (!file || !/^image\//.test(file.type)) {
+    throw new Error("that is not a picture this page can open");
+  }
+  const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+  texture = { bitmap, name: file.name, w: bitmap.width, h: bitmap.height };
+  dropText.textContent = file.name + "  ·  " + bitmap.width + " × " + bitmap.height;
+  clearTextureBtn.disabled = false;
+  render();
+  return texture;
+}
+
+function clearTexture() {
+  texture = null;
+  textureFile.value = "";
+  dropText.textContent = "Drop a texture, or click to choose one";
+  clearTextureBtn.disabled = true;
+  render();
+}
+
+/* ------------------------------------------------------------------ wiring -- */
+
+function fillSelects() {
+  let group = null;
+  for (const s of SIZES) {
+    if (s.group !== (group && group.label)) {
+      group = document.createElement("optgroup");
+      group.label = s.group;
+      presetSel.append(group);
+    }
+    const o = document.createElement("option");
+    o.value = s.w + "x" + s.h;
+    o.textContent = s.label + (s.note ? "  ·  " + s.note : "");
+    group.append(o);
+  }
+  for (const b of BLENDS) {
+    const o = document.createElement("option");
+    o.value = b.name;
+    o.textContent = b.label;
+    blendSel.append(o);
+  }
+  blendSel.value = BLENDS[0].name;
+  for (const f of FORMATS) {
+    const o = document.createElement("option");
+    o.value = f.type;
+    o.textContent = f.name + "  ·  " + f.note;
+    formatSel.append(o);
+  }
+  formatSel.value = FORMATS[0].type;
+
+  for (const hex of CHIPS) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.style.background = hex;
+    b.title = hex;
+    b.setAttribute("aria-label", "Use " + hex);
+    b.addEventListener("click", () => { baseIn.value = hex; render(); });
+    el("chips").append(b);
+  }
+}
+
+/* A canvas asked for by name rather than by two numbers: a geometry, one of
+   the aliases, or a preset's own label. Which names there are is the page's
+   business and not a terminal's, so the command line hands the string over as
+   it was typed and this is what resolves it or refuses it — the same bargain
+   uncrop.html's --canvas strikes, for the same reason. */
+function resolveCanvas(said) {
+  const want = String(said).trim().toLowerCase();
+  const geometry = /^(\d+)\s*[x×*]\s*(\d+)$/.exec(want);
+  if (geometry) return { w: Number(geometry[1]), h: Number(geometry[2]) };
+  const hit = SIZES.find((s) => (s.alias || "").toLowerCase() === want
+    || s.label.toLowerCase().replace(/\s+/g, "") === want.replace(/\s+/g, "")
+    || (s.w + "x" + s.h) === want);
+  if (hit) return { w: hit.w, h: hit.h };
+  const names = SIZES.map((s) => s.w + "x" + s.h + (s.alias ? " (" + s.alias + ")" : ""));
+  throw new Error('no canvas called "' + said + '" — give it as 1920x1080, or '
+    + "use one of " + names.join(", "));
+}
+
+function syncPreset() {
+  const want = widthIn.value + "x" + heightIn.value;
+  const has = Array.from(presetSel.options).some((o) => o.value === want);
+  if (!has && !presetSel.querySelector('option[value=""]')) {
+    const o = document.createElement("option");
+    o.value = "";
+    o.textContent = "Your own size";
+    presetSel.prepend(o);
+  }
+  presetSel.value = has ? want : "";
+}
+
+function syncQuality() {
+  qualityFld.hidden = !formatEntry().lossy;
+}
+
+function syncOutputs() {
+  for (const id of SLIDERS) el(id + "Out").textContent = el(id).value;
+}
+
+fillSelects();
+syncPreset();
+syncQuality();
+syncOutputs();
+
+for (const id of SLIDERS) {
+  el(id).addEventListener("input", () => { syncOutputs(); render(); });
+}
+for (const box of [baseIn, bgIn, transparentIn, blendSel]) {
+  box.addEventListener("input", render);
+  box.addEventListener("change", render);
+}
+formatSel.addEventListener("change", () => { syncQuality(); render(); });
+for (const box of [widthIn, heightIn]) {
+  box.addEventListener("input", () => { syncPreset(); render(); });
+}
+presetSel.addEventListener("change", () => {
+  if (!presetSel.value) return;
+  const [w, h] = presetSel.value.split("x");
+  widthIn.value = w;
+  heightIn.value = h;
+  render();
+});
+el("swapBtn").addEventListener("click", () => {
+  const w = widthIn.value;
+  widthIn.value = heightIn.value;
+  heightIn.value = w;
+  syncPreset();
+  render();
+});
+el("saveBtn").addEventListener("click", save);
+el("resetBtn").addEventListener("click", () => {
+  for (const box of document.querySelectorAll("input[type=range], input[type=color], input[type=number]")) {
+    box.value = box.defaultValue;
+  }
+  transparentIn.checked = false;
+  blendSel.value = BLENDS[0].name;
+  formatSel.value = FORMATS[0].type;
+  clearTexture();
+  syncPreset();
+  syncQuality();
+  syncOutputs();
+  render();
+});
+
+textureFile.addEventListener("change", () => {
+  const file = textureFile.files && textureFile.files[0];
+  if (file) openTexture(file).catch((e) => setStatus(e.message, true));
+});
+clearTextureBtn.addEventListener("click", clearTexture);
+
+for (const type of ["dragover", "dragenter"]) {
+  dropZone.addEventListener(type, (e) => { e.preventDefault(); dropZone.classList.add("drag"); });
+}
+dropZone.addEventListener("dragleave", () => dropZone.classList.remove("drag"));
+dropZone.addEventListener("drop", (e) => {
+  e.preventDefault();
+  dropZone.classList.remove("drag");
+  const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+  if (file) openTexture(file).catch((err) => setStatus(err.message, true));
+});
+document.addEventListener("paste", (e) => {
+  const file = [...(e.clipboardData ? e.clipboardData.files : [])][0];
+  if (file && file.type.startsWith("image/")) {
+    openTexture(file).catch((err) => setStatus(err.message, true));
+  }
+});
+
+/* ------------------------------------------------------------ the terminal -- */
+
+/* cli/README.md says what this is and why every job here is the page's own
+   controls and the page's own functions rather than a second copy of the
+   drawing. Exposed unconditionally; it adds nothing a page did not already
+   have. */
+window.CLI = {
+  page: "frutiger-orb",
+
+  /* Whether there is an answer on the canvas to ask about. `renders` moves on
+     every finished draw, which is what a runner handing a texture in waits
+     on — waiting on `ready` alone reads the picture before it. */
+  image() {
+    return {
+      ready: renders > 0,
+      failed: statusEl.classList.contains("error"),
+      renders,
+      note: statusEl.textContent.trim(),
+      texture: texture ? { name: texture.name, width: texture.w, height: texture.h } : null,
+    };
+  },
+
+  jobs: {
+    /* The canvas presets, the formats and the blend modes the page really
+       has, asked rather than copied, so one added here turns up at the
+       terminal without a second list to forget. */
+    sizes() {
+      return {
+        sizes: SIZES.map((s) => ({
+          name: s.w + "x" + s.h, width: s.w, height: s.h, label: s.label,
+          group: s.group, alias: s.alias || null, note: s.note || null,
+        })),
+        limits: { maxSide: MAX_SIDE, maxArea: MAX_AREA },
+        formats: FORMATS.map((f) => ({
+          name: f.name, ext: f.ext, type: f.type, lossy: f.lossy, alpha: f.alpha,
+          note: f.note,
+        })),
+        blends: BLENDS.map((b) => ({ name: b.name, label: b.label,
+          default: b.name === BLENDS[0].name })),
+        colours: CHIPS,
+      };
+    },
+
+    /* Back to no texture, which is the No texture button. */
+    clearTexture() {
+      clearTexture();
+      return { texture: null, background: bgIn.value };
+    },
+
+    /* The orb, drawn. Everything optional; what is left out is left at
+       whatever the page opens on, which is what the bare command means. */
+    async make(o = {}) {
+      if (o.canvas != null && (o.width != null || o.height != null)) {
+        throw new Error("--canvas and --width/--height both say how big, so "
+          + "give one or the other");
+      }
+      if (o.canvas != null) {
+        const got = resolveCanvas(o.canvas);
+        o = Object.assign({}, o, { width: got.w, height: got.h });
+      }
+      for (const [key, box] of [["width", widthIn], ["height", heightIn]]) {
+        if (o[key] == null) continue;
+        const n = Number(o[key]);
+        if (!Number.isInteger(n) || n < Number(box.min) || n > Number(box.max)) {
+          throw new Error("--" + key + " is a whole number from " + box.min
+            + " to " + box.max + ", not " + o[key]);
+        }
+        box.value = String(n);
+      }
+      syncPreset();
+
+      if (o.format != null) wantOption(formatSel, o.format, "format");
+      if (o.blend != null) wantOption(blendSel, o.blend, "blend mode");
+
+      for (const [key, id] of [
+        ["opacity", "opacity"], ["size", "orbSize"], ["textureBlur", "textureBlur"],
+        ["highlight", "hlStrength"], ["highlightWidth", "hlWidth"],
+        ["highlightHeight", "hlHeight"], ["highlightTop", "hlTop"],
+        ["highlightFade", "hlFade"], ["highlightBlur", "hlBlur"],
+        ["bloom", "glowStrength"], ["bloomSize", "glowSize"],
+        ["bloomDrop", "glowDrop"], ["bloomBlur", "glowBlur"],
+        ["quality", "quality"],
+      ]) {
+        if (o[key] == null) continue;
+        const box = el(id);
+        const n = Number(o[key]);
+        if (!Number.isFinite(n) || n < Number(box.min) || n > Number(box.max)) {
+          throw new Error("--" + key.replace(/[A-Z]/g, (c) => "-" + c.toLowerCase())
+            + " runs " + box.min + " to " + box.max + ", so " + o[key]
+            + " is off the end of it");
+        }
+        box.value = String(n);
+      }
+
+      for (const [key, box] of [["colour", baseIn], ["background", bgIn]]) {
+        if (o[key] == null) continue;
+        const rgb = hexToRgb(o[key]);
+        if (!rgb) {
+          throw new Error("--" + key + " wants a hex colour like #ff8800, not " + o[key]);
+        }
+        box.value = toHex(rgb.r, rgb.g, rgb.b);
+      }
+      if (o.transparent != null) transparentIn.checked = !!o.transparent;
+
+      syncQuality();
+      syncOutputs();
+      const p = render();
+
+      /* A slider rounds to its own step and clamps to its own ends without
+         saying so, so every figure here is read back off the controls by
+         `makePlan` rather than echoed from what was asked for. */
+      const answer = Object.assign({}, p, {
+        texture: texture
+          ? { name: texture.name, width: texture.w, height: texture.h } : null,
+        name: saveName(),
+        status: statusEl.textContent.trim(),
+        bytes: null,
+      });
+      /* A blob cannot survive the trip out of the tab, so the file leaves as
+         the numbers in it and the tool module is what writes them. */
+      if (o.bytes) {
+        const blob = await bytes();
+        answer.bytes = Array.from(new Uint8Array(await blob.arrayBuffer()));
+        answer.fileBytes = blob.size;
+      }
+      return answer;
+    },
+  },
+};
+
+/* ---------------------------------------------------------------- opening -- */
+
+render();
+})();
+</script>
+</body>
+</html>

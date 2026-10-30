@@ -140,8 +140,9 @@ const json = async (...args) => {
 {
   const got = await run();
   ok("with nothing asked for it lists what has a command line",
-    got.code === 0 && ["color-picker", "image-compressor", "playlist-to-audio",
-      "quote-maker", "ruler", "uncrop"].every((tool) => got.out.includes(tool)),
+    got.code === 0 && ["color-picker", "frutiger-orb", "image-compressor",
+      "playlist-to-audio", "quote-maker", "ruler", "uncrop"]
+      .every((tool) => got.out.includes(tool)),
     got.out.slice(0, 400));
   const help = await run("color-picker", "--help");
   ok("a tool's --help names its commands",
@@ -1582,6 +1583,191 @@ const ihdrOf = (file) => {
     `${inTab.width}x${inTab.height} / ${inTab.author}`);
 
   ok("no page errors from quote-maker.html", errs.length === 0, errs.join(" | "));
+  await browser.close();
+}
+
+/* --------------------------- the same answer as the tab, blowing an orb -- */
+
+/* frutiger-orb.html is six drawing steps whose every measurement is a share
+   of the orb, and the orb is a share of the shorter side of the canvas. That
+   is arithmetic anybody could redo in Node — which is exactly why nobody
+   should: two copies of "eighty per cent of the shorter side" drift the first
+   time one of them learns about a margin.
+
+   So the command is run against figures that are not in doubt — a 50% orb on
+   an 800 x 600 canvas is 300 pixels across, its bloom at 55% of the radius is
+   82.5, and the highlight at 72% of the diameter is 216 wide — and then the
+   page is opened, set to the same thing through its own boxes and sliders,
+   and asked what it made of it. The two have to agree to the pixel.
+
+   Nothing here needs the network: the page fetches nothing and the one
+   picture that goes in is painted at the top of this file. */
+{
+  const d = await json("frutiger-orb", "--canvas", "800x600", "--size", "50",
+    "--colour", "#1a7ae0");
+
+  ok("the canvas is the size it was asked for",
+    d.width === 800 && d.height === 600 && !d.capped, `${d.width}x${d.height}`);
+  ok("and the orb is half the shorter side, centred on it",
+    d.diameter === 300 && d.cx === 400 && d.cy === 300,
+    `${d.diameter} across at ${d.cx},${d.cy}`);
+  ok("the bloom and the highlight are shares of the orb, not pixel counts",
+    d.bloom.radius === 150 * 0.55 && d.highlight.width === 300 * 0.72
+      && d.highlight.height === 300 * 0.48,
+    `bloom r${d.bloom.radius}, highlight ${d.highlight.width}x${d.highlight.height}`);
+  ok("the colour went in and came back with what the page makes of it",
+    d.base === "#1a7ae0" && d.saturation === 79.2 && d.flat === false,
+    `${d.base} at ${d.saturation}%`);
+  ok("and nothing is written without --out",
+    d.wrote === null && d.name === "orb-1a7ae0.png", String(d.wrote));
+
+  /* The page's own defaults, which is what a command that says nothing has
+     to be. Each of these is read off the control rather than echoed back. */
+  /* `--json` is the only flag here, which is also what makes this run at all:
+     run.mjs answers a command with no arguments and no flags with the help. */
+  const bare = await json("frutiger-orb");
+  ok("a command with nothing set is the page exactly as it opens",
+    bare.width === 1000 && bare.diameter === 800 && bare.base === "#1a7ae0"
+      && bare.opacity === 100 && bare.background === "#ffffff"
+      && bare.bloom.blend === "overlay" && bare.format === "PNG",
+    JSON.stringify({ w: bare.width, d: bare.diameter, c: bare.base,
+      blend: bare.bloom.blend }));
+
+  /* The page resolves the names, so these are the page's answers and not a
+     copy of the list kept here. */
+  const sizes = await json("frutiger-orb", "sizes");
+  ok("sizes lists the presets, the formats and the blend modes together",
+    sizes.sizes.some((x) => x.alias === "4k") && sizes.formats.length === 3
+      && sizes.blends.some((b) => b.name === "overlay" && b.default)
+      && sizes.limits.maxArea === 268435456,
+    `${sizes.sizes.length} sizes, ${sizes.blends.length} blends`);
+
+  const badBlend = await run("frutiger-orb", "--blend", "rainbow");
+  ok("a blend mode the canvas has not got is refused in the page's own words",
+    badBlend.code === 1 && /no blend mode called "rainbow"/.test(badBlend.err)
+      && /soft-light/.test(badBlend.err), badBlend.err.trim().slice(0, 140));
+  const badSize = await run("frutiger-orb", "--canvas", "retina-ish");
+  ok("and so is a canvas it has not got",
+    badSize.code === 1 && /no canvas called/.test(badSize.err), badSize.err.trim().slice(0, 100));
+  const far = await run("frutiger-orb", "--opacity", "150");
+  ok("a slider asked for more than it has says where its end is",
+    far.code === 1 && /--opacity has to be between 0 and 100/.test(far.err),
+    far.err.trim());
+  const clash = await run("frutiger-orb", "--out", path.join(WORK, "o.jpg"),
+    "--format", "png");
+  ok("an ending and a --format that disagree are refused rather than resolved",
+    clash.code === 1 && /disagree about the format/.test(clash.err), clash.err.trim());
+  const stray = await run("frutiger-orb", "--colours", "#fff");
+  ok("a flag that is nearly a flag is a sentence naming the real one",
+    stray.code === 1 && /no flag called --colours/.test(stray.err)
+      && /--colour/.test(stray.err), stray.err.trim());
+
+  /* --out, under the three rules image-compressor settled. */
+  const file = path.join(WORK, "cli-orb.png");
+  fs.rmSync(file, { force: true });
+  const wrote = await json("frutiger-orb", "--canvas", "640x480", "--out", file);
+  const png = fs.readFileSync(file);
+  ok("--out <file> writes a PNG the size of the canvas",
+    png.readUInt32BE(16) === 640 && png.readUInt32BE(20) === 480
+      && png.length === wrote.fileBytes,
+    `${png.readUInt32BE(16)}x${png.readUInt32BE(20)}, ${png.length} bytes`);
+
+  const dir = path.join(WORK, "cli-orbs");
+  fs.rmSync(dir, { recursive: true, force: true });
+  fs.mkdirSync(dir, { recursive: true });
+  const intoDir = await json("frutiger-orb", "--canvas", "320x240",
+    "--colour", "#e04b3c", "--format", "webp", "--out", dir + path.sep);
+  ok("--out <dir>/ writes it under the name the page's own Save would give it",
+    intoDir.name === "orb-e04b3c.webp" && magic(path.join(dir, intoDir.name)) === "webp",
+    intoDir.name);
+
+  /* A texture of its own, through the page's own file input. The bands
+     picture is 600 x 300, so covering a 300-pixel square scales it by one and
+     is cropped left and right rather than squashed. */
+  const withTexture = await json("frutiger-orb", "--canvas", "300x300",
+    "--texture", PICTURE, "--size", "20");
+  ok("--texture <file> goes in through the page's own file input",
+    withTexture.texture && withTexture.texture.width === 600
+      && withTexture.texture.height === 300, JSON.stringify(withTexture.texture));
+
+  /* `--transparent` takes no value, so it must not swallow the word after it;
+     and the file it writes has to really have nothing behind the orb, which
+     is a question for the pixels and not for the JSON. */
+  const clear = path.join(WORK, "cli-orb-clear.png");
+  fs.rmSync(clear, { force: true });
+  const clearSaid = await json("frutiger-orb", "--transparent", "--canvas", "240x240",
+    "--out", clear);
+  ok("--transparent did not swallow the flag after it",
+    clearSaid.transparent === true && clearSaid.width === 240, JSON.stringify(clearSaid.asked));
+
+  const flat = await json("frutiger-orb", "--transparent", "--format", "jpeg",
+    "--canvas", "240x240");
+  ok("and a JPEG is told it cannot have any, in a sentence",
+    flat.transparentAsked && flat.transparent === false
+      && /no transparency/.test(flat.status), flat.status);
+
+  /* And now the page itself, driven by hand: the same canvas, the same orb,
+     set through the boxes and the sliders rather than through the hook. */
+  const browser = await chromium.launch({ executablePath: CHROMIUM_BIN });
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 1000 } });
+  const page = await ctx.newPage();
+  const errs = [];
+  page.on("pageerror", (e) => errs.push("pageerror: " + e.message));
+  page.on("console", (m) => {
+    if (m.type() === "error" && !/favicon|404/.test(m.text())) errs.push(m.text());
+  });
+
+  await page.goto(pathToFileURL(path.join(REPO, "frutiger-orb.html")).href);
+  await page.waitForFunction(() => window.CLI && window.CLI.image().renders > 0);
+  await page.fill("#width", "800");
+  await page.fill("#height", "600");
+  /* A range input is not one Playwright will `fill`, so the slider is moved
+     the way the page's own listener hears it. */
+  await page.evaluate(() => {
+    const s = document.getElementById("orbSize");
+    s.value = "50";
+    s.dispatchEvent(new Event("input"));
+  });
+
+  const inTab = await page.evaluate(async () => {
+    /* The page's own figures, asked for the way the page asks itself — no
+       settings handed in, so this is purely what the controls above say. */
+    const p = await window.CLI.jobs.make({});
+    return { width: p.width, height: p.height, diameter: p.diameter,
+      radius: p.radius, cx: p.cx, cy: p.cy, base: p.base,
+      saturation: p.saturation, highlight: p.highlight, bloom: p.bloom,
+      name: p.name };
+  });
+
+  ok("the tab blows the same orb at the same size as the terminal",
+    inTab.width === d.width && inTab.height === d.height
+      && inTab.diameter === d.diameter && inTab.radius === d.radius,
+    `tab ${inTab.width}x${inTab.height}/${inTab.diameter}, terminal ${d.width}x${d.height}/${d.diameter}`);
+  ok("and puts the highlight and the bloom in the same places",
+    JSON.stringify(inTab.highlight) === JSON.stringify(d.highlight)
+      && JSON.stringify(inTab.bloom) === JSON.stringify(d.bloom),
+    `${JSON.stringify(inTab.bloom)} against ${JSON.stringify(d.bloom)}`);
+  ok("and would write the file under the same name",
+    inTab.name === d.name && inTab.saturation === d.saturation,
+    `${inTab.name} against ${d.name}`);
+
+  /* The transparent PNG the command wrote, read back by the one thing in
+     this repository that can read a PNG — the browser the page runs in. */
+  const back = await page.evaluate(async (arr) => {
+    const bmp = await createImageBitmap(new Blob([new Uint8Array(arr)]));
+    const c = document.createElement("canvas");
+    c.width = bmp.width; c.height = bmp.height;
+    const g = c.getContext("2d");
+    g.drawImage(bmp, 0, 0);
+    const px = (x, y) => Array.from(g.getImageData(x, y, 1, 1).data);
+    return { width: bmp.width, height: bmp.height,
+      corner: px(2, 2), middle: px(bmp.width >> 1, bmp.height >> 1) };
+  }, Array.from(fs.readFileSync(clear)));
+  ok("the file --transparent wrote really has nothing behind the orb",
+    back.width === 240 && back.corner[3] === 0 && back.middle[3] === 255,
+    JSON.stringify([back.corner, back.middle]));
+
+  ok("no page errors from frutiger-orb.html", errs.length === 0, errs.join(" | "));
   await browser.close();
 }
 

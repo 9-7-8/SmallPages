@@ -499,7 +499,42 @@ to remember that it happened.
       because an answer that depends on what was showing first is not an
       answer a seed can promise. That difference cost a check.
 
-Six of the forty-nine pages in the index. The rest are below, grouped by the
+- [x] **`frutiger-orb.html`** &mdash; `--colour --opacity --size --canvas
+      --width --height --background --transparent --texture --texture-blur
+      --highlight --highlight-width --highlight-height --highlight-top
+      --highlight-fade --highlight-blur --bloom --bloom-size --bloom-drop
+      --bloom-blur --blend --out --format --quality`, plus `sizes`.
+
+      ```
+      node cli/run.mjs frutiger-orb --colour "#1a7ae0" --texture sky.jpg \
+        --opacity 70 --out orb.png
+      ```
+
+      The first with no file *required* at either end and a file written all
+      the same: the page draws an orb the moment it opens, so there is no
+      "just do it" button to copy and a command with nothing set is simply
+      the page as it opens. `run.mjs` answers a command with no arguments and
+      no flags with the help, so the nearest thing to a bare run is `--json`
+      on its own, which is worth knowing before writing a check around it.
+
+      Every flag here is a share of something rather than a measurement &mdash;
+      the highlight is a percentage of the orb, the orb a percentage of the
+      shorter side of the canvas, the blurs a percentage of the orb &mdash;
+      which is what makes one set of settings the same orb at 512 pixels and
+      at 4000, and it is why the figures printed are the ones `makePlan` on
+      the page worked out rather than the ones that were typed. `--blend` and
+      `--canvas` are handed over as they were typed for the page to resolve
+      or refuse, the way `uncrop`'s presets and `quote-maker`'s faces are;
+      `sizes` asks the page for all three lists at once, the presets, the
+      formats and the modes.
+
+      `--transparent` is a boolean, so it is in `booleans` and cannot swallow
+      the flag after it. It is also the one flag the page is allowed to
+      overrule: a JPEG has no alpha, so for one of those the orb is flattened
+      onto `--background` and the answer says so in a sentence rather than
+      writing a file with a black square in it.
+
+Seven of the fifty-one pages in the index. The rest are below, grouped by the
 shape of the work rather than by where they sit in the hub, because pages of
 the same shape are the same job twice and the second one is an afternoon.
 

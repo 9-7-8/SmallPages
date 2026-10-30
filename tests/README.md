@@ -252,6 +252,51 @@ Suites are named for the page they exercise. The ones worth knowing about:
   check so much as detonate: `Tainted canvases may not be exported`, from
   inside the save, which is precisely the bug the page is shaped to avoid.
 
+- **`test-orb.mjs`** — the Frutiger orb, where every claim the page makes is
+  about compositing and none of it can be seen in the plan that produced it.
+  The six drawing steps are read back off the canvas: the base colour where
+  neither white layer reaches, the reflection against the same orb with the
+  reflection turned off, the bloom the same way, and the gradient mask as the
+  difference between the top of the ellipse and the bottom of it.
+
+  Two of the checks are arithmetic rather than comparison, and they are the
+  ones worth copying. The orb is composited as a single layer, so at half
+  opacity every pixel inside it must be exactly halfway between the opaque
+  orb and the background — measured at three places at once, so that fading
+  the layers one at a time (which looks perfectly plausible on screen) comes
+  out as the wrong number rather than as a matter of taste. And a texture is
+  cropped to *cover*, so the seam in a two-colour picture has to land where
+  covering puts it.
+
+  The deliberate-breakage pass found three things, all of the kind that only
+  that pass finds. The clip checks caught the right breakages for the wrong
+  reasons: both white layers were leaking past the orb in the same place, so
+  an unclipped *highlight* failed the check with *bloom* in its name while
+  the highlight's own check passed. They now turn the other layer off, so a
+  failure names the clip that went. And the cover check was a tautology: the
+  seam in the test picture was in the middle of it, which is a fixed point of
+  both mappings — squashing the picture to fit moved nothing, and the check
+  passed. The seam is off centre now, where cover puts it at 875 and a squash
+  would put it at 687.
+
+  The third was a hole rather than a mistake. The page's whole claim about
+  sizes is that every measurement is a share of the orb, so one set of
+  settings is the same orb at 512 pixels and at 4000 — and making the bloom's
+  blur a fixed number of pixels instead passed all fifty-eight checks there
+  were. What catches it now draws the same settings four times apart in size,
+  scales both canvases down to the same small square and compares them pixel
+  for pixel. The blurs have to be turned well up for it: at the seven per
+  cent the page opens on, the bloom is nearly sharp at any size and a blur
+  fixed in pixels is invisible either way, which is a check that would have
+  passed on a broken page. At forty per cent the honest pair is 0.38 levels
+  apart and the broken one 2.89, with a null measurement beside it.
+
+  What is not checked here: whether it looks like 2006. The two caps on the
+  canvas size are reached by typing into the number box rather than through
+  the hook, because the hook refuses at the page's own stated limit and a
+  number input refuses nothing — without that they are code nothing can
+  reach.
+
 - **`test-noise*.mjs`, `test-breath.mjs`** — the noise machine's nine lanes.
   Loop seams measured as a sample step against the signal's own typical step,
   isochronic envelopes against the formula they claim to implement, breath
