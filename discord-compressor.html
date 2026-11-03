@@ -116,10 +116,11 @@
   <h1>Discord Compressor</h1>
   <p class="lede">A file too big for the upload box, brought under it. A video is re-encoded
   &mdash; a different codec, fewer pixels, fewer frames a second, quieter audio, whichever of
-  those you want &mdash; at a bitrate worked backwards from the size you have to hit. A picture
-  is re-encoded the same way. Anything else is deflated, and split into parts if even that will
-  not do it. All of it in the tab: nothing is uploaded to anybody, which rather defeats the
-  object otherwise.</p>
+  those you want &mdash; at a bitrate worked backwards from the size you have to hit, in
+  whichever of H.264, VP9, AV1, HEVC and VP8 your browser will write, so it works on a phone as
+  well as at a desk. A picture is re-encoded the same way. Anything else is deflated, and split
+  into parts if even that will not do it. All of it in the tab: nothing is uploaded to anybody,
+  which rather defeats the object otherwise.</p>
 
   <div class="card">
     <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Choose a file">
@@ -173,6 +174,11 @@
           <label for="codecSel">Codec</label>
           <select id="codecSel"></select>
           <span class="unit" id="codecNote"></span>
+        </div>
+        <div class="field" id="boxField">
+          <label for="boxSel">In a</label>
+          <select id="boxSel"></select>
+          <span class="unit" id="boxNote"></span>
         </div>
         <div class="field" id="soundField">
           <label for="soundSel">Sound</label>
@@ -291,13 +297,26 @@
   bitrate it leaves with, and the line under the controls says when that ceiling is the one
   doing the work rather than the limit.</p>
 
-  <p class="note"><strong>It writes WebM.</strong> VP9, VP8 or AV1 for the picture and Opus for
-  the sound, because those are what a browser's own encoders will write and this page has no
-  encoder of its own. Discord plays WebM in its own player on every platform it has. What it is
-  not is an MP4, so a file meant to be passed on somewhere else afterwards &mdash; into a video
-  editor, onto a console, into something from 2009 &mdash; may want converting again at the far
-  end. H.264 is missing for the same reason: writing one needs an MP4 container, and there
-  isn't one here.</p>
+  <p class="note"><strong>It writes whatever this browser will write.</strong> The codec box is
+  built by asking the browser's own encoder, one codec at a time, which of them it will take
+  &mdash; and the container follows from that, because the two are not independent. H.264 and
+  HEVC can only go in an MP4; VP8 can only go in a WebM; VP9 and AV1 go in either, and there
+  the box beside the codec is yours to pick. VP9 in a WebM is the smallest file for the
+  quality, which is why it is the default where it exists. H.264 in an MP4 is the one
+  everything on earth will open, and on an iPhone or an iPad it is the only thing there is:
+  every browser on iOS is Safari underneath, and Safari's encoder writes H.264 and HEVC and
+  nothing else. A page that offered VP9 alone &mdash; which is what this one did until somebody
+  tried it on a phone &mdash; simply said "no video encoder" to half the people who needed
+  it.</p>
+
+  <p class="note"><strong>What your browser will actually do.</strong> Nothing above is a list
+  of browsers, because a list of browsers goes out of date between one release and the next and
+  cannot be checked from here anyway. Every codec is asked for by name, at the size and bitrate
+  about to be used, and only the ones that answer yes are offered. If the box says there is
+  nothing, that is the browser's own answer and not a guess about it &mdash; and
+  <code>node cli/run.mjs discord-compressor limits</code> prints every string that was tried
+  and what came back, which is the thing to read out when a file that compresses on one machine
+  will not compress on another.</p>
 
   <p class="note"><strong>Reading the video is the slow part.</strong> The page steps through
   the source a frame at a time, seeking to each one and drawing it, because that is the only way
@@ -316,10 +335,10 @@
   cannot play and a picture it cannot decode come out the other end as a file to deflate or
   split &mdash; and it says that is what happened, naming the decoder rather than filing your
   clip under "a bag of bytes", because a browser without H.264 is a browser that will not open
-  most MP4s. Safari and Firefox have no <code>VideoEncoder</code> at the time of writing, so
-  the moving-picture half of this page is Chromium-only; the picture, sound and file halves are
-  not. An animated GIF or WebP needs <code>ImageDecoder</code> to be read frame by frame, which
-  is the same story.</p>
+  most MP4s. An animated GIF or WebP needs <code>ImageDecoder</code> to be read frame by frame,
+  and Safari has not got one, so on an iPhone an animation is recognised from its bytes and you
+  are told that compressing it here would leave you with its first frame &mdash; which is worth
+  a sentence rather than a surprise.</p>
 
   <p class="note"><strong>Splitting is not compression.</strong> It is the last thing on the
   list for a reason: the parts are useless until somebody puts them back together, and that
@@ -329,6 +348,7 @@
 </main>
 
 <script src="vendor/webm-muxer/webm-muxer.js"></script>
+<script src="vendor/mp4-muxer/mp4-muxer.js"></script>
 <script>
 "use strict";
 
@@ -437,7 +457,10 @@ async function inspect(file) {
       return { ...common, kind: "animation", width: still.width, height: still.height,
                frames: reel.count, duration: reel.duration, bitmap: still, reel };
     }
-    return { ...common, kind: "image", width: still.width, height: still.height, bitmap: still };
+    /* No reel, but the bytes may still say there was one to read. */
+    const moving = looksAnimated(new Uint8Array(await file.slice(0, 1 << 20).arrayBuffer()));
+    return { ...common, kind: "image", width: still.width, height: still.height,
+             bitmap: still, lostAnimation: moving };
   }
 
   const media = await mediaOf(file);
@@ -514,6 +537,44 @@ async function mediaOf(file) {
   }
 }
 
+/* Whether a picture is animated, read off the bytes rather than off a
+   decoder. `ImageDecoder` is the only thing that can pull the frames out and
+   Safari has not got one, so without this an animated GIF handed in on a
+   phone decodes as its first frame, gets re-encoded as a still, and comes
+   back as a picture of the animation somebody wanted. Nothing says a word.
+
+   The tests are the ones every file-type sniffer uses: a GIF with more than
+   one graphic control extension in it, a WebP with an ANIM chunk, a PNG with
+   an acTL. They can be fooled by a file that carries those bytes for another
+   reason, which costs a sentence saying the animation may be lost — a great
+   deal better than losing it in silence. */
+function looksAnimated(bytes) {
+  const head = new TextDecoder("latin1").decode(bytes.subarray(0, 4));
+  if (head === "GIF8") {
+    let seen = 0;
+    for (let i = 0; i + 2 < bytes.length; i++) {
+      if (bytes[i] === 0x21 && bytes[i + 1] === 0xf9 && bytes[i + 2] === 0x04) {
+        if (++seen > 1) return true;
+      }
+    }
+    return false;
+  }
+  if (head === "RIFF") {
+    const tag = new TextDecoder("latin1").decode(bytes.subarray(8, 12));
+    if (tag !== "WEBP") return false;
+    const near = new TextDecoder("latin1").decode(bytes.subarray(12, 512));
+    return near.includes("ANIM") || near.includes("ANMF");
+  }
+  if (bytes[0] === 0x89 && head.slice(1) === "PNG") {
+    /* acTL comes before the first IDAT in any APNG worth the name. */
+    const near = new TextDecoder("latin1").decode(bytes.subarray(8, 4096));
+    const act = near.indexOf("acTL");
+    const dat = near.indexOf("IDAT");
+    return act !== -1 && (dat === -1 || act < dat);
+  }
+  return false;
+}
+
 /* An animated GIF, WebP or APNG, read through `ImageDecoder` because a
    `<video>` will not play one. The frame durations are the animation's own,
    so the length has to be summed out of them rather than asked for — which
@@ -564,7 +625,13 @@ function crc32(bytes) {
   return (c ^ 0xffffffff) >>> 0;
 }
 
+/* `null` where the browser has no CompressionStream, which is the signal to
+   store the bytes rather than to fail: a zip of stored entries is a real zip
+   and opens everywhere, it is just not any smaller. Chrome has had this
+   since 80 and Safari since 16.4, so it is mostly older phones that land
+   here. */
 async function deflateRaw(bytes) {
+  if (typeof CompressionStream === "undefined") return null;
   const stream = new Blob([bytes]).stream().pipeThrough(new CompressionStream("deflate-raw"));
   return new Uint8Array(await new Response(stream).arrayBuffer());
 }
@@ -577,7 +644,7 @@ async function deflateRaw(bytes) {
    bring somebody here. */
 async function zipOf(name, bytes, modified) {
   const squashed = await deflateRaw(bytes);
-  const deflated = squashed.length < bytes.length;
+  const deflated = !!squashed && squashed.length < bytes.length;
   const body = deflated ? squashed : bytes;
   const method = deflated ? 8 : 0;
   const entry = new TextEncoder().encode(name.replace(/[\\/]+/g, "_"));
@@ -633,6 +700,7 @@ async function zipOf(name, bytes, modified) {
   return {
     blob: new Blob([local, body, central, end], { type: "application/zip" }),
     deflated, stored: !deflated, method,
+    cannotDeflate: typeof CompressionStream === "undefined",
   };
 }
 
@@ -953,14 +1021,128 @@ async function animationSource(reel) {
 
 /* ----------------------------------------------------- moving pictures -- */
 
-const CODECS = [
-  { id: "vp9", name: "VP9", track: "V_VP9", codec: "vp09.00.10.08",
-    note: "the sensible default, and what Discord's player likes best" },
-  { id: "av1", name: "AV1", track: "V_AV1", codec: "av01.0.04M.08",
-    note: "the smallest at a given bitrate, and much the slowest to write" },
-  { id: "vp8", name: "VP8", track: "V_VP8", codec: "vp8",
+/* Every codec worth asking for, in both containers, because which of them a
+   browser will *encode* is nothing like which it will play and nothing like
+   what its name suggests.
+
+   This page shipped offering VP9, VP8 and AV1 and nothing else, which is
+   right for Chromium and useless on a phone: every browser on an iPhone is
+   Safari underneath, Safari's encoder is VideoToolbox, and VideoToolbox
+   writes H.264 and HEVC. So the page said "no video encoder" on the device
+   most of the files too big for Discord are sitting on. H.264 cannot go in a
+   WebM — the format does not allow it — so this is also why there are two
+   muxers downstairs.
+
+   Nothing here is a browser list. Each row is tried against the browser's
+   own `isConfigSupported` and kept only if it says yes, and `what()` below
+   reports what it said, so a device nobody here can test can still say for
+   itself what it will and will not do.
+
+   `tries` is several strings for one codec because a profile and a level are
+   part of the name and an encoder may take one and refuse another: Safari
+   wants a level its hardware will do, and at 4K that is not the level it
+   takes at 720p. They are tried in order at the size actually being encoded,
+   not at a nominal one. */
+const VIDEO_CODECS = [
+  { id: "vp9", name: "VP9", containers: ["webm", "mp4"], webm: "V_VP9", mp4: "vp9",
+    tries: ["vp09.00.10.08"],
+    note: "the best picture for the bytes, where a browser will write it" },
+  { id: "h264", name: "H.264", containers: ["mp4"], mp4: "avc",
+    tries: ["avc1.42002A", "avc1.4D002A", "avc1.640028", "avc1.42001F"],
+    note: "plays on everything, and the only one an iPhone or iPad will write" },
+  { id: "av1", name: "AV1", containers: ["webm", "mp4"], webm: "V_AV1", mp4: "av1",
+    tries: ["av01.0.04M.08"],
+    note: "smaller again at the same bitrate, and much the slowest to write" },
+  { id: "hevc", name: "HEVC", containers: ["mp4"], mp4: "hevc",
+    tries: ["hvc1.1.6.L93.B0", "hev1.1.6.L93.B0"],
+    note: "Apple's own, and smaller than H.264 — but Discord's own player is patchy with it" },
+  { id: "vp8", name: "VP8", containers: ["webm"], webm: "V_VP8",
+    tries: ["vp8"],
     note: "older and worse at the same bitrate; here for anything that chokes on VP9" },
 ];
+
+/* Which to open on. Smallest file first, because that is what the page is
+   for, except that AV1 is left below H.264: it is several times slower to
+   encode and the frames are already the slow part. On a browser that will
+   only write H.264 this falls through to it on its own. */
+const CODEC_ORDER = ["vp9", "h264", "av1", "vp8", "hevc"];
+
+const CONTAINERS = {
+  webm: { ext: "webm", type: "video/webm", name: "WebM" },
+  mp4: { ext: "mp4", type: "video/mp4", name: "MP4" },
+};
+
+/* Sound, the same way round. AAC is first in an MP4 because an MP4 with Opus
+   in it is a file Chrome and Firefox play and QuickTime does not, and the
+   point of reaching for an MP4 at all is that everything takes it. */
+const AUDIO_CODECS = [
+  { id: "aac", codec: "mp4a.40.2", containers: ["mp4"], name: "AAC" },
+  { id: "opus", codec: "opus", containers: ["webm", "mp4"], name: "Opus" },
+];
+
+/* What this browser said, asked once and remembered: the probe costs a
+   handful of promises and the answer cannot change while the page is open. */
+let ABLE = null;
+
+async function able() {
+  if (ABLE) return ABLE;
+  const video = [];
+  const asked = [];
+  if (typeof VideoEncoder !== "undefined") {
+    for (const codec of VIDEO_CODECS) {
+      for (const tried of codec.tries) {
+        const said = await VideoEncoder.isConfigSupported({
+          codec: tried, width: 1280, height: 720, bitrate: 1200000, framerate: 30,
+        }).catch(() => null);
+        asked.push({ codec: codec.id, tried, supported: !!(said && said.supported) });
+        if (said && said.supported) { video.push({ ...codec, string: tried }); break; }
+      }
+    }
+  }
+  const audio = [];
+  if (typeof AudioEncoder !== "undefined") {
+    for (const sound of AUDIO_CODECS) {
+      const said = await AudioEncoder.isConfigSupported({
+        codec: sound.codec, sampleRate: 48000, numberOfChannels: 2, bitrate: 64000,
+      }).catch(() => null);
+      asked.push({ codec: sound.id, tried: sound.codec, supported: !!(said && said.supported) });
+      if (said && said.supported) audio.push(sound);
+    }
+  }
+  ABLE = {
+    video, audio, asked,
+    videoEncoder: typeof VideoEncoder !== "undefined",
+    audioEncoder: typeof AudioEncoder !== "undefined",
+    imageDecoder: typeof ImageDecoder !== "undefined",
+    compression: typeof CompressionStream !== "undefined",
+  };
+  return ABLE;
+}
+
+/* The containers the codecs this browser has can be put in, in the order the
+   box should offer them. */
+function containersFor(codec) {
+  return codec ? codec.containers : [];
+}
+
+function audioFor(container) {
+  return (ABLE ? ABLE.audio : []).filter((a) => a.containers.includes(container))[0] || null;
+}
+
+/* The exact codec string to configure with, asked at the size actually being
+   encoded rather than at a nominal one — a level that is fine at 720p is not
+   always fine at 4K, and an encoder that refuses does it at `configure`,
+   which reports asynchronously and would otherwise come back as "the encoder
+   gave up" with nothing to act on. */
+async function codecStringFor(codec, w, h, bitrate, fps) {
+  for (const tried of codec.tries) {
+    const said = await VideoEncoder.isConfigSupported({
+      codec: tried, width: w, height: h, bitrate, framerate: fps,
+    }).catch(() => null);
+    if (said && said.supported) return tried;
+  }
+  return null;
+}
 
 /* Three bitrates, encoded at once off one read of the video, and the largest
    result that fits is kept.
@@ -970,34 +1152,23 @@ const CODECS = [
    at 74% of the figure it was asked for at a generous bitrate and 105% at a
    mean one, VP8 at 104–112%, AV1 at 97–121%. One encode at the computed
    bitrate would therefore miss the limit perhaps half the time, and the fix
-   everybody reaches for — encode, measure, encode again — costs a second read
-   of the source, which is 97% of the time this page spends. Encoding three
-   streams off the same frame costs about a fifth of one extra read. So the
-   rungs span the whole of that observed error, 0.62 covering an overshoot of
-   61%, and the answer is right the first time for anything short of white
-   noise. What happens when it is not is in `pass` below. */
+   everybody reaches for — encode, measure, encode again — costs a second
+   read of the source, which is 97% of the time this page spends. Encoding
+   three streams off the same frame costs about a fifth of one extra read. So
+   the rungs span the whole of that observed error, 0.62 covering an
+   overshoot of 61%, and the answer is right the first time for anything
+   short of white noise. What happens when it is not is in `pass` below. */
 const RUNGS = [1, 0.8, 0.62];
 
 /* Below this a picture is a smear of blocks and the honest thing is to say
    so rather than hand one over. */
 const MIN_VIDEO_BITRATE = 24000;
 
-async function usableCodecs() {
-  if (typeof VideoEncoder === "undefined") return [];
-  const out = [];
-  for (const c of CODECS) {
-    const asked = { codec: c.codec, width: 640, height: 360, bitrate: 400000, framerate: 30 };
-    const said = await VideoEncoder.isConfigSupported(asked).catch(() => null);
-    if (said && said.supported) out.push(c);
-  }
-  return out;
-}
-
 /* The sound, encoded once and handed to every rung, because only the picture
    differs between them. Returns the chunks rather than a file: they go into
    three muxers, and an EncodedAudioChunk can be read as many times as you
    like. */
-async function opusFor(file, want) {
+async function soundFor(file, want) {
   let buffer = null;
   try {
     /* 48 kHz because that is the rate Opus works in, and asking the context
@@ -1008,7 +1179,7 @@ async function opusFor(file, want) {
   } catch {
     return null;              // no sound in it, or none this browser can read
   }
-  if (typeof AudioEncoder === "undefined") return null;
+  if (typeof AudioEncoder === "undefined" || !want.codec) return null;
 
   const channels = want.mono ? 1 : Math.min(2, buffer.numberOfChannels);
   const lanes = [];
@@ -1033,10 +1204,12 @@ async function opusFor(file, want) {
     output: (chunk, meta) => { chunks.push({ chunk, meta }); bytes += chunk.byteLength; },
     error: (err) => { failed = err; },
   });
-  encoder.configure({ codec: "opus", sampleRate: 48000, numberOfChannels: channels,
-                      bitrate: want.bitrate });
+  encoder.configure({ codec: want.codec.codec, sampleRate: 48000,
+                      numberOfChannels: channels, bitrate: want.bitrate });
 
-  const block = 48000 / 50;                     // 20 ms, which is Opus's own frame
+  /* 20 ms, which is Opus's own frame; AAC's is 1024 samples and the encoder
+     re-packs whatever it is given, so one size suits both. */
+  const block = 48000 / 50;
   for (let at = 0; at < buffer.length; at += block) {
     const n = Math.min(block, buffer.length - at);
     const data = new Float32Array(n * channels);
@@ -1052,27 +1225,66 @@ async function opusFor(file, want) {
   await encoder.flush();
   encoder.close();
   if (failed) throw new Error(`the sound would not encode: ${failed.message}`);
-  return { chunks, bytes, channels, bitrate: want.bitrate, seconds: buffer.duration };
+  return { chunks, bytes, channels, bitrate: want.bitrate, seconds: buffer.duration,
+           codec: want.codec };
 }
 
 /* Even sides, because every codec here wants them and a 721-wide VP9 is
    either refused or quietly rounded. */
 const even = (n) => Math.max(2, Math.round(n / 2) * 2);
 
-async function fitMoving(limit, o, onStep) {
-  if (typeof VideoEncoder === "undefined") {
-    throw new Error("this browser has no WebCodecs, so it cannot re-encode a video."
-      + " Chromium can; Safari and Firefox cannot, yet");
+/* One muxer or the other, behind one name. The two libraries have the same
+   shape — `addVideoChunk`, `addAudioChunk`, `finalize`, a `target.buffer` at
+   the end — so the only thing that differs is what they are told at the
+   start, and the pass below never has to know which it is holding. */
+function muxerFor(container, codec, { w, h, fps, audio }) {
+  if (container === "mp4") {
+    return new Mp4Muxer.Muxer({
+      target: new Mp4Muxer.ArrayBufferTarget(),
+      video: { codec: codec.mp4, width: w, height: h, frameRate: fps },
+      audio: audio
+        ? { codec: audio.codec.id, numberOfChannels: audio.channels, sampleRate: 48000 }
+        : undefined,
+      /* The index at the front rather than the end, which is what lets a
+         player start before the whole file has arrived — which is exactly
+         what Discord's player does. It costs holding the chunks in memory,
+         and they are in memory anyway. */
+      fastStart: "in-memory",
+    });
   }
+  return new WebMMuxer.Muxer({
+    target: new WebMMuxer.ArrayBufferTarget(),
+    video: { codec: codec.webm, width: w, height: h, frameRate: fps },
+    audio: audio
+      ? { codec: "A_OPUS", numberOfChannels: audio.channels, sampleRate: 48000 }
+      : undefined,
+  });
+}
+
+async function fitMoving(limit, o, onStep) {
+  const can = await able();
+  if (!can.videoEncoder) {
+    throw new Error("this browser has no WebCodecs at all, so it cannot re-encode a video."
+      + " Deflate or split the file instead, or open the page in a newer browser");
+  }
+  if (!can.video.length) {
+    throw new Error("this browser has WebCodecs but will not encode any of "
+      + VIDEO_CODECS.map((c) => c.name).join(", ")
+      + ". Deflate or split the file instead");
+  }
+
   const src = o.source;
   const seconds = src.duration;
   const entries = src.plan(o.cap);
   const w = even(o.width);
   const h = even(o.height);
-  const codec = CODECS.find((c) => c.id === o.codec) || CODECS[0];
+  const codec = can.video.find((c) => c.id === o.codec) || can.video[0];
+  const container = codec.containers.includes(o.container) ? o.container : codec.containers[0];
+  const box = CONTAINERS[container];
 
-  const audio = o.audioBitrate > 0
-    ? await opusFor(o.file, { bitrate: o.audioBitrate, mono: o.mono })
+  const sound = o.audioBitrate > 0 ? audioFor(container) : null;
+  const audio = sound
+    ? await soundFor(o.file, { bitrate: o.audioBitrate, mono: o.mono, codec: sound })
     : null;
 
   /* The budget, worked backwards. The sound is already encoded, so its share
@@ -1103,23 +1315,56 @@ async function fitMoving(limit, o, onStep) {
       + " Drop the sound, lower the frame rate, or split the file instead");
   }
 
-  /* One read of the video, every candidate bitrate encoded off it. */
+  /* One read of the video, every candidate bitrate encoded off it.
+
+     Every candidate it can get, rather than every candidate it asked for: a
+     hardware encoder is a limited resource and a phone has very few of them,
+     so the third `new VideoEncoder` is a good deal more likely to fail on
+     the device this page was fixed for than on the machine it was written
+     on. Losing a rung costs accuracy — the ladder spans less of the
+     encoder's error and the second pass below is likelier to be needed —
+     and losing the run costs everything, so a rung that will not open is
+     dropped and the ones that did carry on. The first is not optional: if
+     that will not open there is nothing to hand over. */
   async function pass(rates, label) {
-    const rungs = rates.map((rate) => {
-      const muxer = new WebMMuxer.Muxer({
-        target: new WebMMuxer.ArrayBufferTarget(),
-        video: { codec: codec.track, width: w, height: h, frameRate: o.fps },
-        audio: audio ? { codec: "A_OPUS", numberOfChannels: audio.channels, sampleRate: 48000 } : undefined,
-      });
+    const rungs = [];
+    let refused = null;
+    for (const rate of rates) {
+      /* The name asked at this size and this bitrate, not at a nominal one.
+         A profile and a level are part of a codec string and an encoder will
+         take one and refuse another, so the refusal belongs here, where it
+         can be a sentence, rather than inside `configure`, which reports
+         asynchronously and arrives as "the encoder gave up". */
+      const string = await codecStringFor(codec, w, h, rate, o.fps);
+      if (!string) {
+        if (rungs.length) { refused = "the browser would not take another"; break; }
+        throw new Error(`this browser will not encode ${codec.name} at ${w}×${h}`
+          + ` and ${kbps(rate)} — try a smaller resolution, or another codec`);
+      }
+      const muxer = muxerFor(container, codec, { w, h, fps: o.fps, audio });
       const rung = { rate, muxer, failed: null, size: 0, label };
       rung.encoder = new VideoEncoder({
         output: (chunk, meta) => { try { muxer.addVideoChunk(chunk, meta); } catch (e) { rung.failed = e; } },
         error: (err) => { rung.failed = err; },
       });
-      rung.encoder.configure({ codec: codec.codec, width: w, height: h, bitrate: rate,
-                               framerate: o.fps, latencyMode: "quality" });
-      return rung;
-    });
+      try {
+        rung.encoder.configure({ codec: string, width: w, height: h, bitrate: rate,
+                                 framerate: o.fps, latencyMode: "quality" });
+      } catch (err) {
+        /* It said it would and then would not, which is a thing encoders do
+           — a codec can be supported in principle and unavailable in fact,
+           because the hardware is busy or the build was compiled without it.
+           Past the first rung that is a reason to make do with fewer rather
+           than to give up; on the first it is fatal, and naming the codec
+           turns an unplaceable "Encoder creation error" into something
+           somebody can act on. */
+        try { rung.encoder.close(); } catch { /* never opened */ }
+        if (rungs.length) { refused = err.message; break; }
+        throw new Error(`this browser said it would encode ${codec.name} at ${w}×${h}`
+          + ` and then would not: ${err.message}. Try another codec`);
+      }
+      rungs.push(rung);
+    }
 
     /* The sound is handed over as the picture passes its timestamp rather
        than all at the end. The muxer would cope either way — it queues one
@@ -1190,6 +1435,7 @@ async function fitMoving(limit, o, onStep) {
 
     const broke = rungs.find((r) => r.failed);
     if (broke) throw new Error(`the encoder gave up: ${broke.failed.message}`);
+    rungs.refused = refused;
     return rungs;
   }
 
@@ -1211,6 +1457,7 @@ async function fitMoving(limit, o, onStep) {
   );
   const tries = rungs.map((r) => ({ bitrate: r.rate, size: r.size, kept: false, pass: 1 }));
   let passes = 1;
+  const short = rungs.refused ? rungs.length : 0;
 
   if (!rungs.some((r) => r.size <= limit)) {
     const lowest = rungs[rungs.length - 1];
@@ -1238,50 +1485,82 @@ async function fitMoving(limit, o, onStep) {
   tries[rungs.indexOf(chosen)].kept = true;
 
   return {
-    blob: new Blob([chosen.muxer.target.buffer], { type: "video/webm" }),
+    blob: new Blob([chosen.muxer.target.buffer], { type: box.type }),
     w, h, fps: o.fps, frames: entries.length, seconds,
     codec: codec.id, codecName: codec.name,
-    bitrate: chosen.rate, asked: bitrate, allowed, held, tries, passes,
-    audio: audio ? { bitrate: audio.bitrate, channels: audio.channels, bytes: audio.bytes } : null,
+    container, ext: box.ext, containerName: box.name,
+    bitrate: chosen.rate, asked: bitrate, allowed, held, tries, passes, short,
+    audio: audio
+      ? { bitrate: audio.bitrate, channels: audio.channels, bytes: audio.bytes,
+          codec: audio.codec.id, codecName: audio.codec.name }
+      : null,
+    /* Asked for and not available is a different thing from not asked for,
+       and the page says which. */
+    soundWanted: o.audioBitrate > 0,
     fits: chosen.size <= limit,
   };
 }
 
 /* -------------------------------------------------------------- the sound -- */
 
-/* Sound on its own is the easy one: Opus holds a bitrate closely enough that
-   the sum comes out right first time, and the one correction below is there
-   for the odd file where the container costs more than it was given. */
+/* Sound on its own is the easy one: both encoders hold a bitrate closely
+   enough that the sum comes out right first time, and the one correction
+   below is there for the odd file where the container costs more than it was
+   given.
+
+   Which encoder depends on the browser, the same as the picture. Opus in a
+   WebM is better at the bitrates this page ends up asking for, so it goes
+   first; AAC in an MP4 is what is left on a browser that will not write
+   Opus, which is the usual state of affairs on a phone. */
 async function fitSound(limit, o) {
+  const can = await able();
+  if (!can.audioEncoder || !can.audio.length) {
+    throw new Error("this browser has no audio encoder, so it cannot re-encode sound."
+      + " Deflate or split the file instead");
+  }
+  const sound = can.audio.find((a) => a.id === "opus") || can.audio[0];
+  const container = sound.id === "opus" ? "webm" : "mp4";
+  const box = CONTAINERS[container];
+  const floor = sound.id === "opus" ? 8000 : 24000;
+
   const seconds = source.duration;
   const overhead = 2048 + 12 * Math.ceil(seconds * 50);
   const room = Math.max(0, limit - overhead);
   const asked = o.bitrate > 0
     ? o.bitrate
-    : Math.min(192000, Math.max(8000, Math.floor((room * 8) / seconds)));
-  if (asked < 8000) {
+    : Math.min(192000, Math.max(floor, Math.floor((room * 8) / seconds)));
+  if (asked < floor) {
     throw new Error(`${Math.round(seconds)} seconds of sound will not go into ${humanBytes(limit)}`
-      + " — Opus does not go below 8 kbps. Split it instead");
+      + ` — ${sound.name} does not go below ${kbps(floor)}. Split it instead`);
   }
 
   const tries = [];
   let bitrate = asked;
   let made = null;
   for (let attempt = 0; attempt < 3; attempt++) {
-    const audio = await opusFor(source.file, { bitrate, mono: o.mono });
+    const audio = await soundFor(source.file, { bitrate, mono: o.mono, codec: sound });
     if (!audio) throw new Error("this browser could not decode the sound in that file");
-    const muxer = new WebMMuxer.Muxer({
-      target: new WebMMuxer.ArrayBufferTarget(),
-      audio: { codec: "A_OPUS", numberOfChannels: audio.channels, sampleRate: 48000 },
-    });
+    const muxer = container === "mp4"
+      ? new Mp4Muxer.Muxer({
+          target: new Mp4Muxer.ArrayBufferTarget(),
+          audio: { codec: sound.id, numberOfChannels: audio.channels, sampleRate: 48000 },
+          fastStart: "in-memory",
+        })
+      : new WebMMuxer.Muxer({
+          target: new WebMMuxer.ArrayBufferTarget(),
+          audio: { codec: "A_OPUS", numberOfChannels: audio.channels, sampleRate: 48000 },
+        });
     for (const { chunk, meta } of audio.chunks) muxer.addAudioChunk(chunk, meta);
     muxer.finalize();
-    const blob = new Blob([muxer.target.buffer], { type: "audio/webm" });
+    const blob = new Blob([muxer.target.buffer],
+      { type: container === "mp4" ? "audio/mp4" : "audio/webm" });
     tries.push({ bitrate, size: blob.size, kept: false });
-    made = { blob, bitrate, channels: audio.channels, seconds, tries, fits: blob.size <= limit };
+    made = { blob, bitrate, channels: audio.channels, seconds, tries,
+             codec: sound.id, codecName: sound.name, container, ext: box.ext,
+             fits: blob.size <= limit };
     if (made.fits || o.bitrate > 0) break;
     const next = Math.floor(bitrate * Math.min(0.9, (limit / blob.size) * 0.95));
-    if (next < 8000 || next >= bitrate) break;
+    if (next < floor || next >= bitrate) break;
     bitrate = next;
   }
   tries[tries.length - 1].kept = true;
@@ -1359,6 +1638,7 @@ async function open(file) {
   opened = false;
   setStatus(`Reading ${file.name || "it"}…`);
   try {
+    await able();              /* what this browser will do, asked once */
     source = { ...(await inspect(file)), file };
 
     if (source.kind === "video" || source.kind === "animation") {
@@ -1478,21 +1758,41 @@ function fillFrameRate(fps) {
 }
 
 async function fillCodecs() {
-  const have = await usableCodecs();
-  if (!have.length) {
-    options(el("codecSel"), [{ value: "none", label: "none — no WebCodecs here" }], "none");
+  const can = await able();
+  if (!can.video.length) {
+    options(el("codecSel"), [{ value: "none", label: "none this browser will write" }], "none");
+    options(el("boxSel"), [{ value: "none", label: "—" }], "none");
     return;
   }
-  options(el("codecSel"), have.map((c) => ({ value: c.id, label: c.name })), "vp9");
+  /* In the page's order of preference, filtered to what answered yes, so the
+     box opens on the best thing this browser can actually do rather than on
+     the first thing the list happens to name. */
+  const have = CODEC_ORDER.map((id) => can.video.find((c) => c.id === id)).filter(Boolean);
+  options(el("codecSel"), have.map((c) => ({ value: c.id, label: c.name })), have[0].id);
+  fillContainers();
+}
+
+/* Which containers the codec in the box can go in. H.264 and HEVC are MP4
+   only — a WebM cannot carry either, which is the whole reason there are two
+   muxers — and VP8 is WebM only. VP9 and AV1 go in both, so there the box is
+   a real choice: WebM is the smaller file by a hair and MP4 is the one every
+   other piece of software on earth will open. */
+function fillContainers() {
+  const codec = (ABLE ? ABLE.video : []).find((c) => c.id === el("codecSel").value);
+  if (!codec) return;
+  const was = el("boxSel").value;
+  options(el("boxSel"),
+    codec.containers.map((id) => ({ value: id, label: CONTAINERS[id].name })),
+    codec.containers.includes(was) ? was : codec.containers[0]);
 }
 
 const KINDS = {
   video: { title: "A video", fields: "videoFields",
-    what: "Re-encoded as WebM at a bitrate worked backwards from the limit. The resolution and"
-      + " the frame rate are the two knobs that matter: fewer pixels and fewer frames leave more"
-      + " bits for each of them." },
+    what: "Re-encoded at a bitrate worked backwards from the limit, in whichever codec this"
+      + " browser will write. The resolution and the frame rate are the two knobs that matter:"
+      + " fewer pixels and fewer frames leave more bits for each of them." },
   animation: { title: "An animation", fields: "videoFields",
-    what: "Read frame by frame and written as a WebM video, which for the same picture is a"
+    what: "Read frame by frame and written as a video, which for the same picture is a"
       + " fraction of a GIF's size. Discord plays it inline and loops it like one. If you need"
       + " it to stay a GIF, video-to-animation.html is the page for that." },
   image: { title: "A picture", fields: "imageFields",
@@ -1527,7 +1827,7 @@ function showKind() {
   for (const id of ["videoFields", "imageFields", "audioFields", "fileFields"]) {
     el(id).hidden = id !== kind.fields;
   }
-  el("zipChk").closest("label").hidden = source.kind !== "file";
+  el("zipChk").closest("label").hidden = source.kind !== "file" && !source.lostAnimation;
   /* An animation has no sound, and nor does a silent video, so the two
      controls about sound are not knobs that happen to do nothing — they are
      not there. */
@@ -1535,13 +1835,27 @@ function showKind() {
   el("soundField").hidden = silent;
   el("monoField").hidden = silent;
   if (source.unreadable) planWhat.textContent = UNREADABLE[source.unreadable];
+  if (source.lostAnimation) {
+    planWhat.textContent = "This looks like an animated picture, and this browser has no"
+      + " ImageDecoder to read its frames with — Safari has not got one, which means no"
+      + " browser on an iPhone has. Compressed here it would come out as the first frame and"
+      + " nothing else, so it is better to deflate or split it, or to open this page in a"
+      + " Chromium, where the whole animation is re-made as a video.";
+  }
   el("fileNote").textContent = source.type
     ? `${source.type} — deflating helps on text, logs, saves and documents, and does`
       + " nothing at all on anything already compressed."
     : "No type given for it, so it is treated as a bag of bytes.";
-  if (source.kind === "video" && typeof VideoEncoder === "undefined") {
-    planWhat.textContent = "This browser has no WebCodecs, so a video cannot be re-encoded here."
-      + " Deflate or split it, or open the page in a Chromium.";
+  /* What the browser cannot do is said here rather than discovered at the
+     end of a long encode. The old version of this named Safari and Firefox
+     outright, which was both out of date and the wrong shape of claim: what
+     matters is what *this* browser answered, and it has already been asked. */
+  if ((source.kind === "video" || source.kind === "animation") && ABLE && !ABLE.video.length) {
+    planWhat.textContent = ABLE.videoEncoder
+      ? "This browser has WebCodecs but will not encode any codec this page can write, so a"
+        + " video cannot be re-made here. Deflate or split it instead."
+      : "This browser has no WebCodecs, so a video cannot be re-encoded here. Deflate or"
+        + " split it instead.";
   }
   syncFields();
 }
@@ -1566,12 +1880,23 @@ function syncFields() {
       ? `${p.width}×${p.height} — every pixel it came with`
       : `${p.width}×${p.height} — ${Math.round(share * 100)}% of the pixels`;
     el("fpsNote").textContent = `${p.frames} frames to read — the slow part`;
-    const codec = CODECS.find((c) => c.id === el("codecSel").value);
-    el("codecNote").textContent = codec ? codec.note : "";
-    el("soundNote").textContent = p.audioBitrate > 0
-      ? `about ${humanBytes((p.audioBitrate * reel.duration) / 8)} of the budget`
-      : "all of the budget goes to the picture";
-    el("monoField").hidden = p.audioBitrate <= 0;
+    const codec = (ABLE ? ABLE.video : []).find((c) => c.id === el("codecSel").value);
+    el("codecNote").textContent = codec ? codec.note
+      : "nothing this browser will write — deflate or split it instead";
+    el("boxField").hidden = !codec;
+    el("boxNote").textContent = !codec ? ""
+      : codec.containers.length === 1
+        ? `${codec.name} only goes in an ${CONTAINERS[codec.containers[0]].name}`
+        : p.container === "mp4"
+          ? "what everything else will open"
+          : "a hair smaller than the same thing in an MP4";
+    const sound = p.audioBitrate > 0 ? audioFor(p.container) : null;
+    el("soundNote").textContent = p.audioBitrate <= 0
+      ? "all of the budget goes to the picture"
+      : sound
+        ? `${sound.name}, about ${humanBytes((p.audioBitrate * reel.duration) / 8)} of the budget`
+        : "this browser has no audio encoder, so it will come out silent";
+    el("monoField").hidden = p.audioBitrate <= 0 || !sound;
   }
   if (el("audioFields").hidden === false) {
     const want = Number(el("abrSel").value);
@@ -1583,9 +1908,12 @@ function syncFields() {
 }
 
 for (const id of ["formatSel", "qualityIn", "sideIn", "resSel", "fpsSel", "codecSel",
-                  "soundSel", "monoChk", "abrSel", "achSel"]) {
+                  "boxSel", "soundSel", "monoChk", "abrSel", "achSel"]) {
   el(id).addEventListener("input", syncFields);
 }
+/* Changing the codec can change which containers are on offer, so the box
+   beside it is rebuilt before anything reads it. */
+el("codecSel").addEventListener("change", () => { fillContainers(); syncFields(); });
 for (const id of ["zipChk", "splitChk"]) el(id).addEventListener("input", syncPlan);
 
 function movingPlan() {
@@ -1608,6 +1936,7 @@ function movingPlan() {
     width: even(width), height: even(height), fps, cap,
     frames: reel.plan(cap).length,
     codec: el("codecSel").value,
+    container: el("boxSel").value,
     audioBitrate, mono: el("monoChk").checked,
   };
 }
@@ -1650,7 +1979,14 @@ function syncPlan() {
 
 async function makeMoving(limit) {
   const p = movingPlan();
-  if (p.codec === "none") throw new Error("this browser has no video encoder to use");
+  if (p.codec === "none") {
+    const can = await able();
+    throw new Error(can.videoEncoder
+      ? "this browser has WebCodecs but will not encode "
+        + VIDEO_CODECS.map((c) => c.name).join(", ") + " — deflate or split the file instead"
+      : "this browser has no WebCodecs, so it cannot re-encode a video — deflate or split"
+        + " the file instead");
+  }
   progress(0, "Reading the first frame…");
   const got = await fitMoving(limit, p, (fraction, done, all, label) => {
     progress(fraction, `Frame ${done} of ${all} — read once, encoded at every bitrate at once`
@@ -1658,18 +1994,26 @@ async function makeMoving(limit) {
   });
   return {
     blob: got.blob,
-    name: `${stemOf(source.name)}-small.webm`,
+    name: `${stemOf(source.name)}-small.${got.ext}`,
     kind: "video",
     fits: got.fits,
-    detail: `${got.w}×${got.h} at ${tidy(got.fps)}/s, ${got.codecName}`
-      + (got.audio ? `, Opus at ${kbps(got.audio.bitrate)} in `
-          + `${got.audio.channels === 1 ? "mono" : "stereo"}` : ", silent")
+    detail: `${got.w}×${got.h} at ${tidy(got.fps)}/s, ${got.codecName} in `
+      + `${got.containerName}`
+      + (got.audio
+          ? `, ${got.audio.codecName} at ${kbps(got.audio.bitrate)} in `
+            + `${got.audio.channels === 1 ? "mono" : "stereo"}`
+          : got.soundWanted
+            ? ", and silent because nothing here could encode its sound"
+            : ", silent")
       + ` — ${got.frames} frames, read ${got.passes === 1 ? "once" : "twice"} and encoded `
       + `${got.tries.length} times`
       + (got.passes === 1 ? "." : ". Every rung of the first ladder came out over, so the second"
           + " was aimed with the bitrate this footage really produces.")
       + (got.held ? ` The limit would have allowed ${kbps(got.allowed)}, but it only came in`
-          + ` with ${kbps(got.asked)} in it and bits cannot put back what is already gone.` : ""),
+          + ` with ${kbps(got.asked)} in it and bits cannot put back what is already gone.` : "")
+      + (got.short ? ` This browser would only open ${got.short} encoder`
+          + `${got.short === 1 ? "" : "s"} at once, so the ladder is shorter than usual —`
+          + " which costs accuracy, not correctness." : ""),
     tries: got.tries.map((t) => ({ label: kbps(t.bitrate), size: t.size,
                                    kept: t.kept, pass: t.pass })),
     shape: got,
@@ -1708,11 +2052,11 @@ async function makeSound(limit) {
   });
   return {
     blob: got.blob,
-    name: `${stemOf(source.name)}-small.webm`,
+    name: `${stemOf(source.name)}-small.${got.ext}`,
     kind: "audio",
     fits: got.fits,
-    detail: `Opus at ${kbps(got.bitrate)} in ${got.channels === 1 ? "mono" : "stereo"}, `
-      + `${got.seconds.toFixed(1)}s.`,
+    detail: `${got.codecName} at ${kbps(got.bitrate)} in `
+      + `${got.channels === 1 ? "mono" : "stereo"}, ${got.seconds.toFixed(1)}s.`,
     tries: got.tries.map((t) => ({ label: kbps(t.bitrate), size: t.size, kept: t.kept })),
     shape: got,
   };
@@ -1737,8 +2081,12 @@ async function makeFile(limit, zip) {
     fits: got.blob.size <= limit,
     detail: got.deflated
       ? "Deflated into a zip."
-      : "Deflating made it bigger, so it is stored in the zip uncompressed — which is what"
-        + " happens to anything already compressed.",
+      : got.cannotDeflate
+        ? "This browser has no CompressionStream, so there is nothing here to deflate with and"
+          + " the bytes are stored in the zip as they came. Splitting is the only thing left"
+          + " that will make them fit."
+        : "Deflating made it bigger, so it is stored in the zip uncompressed — which is what"
+          + " happens to anything already compressed.",
     tries: [], shape: got,
   };
 }
@@ -1994,10 +2342,31 @@ window.CLI = {
        rather than assumed — so a terminal is told the same codecs, the same
        formats and the same five limits the boxes are. */
     async limits() {
+      const can = await able();
       return {
         presets: LIMITS.map((l) => ({ mb: l.mb, note: l.note,
                                       default: l.mb === Number(limitMb.defaultValue) })),
-        codecs: (await usableCodecs()).map((c) => ({ id: c.id, name: c.name, note: c.note })),
+        /* The default is the page's own preference order resolved against
+           what this browser has, not whatever the box happens to be set to:
+           `limits` answers before any file has been opened, and the box is
+           only filled once one has. */
+        codecs: can.video.map((c) => ({ id: c.id, name: c.name, note: c.note,
+                                        containers: c.containers, string: c.string,
+                                        default: c.id === CODEC_ORDER.find(
+                                          (id) => can.video.some((v) => v.id === id)) })),
+        sound: can.audio.map((a) => ({ id: a.id, name: a.name, codec: a.codec,
+                                       containers: a.containers })),
+        /* Which sound goes in which box, which is a pairing rather than a
+           list: AAC cannot go in a WebM at all, and an MP4 would rather have
+           AAC than Opus because an MP4 with Opus in it is a file QuickTime
+           will not open. Reported because the choice is otherwise invisible
+           until something has been encoded. */
+        soundFor: { webm: (audioFor("webm") || {}).id || null,
+                    mp4: (audioFor("mp4") || {}).id || null },
+        /* Every string that was tried and what the browser said to it. This
+           is the line to read out when a page that works here does not work
+           on somebody's phone. */
+        asked: can.asked,
         formats: FORMATS.map((f) => ({ ext: f.ext, type: f.type, name: f.name,
                                        lossy: f.lossy, note: f.note })),
         quality: { min: Number(el("qualityIn").min), max: Number(el("qualityIn").max),
@@ -2006,9 +2375,10 @@ window.CLI = {
         rungs: RUNGS,
         minVideoBitrate: MIN_VIDEO_BITRATE,
         encoders: {
-          video: typeof VideoEncoder !== "undefined",
-          audio: typeof AudioEncoder !== "undefined",
-          animation: typeof ImageDecoder !== "undefined",
+          video: can.videoEncoder,
+          audio: can.audioEncoder,
+          animation: can.imageDecoder,
+          deflate: can.compression,
         },
       };
     },
@@ -2035,7 +2405,11 @@ window.CLI = {
       if (source.kind === "video" || source.kind === "animation") {
         if (o.res != null) wantOption(el("resSel"), o.res, "the resolution");
         if (o.fps != null) wantOption(el("fpsSel"), o.fps, "the frame rate");
-        if (o.codec != null) wantOption(el("codecSel"), o.codec, "the codec");
+        if (o.codec != null) {
+          wantOption(el("codecSel"), o.codec, "the codec");
+          fillContainers();            /* the codec decides what boxes there are */
+        }
+        if (o.container != null) wantOption(el("boxSel"), o.container, "the container");
         /* The box is hidden when there is nothing to keep, and a hidden box
            is still a box a job can set — so asking to keep sound that is not
            there is refused rather than set and ignored. Asking to drop it is
@@ -2115,7 +2489,9 @@ window.CLI = {
         answer.video = {
           width: out.shape.w, height: out.shape.h, fps: out.shape.fps,
           frames: out.shape.frames, seconds: out.shape.seconds, passes: out.shape.passes,
-          codec: out.shape.codec, bitrate: out.shape.bitrate, asked: out.shape.asked,
+          soundWanted: out.shape.soundWanted, short: out.shape.short,
+          codec: out.shape.codec, container: out.shape.container, ext: out.shape.ext,
+          bitrate: out.shape.bitrate, asked: out.shape.asked,
           allowed: out.shape.allowed, held: out.shape.held,
           audio: out.shape.audio,
         };
@@ -2127,7 +2503,8 @@ window.CLI = {
       }
       if (out.kind === "audio") {
         answer.sound = { bitrate: out.shape.bitrate, channels: out.shape.channels,
-                         seconds: out.shape.seconds };
+                         seconds: out.shape.seconds, codec: out.shape.codec,
+                         container: out.shape.container };
       }
       if (out.kind === "zip") answer.zip = { deflated: out.shape.deflated, method: out.shape.method };
 

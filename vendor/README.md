@@ -125,6 +125,25 @@ npm pack gifenc@1.0.3 webm-muxer@5.1.4
 
 ---
 
+`mp4-muxer/` is [mp4-muxer](https://github.com/Vanilagy/mp4-muxer) 5.2.2, the same author's
+MP4 counterpart to `webm-muxer` above, used by
+[`../discord-compressor.html`](../discord-compressor.html). MIT; the licence is beside it.
+Like `webm-muxer` its `build/mp4-muxer.js` is already an IIFE exposing an `Mp4Muxer` global, so
+it is vendored as it comes.
+
+```
+npm pack mp4-muxer@5.2.2
+```
+
+It is here because a WebM cannot carry H.264, and H.264 is the only video codec some browsers
+will encode &mdash; Safari among them, which is every browser on an iPhone. Without an MP4
+container the compressor's whole moving-picture half was unavailable on a phone, which is where
+most of the files too big for Discord are. Both muxers are kept rather than one: VP9 in a WebM
+is a smaller file than H.264 in an MP4 at the same bitrate, which is the entire point of the
+page, so the container follows the codec rather than the other way round.
+
+---
+
 `tfjs/tf.min.js` is [TensorFlow.js](https://github.com/tensorflow/tfjs) 4.22.0, the
 runtime the two super-resolution models in
 [`../image-upscaler.html`](../image-upscaler.html) run under. Apache 2.0; the licence is

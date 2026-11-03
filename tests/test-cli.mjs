@@ -1816,6 +1816,26 @@ const ihdrOf = (file) => {
     fs.readFileSync(byFlag).subarray(0, 4).toString("hex") === "1a45dfa3",
     fs.readFileSync(byFlag).subarray(0, 4).toString("hex"));
 
+  /* The same clip into the other container, which is the half of the page
+     that exists so it works on a phone. H.264 is what makes that matter and
+     this Chromium has no H.264 encoder, so VP9 in an MP4 is what stands in:
+     it is the same muxer and the same plumbing, and ffprobe can tell. */
+  const asMp4 = path.join(WORK, "cli-fit.mp4");
+  fs.rmSync(asMp4, { force: true });
+  const mp4 = await json("discord-compressor", clip, "--limit", "0.08", "--res", "240",
+                         "--fps", "10", "--container", "mp4", "--out", asMp4);
+  ok("--container mp4 writes an MP4, named and typed as one",
+    mp4.video.container === "mp4" && /\.mp4$/.test(mp4.name)
+      && fs.readFileSync(asMp4).subarray(4, 8).toString("latin1") === "ftyp",
+    `${mp4.name}, starts ${fs.readFileSync(asMp4).subarray(0, 12).toString("latin1")}`);
+  ok("and it is a different file from the WebM, not the same bytes relabelled",
+    fs.statSync(asMp4).size !== fs.statSync(byFlag).size,
+    `${fs.statSync(asMp4).size} against ${fs.statSync(byFlag).size}`);
+
+  const badBox = await run("discord-compressor", clip, "--codec", "vp8", "--container", "mp4");
+  ok("a codec and a container that cannot go together is a sentence with the real list",
+    badBox.code === 1 && /container here is one of webm/.test(badBox.err), badBox.err.trim());
+
   /* A flag that belongs to some other kind of file. The page's own job reads
      the picture settings only when a picture is open, so without this the
      run takes the flag, ignores it and reports a success. */

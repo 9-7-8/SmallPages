@@ -708,6 +708,22 @@ Suites are named for the page they exercise. The ones worth knowing about:
   WebCodecs the page uses, so the fixture is not the page marking its own
   homework. The one committed fixture is `clip.webm`, which was already here.
 
+  It also carries the shape of a browser nobody here can run. The page
+  shipped offering VP9, VP8 and AV1 and said *no video encoder* on every
+  iPhone, because Safari's encoder writes H.264 and nothing this page could
+  put it in. Safari cannot be run in this container and the sites that
+  document it are outside the network policy, so the suite builds the
+  browser instead: `addInitScript` swaps `VideoEncoder.isConfigSupported`
+  for one that says yes to `avc1` alone, does the same for AAC, and deletes
+  `ImageDecoder`. Every decision the page makes off the back of that is
+  checked — the codec offered, the container that follows it, what it says
+  about sound and about an animation whose frames it cannot read — and the
+  encode itself is not, because there is no H.264 encoder here to do it
+  with. That boundary is written where the checks are rather than left to be
+  assumed. The same trick covers the other ways a browser can be missing a
+  piece: no WebCodecs, an encoder that refuses everything, no `AudioEncoder`,
+  no `CompressionStream`.
+
   Eleven deliberate breakages went through the page. Eight were caught. Of
   the three that were not, two were the suite's fault and are written up
   beside the checks that now catch them: a downmix that threw away the right

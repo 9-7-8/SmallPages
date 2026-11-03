@@ -402,6 +402,30 @@ flag &mdash; for some other kind of file. So the tool checks the flags a
 second time once the file is open and the kind is known, which is the first
 validation here that cannot happen before `open()`.
 
+**What a browser will decode is nothing like what it will encode.**
+`discord-compressor.html` offered VP9, VP8 and AV1 because those are what
+Chromium writes, and said *no video encoder* on every iPhone there is: each
+one is Safari underneath, Safari's encoder is VideoToolbox, and VideoToolbox
+writes H.264 and HEVC. Worse, the two halves are coupled &mdash; a WebM
+cannot carry H.264 at all &mdash; so the fix was a second muxer rather than a
+second line in a list. Two things came out of it worth keeping. Ask the
+browser about each codec **by name, at the size and bitrate about to be
+used**, because a profile and a level are part of a codec string and an
+encoder will take one and refuse another. And **print what it answered**:
+`limits` lists every string tried and the yes or no beside it, because the
+alternative when somebody says "it does not work on my phone" is guessing.
+
+**A browser you cannot run is still a browser you can shape.** Nothing in
+this container runs Safari, and the documentation sites that would settle
+what Safari encodes are outside the network policy, so `tests/test-discord.mjs`
+builds the shape of it instead: `addInitScript` replaces
+`VideoEncoder.isConfigSupported` with one that says yes to `avc1` and nothing
+else, does the same for AAC, and deletes `ImageDecoder`. That checks every
+decision the page makes &mdash; which codec, which container, what it says
+about sound and about animations &mdash; and stops exactly at the encode,
+which needs an H.264 encoder this Chromium has not got. The suite says so
+where the checks are rather than leaving it to be assumed.
+
 **A fresh profile forgets.** See *A browser that remembers*, above: it was
 costing a 206 MB download a picture before anybody noticed, because a single
 run looks exactly the same either way.
@@ -421,11 +445,16 @@ to remember that it happened.
       --max`, and `formats`. The first one that writes a file, so it is the
       one to copy the `--out` rules off rather than inventing them again.
 - [x] **`discord-compressor.html`** &mdash; `<anything> --limit --out
-      --split`, plus `--res --fps --codec --sound --mono` for a video,
-      `--format --quality --max` for a picture, `--bitrate --channels` for
-      sound and `--zip` for everything else, and `limits`. The first whose
-      flags depend on what was handed in, and the first to write several
-      files out of one input, so `--split` insists on a directory.
+      --split`, plus `--res --fps --codec --container --sound --mono` for a
+      video, `--format --quality --max` for a picture, `--bitrate
+      --channels` for sound and `--zip` for everything else, and `limits`.
+      The first whose flags depend on what was handed in, and the first to
+      write several files out of one input, so `--split` insists on a
+      directory. `limits` prints every codec string the page asked the
+      browser about and what came back, which makes it the first command
+      here whose job is partly to be read out loud: a page that compresses
+      on one machine and not on another is nearly always that table
+      differing.
 - [x] **`playlist-to-audio.html`** &mdash; `<playlist> --tier --quality --to
       --only --cookies --shell --one-line --why` and the seven `--no-…`
       boxes, plus `tiers` and `sizes`. The first with no file at either end

@@ -345,6 +345,21 @@ ok('the limit presets are offered, 10 MB first',
 ok('this browser reports its own encoders rather than being told',
   limits.encoders.video && limits.encoders.audio && limits.codecs.length >= 2,
   JSON.stringify(limits.encoders) + ' ' + limits.codecs.map((c) => c.id).join());
+/* The probe is the whole fix for the page saying "no video encoder" on a
+   phone, so what it asked and what came back is reported rather than
+   summarised: it is the one thing worth reading out when a file compresses
+   on one machine and not on another. */
+ok('and says every codec string it tried and what the answer was',
+  limits.asked.length >= 8 && limits.asked.every((a) => typeof a.supported === 'boolean')
+    && limits.asked.some((a) => a.tried.startsWith('avc1.')),
+  JSON.stringify(limits.asked.map((a) => [a.tried, a.supported])));
+ok('the codecs it offers carry the containers they can go in',
+  limits.codecs.every((c) => c.containers.length >= 1
+    && c.containers.every((b) => b === 'webm' || b === 'mp4')),
+  JSON.stringify(limits.codecs.map((c) => [c.id, c.containers])));
+ok('exactly one codec is the default, and it is one the browser has',
+  limits.codecs.filter((c) => c.default).length === 1,
+  JSON.stringify(limits.codecs.map((c) => [c.id, c.default])));
 
 /* ------------------------------------------------------------- the video -- */
 
@@ -439,6 +454,56 @@ ok('asking to keep sound a silent video has not is refused',
 const belowFloor = await fitFails({ limit: 0.004 });
 ok('a limit under the box\'s own floor is refused, not clamped',
   !!belowFloor && /limit box runs from/.test(belowFloor), String(belowFloor));
+
+/* ------------------------------------------------------- the other box -- */
+
+/* H.264 cannot go in a WebM — the format does not allow it — so a page that
+   only ever wrote WebM could only ever offer the codecs WebM takes, and on a
+   browser whose encoder writes H.264 and nothing else that is no codecs at
+   all. The MP4 half is what makes the page work on a phone, and this is it
+   being exercised on a codec this machine does have. */
+console.log('--- the same clip in an MP4 ---');
+
+await load('clip.webm');
+const inMp4 = await fit({ limit: 0.08, res: '240', fps: 'keep', codec: 'vp9',
+                          container: 'mp4', sound: '0', bytes: true });
+ok('the container asked for is the container written',
+  inMp4.video.container === 'mp4' && /\.mp4$/.test(inMp4.name), inMp4.name);
+fs.writeFileSync(F('dc-out.mp4'), Buffer.from(inMp4.bytes));
+ok('and the bytes really are an MP4, not a WebM under another name',
+  fs.readFileSync(F('dc-out.mp4')).subarray(4, 8).toString('latin1') === 'ftyp',
+  fs.readFileSync(F('dc-out.mp4')).subarray(0, 12).toString('latin1'));
+const mp4Line = probe(F('dc-out.mp4'), '-count_frames', '-select_streams', 'v:0',
+  '-show_entries', 'stream=codec_name,width,height,nb_read_frames',
+  '-show_entries', 'format=format_name');
+if (mp4Line) {
+  ok('ffprobe reads it as an MP4 holding the same 60 frames of VP9',
+    /format_name=mov,mp4/.test(mp4Line) && /codec_name=vp9/.test(mp4Line)
+      && /nb_read_frames=60/.test(mp4Line),
+    mp4Line.replace(/\n/g, ' '));
+}
+const playedMp4 = await page.evaluate(async (bytes) => {
+  const video = document.createElement('video');
+  video.muted = true;
+  video.src = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: 'video/mp4' }));
+  try {
+    await new Promise((r, j) => {
+      video.addEventListener('loadeddata', r, { once: true });
+      video.addEventListener('error', () => j(new Error('would not load')), { once: true });
+      setTimeout(() => j(new Error('timed out')), 15000);
+    });
+    return { w: video.videoWidth, h: video.videoHeight, duration: video.duration };
+  } catch (e) { return { error: e.message }; }
+}, inMp4.bytes);
+ok('and a browser will play it',
+  playedMp4.w === 426 && Math.abs(playedMp4.duration - 4) < 0.3, JSON.stringify(playedMp4));
+
+/* The container is not a free choice: it follows what the codec can live in,
+   and the page refuses the pairs that do not exist rather than writing a
+   file that lies about itself. */
+const wrongBox = await fitFails({ codec: 'vp8', container: 'mp4' });
+ok('a codec that cannot go in the box asked for is refused, with the real list',
+  !!wrongBox && /container here is one of webm/.test(wrongBox), String(wrongBox));
 
 /* ------------------------------------------------- a video with sound in -- */
 
@@ -795,6 +860,250 @@ try {
 ok('and the zip they make still holds the original, byte for byte',
   joinedOk === true, String(joinedOk));
 
+/* --------------------------------------- what a browser that is not this -- */
+
+/* The bug this section exists for: the page shipped offering VP9, VP8 and
+   AV1, and on an iPhone — where every browser is Safari underneath and
+   Safari's encoder writes H.264 and HEVC — it said "no video encoder" and
+   stopped. Nothing in this container can run Safari, and no amount of
+   reading documentation from here is the same as the browser's own answer,
+   so the shape of that browser is built instead: an encoder that takes avc1
+   and nothing else, AAC and nothing else, and no ImageDecoder.
+ *
+ * What this can check is everything up to the encode — which codec is
+ * offered, which container follows it, what the page says about sound and
+ * about animations. What it cannot check is the encode itself, because this
+ * Chromium has no H.264 encoder to do it with. That limit is real and worth
+ * stating rather than papering over: the H.264 path is exercised here as far
+ * as the configure call and no further.
+ */
+console.log('--- a browser shaped like the one on a phone ---');
+
+async function pretending(stub) {
+  const other = await browser.newContext({ viewport: { width: 420, height: 1200 } });
+  const tab = await other.newPage();
+  const broke = [];
+  tab.on('pageerror', (e) => broke.push(e.message));
+  await tab.addInitScript(stub);
+  await tab.goto(PAGE);
+  return { tab, broke, close: () => other.close() };
+}
+
+const ONLY_H264 = () => {
+  VideoEncoder.isConfigSupported = async (c) => ({ supported: /^avc1\./.test(c.codec), config: c });
+  AudioEncoder.isConfigSupported = async (c) => ({ supported: c.codec === 'mp4a.40.2', config: c });
+  delete window.ImageDecoder;
+};
+
+{
+  const { tab, broke, close } = await pretending(ONLY_H264);
+  const said = await tab.evaluate(() => window.CLI.jobs.limits());
+  ok('a browser that will only write H.264 is offered H.264',
+    said.codecs.length === 1 && said.codecs[0].id === 'h264' && said.codecs[0].default,
+    JSON.stringify(said.codecs.map((c) => c.id)));
+  ok('and the container that follows it is MP4, because a WebM cannot hold it',
+    said.codecs[0].containers.join() === 'mp4', JSON.stringify(said.codecs[0].containers));
+  ok('and the sound it is offered is the AAC it can write, not the Opus it cannot',
+    said.sound.length === 1 && said.sound[0].id === 'aac',
+    JSON.stringify(said.sound.map((a) => a.id)));
+
+  await tab.setInputFiles('#fileInput', F('clip.webm'));
+  await tab.waitForFunction(() => window.CLI.file().ready, null, { timeout: 90000 });
+  const boxes = await tab.evaluate(() => ({
+    codecs: [...document.getElementById('codecSel').options].map((o) => o.value),
+    codec: document.getElementById('codecSel').value,
+    containers: [...document.getElementById('boxSel').options].map((o) => o.value),
+    container: document.getElementById('boxSel').value,
+    plan: document.getElementById('planWhat').textContent,
+  }));
+  /* The regression itself. Before the MP4 half existed this read
+     ["none"] / "no video encoder", on the device most of the files too big
+     for Discord are sitting on. */
+  ok('the boxes on screen offer it rather than saying there is nothing',
+    boxes.codecs.join() === 'h264' && boxes.codec === 'h264'
+      && boxes.containers.join() === 'mp4' && boxes.container === 'mp4',
+    JSON.stringify(boxes));
+  ok('and the page does not tell it there is no encoder',
+    !/no WebCodecs|will not encode/.test(boxes.plan), boxes.plan.slice(0, 120));
+
+  /* An animated GIF, on a browser with no ImageDecoder to read its frames.
+     Decoding it gives the first frame and nothing says so, which is how you
+     get a still picture of an animation back; the bytes are sniffed instead
+     so the page can say what would be lost. */
+  await tab.setInputFiles('#fileInput', []);
+  await tab.setInputFiles('#fileInput', F('dc-anim.gif'));
+  await tab.waitForFunction(() => window.CLI.file().kind === 'image', null, { timeout: 60000 });
+  const lost = await tab.evaluate(() => ({
+    plan: document.getElementById('planWhat').textContent,
+    deflate: !document.getElementById('zipChk').closest('label').hidden,
+  }));
+  ok('an animation it cannot read the frames of is recognised from its bytes',
+    /animated picture/.test(lost.plan) && /first frame/.test(lost.plan),
+    lost.plan.slice(0, 140));
+  ok('and it is offered the deflate it would otherwise not be',
+    lost.deflate, String(lost.deflate));
+
+  /* And a still picture is still a still picture — the sniff has to say no
+     as well as yes, or it is not telling anybody anything. */
+  await tab.setInputFiles('#fileInput', []);
+  await tab.setInputFiles('#fileInput', F('dc-photo.png'));
+  await tab.waitForFunction(() => window.CLI.file().kind === 'image', null, { timeout: 60000 });
+  const stillStill = await tab.textContent('#planWhat');
+  ok('a picture that is not animated is not accused of being one',
+    !/animated picture/.test(stillStill), stillStill.slice(0, 100));
+
+  ok('nothing threw in the browser that is not this one', broke.length === 0, broke.join(' | '));
+  await close();
+}
+
+/* The three other ways a browser can be missing something this page wants.
+   Each has to be a sentence rather than a stack trace, because each of them
+   is somebody's actual phone. */
+for (const [what, stub, wants] of [
+  ['no WebCodecs at all', () => { delete window.VideoEncoder; }, /no WebCodecs/],
+  ['an encoder that refuses everything',
+    () => { VideoEncoder.isConfigSupported = async (c) => ({ supported: false, config: c }); },
+    /will not encode/],
+]) {
+  const { tab, broke, close } = await pretending(stub);
+  await tab.setInputFiles('#fileInput', F('clip.webm'));
+  await tab.waitForFunction(() => window.CLI.file().ready, null, { timeout: 90000 });
+  let why = null;
+  try { await tab.evaluate(() => window.CLI.jobs.fit({ limit: 0.08 })); }
+  catch (e) { why = String(e.message).split('\n')[0]; }
+  ok(`${what}: a sentence, not a stack trace`, !!why && wants.test(why), String(why));
+  ok(`${what}: and it says what to do instead`, !!why && /deflate or split/i.test(why),
+    String(why));
+  ok(`${what}: nothing threw`, broke.length === 0, broke.join(' | '));
+  await close();
+}
+
+{
+  /* No audio encoder: the video still comes out, silent, and says so rather
+     than quietly dropping the sound. */
+  const { tab, broke, close } = await pretending(() => { delete window.AudioEncoder; });
+  await tab.setInputFiles('#fileInput', F('dc-rec.webm'));
+  await tab.waitForFunction(() => window.CLI.file().ready, null, { timeout: 90000 });
+  const quiet = await tab.evaluate(() =>
+    window.CLI.jobs.fit({ limit: 0.3, fps: '10', sound: '64' }));
+  ok('with no audio encoder the video is still made, and still fits',
+    quiet.fits && quiet.video.audio === null, JSON.stringify(quiet.video.audio));
+  ok('and the page says the sound was wanted and could not be had',
+    quiet.video.soundWanted && /silent because/.test(quiet.detail), quiet.detail);
+  ok('no audio encoder: nothing threw', broke.length === 0, broke.join(' | '));
+  await close();
+}
+
+{
+  /* No CompressionStream: a zip of stored bytes is still a zip, and the page
+     says that is what it is rather than handing over something that is not
+     any smaller without a word.
+
+     Caught rather than awaited bare, because the behaviour under test is a
+     page that used to throw right here — and a suite that goes down with it
+     reports a stack trace instead of a failure, which is how the
+     deliberate-breakage pass found this check in the first place. */
+  const { tab, broke, close } = await pretending(() => { delete window.CompressionStream; });
+  await tab.setInputFiles('#fileInput', F('dc-log.txt'));
+  await tab.waitForFunction(() => window.CLI.file().kind === 'file', null, { timeout: 60000 });
+
+  let bare = null;
+  let threw = null;
+  try {
+    bare = await tab.evaluate(() => window.CLI.jobs.fit({ limit: 10, zip: true, bytes: true }));
+  } catch (e) { threw = String(e.message).split('\n')[0]; }
+
+  ok('with no CompressionStream the zip stores rather than failing',
+    !!bare && bare.zip.deflated === false && bare.went.bytes > bare.came.bytes,
+    threw || JSON.stringify(bare.zip));
+  ok('and says that is why it is no smaller',
+    !!bare && /no CompressionStream/.test(bare.detail), threw || bare.detail);
+
+  let storedOk = threw ? 'nothing was made to read' : false;
+  if (bare) {
+    fs.writeFileSync(F('dc-stored.zip'), Buffer.from(bare.bytes));
+    try {
+      execFileSync('python3', ['-c',
+        'import zipfile,sys;z=zipfile.ZipFile(sys.argv[1]);'
+        + 'assert z.read(z.namelist()[0])==open(sys.argv[2],"rb").read()',
+        F('dc-stored.zip'), F('dc-log.txt')]);
+      storedOk = true;
+    } catch (e) { storedOk = String(e.message).split('\n')[0]; }
+  }
+  ok('and the zip it made is still a zip with the file in it', storedOk === true,
+    String(storedOk));
+  ok('no CompressionStream: nothing threw', broke.length === 0, broke.join(' | '));
+  await close();
+}
+
+{
+  /* A phone will not open three hardware encoders at once, and the ladder
+     asks for three. Losing a rung costs accuracy; losing the run costs
+     everything, so the rungs that did open carry on without the ones that
+     did not. Built here as a browser that allows exactly one encoder at a
+     time and refuses the rest the way a real one does, from `configure`. */
+  const { tab, broke, close } = await pretending(() => {
+    const Real = window.VideoEncoder;
+    let live = 0;
+    class OneAtATime extends Real {
+      configure(config) {
+        if (live >= 1) throw new DOMException('Encoder creation error.', 'NotSupportedError');
+        live++;
+        this.__on = true;
+        return super.configure(config);
+      }
+      close() {
+        if (this.__on) { this.__on = false; live--; }
+        return super.close();
+      }
+    }
+    OneAtATime.isConfigSupported = Real.isConfigSupported.bind(Real);
+    window.VideoEncoder = OneAtATime;
+  });
+  await tab.setInputFiles('#fileInput', F('clip.webm'));
+  await tab.waitForFunction(() => window.CLI.file().ready, null, { timeout: 90000 });
+  /* Caught, not awaited bare. The behaviour under test is a page that used
+     to throw at exactly this point, and the first version of this check went
+     down with it — a stack trace and no FAIL line, which is the second time
+     the breakage pass has caught that mistake in this file. A check written
+     against a failure path has to survive the failure. */
+  let lean = null;
+  let fell = null;
+  try {
+    lean = await tab.evaluate(() => window.CLI.jobs.fit({ limit: 0.08, res: '240', fps: '10' }));
+  } catch (e) { fell = String(e.message).split('\n')[0]; }
+  ok('a browser that will only open one encoder still gets a video out',
+    !!lean && lean.fits && lean.went.bytes <= lean.limit,
+    fell || `${lean.went.bytes} vs ${lean.limit}`);
+  ok('and it ran the rungs it could rather than the three it wanted',
+    !!lean && lean.video.short === 1 && lean.tries.filter((t) => t.pass === 1).length === 1,
+    fell || `short ${lean.video.short}, ` + JSON.stringify(lean.tries));
+  ok('and the page says the ladder came up short rather than hiding it',
+    !!lean && /only open 1 encoder at once/.test(lean.detail), fell || lean.detail);
+  ok('one encoder at a time: nothing threw', broke.length === 0, broke.join(' | '));
+  await close();
+}
+
+{
+  /* Which sound goes in which box is a pairing, not a list — AAC cannot go
+     in a WebM at all — and the pairing is invisible from outside until
+     something has been encoded, which is why the page reports it. A browser
+     that can write both is the only one that can tell a correct pairing from
+     "whichever came first", and no browser here can, so one is made. */
+  const { tab, broke, close } = await pretending(() => {
+    AudioEncoder.isConfigSupported = async (c) => ({ supported: true, config: c });
+  });
+  const both = await tab.evaluate(() => window.CLI.jobs.limits());
+  ok('a browser that writes both is offered both', both.sound.length === 2,
+    JSON.stringify(both.sound.map((a) => a.id)));
+  ok('and a WebM is given the Opus it can hold, not the AAC it cannot',
+    both.soundFor.webm === 'opus', JSON.stringify(both.soundFor));
+  ok('and an MP4 is given the AAC that everything opens',
+    both.soundFor.mp4 === 'aac', JSON.stringify(both.soundFor));
+  ok('both codecs: nothing threw', broke.length === 0, broke.join(' | '));
+  await close();
+}
+
 /* ---------------------------------------------------------------- the page -- */
 
 console.log('--- the page itself ---');
@@ -831,51 +1140,66 @@ console.log(`\n(ffprobe ${HAVE_FFPROBE ? 'was' : 'was not'} available)`);
 await browser.close();
 process.exit(done());
 
-/* What the deliberate breakages found, and what they did not. Eleven went
- * through the page one at a time, each one run against the whole suite.
+/* What the deliberate breakages found, and what they did not.
  *
- * Caught, and by the checks you would hope:
+ * Eleven went through the page when it was written, one at a time, each run
+ * against the whole suite. Eight were caught by the checks you would hope:
+ * keeping the smallest rung that fits instead of the largest; measureFps
+ * returning a flat 30; shrinking the picture before spending the quality; no
+ * floor under the video bitrate; no second pass when the whole ladder
+ * overshoots; no ceiling from the bitrate the file arrived with; a zip that
+ * always deflates and never stores; split parts numbered without padding.
  *
- *   - keeping the smallest rung that fits instead of the largest — one check
- *   - measureFps returning a flat 30 — three checks, including the frame
- *     count out of ffprobe, because a wrong frame rate is a wrong plan
- *   - shrinking the picture before spending the quality — two
- *   - no floor under the video bitrate — four, one of them the console error
- *     the page is right to log
- *   - no second pass when the whole ladder overshoots — two
- *   - no ceiling from the bitrate the file arrived with — two
- *   - a zip that always deflates and never stores — two
- *   - split parts numbered without padding — one
+ * Three were not, and two of those earned a change here rather than a shrug.
+ * Keeping an animation's frames on an exact test went unnoticed because the
+ * fixture's delays were a steady 80 ms and the arithmetic only drifts when
+ * they are not; the fixture now has uneven delays, and the deeper fix was in
+ * the page, where Keep now means every frame rather than a grid at the
+ * average rate — a rate no frame in an unevenly timed GIF actually has, and
+ * it was dropping a third of the animation. A downmix that takes the left
+ * channel went unnoticed because the check held 660 Hz against a frequency
+ * with nothing at it rather than against the 440 beside it; the two now
+ * differ by a factor of forty-five. And handing the muxer all the sound at
+ * once instead of interleaving it changed nothing at all, because webm-muxer
+ * queues whichever track is ahead until the other catches up: the
+ * interleaving is there to keep three whole files out of memory, not to keep
+ * them correct, and the suite cannot tell the two apart.
  *
- * Three were not caught, and two of those earned a change here rather than a
- * shrug:
+ * Seven more went through when the page learned to write MP4 — which it had
+ * to, because it was saying "no video encoder" on every iPhone. Five were
+ * caught: the container always coming out WebM (three checks, one of them
+ * ffprobe reading the bytes); H.264 missing from the table; the animation
+ * sniff stuck at no, and stuck at yes; the codec box filled from the table
+ * rather than from what the browser said yes to.
  *
- *   - **Keeping an animation's frames on an exact test** went unnoticed,
- *     because the fixture's delays were a steady 80 ms and the arithmetic
- *     only drifts when they are not. The fixture now has uneven delays, which
- *     is what a GIF really has — and the deeper fix was in the page: Keep now
- *     means every frame rather than a grid at the average rate, which is a
- *     rate no frame in an unevenly timed GIF actually has. Putting *that*
- *     back fails four checks. The nine-tenths slack itself is still not
- *     observable from out here, and now need not be: the only path it is on
- *     is an explicitly lower frame rate, where one frame either side of the
- *     line is a choice rather than a bug.
+ * The other two were more instructive than the five.
  *
- *   - **A downmix that takes the left channel** went unnoticed, because the
- *     check held 660 Hz against a frequency with nothing at it rather than
- *     against the 440 beside it. See the comment on that check: the two now
- *     differ by a factor of forty-five.
+ *   - **The sound codec ignoring which container it is going in** was caught
+ *     by nothing, because no browser available here can write both AAC and
+ *     Opus, and with only one of them the right answer and the first answer
+ *     are the same answer. The pairing is now reported as data — AAC cannot
+ *     go in a WebM at all — and checked against a browser built to claim it
+ *     writes both.
  *
- *   - **Handing the muxer all the sound at once** instead of interleaving it
- *     as the picture passes its timestamp changed nothing at all, and should
- *     not have: webm-muxer queues whichever track is ahead until the other
- *     catches up, so the blocks come out in the same order either way. The
- *     interleaving is there to keep three whole files out of memory, not to
- *     keep them correct, and the suite cannot tell the two apart. That is a
- *     limit worth recording rather than a check worth writing.
+ *   - **Leaving the deflate guard out** did not fail the suite, it *took the
+ *     suite down*: the page threw, the bare `await` threw with it, and the
+ *     run ended in a stack trace with no FAIL line anywhere. A check whose
+ *     whole subject is a page that used to throw has to catch. That one now
+ *     does — and so does the one-encoder-at-a-time check beside it, which
+ *     was written afterwards, made the identical mistake, and was caught by
+ *     the identical breakage. Twice in one file is a pattern rather than a
+ *     slip: a check written against a failure path has to survive the
+ *     failure.
  *
  * And one thing nothing here covers on purpose: the container overhead
  * allowance, twelve bytes a block, can be set to anything from zero to about
  * forty without a check noticing, because the ladder underneath absorbs it.
  * It is a guard with a second guard behind it.
+ *
+ * What this suite cannot reach at all: the H.264 encode itself. The browser
+ * on an iPhone is the reason the MP4 half exists, nothing in this container
+ * runs it, and this Chromium has no H.264 encoder to stand in — so the
+ * H.264 path is exercised as far as the `configure` call and stops there.
+ * Everything before it is real; the encode is not covered, and no amount of
+ * green here says otherwise.
  */

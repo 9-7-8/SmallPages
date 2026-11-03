@@ -37,8 +37,8 @@ export const booleans = ["mono", "zip", "split"];
 /* Which flags mean anything to which kind of file. A flag the page would
    quietly ignore is a run that looks like it worked. */
 const BY_KIND = {
-  video: ["res", "fps", "codec", "sound", "mono"],
-  animation: ["res", "fps", "codec"],
+  video: ["res", "fps", "codec", "container", "sound", "mono"],
+  animation: ["res", "fps", "codec", "container"],
   image: ["format", "quality", "max"],
   audio: ["bitrate", "channels"],
   file: ["zip"],
@@ -70,7 +70,12 @@ A video, or an animated GIF
   --fps keep|30|24|15|…         frames a second. Fewer is smaller *and*
                                 quicker, since a frame not wanted is a frame
                                 not read
-  --codec vp9|vp8|av1           whichever this browser will write
+  --codec vp9|h264|av1|hevc|vp8  whichever this browser will write. \`limits\`
+                                lists what it said yes to, and why the answer
+                                differs from one machine to the next
+  --container webm|mp4          where the codec allows a choice. H.264 and
+                                HEVC are MP4 only, VP8 is WebM only, and VP9
+                                and AV1 go in either
   --sound 96|64|32|none         kilobits a second for the sound, off the top
                                 of the budget. A GIF has none to keep
   --mono                        downmix the sound to one channel
@@ -143,9 +148,22 @@ export async function run({ words, flags, open }) {
         ...rows(d.presets.map((p) => [`${p.mb} MB`,
           `${dim(p.note)}${p.default ? `  ${bold("— the default")}` : ""}`])),
         "",
-        ...rows(d.codecs.map((c) => [c.id, dim(c.note)])),
-        ...(d.codecs.length ? [] : wrap("This browser has no video encoder, so it"
-          + " cannot re-encode a video at all.")),
+        ...rows(d.codecs.map((c) => [c.id,
+          `${c.containers.join(", ").padEnd(12)}${dim(c.note)}`
+          + (c.default ? `  ${bold("— the default")}` : "")])),
+        ...(d.codecs.length ? [] : wrap("This browser will not encode any codec this page can"
+          + " write, so a video cannot be re-made here. Every string it was asked about is"
+          + " below.")),
+        "",
+        ...rows(d.sound.map((a) => [a.id, dim(`${a.name} — ${a.containers.join(", ")}`)])),
+        ...(d.sound.length ? [] : wrap("No audio encoder here, so anything made would be"
+          + " silent.")),
+        "",
+        /* Every string tried and what came back. A page that works on one
+           machine and not another is nearly always this table differing,
+           and it is the one thing worth being able to paste. */
+        ...rows(d.asked.map((a) => [a.tried,
+          a.supported ? "yes" : dim("no")])),
         "",
         ...rows(d.formats.map((f) => [f.ext, dim(f.note)])),
         "",
@@ -214,7 +232,7 @@ export async function run({ words, flags, open }) {
 
     const asked = {
       limit,
-      res: flags.res, fps: flags.fps, codec: flags.codec,
+      res: flags.res, fps: flags.fps, codec: flags.codec, container: flags.container,
       sound: flags.sound === undefined ? undefined
         : /^(none|no|off|0)$/i.test(String(flags.sound)) ? "0" : String(flags.sound),
       mono: flags.mono === undefined ? undefined : !!flags.mono,
