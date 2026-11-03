@@ -1,0 +1,2158 @@
+<!DOCTYPE html>
+<!-- Discord Compressor, from SmallPages <https://github.com/9-7-8/SmallPages>
+     Copyright (C) 2026 Ixora. SPDX-License-Identifier: GPL-3.0-or-later
+     Free software with no warranty, under the GNU General Public License,
+     version 3 or later: see LICENSE in the repository, or
+     <https://www.gnu.org/licenses/>. -->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Discord Compressor</title>
+<link rel="stylesheet" href="theme.css">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style>
+  /* Layout and sizing only. Colour, type and component styling live in theme.css. */
+
+  body { margin: 0; padding: 3rem 1.5rem 5rem; }
+  main { max-width: 980px; margin: 0 auto; }
+  p.lede { margin: 0 0 2.2rem; max-width: 60ch; }
+  .card { margin-bottom: 1.5rem; }
+  .card.off { opacity: 0.45; pointer-events: none; }
+
+  h2 { margin: 0 0 0.3rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--line-soft); }
+  h2 + p.gloss { font-size: 0.8rem; color: var(--text-faint); margin: 0 0 1.1rem; max-width: 62ch; }
+
+  .dropzone { padding: 2.5rem 1.5rem; text-align: center; cursor: pointer; }
+  .dropzone input { display: none; }
+  .dropzone .hint { font-size: 0.85rem; margin-top: 0.4rem; }
+  .dropzone.slim { padding: 1.1rem 1.5rem; }
+
+  .rank { display: flex; flex-wrap: wrap; gap: 1.1rem 1.4rem; align-items: flex-end; }
+  .rank + .rank { margin-top: 1.2rem; }
+  .rank[hidden] { display: none; }
+  .field { display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; }
+  .field label { font-size: 0.8rem; }
+  .field .unit { font-size: 0.72rem; margin-top: 0.1rem; max-width: 24ch; }
+  .field select, .field input[type="number"] { min-width: 8rem; }
+  .field input[type="range"] { width: 11rem; max-width: 100%; }
+  .field[hidden] { display: none; }
+  .acts { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-left: auto; }
+
+  .checks { display: flex; flex-wrap: wrap; gap: 0.5rem 1.4rem; margin-top: 1rem; }
+  .checks label { display: flex; align-items: center; gap: 0.45rem; font-size: 0.8rem; }
+  /* `display: flex` above beats what `[hidden]` asks for, so hiding one of
+     these by the attribute did nothing at all until this line. */
+  .checks label[hidden] { display: none; }
+  .checks input { flex: none; }
+
+  .status { font-size: 0.85rem; margin-top: 0.9rem; min-height: 1.2em; }
+  .bar { height: 3px; background: var(--line-soft); margin-top: 0.8rem; display: none; overflow: hidden; }
+  .bar.on { display: block; }
+  .bar i { display: block; height: 100%; width: 0; background: var(--neon); box-shadow: var(--glow-soft); transition: width 0.15s ease; }
+
+  /* ---------------------------------------------------------- the tally -- */
+
+  .tally { display: flex; flex-wrap: wrap; gap: 1.4rem 2.4rem; margin-top: 1.3rem; }
+  .tally .cell { min-width: 0; }
+  .tally .cap { font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-faint); }
+  .tally .n {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 1.2rem;
+    font-weight: 300;
+    color: var(--text);
+    margin-top: 0.25rem;
+  }
+  .tally .cell.win .n { color: var(--neon); text-shadow: var(--text-glow); }
+  .tally .cell.miss .n { color: var(--text-dim); }
+  .tally .sub { font-size: 0.72rem; color: var(--text-faint); margin-top: 0.15rem; }
+
+  /* The ladder: what each candidate bitrate came out at, so the one that was
+     kept is not just asserted. */
+  .rungs {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.73rem;
+    color: var(--text-faint);
+    margin-top: 1rem;
+    line-height: 1.7;
+  }
+  .rungs b { color: var(--neon); font-weight: 400; }
+
+  .stage { padding: 0.8rem; text-align: center; min-height: 5rem; background: var(--sunken); }
+  .stage img, .stage video { max-width: 100%; max-height: 22rem; display: inline-block; }
+  .stage audio { width: 100%; }
+  .stage .nothing { font-size: 0.8rem; color: var(--text-faint); padding: 1.6rem 0; }
+
+  .parts { list-style: none; padding: 0; margin: 1rem 0 0; font-size: 0.8rem; }
+  .parts li { display: flex; gap: 0.8rem; align-items: baseline; padding: 0.3rem 0; border-bottom: 1px solid var(--line-soft); }
+  .parts .nm { font-family: var(--mono); }
+  .parts .sz { color: var(--text-faint); margin-left: auto; font-family: var(--mono); }
+  .joinline {
+    font-family: var(--mono);
+    font-size: 0.73rem;
+    color: var(--text-dim);
+    margin-top: 0.9rem;
+    overflow-wrap: anywhere;
+  }
+
+  .note { font-size: 0.78rem; margin-top: 1.2rem; max-width: 70ch; }
+  .note strong { color: var(--text-dim); font-weight: 400; }
+
+  @media (max-width: 620px) {
+    body { padding: 2rem 1rem 4rem; }
+    .acts { margin-left: 0; width: 100%; }
+    .acts button { flex: 1; }
+    .tally { gap: 1.1rem 1.8rem; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <a class="home" href="index.html">&larr; index</a>
+  <h1>Discord Compressor</h1>
+  <p class="lede">A file too big for the upload box, brought under it. A video is re-encoded
+  &mdash; a different codec, fewer pixels, fewer frames a second, quieter audio, whichever of
+  those you want &mdash; at a bitrate worked backwards from the size you have to hit. A picture
+  is re-encoded the same way. Anything else is deflated, and split into parts if even that will
+  not do it. All of it in the tab: nothing is uploaded to anybody, which rather defeats the
+  object otherwise.</p>
+
+  <div class="card">
+    <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Choose a file">
+      <div id="dropLabel">Drop a file here, or click to choose one</div>
+      <div class="hint">A video, a picture, a sound, an animated GIF, a zip, a save file &mdash;
+      anything. You can paste one too.</div>
+      <input type="file" id="fileInput">
+    </div>
+    <div class="status" id="status">Nothing open yet.</div>
+    <div class="bar" id="bar"><i id="barFill"></i></div>
+  </div>
+
+  <div id="out" hidden>
+    <div class="card">
+      <h2>How small it has to be</h2>
+      <p class="gloss">Discord's own figure, which has moved three times since 2022 &mdash; 8 MB,
+      then 25, then 10, and 20 since August 2026. Which is why it is a box and not a constant.</p>
+      <div class="seg" id="limitSeg"></div>
+      <div class="rank" style="margin-top: 1.1rem;">
+        <div class="field">
+          <label for="limitMb">Megabytes</label>
+          <!-- step="any" rather than a figure, because any figure makes most of
+               the presets a step mismatch: a step of 1 from a floor of 0.02 says
+               10 is not a number this box takes, which some browsers paint red. -->
+          <input type="number" id="limitMb" min="0.02" max="4000" step="any" value="10">
+        </div>
+        <div class="field">
+          <span class="unit" id="limitNote"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="planCard">
+      <h2 id="planTitle">What to do with it</h2>
+      <p class="gloss" id="planWhat"></p>
+
+      <!-- Video and animation: the same controls, because an animated GIF is a
+           silent video as far as everything below is concerned. -->
+      <div class="rank" id="videoFields" hidden>
+        <div class="field">
+          <label for="resSel">Resolution</label>
+          <select id="resSel"></select>
+          <span class="unit" id="resNote"></span>
+        </div>
+        <div class="field">
+          <label for="fpsSel">Frames a second</label>
+          <select id="fpsSel"></select>
+          <span class="unit" id="fpsNote"></span>
+        </div>
+        <div class="field">
+          <label for="codecSel">Codec</label>
+          <select id="codecSel"></select>
+          <span class="unit" id="codecNote"></span>
+        </div>
+        <div class="field" id="soundField">
+          <label for="soundSel">Sound</label>
+          <select id="soundSel">
+            <option value="96">Keep it &mdash; 96 kbps</option>
+            <option value="64" selected>Keep it &mdash; 64 kbps</option>
+            <option value="32">Keep it &mdash; 32 kbps</option>
+            <option value="0">Drop it</option>
+          </select>
+          <span class="unit" id="soundNote"></span>
+        </div>
+        <div class="field" id="monoField">
+          <label for="monoChk" style="display:flex;align-items:center;gap:0.45rem;">
+            <input type="checkbox" id="monoChk"> Mono
+          </label>
+          <span class="unit">one channel, half the bits</span>
+        </div>
+      </div>
+
+      <!-- A still picture. -->
+      <div class="rank" id="imageFields" hidden>
+        <div class="field">
+          <label for="formatSel">Save as</label>
+          <select id="formatSel"></select>
+          <span class="unit" id="formatNote"></span>
+        </div>
+        <div class="field" id="qualityField">
+          <label for="qualityIn">Quality at most <span id="qualityOut"></span></label>
+          <input type="range" id="qualityIn" min="20" max="100" step="1" value="82">
+          <span class="unit">it goes lower on its own if it has to</span>
+        </div>
+        <div class="field">
+          <label for="sideIn">Longest side at most <span id="sideOut"></span></label>
+          <input type="range" id="sideIn" min="240" max="6000" step="40" value="6000">
+          <span class="unit" id="sideNote">pixels &mdash; it is never enlarged</span>
+        </div>
+      </div>
+
+      <!-- Sound on its own. -->
+      <div class="rank" id="audioFields" hidden>
+        <div class="field">
+          <label for="abrSel">Bitrate</label>
+          <select id="abrSel">
+            <option value="0">As high as fits</option>
+            <option value="128">128 kbps</option>
+            <option value="96">96 kbps</option>
+            <option value="64">64 kbps</option>
+            <option value="48">48 kbps</option>
+            <option value="32">32 kbps</option>
+            <option value="24">24 kbps &mdash; speech</option>
+          </select>
+          <span class="unit" id="abrNote"></span>
+        </div>
+        <div class="field">
+          <label for="achSel">Channels</label>
+          <select id="achSel">
+            <option value="keep">Keep</option>
+            <option value="mono">Mono</option>
+          </select>
+          <span class="unit">mono is worth about a third of the bitrate</span>
+        </div>
+      </div>
+
+      <!-- Everything else. -->
+      <div class="rank" id="fileFields" hidden>
+        <div class="field">
+          <span class="unit" id="fileNote" style="max-width:46ch;"></span>
+        </div>
+      </div>
+
+      <div class="checks" id="lastResort">
+        <label><input type="checkbox" id="zipChk"> Deflate it first</label>
+        <label><input type="checkbox" id="splitChk"> Split it into parts if it still will not fit</label>
+      </div>
+
+      <div class="rank" style="margin-top: 1.3rem;">
+        <div class="acts" style="margin-left: 0;">
+          <button type="button" id="goBtn">Make it fit</button>
+        </div>
+      </div>
+      <div class="status" id="planStatus"></div>
+    </div>
+
+    <div class="card off" id="resultCard">
+      <h2>What came out</h2>
+      <p class="gloss" id="resultWhat">Nothing yet.</p>
+      <div class="stage" id="stage"><div class="nothing">nothing made yet</div></div>
+      <div class="tally" id="tally"></div>
+      <div class="rungs" id="rungs"></div>
+      <ul class="parts" id="parts"></ul>
+      <div class="joinline" id="joinline"></div>
+      <div class="rank" style="margin-top: 1.2rem;">
+        <div class="acts" style="margin-left: 0;">
+          <button type="button" id="saveBtn" disabled>Save it</button>
+        </div>
+      </div>
+      <div class="status" id="outStatus"></div>
+    </div>
+  </div>
+
+  <p class="note"><strong>Why the size lands where it does.</strong> A video's size is its
+  bitrate times its length, so the sum runs the other way: the limit gives the bits, the length
+  divides them, and what is left after the sound is the picture's budget. An encoder asked for a
+  bitrate does not hit it exactly &mdash; measured here it came out anywhere from 74% to 121% of
+  the figure it was given, depending on the codec and how hard the footage is &mdash; so three
+  bitrates are encoded at once off a single read of the video and the largest result that fits
+  is the one kept. The encoding is the cheap part; reading the frames out is not, which is why
+  it is done once rather than three times. Footage close to white noise can beat all three
+  &mdash; static, confetti, a screen full of snow &mdash; and then it reads the video a second
+  time at bitrates aimed with what the first read measured: twice the wait, in the one case
+  where the alternative is a file you cannot send.</p>
+
+  <p class="note"><strong>It will not spend a budget it does not need.</strong> A 4 MB clip
+  given a 50 MB limit comes back at about 4 MB, not 50. Re-encoding upwards cannot put back
+  what the first encoder threw away, so the bitrate the file arrived with is a ceiling on the
+  bitrate it leaves with, and the line under the controls says when that ceiling is the one
+  doing the work rather than the limit.</p>
+
+  <p class="note"><strong>It writes WebM.</strong> VP9, VP8 or AV1 for the picture and Opus for
+  the sound, because those are what a browser's own encoders will write and this page has no
+  encoder of its own. Discord plays WebM in its own player on every platform it has. What it is
+  not is an MP4, so a file meant to be passed on somewhere else afterwards &mdash; into a video
+  editor, onto a console, into something from 2009 &mdash; may want converting again at the far
+  end. H.264 is missing for the same reason: writing one needs an MP4 container, and there
+  isn't one here.</p>
+
+  <p class="note"><strong>Reading the video is the slow part.</strong> The page steps through
+  the source a frame at a time, seeking to each one and drawing it, because that is the only way
+  to read a video a browser will play without a demuxer. Roughly real time on a short clip, and
+  slower than real time on a long one at a high frame rate &mdash; a half-hour video is not what
+  this is for. Dropping to 15 or 24 frames a second makes it quicker as well as smaller, since a
+  frame not wanted is a frame not read.</p>
+
+  <p class="note"><strong>Twice is worse than once.</strong> Everything here but the deflate and
+  the split is lossy, and lossy on top of lossy compounds: a clip that has already been through
+  this once and comes back for another pass is being quantised on top of quantisation. Go back
+  to the original each time. The same goes for a video somebody else already squeezed to fit
+  &mdash; there is not much left in it to take.</p>
+
+  <p class="note"><strong>What it cannot read.</strong> Only what the browser can. A video it
+  cannot play and a picture it cannot decode come out the other end as a file to deflate or
+  split &mdash; and it says that is what happened, naming the decoder rather than filing your
+  clip under "a bag of bytes", because a browser without H.264 is a browser that will not open
+  most MP4s. Safari and Firefox have no <code>VideoEncoder</code> at the time of writing, so
+  the moving-picture half of this page is Chromium-only; the picture, sound and file halves are
+  not. An animated GIF or WebP needs <code>ImageDecoder</code> to be read frame by frame, which
+  is the same story.</p>
+
+  <p class="note"><strong>Splitting is not compression.</strong> It is the last thing on the
+  list for a reason: the parts are useless until somebody puts them back together, and that
+  somebody has to be told how. The line under the parts is the command to paste &mdash;
+  <code>cat</code> on a Mac or Linux, <code>copy /b</code> on Windows. Discord takes ten
+  attachments a message, so ten parts is one message and eleven is two.</p>
+</main>
+
+<script src="vendor/webm-muxer/webm-muxer.js"></script>
+<script>
+"use strict";
+
+const el = (id) => document.getElementById(id);
+
+const dropzone  = el("dropzone");
+const dropLabel = el("dropLabel");
+const fileInput = el("fileInput");
+const statusEl  = el("status");
+const bar       = el("bar");
+const barFill   = el("barFill");
+const outEl     = el("out");
+const limitSeg  = el("limitSeg");
+const limitMb   = el("limitMb");
+const limitNote = el("limitNote");
+const planTitle = el("planTitle");
+const planWhat  = el("planWhat");
+const planStat  = el("planStatus");
+const goBtn     = el("goBtn");
+const stage     = el("stage");
+const tallyEl   = el("tally");
+const rungsEl   = el("rungs");
+const partsEl   = el("parts");
+const joinEl    = el("joinline");
+const saveBtn   = el("saveBtn");
+const outStat   = el("outStatus");
+const resultCard = el("resultCard");
+const resultWhat = el("resultWhat");
+
+/* What a browser will actually paint. Past these a canvas gives up a context
+   as normal and then quietly paints nothing — every pixel transparent and
+   `toBlob` returning null, with no complaint anywhere. The side is 16383
+   rather than the round number because a lossy WebP keeps its dimensions in
+   fourteen bits, so asking for one column more silently drops it.
+   image-compressor.html has the long version of this. */
+const MAX_SIDE = 16383;
+const MAX_AREA = 268435456;
+
+/* Discord's own numbers, and they move: the free limit was 8 MB, then 25, then
+   10, and 20 since August 2026. 10 is the default rather than 20 because a
+   file under 10 is under every one of those and a file at 20 is only under the
+   newest, and the cost of guessing wrong in that direction is a rejected
+   upload rather than a slightly smaller file. The box beside these takes
+   anything, which is the real answer to a figure that keeps changing. */
+const LIMITS = [
+  { mb: 10,  label: "10 MB",  note: "free, and under every limit Discord has had since 2022 — the safe one" },
+  { mb: 20,  label: "20 MB",  note: "free, as raised in August 2026 — check it still is before relying on it" },
+  { mb: 50,  label: "50 MB",  note: "Nitro Basic, or anybody posting in a server boosted to level 2" },
+  { mb: 100, label: "100 MB", note: "anybody posting in a server boosted to level 3" },
+  { mb: 500, label: "500 MB", note: "Nitro" },
+];
+
+/* ----------------------------------------------------------------- bytes -- */
+
+function humanBytes(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1048576) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / 1048576).toFixed(bytes < 10485760 ? 2 : 1)} MB`;
+}
+
+const kbps = (bits) => `${Math.round(bits / 1000)} kbps`;
+
+function setStatus(message, isError = false) {
+  statusEl.textContent = message;
+  statusEl.classList.toggle("error", isError);
+}
+
+function setPlanStatus(message, isError = false) {
+  planStat.textContent = message;
+  planStat.classList.toggle("error", isError);
+}
+
+function progress(fraction, note) {
+  if (fraction == null) { bar.classList.remove("on"); barFill.style.width = "0"; return; }
+  bar.classList.add("on");
+  barFill.style.width = `${Math.max(0, Math.min(1, fraction)) * 100}%`;
+  if (note) setStatus(note);
+}
+
+const breathe = () => new Promise((r) => setTimeout(r, 0));
+
+/* The stem a saved file is named from: the original's name with its ending
+   taken off and anything a filesystem would rather not see replaced. */
+function stemOf(name) {
+  const base = (name || "file").replace(/\.[^.]+$/, "").replace(/[^\w.-]+/g, "-");
+  return (base || "file").slice(0, 60);
+}
+
+/* ------------------------------------------------------------- what it is -- */
+
+/* Asked of the browser rather than read off the name, because a `.bin` that
+   is really a WebM should be re-encoded and a `.mp4` this browser cannot
+   decode should not be pretended at. The order matters: a GIF decodes as a
+   picture, so whether it is an animated one is the question straight after. */
+async function inspect(file) {
+  const common = { file, name: file.name || "file", size: file.size, type: file.type || "" };
+
+  const still = await createImageBitmap(file).catch(() => null);
+  if (still) {
+    const reel = await animationOf(file);
+    if (reel) {
+      /* The reel stays open and is handed on: walking the frames is how its
+         length was found in the first place, and doing that twice over a long
+         animated WebP is a second pass for nothing. Whoever takes it owns
+         closing it, which is what `forget` is for. */
+      return { ...common, kind: "animation", width: still.width, height: still.height,
+               frames: reel.count, duration: reel.duration, bitmap: still, reel };
+    }
+    return { ...common, kind: "image", width: still.width, height: still.height, bitmap: still };
+  }
+
+  const media = await mediaOf(file);
+  if (media && media.width > 0) return { ...common, kind: "video", ...media };
+  if (media) return { ...common, kind: "audio", ...media, width: 0, height: 0 };
+
+  /* A `.mp4` this browser has no decoder for, or a RAW photograph nothing
+     but the camera's own software reads, ends up here along with the zips
+     and the save files. It is not the same situation and should not read
+     like it: the file says what it is meant to be, and the page can at
+     least say that it could not open it rather than quietly filing a video
+     under "a bag of bytes". */
+  const meant = /^(video|image|audio)\//.test(common.type)
+    ? common.type.split("/")[0]
+    : null;
+  return { ...common, kind: "file", unreadable: meant };
+}
+
+/* How long it is, which a surprising number of files will not say. A WebM
+   written as it was recorded — by OBS, by a browser's own MediaRecorder, by
+   anything that did not know the length in advance — carries no Duration
+   element, and `video.duration` comes back as Infinity. The fix every player
+   uses is to ask for a position past the end: the browser seeks to the real
+   end, and either the duration turns up or the playhead is sitting on it.
+   Without this a screen recording, which is most of what anybody is trying to
+   squeeze onto Discord, arrives here as an unreadable bag of bytes. */
+async function durationOf(video) {
+  if (Number.isFinite(video.duration) && video.duration > 0) return video.duration;
+  await new Promise((done) => {
+    const settle = () => {
+      if (Number.isFinite(video.duration) && video.duration > 0) { clean(); done(); }
+    };
+    const clean = () => {
+      clearTimeout(timer);
+      video.removeEventListener("durationchange", settle);
+      video.removeEventListener("seeked", settle);
+    };
+    const timer = setTimeout(() => { clean(); done(); }, 10000);
+    video.addEventListener("durationchange", settle);
+    video.addEventListener("seeked", settle);
+    video.currentTime = 1e101;
+  });
+  const found = Number.isFinite(video.duration) && video.duration > 0
+    ? video.duration
+    : (Number.isFinite(video.currentTime) && video.currentTime > 0 ? video.currentTime : 0);
+  try { await seekTo(video, 0); } catch { /* nothing to rewind to; the length still stands */ }
+  return found;
+}
+
+/* A `<video>` is the only video decoder a page has, so it is also the only
+   honest answer to "can this be re-encoded". A file with no picture but a
+   length is sound; one that errors, or that has no length even after the
+   question above, is neither. */
+async function mediaOf(file) {
+  const video = document.createElement("video");
+  video.muted = true;
+  video.preload = "auto";
+  const url = URL.createObjectURL(file);
+  try {
+    const got = await new Promise((done) => {
+      video.addEventListener("loadedmetadata", () => done(true), { once: true });
+      video.addEventListener("error", () => done(false), { once: true });
+      setTimeout(() => done(false), 20000);
+      video.src = url;
+    });
+    if (!got) return null;
+    const duration = await durationOf(video);
+    if (!(duration > 0)) return null;
+    return { width: video.videoWidth, height: video.videoHeight, duration };
+  } finally {
+    video.removeAttribute("src");
+    video.load();
+    URL.revokeObjectURL(url);
+  }
+}
+
+/* An animated GIF, WebP or APNG, read through `ImageDecoder` because a
+   `<video>` will not play one. The frame durations are the animation's own,
+   so the length has to be summed out of them rather than asked for — which
+   means walking the frames once before anything can be budgeted. */
+async function animationOf(file) {
+  if (typeof ImageDecoder === "undefined") return null;
+  let dec = null;
+  try {
+    dec = new ImageDecoder({ data: await file.arrayBuffer(), type: file.type || "image/gif" });
+    await dec.tracks.ready;
+    const track = dec.tracks.selectedTrack;
+    if (!track || !track.animated || track.frameCount < 2) { dec.close(); return null; }
+    await dec.completeFramesRange;
+
+    let duration = 0;
+    const steps = [];
+    for (let i = 0; i < track.frameCount; i++) {
+      const { image } = await dec.decode({ frameIndex: i });
+      /* A GIF with no delay set is shown as fast as the renderer will go;
+         every browser floors that, and 100 ms is the figure they settled on. */
+      const step = (image.duration || 100000) / 1e6;
+      steps.push(step);
+      duration += step;
+      image.close();
+    }
+    return { dec, count: track.frameCount, duration, steps, close: () => dec.close() };
+  } catch {
+    if (dec) try { dec.close(); } catch { /* already gone */ }
+    return null;
+  }
+}
+
+/* ------------------------------------------------------------------- zip -- */
+
+const CRC_TABLE = (() => {
+  const table = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    table[n] = c >>> 0;
+  }
+  return table;
+})();
+
+function crc32(bytes) {
+  let c = 0xffffffff;
+  for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xff] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+}
+
+async function deflateRaw(bytes) {
+  const stream = new Blob([bytes]).stream().pipeThrough(new CompressionStream("deflate-raw"));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+/* One file in a zip, written by hand. There is no zip writer in the repo —
+   unzip.html only reads them — and this is the whole of what is needed: a
+   local header, the bytes, one central directory entry and the end record.
+   Stored rather than deflated when deflating made it bigger, which happens
+   on anything already compressed and is the usual case for the files that
+   bring somebody here. */
+async function zipOf(name, bytes, modified) {
+  const squashed = await deflateRaw(bytes);
+  const deflated = squashed.length < bytes.length;
+  const body = deflated ? squashed : bytes;
+  const method = deflated ? 8 : 0;
+  const entry = new TextEncoder().encode(name.replace(/[\\/]+/g, "_"));
+  const sum = crc32(bytes);
+
+  /* MS-DOS date and time, which is what a zip carries: seconds in units of
+     two, the year counted from 1980, and the whole thing clamped because a
+     file dated 1970 is not representable and a zip with a negative year in it
+     is a zip some readers refuse. */
+  const when = new Date(modified || Date.now());
+  const year = Math.max(1980, Math.min(2107, when.getFullYear()));
+  const time = (when.getHours() << 11) | (when.getMinutes() << 5) | (when.getSeconds() >> 1);
+  const date = ((year - 1980) << 9) | ((when.getMonth() + 1) << 5) | when.getDate();
+
+  const local = new Uint8Array(30 + entry.length);
+  const lv = new DataView(local.buffer);
+  lv.setUint32(0, 0x04034b50, true);
+  lv.setUint16(4, 20, true);            // the version needed to read it
+  lv.setUint16(6, 0, true);             // no flags: the sizes are known up front
+  lv.setUint16(8, method, true);
+  lv.setUint16(10, time, true);
+  lv.setUint16(12, date, true);
+  lv.setUint32(14, sum, true);
+  lv.setUint32(18, body.length, true);
+  lv.setUint32(22, bytes.length, true);
+  lv.setUint16(26, entry.length, true);
+  local.set(entry, 30);
+
+  const central = new Uint8Array(46 + entry.length);
+  const cv = new DataView(central.buffer);
+  cv.setUint32(0, 0x02014b50, true);
+  cv.setUint16(4, 20, true);            // written by
+  cv.setUint16(6, 20, true);            // needed to read
+  cv.setUint16(8, 0, true);
+  cv.setUint16(10, method, true);
+  cv.setUint16(12, time, true);
+  cv.setUint16(14, date, true);
+  cv.setUint32(16, sum, true);
+  cv.setUint32(20, body.length, true);
+  cv.setUint32(24, bytes.length, true);
+  cv.setUint16(28, entry.length, true);
+  cv.setUint32(42, 0, true);            // where the local header is: the start
+  central.set(entry, 46);
+
+  const end = new Uint8Array(22);
+  const ev = new DataView(end.buffer);
+  ev.setUint32(0, 0x06054b50, true);
+  ev.setUint16(8, 1, true);             // entries in this disk's directory
+  ev.setUint16(10, 1, true);            // entries in the directory
+  ev.setUint32(12, central.length, true);
+  ev.setUint32(16, local.length + body.length, true);
+
+  return {
+    blob: new Blob([local, body, central, end], { type: "application/zip" }),
+    deflated, stored: !deflated, method,
+  };
+}
+
+/* ----------------------------------------------------------------- split -- */
+
+/* The last resort, and not compression at all: the bytes cut into pieces that
+   each fit, plus the line that puts them back. Named with a number wide
+   enough to sort in a file listing, because `part10` before `part2` is how
+   somebody ends up with a corrupt file and no idea why. */
+function splitInto(blob, name, limit) {
+  const count = Math.max(1, Math.ceil(blob.size / limit));
+  const width = String(count).length < 3 ? 3 : String(count).length;
+  const parts = [];
+  for (let i = 0; i < count; i++) {
+    const from = i * limit;
+    parts.push({
+      name: `${name}.${String(i + 1).padStart(width, "0")}`,
+      blob: blob.slice(from, Math.min(blob.size, from + limit)),
+    });
+  }
+  return {
+    parts,
+    join: `cat ${name}.* > ${name}          (Windows: copy /b "${name}.*" "${name}")`,
+  };
+}
+
+/* ------------------------------------------------------------- the still -- */
+
+/* Asked rather than assumed: AVIF encoding is missing nearly everywhere and
+   Safari only learned WebP recently, so the list is what this browser will
+   really produce. Same question image-compressor.html asks. */
+function canWrite(type) {
+  const probe = document.createElement("canvas");
+  probe.width = probe.height = 1;
+  try {
+    return probe.toDataURL(type).startsWith(`data:${type}`);
+  } catch {
+    return false;
+  }
+}
+
+const FORMATS = [
+  { type: "image/webp", ext: "webp", name: "WebP", lossy: true,
+    note: "smaller than JPEG at the same quality — pick this one" },
+  { type: "image/jpeg", ext: "jpg",  name: "JPEG", lossy: true,
+    note: "opens anywhere, including things from 1998" },
+  { type: "image/avif", ext: "avif", name: "AVIF", lossy: true,
+    note: "smaller again, if your browser will write one" },
+  { type: "image/png",  ext: "png",  name: "PNG",  lossy: false,
+    note: "lossless and keeps transparency, so often bigger, not smaller" },
+].filter((f) => canWrite(f.type));
+
+/* The box has to be filled from this list rather than written out in the
+   markup, because which of them a browser will write is a question only the
+   browser can answer — and an empty `<select>` takes a `.value` without
+   complaining and then reads back as the empty string, so leaving it empty
+   made every `--format` silently come out as WebP. */
+for (const format of FORMATS) {
+  const option = document.createElement("option");
+  option.value = format.type;
+  option.textContent = format.name;
+  el("formatSel").appendChild(option);
+}
+if (FORMATS.length) el("formatSel").value = FORMATS[0].type;
+
+/* How big the picture comes out, given a cap on its longest side. Never
+   enlarged, and never past what the browser will paint: a 400-megapixel scan
+   is over the area ceiling at full size and the canvas for it comes back
+   blank rather than complaining, so the shrink is tightened until it fits. */
+function stillSize(src, cap, extra = 1) {
+  const longest = Math.max(src.width, src.height);
+  const asked = Math.min(1, cap / longest) * extra;
+  const fit = Math.min(
+    1,
+    MAX_SIDE / (src.width * asked),
+    MAX_SIDE / (src.height * asked),
+    Math.sqrt(MAX_AREA / (src.width * asked * src.height * asked)),
+  );
+  const k = asked * fit;
+  return {
+    w: Math.min(MAX_SIDE, Math.max(1, Math.round(src.width * k))),
+    h: Math.min(MAX_SIDE, Math.max(1, Math.round(src.height * k))),
+    k, capped: fit < 1,
+  };
+}
+
+async function drawStill(bitmap, w, h, type, quality) {
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  ctx.imageSmoothingQuality = "high";
+  /* A JPEG has no alpha, so anything transparent would come out black rather
+     than as nothing. White is what every other tool does here. */
+  if (type === "image/jpeg") {
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, w, h);
+  }
+  ctx.drawImage(bitmap, 0, 0, w, h);
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (b) => (b ? resolve(b) : reject(new Error("the encoder gave nothing back"))),
+      type,
+      quality,
+    );
+  });
+}
+
+/* The highest quality that fits, and only then fewer pixels. That order is
+   the point: a photograph at 1920 wide and quality 60 looks better than the
+   same photograph at 900 wide and quality 90, and the obvious loop — shrink
+   until it fits — gets that backwards every time. */
+async function fitStill(limit, o) {
+  const format = FORMATS.find((f) => f.type === o.format) || FORMATS[0];
+  const tries = [];
+  /* Rungs nearer than four apart are the same encode twice over — asked for
+     82, the raw list gives 57 and then 55, which differ by about 2% of the
+     file and a whole second of encoding. */
+  const ladder = format.lossy
+    ? [o.quality, o.quality - 8, o.quality - 16, o.quality - 25, 55, 45]
+        .map((q) => Math.round(q))
+        .filter((q) => q >= 20 && q <= 100)
+        .reduce((kept, q) => (kept.some((had) => Math.abs(had - q) < 4) ? kept : [...kept, q]), [])
+    : [null];
+
+  let base = stillSize(source, o.side);
+  for (const quality of ladder) {
+    const blob = await drawStill(source.bitmap, base.w, base.h, format.type,
+      quality == null ? undefined : quality / 100);
+    tries.push({ w: base.w, h: base.h, quality, size: blob.size });
+    if (blob.size <= limit) {
+      return { blob, w: base.w, h: base.h, quality, tries, format, fits: true };
+    }
+  }
+
+  /* Out of quality, so out of pixels. Size goes roughly with area, which makes
+     the square root of how far out we are the right first correction. */
+  const quality = format.lossy ? Math.max(45, Math.min(o.quality, 72)) : null;
+  let extra = 1;
+  let last = null;
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const over = tries[tries.length - 1];
+    extra = Math.max(0.05, extra * Math.min(0.92, Math.sqrt(limit / over.size) * 0.97));
+    const size = stillSize(source, o.side, extra);
+    const blob = await drawStill(source.bitmap, size.w, size.h, format.type,
+      quality == null ? undefined : quality / 100);
+    tries.push({ w: size.w, h: size.h, quality, size: blob.size });
+    last = { blob, w: size.w, h: size.h, quality, tries, format, fits: blob.size <= limit };
+    if (last.fits) return last;
+    if (size.w <= 32 || size.h <= 32) break;
+  }
+  return last || { blob: null, tries, format, fits: false };
+}
+
+/* ------------------------------------------------------- frames, in order -- */
+
+function seekTo(video, at) {
+  if (Math.abs(video.currentTime - at) < 1e-4) return Promise.resolve();
+  return new Promise((done, fail) => {
+    const give = () => { clean(); done(); };
+    const no = () => { clean(); fail(new Error("the video stopped decoding part way through")); };
+    const clean = () => {
+      video.removeEventListener("seeked", give);
+      video.removeEventListener("error", no);
+    };
+    video.addEventListener("seeked", give, { once: true });
+    video.addEventListener("error", no, { once: true });
+    video.currentTime = at;
+  });
+}
+
+/* A video does not tell you its frame rate — there is no property for it — so
+   it is measured: play a moment of it, take the gap between the frames the
+   compositor actually presented, and round to a figure somebody would
+   recognise. Worth having because "keep whatever it had" is the default
+   anybody wants, and a guess of 30 on a 60 frame-a-second capture throws half
+   of it away without saying so. */
+async function measureFps(video) {
+  if (!("requestVideoFrameCallback" in video)) return null;
+  const times = [];
+  try {
+    await video.play();
+  } catch {
+    return null;              // nothing will autoplay here; the default stands
+  }
+  await new Promise((done) => {
+    const giveUp = setTimeout(done, 2000);
+    const step = (now, meta) => {
+      times.push(meta.mediaTime);
+      if (times.length >= 24 || meta.mediaTime > 0.8 || video.ended) {
+        clearTimeout(giveUp);
+        done();
+        return;
+      }
+      video.requestVideoFrameCallback(step);
+    };
+    video.requestVideoFrameCallback(step);
+  });
+  video.pause();
+  if (times.length < 4) return null;
+
+  const gaps = times.slice(1).map((t, i) => t - times[i])
+    .filter((g) => g > 1e-4).sort((a, b) => a - b);
+  if (!gaps.length) return null;
+  const rate = 1 / gaps[Math.floor(gaps.length / 2)];
+  if (!Number.isFinite(rate) || rate < 1 || rate > 1000) return null;
+  /* The closest of the figures somebody would recognise, not the first one
+     within tolerance: 30 and 29.97 are both within a few per cent of a
+     measured 30, and taking whichever came first in the list reported a
+     30/s capture as 29.97. */
+  const nice = [12, 15, 23.976, 24, 25, 29.97, 30, 48, 50, 59.94, 60, 90, 120, 144]
+    .filter((n) => Math.abs(rate - n) < n * 0.04)
+    .sort((a, b) => Math.abs(rate - a) - Math.abs(rate - b))[0];
+  return nice != null ? nice : Math.round(rate * 100) / 100;
+}
+
+async function videoSource(file) {
+  const video = document.createElement("video");
+  video.muted = true;
+  video.preload = "auto";
+  const url = URL.createObjectURL(file);
+  await new Promise((done, fail) => {
+    video.addEventListener("loadeddata", done, { once: true });
+    video.addEventListener("error", () => fail(new Error("this browser will not decode that video")), { once: true });
+    setTimeout(() => fail(new Error("that video took too long to open")), 30000);
+    video.src = url;
+  });
+  const duration = await durationOf(video);
+  if (!(duration > 0)) throw new Error("that video does not say how long it is, even when asked");
+  const fps = await measureFps(video);
+  /* Whether there is any sound in it, asked after a moment of it has been
+     played. There is no property that says so outright — `audioTracks` is
+     not in Chrome — but the running total of audio bytes decoded is, and it
+     is the difference between offering a sound control that can do something
+     and one that quietly cannot. `null` where the property is missing, which
+     means "assume there might be" rather than "there is none". */
+  const hasSound = typeof video.webkitAudioDecodedByteCount === "number"
+    ? video.webkitAudioDecodedByteCount > 0
+    : null;
+  return {
+    kind: "video", hasSound,
+    width: video.videoWidth, height: video.videoHeight,
+    duration, fps,
+    /* `rate` is a ceiling, and null means "whatever it has". A video has no
+       frames to keep as such — they are seeked to — so for a video that is
+       its own measured rate. */
+    plan(rate) {
+      const use = rate || fps || 30;
+      const count = Math.max(1, Math.round(duration * use));
+      const step = 1 / use;
+      return Array.from({ length: count }, (_, i) => ({ at: i * step, step, index: i }));
+    },
+    async grab(entry) {
+      await seekTo(video, Math.min(entry.at, Math.max(0, duration - 0.001)));
+      return { image: video, close() { /* the element is the frame; it stays */ } };
+    },
+    close() { video.pause(); video.removeAttribute("src"); video.load(); URL.revokeObjectURL(url); },
+  };
+}
+
+/* Handed the open reel `inspect` already walked rather than the file, because
+   walking it is how its length was found and once is enough. */
+async function animationSource(reel) {
+  if (!reel) throw new Error("that animation cannot be read frame by frame here");
+  const { image } = await reel.dec.decode({ frameIndex: 0 });
+  const width = image.displayWidth;
+  const height = image.displayHeight;
+  image.close();
+
+  return {
+    kind: "animation",
+    width, height,
+    duration: Math.round(reel.duration * 1e6) / 1e6,
+    /* Summed frame delays land a few bits either side of the figure they came
+       from, and 11.999999999999998 frames a second is not a sentence anybody
+       should have to read. */
+    fps: Math.round((reel.count / reel.duration) * 100) / 100,
+    plan(rate) {
+      /* Frames are kept rather than resampled: an animation's frames have
+         their own uneven delays, and inventing a steady grid over them makes
+         a two-second pause into forty copies of the same drawing. So a frame
+         is kept when enough time has passed since the last one kept, and it
+         is shown until the next.
+
+         `rate` null is what the Keep box means, and it means every frame. It
+         cannot mean "the average rate", which is what it used to: the delays
+         in a GIF are uneven, the average is not a gap any of them has, and
+         filtering on it silently threw away a third of the animation while
+         the page went on saying Keep. */
+      const kept = [];
+      let at = 0;
+      let lastKept = -Infinity;
+      for (let i = 0; i < reel.count; i++) {
+        /* Nine tenths of the gap rather than the gap itself, because the
+           delays are summed and by frame thirty they are a few bits short of
+           the figure they should be. A frame rate asked for here is a
+           ceiling, not a grid, so being a hair generous is the right answer
+           as well as the robust one. */
+        if (!rate || at - lastKept >= (1 / rate) * 0.9) {
+          kept.push({ at, step: reel.steps[i], index: i });
+          lastKept = at;
+        }
+        at += reel.steps[i];
+      }
+      for (let i = 0; i < kept.length; i++) {
+        const until = i + 1 < kept.length ? kept[i + 1].at : reel.duration;
+        kept[i].step = Math.max(1 / 1000, until - kept[i].at);
+      }
+      return kept.length ? kept : [{ at: 0, step: reel.duration, index: 0 }];
+    },
+    async grab(entry) {
+      const got = await reel.dec.decode({ frameIndex: entry.index });
+      return { image: got.image, close() { got.image.close(); } };
+    },
+    close() { reel.close(); },
+  };
+}
+
+/* ----------------------------------------------------- moving pictures -- */
+
+const CODECS = [
+  { id: "vp9", name: "VP9", track: "V_VP9", codec: "vp09.00.10.08",
+    note: "the sensible default, and what Discord's player likes best" },
+  { id: "av1", name: "AV1", track: "V_AV1", codec: "av01.0.04M.08",
+    note: "the smallest at a given bitrate, and much the slowest to write" },
+  { id: "vp8", name: "VP8", track: "V_VP8", codec: "vp8",
+    note: "older and worse at the same bitrate; here for anything that chokes on VP9" },
+];
+
+/* Three bitrates, encoded at once off one read of the video, and the largest
+   result that fits is kept.
+
+   This is not caution for its own sake. An encoder handed a bitrate does not
+   produce that bitrate: measured on this page's own test clip, VP9 came out
+   at 74% of the figure it was asked for at a generous bitrate and 105% at a
+   mean one, VP8 at 104–112%, AV1 at 97–121%. One encode at the computed
+   bitrate would therefore miss the limit perhaps half the time, and the fix
+   everybody reaches for — encode, measure, encode again — costs a second read
+   of the source, which is 97% of the time this page spends. Encoding three
+   streams off the same frame costs about a fifth of one extra read. So the
+   rungs span the whole of that observed error, 0.62 covering an overshoot of
+   61%, and the answer is right the first time for anything short of white
+   noise. What happens when it is not is in `pass` below. */
+const RUNGS = [1, 0.8, 0.62];
+
+/* Below this a picture is a smear of blocks and the honest thing is to say
+   so rather than hand one over. */
+const MIN_VIDEO_BITRATE = 24000;
+
+async function usableCodecs() {
+  if (typeof VideoEncoder === "undefined") return [];
+  const out = [];
+  for (const c of CODECS) {
+    const asked = { codec: c.codec, width: 640, height: 360, bitrate: 400000, framerate: 30 };
+    const said = await VideoEncoder.isConfigSupported(asked).catch(() => null);
+    if (said && said.supported) out.push(c);
+  }
+  return out;
+}
+
+/* The sound, encoded once and handed to every rung, because only the picture
+   differs between them. Returns the chunks rather than a file: they go into
+   three muxers, and an EncodedAudioChunk can be read as many times as you
+   like. */
+async function opusFor(file, want) {
+  let buffer = null;
+  try {
+    /* 48 kHz because that is the rate Opus works in, and asking the context
+       for it means the resampling is the browser's rather than ours. */
+    const ac = new AudioContext({ sampleRate: 48000 });
+    buffer = await ac.decodeAudioData(await file.arrayBuffer());
+    ac.close();
+  } catch {
+    return null;              // no sound in it, or none this browser can read
+  }
+  if (typeof AudioEncoder === "undefined") return null;
+
+  const channels = want.mono ? 1 : Math.min(2, buffer.numberOfChannels);
+  const lanes = [];
+  if (channels === 1 && buffer.numberOfChannels > 1) {
+    /* Averaged, not channel one: taking the left channel of a track mixed
+       wide loses whatever was panned right, which on music is often the whole
+       of an instrument. */
+    const mix = new Float32Array(buffer.length);
+    for (let c = 0; c < buffer.numberOfChannels; c++) {
+      const lane = buffer.getChannelData(c);
+      for (let i = 0; i < mix.length; i++) mix[i] += lane[i] / buffer.numberOfChannels;
+    }
+    lanes.push(mix);
+  } else {
+    for (let c = 0; c < channels; c++) lanes.push(buffer.getChannelData(c));
+  }
+
+  const chunks = [];
+  let bytes = 0;
+  let failed = null;
+  const encoder = new AudioEncoder({
+    output: (chunk, meta) => { chunks.push({ chunk, meta }); bytes += chunk.byteLength; },
+    error: (err) => { failed = err; },
+  });
+  encoder.configure({ codec: "opus", sampleRate: 48000, numberOfChannels: channels,
+                      bitrate: want.bitrate });
+
+  const block = 48000 / 50;                     // 20 ms, which is Opus's own frame
+  for (let at = 0; at < buffer.length; at += block) {
+    const n = Math.min(block, buffer.length - at);
+    const data = new Float32Array(n * channels);
+    for (let c = 0; c < channels; c++) data.set(lanes[c].subarray(at, at + n), c * n);
+    encoder.encode(new AudioData({
+      format: "f32-planar", sampleRate: 48000, numberOfFrames: n,
+      numberOfChannels: channels, timestamp: Math.round((at / 48000) * 1e6), data,
+    }));
+    if (encoder.encodeQueueSize > 40) {
+      await new Promise((r) => encoder.addEventListener("dequeue", r, { once: true }));
+    }
+  }
+  await encoder.flush();
+  encoder.close();
+  if (failed) throw new Error(`the sound would not encode: ${failed.message}`);
+  return { chunks, bytes, channels, bitrate: want.bitrate, seconds: buffer.duration };
+}
+
+/* Even sides, because every codec here wants them and a 721-wide VP9 is
+   either refused or quietly rounded. */
+const even = (n) => Math.max(2, Math.round(n / 2) * 2);
+
+async function fitMoving(limit, o, onStep) {
+  if (typeof VideoEncoder === "undefined") {
+    throw new Error("this browser has no WebCodecs, so it cannot re-encode a video."
+      + " Chromium can; Safari and Firefox cannot, yet");
+  }
+  const src = o.source;
+  const seconds = src.duration;
+  const entries = src.plan(o.cap);
+  const w = even(o.width);
+  const h = even(o.height);
+  const codec = CODECS.find((c) => c.id === o.codec) || CODECS[0];
+
+  const audio = o.audioBitrate > 0
+    ? await opusFor(o.file, { bitrate: o.audioBitrate, mono: o.mono })
+    : null;
+
+  /* The budget, worked backwards. The sound is already encoded, so its share
+     is a measured number rather than an estimate; what is left after it and
+     the container is the picture's. A WebM block carries about a dozen bytes
+     of its own on top of the frame, and there are a lot of blocks. */
+  const overhead = 2560 + 12 * (entries.length + (audio ? audio.chunks.length : 0));
+  const room = limit - (audio ? audio.bytes : 0) - overhead;
+  const allowed = Math.floor((room * 8) / seconds);
+
+  /* And then not all of it, if the thing that came in did not have that much
+     in it to begin with. Spending the whole budget is the obvious reading of
+     "make it fit" and it is wrong: a 4 MB clip handed a 50 MB limit would
+     come back as a 50 MB clip, re-encoded upwards, which adds nothing a
+     viewer can see and is a worse file by every measure including the one
+     the page is for. Bits cannot put back what the first encoder threw away,
+     so the source's own bitrate is the ceiling. */
+  const had = Math.floor((o.sourceSize * 8) / seconds) - (audio ? audio.bitrate : 0);
+  const ceiling = Math.max(MIN_VIDEO_BITRATE, had);
+  const bitrate = Math.min(allowed, ceiling);
+  const held = bitrate < allowed;
+
+  if (bitrate < MIN_VIDEO_BITRATE) {
+    const why = audio
+      ? `${humanBytes(audio.bytes)} of it is sound, and what is left is ${kbps(Math.max(0, allowed))}`
+      : `that is ${kbps(Math.max(0, allowed))} for the picture`;
+    throw new Error(`${Math.round(seconds)} seconds will not go into ${humanBytes(limit)} — ${why}.`
+      + " Drop the sound, lower the frame rate, or split the file instead");
+  }
+
+  /* One read of the video, every candidate bitrate encoded off it. */
+  async function pass(rates, label) {
+    const rungs = rates.map((rate) => {
+      const muxer = new WebMMuxer.Muxer({
+        target: new WebMMuxer.ArrayBufferTarget(),
+        video: { codec: codec.track, width: w, height: h, frameRate: o.fps },
+        audio: audio ? { codec: "A_OPUS", numberOfChannels: audio.channels, sampleRate: 48000 } : undefined,
+      });
+      const rung = { rate, muxer, failed: null, size: 0, label };
+      rung.encoder = new VideoEncoder({
+        output: (chunk, meta) => { try { muxer.addVideoChunk(chunk, meta); } catch (e) { rung.failed = e; } },
+        error: (err) => { rung.failed = err; },
+      });
+      rung.encoder.configure({ codec: codec.codec, width: w, height: h, bitrate: rate,
+                               framerate: o.fps, latencyMode: "quality" });
+      return rung;
+    });
+
+    /* The sound is handed over as the picture passes its timestamp rather
+       than all at the end. The muxer would cope either way — it queues one
+       track until the other catches up — but queueing the whole file means
+       holding every rung's whole file in memory for no reason. */
+    let handed = 0;
+    const handAudio = (upto) => {
+      if (!audio) return;
+      while (handed < audio.chunks.length && audio.chunks[handed].chunk.timestamp <= upto) {
+        const { chunk, meta } = audio.chunks[handed++];
+        for (const rung of rungs) {
+          try { rung.muxer.addAudioChunk(chunk, meta); } catch (e) { rung.failed = e; }
+        }
+      }
+    };
+
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    ctx.imageSmoothingQuality = "high";
+
+    /* A keyframe every four seconds or so. More of them is a bigger file;
+       fewer makes the scrub bar in Discord's player useless. */
+    const gop = Math.max(1, Math.round(o.fps * 4));
+
+    try {
+      for (let i = 0; i < entries.length; i++) {
+        const entry = entries[i];
+        const frame = await src.grab(entry);
+        ctx.drawImage(frame.image, 0, 0, w, h);
+        frame.close();
+
+        const vf = new VideoFrame(canvas, {
+          timestamp: Math.round(entry.at * 1e6),
+          duration: Math.max(1, Math.round(entry.step * 1e6)),
+        });
+        for (const rung of rungs) {
+          if (!rung.failed) rung.encoder.encode(vf, { keyFrame: i % gop === 0 });
+        }
+        vf.close();
+        handAudio(Math.round(entry.at * 1e6));
+
+        for (const rung of rungs) {
+          if (rung.encoder.encodeQueueSize > 4) {
+            await new Promise((r) => rung.encoder.addEventListener("dequeue", r, { once: true }));
+          }
+        }
+        const broke = rungs.find((r) => r.failed);
+        if (broke) throw broke.failed;
+        if (i % 4 === 0 || i === entries.length - 1) {
+          if (onStep) onStep((i + 1) / entries.length, i + 1, entries.length, label);
+          await breathe();
+        }
+      }
+
+      for (const rung of rungs) await rung.encoder.flush();
+      handAudio(Infinity);
+      for (const rung of rungs) {
+        rung.muxer.finalize();
+        rung.size = rung.muxer.target.buffer.byteLength;
+      }
+    } finally {
+      for (const rung of rungs) {
+        try { if (rung.encoder.state !== "closed") rung.encoder.close(); } catch { /* gone */ }
+      }
+    }
+
+    const broke = rungs.find((r) => r.failed);
+    if (broke) throw new Error(`the encoder gave up: ${broke.failed.message}`);
+    return rungs;
+  }
+
+  /* The ladder covers an encoder that overshoots by up to 61%, which is more
+     than twice the worst that was measured when the rungs were chosen. It is
+     not enough for everything: footage that is close to white noise — a GIF
+     of flickering static, a screen recording of a confetti cannon — can come
+     out at twice the bitrate it was given, and then every rung is over.
+
+     So when none of them fits, the answer is not to hand over the smallest
+     and apologise. The pass just run has measured what this footage actually
+     does with a bitrate, so a second pass aimed with that figure lands. It
+     costs another read of the video, which is the expensive thing here, and
+     that is the right price for the one case where the alternative is a file
+     that cannot be sent. */
+  let rungs = await pass(
+    [...new Set(RUNGS.map((k) => Math.max(MIN_VIDEO_BITRATE, Math.round(bitrate * k))))],
+    "first",
+  );
+  const tries = rungs.map((r) => ({ bitrate: r.rate, size: r.size, kept: false, pass: 1 }));
+  let passes = 1;
+
+  if (!rungs.some((r) => r.size <= limit)) {
+    const lowest = rungs[rungs.length - 1];
+    /* How many bytes this footage really produces per byte asked for. */
+    const ratio = lowest.size / ((lowest.rate * seconds) / 8);
+    /* 0.88 rather than something nearer 1 because the overshoot is not a
+       constant: the harder the footage, the more of the file is the floor
+       under an encoder's own overheads, so the ratio measured at one bitrate
+       understates the ratio at a lower one. The second ladder is three rungs
+       for the same reason the first one is. */
+    const aim = Math.floor((bitrate / Math.max(1, ratio)) * 0.88);
+    if (aim >= MIN_VIDEO_BITRATE) {
+      const again = await pass(
+        [...new Set(RUNGS.map((k) => Math.max(MIN_VIDEO_BITRATE, Math.round(aim * k))))],
+        "second",
+      );
+      passes = 2;
+      for (const r of again) tries.push({ bitrate: r.rate, size: r.size, kept: false, pass: 2 });
+      rungs = [...rungs, ...again];
+    }
+  }
+
+  const fitting = rungs.filter((r) => r.size <= limit).sort((a, b) => b.size - a.size);
+  const chosen = fitting[0] || rungs.reduce((a, b) => (a.size <= b.size ? a : b));
+  tries[rungs.indexOf(chosen)].kept = true;
+
+  return {
+    blob: new Blob([chosen.muxer.target.buffer], { type: "video/webm" }),
+    w, h, fps: o.fps, frames: entries.length, seconds,
+    codec: codec.id, codecName: codec.name,
+    bitrate: chosen.rate, asked: bitrate, allowed, held, tries, passes,
+    audio: audio ? { bitrate: audio.bitrate, channels: audio.channels, bytes: audio.bytes } : null,
+    fits: chosen.size <= limit,
+  };
+}
+
+/* -------------------------------------------------------------- the sound -- */
+
+/* Sound on its own is the easy one: Opus holds a bitrate closely enough that
+   the sum comes out right first time, and the one correction below is there
+   for the odd file where the container costs more than it was given. */
+async function fitSound(limit, o) {
+  const seconds = source.duration;
+  const overhead = 2048 + 12 * Math.ceil(seconds * 50);
+  const room = Math.max(0, limit - overhead);
+  const asked = o.bitrate > 0
+    ? o.bitrate
+    : Math.min(192000, Math.max(8000, Math.floor((room * 8) / seconds)));
+  if (asked < 8000) {
+    throw new Error(`${Math.round(seconds)} seconds of sound will not go into ${humanBytes(limit)}`
+      + " — Opus does not go below 8 kbps. Split it instead");
+  }
+
+  const tries = [];
+  let bitrate = asked;
+  let made = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const audio = await opusFor(source.file, { bitrate, mono: o.mono });
+    if (!audio) throw new Error("this browser could not decode the sound in that file");
+    const muxer = new WebMMuxer.Muxer({
+      target: new WebMMuxer.ArrayBufferTarget(),
+      audio: { codec: "A_OPUS", numberOfChannels: audio.channels, sampleRate: 48000 },
+    });
+    for (const { chunk, meta } of audio.chunks) muxer.addAudioChunk(chunk, meta);
+    muxer.finalize();
+    const blob = new Blob([muxer.target.buffer], { type: "audio/webm" });
+    tries.push({ bitrate, size: blob.size, kept: false });
+    made = { blob, bitrate, channels: audio.channels, seconds, tries, fits: blob.size <= limit };
+    if (made.fits || o.bitrate > 0) break;
+    const next = Math.floor(bitrate * Math.min(0.9, (limit / blob.size) * 0.95));
+    if (next < 8000 || next >= bitrate) break;
+    bitrate = next;
+  }
+  tries[tries.length - 1].kept = true;
+  return made;
+}
+
+/* ----------------------------------------------------------- the page -- */
+
+let source = null;      // what inspect() made of the file, plus the file itself
+let reel = null;        // the frame source, for a video or an animation
+let made = null;        // { blob, name, kind, parts, ... } — what Save hands over
+let busy = false;
+/* `source` is set early in `open` because everything after it needs it, so it
+   is not the answer to "is this page ready". A video's boxes are filled in
+   after the frame rate has been measured, and a runner that waited on
+   `!!source` set the resolution before there was a resolution box to set:
+   "the resolution here is one of  — not 240". This is the flag that means
+   finished, and it goes up with `loads`. */
+let opened = false;
+
+const limitBytes = () => Math.max(1024, Math.round(Number(limitMb.value) * 1048576));
+
+for (const preset of LIMITS) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.textContent = preset.label;
+  button.dataset.mb = String(preset.mb);
+  button.addEventListener("click", () => { limitMb.value = String(preset.mb); syncLimit(); });
+  limitSeg.appendChild(button);
+}
+
+function syncLimit() {
+  const mb = Number(limitMb.value);
+  for (const button of limitSeg.children) {
+    button.setAttribute("aria-pressed", String(Number(button.dataset.mb) === mb));
+  }
+  const match = LIMITS.find((l) => l.mb === mb);
+  limitNote.textContent = match ? match.note : "whatever you need it under";
+  syncPlan();
+}
+
+limitMb.addEventListener("input", syncLimit);
+
+/* ------------------------------------------------------------------ input -- */
+
+dropzone.addEventListener("click", () => fileInput.click());
+dropzone.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInput.click(); }
+});
+fileInput.addEventListener("change", () => {
+  if (fileInput.files.length) open(fileInput.files[0]);
+});
+
+for (const type of ["dragover", "dragenter"]) {
+  document.addEventListener(type, (e) => { e.preventDefault(); dropzone.classList.add("drag"); });
+}
+document.addEventListener("dragleave", (e) => {
+  if (e.relatedTarget === null) dropzone.classList.remove("drag");
+});
+document.addEventListener("drop", (e) => {
+  e.preventDefault();
+  dropzone.classList.remove("drag");
+  const file = e.dataTransfer.files && e.dataTransfer.files[0];
+  if (file) open(file);
+});
+document.addEventListener("paste", (e) => {
+  const file = [...(e.clipboardData ? e.clipboardData.files : [])][0];
+  if (file) open(file);
+});
+
+let loads = 0;          // so a runner can wait for *this* file rather than any
+
+async function open(file) {
+  forget();
+  opened = false;
+  setStatus(`Reading ${file.name || "it"}…`);
+  try {
+    source = { ...(await inspect(file)), file };
+
+    if (source.kind === "video" || source.kind === "animation") {
+      setStatus(source.kind === "video"
+        ? "Opening the video and counting its frame rate…"
+        : "Reading the animation's frames…");
+      reel = source.kind === "video"
+        ? await videoSource(file)
+        : await animationSource(source.reel);
+      source.reel = null;                 // the frame source owns it now
+      fillResolution(reel.width, reel.height);
+      fillFrameRate(reel.fps);
+      await fillCodecs();
+    }
+    if (source.kind === "image") {
+      const longest = Math.max(source.width, source.height);
+      el("sideIn").max = String(Math.max(240, longest));
+      el("sideIn").value = String(Math.max(240, longest));
+    }
+
+    el("zipChk").checked = source.kind === "file";
+    el("splitChk").checked = false;
+    outEl.hidden = false;
+    dropzone.classList.add("slim");
+    dropLabel.textContent = "Open another file";
+    showKind();
+    syncLimit();
+    setStatus(describe());
+    opened = true;
+    loads++;
+  } catch (err) {
+    console.error(err);
+    setStatus(`Couldn't open that: ${err.message}`, true);
+    source = null;
+    outEl.hidden = true;
+  }
+}
+
+function describe() {
+  const bits = [source.name, humanBytes(source.size)];
+  if (source.kind === "video") bits.push(`${reel.width}×${reel.height}`,
+    `${reel.duration.toFixed(1)}s`, reel.fps ? `${tidy(reel.fps)}/s` : "frame rate unknown",
+    reel.hasSound === false ? "no sound in it" : "with sound");
+  if (source.kind === "animation") bits.push(`${reel.width}×${reel.height}`,
+    `${source.frames} frames`, `${reel.duration.toFixed(1)}s`);
+  if (source.kind === "image") bits.push(`${source.width}×${source.height}`);
+  if (source.kind === "audio") bits.push(`${source.duration.toFixed(1)}s of sound`);
+  return bits.join(" · ");
+}
+
+const tidy = (n) => (Math.abs(n - Math.round(n)) < 0.01 ? String(Math.round(n)) : n.toFixed(2));
+
+function forget() {
+  opened = false;
+  if (reel) { try { reel.close(); } catch { /* gone */ } reel = null; }
+  if (source && source.reel) { try { source.reel.close(); } catch { /* gone */ } }
+  if (source && source.bitmap) source.bitmap.close();
+  source = null;
+  forgetOutput();
+}
+
+function forgetOutput() {
+  if (made) {
+    URL.revokeObjectURL(made.url);
+    for (const part of made.parts || []) URL.revokeObjectURL(part.url);
+  }
+  made = null;
+  stage.textContent = "";
+  const nothing = document.createElement("div");
+  nothing.className = "nothing";
+  nothing.textContent = "nothing made yet";
+  stage.appendChild(nothing);
+  tallyEl.textContent = "";
+  rungsEl.textContent = "";
+  partsEl.textContent = "";
+  joinEl.textContent = "";
+  outStat.textContent = "";
+  resultWhat.textContent = "Nothing yet.";
+  resultCard.classList.add("off");
+  saveBtn.disabled = true;
+}
+
+/* --------------------------------------------------------------- controls -- */
+
+function options(select, list, chosen) {
+  select.textContent = "";
+  for (const item of list) {
+    const option = document.createElement("option");
+    option.value = item.value;
+    option.textContent = item.label;
+    select.appendChild(option);
+  }
+  select.value = chosen != null && list.some((i) => i.value === chosen) ? chosen : list[0].value;
+}
+
+/* The rungs of a resolution ladder are named for the short side, which is
+   what 720p has always meant — so a portrait video asked for 720 comes out
+   720 across and 1280 tall, not 720 tall and squashed. */
+function fillResolution(w, h) {
+  const short = Math.min(w, h);
+  const list = [{ value: "keep", label: `Keep — ${w}×${h}` }];
+  for (const rung of [2160, 1440, 1080, 720, 576, 480, 360, 240, 144]) {
+    if (rung >= short) continue;
+    const k = rung / short;
+    list.push({ value: String(rung), label: `${rung}p — ${even(w * k)}×${even(h * k)}` });
+  }
+  options(el("resSel"), list, "keep");
+}
+
+function fillFrameRate(fps) {
+  const list = [{ value: "keep", label: fps ? `Keep — ${tidy(fps)}/s` : "Keep — 30/s assumed" }];
+  for (const rung of [60, 50, 30, 24, 20, 15, 12, 10, 8]) {
+    if (fps && rung >= fps - 0.5) continue;
+    list.push({ value: String(rung), label: `${rung}/s` });
+  }
+  options(el("fpsSel"), list, "keep");
+}
+
+async function fillCodecs() {
+  const have = await usableCodecs();
+  if (!have.length) {
+    options(el("codecSel"), [{ value: "none", label: "none — no WebCodecs here" }], "none");
+    return;
+  }
+  options(el("codecSel"), have.map((c) => ({ value: c.id, label: c.name })), "vp9");
+}
+
+const KINDS = {
+  video: { title: "A video", fields: "videoFields",
+    what: "Re-encoded as WebM at a bitrate worked backwards from the limit. The resolution and"
+      + " the frame rate are the two knobs that matter: fewer pixels and fewer frames leave more"
+      + " bits for each of them." },
+  animation: { title: "An animation", fields: "videoFields",
+    what: "Read frame by frame and written as a WebM video, which for the same picture is a"
+      + " fraction of a GIF's size. Discord plays it inline and loops it like one. If you need"
+      + " it to stay a GIF, video-to-animation.html is the page for that." },
+  image: { title: "A picture", fields: "imageFields",
+    what: "Re-encoded at the highest quality that fits, and only made smaller in pixels once"
+      + " quality has run out — a wide picture at quality 60 beats a small one at 90." },
+  audio: { title: "Sound", fields: "audioFields",
+    what: "Re-encoded as Opus in a WebM, at whatever bitrate the limit divided by the length"
+      + " allows." },
+  file: { title: "A file", fields: "fileFields",
+    what: "Nothing here can read inside it, so the only honest moves are to deflate it and, if"
+      + " that is not enough, to cut it into pieces that each fit." },
+};
+
+/* What a file that says it is a video but cannot be opened should be told.
+   Browsers differ on H.264 and on HEVC, which is most of what this catches,
+   and "your browser cannot play it" is a different sentence from "nothing
+   can read inside it". */
+const UNREADABLE = {
+  video: "This browser will not decode that video — H.264 and HEVC are missing from some"
+    + " builds, Chrome among them. A Chrome or Edge that does play it would re-encode it"
+    + " here; failing that, deflating or splitting is all that is left.",
+  image: "This browser will not decode that picture, so it cannot be re-encoded here."
+    + " Deflating or splitting is all that is left.",
+  audio: "This browser will not decode that sound, so it cannot be re-encoded here."
+    + " Deflating or splitting is all that is left.",
+};
+
+function showKind() {
+  const kind = KINDS[source.kind];
+  planTitle.textContent = kind.title;
+  planWhat.textContent = kind.what;
+  for (const id of ["videoFields", "imageFields", "audioFields", "fileFields"]) {
+    el(id).hidden = id !== kind.fields;
+  }
+  el("zipChk").closest("label").hidden = source.kind !== "file";
+  /* An animation has no sound, and nor does a silent video, so the two
+     controls about sound are not knobs that happen to do nothing — they are
+     not there. */
+  const silent = source.kind !== "video" || reel.hasSound === false;
+  el("soundField").hidden = silent;
+  el("monoField").hidden = silent;
+  if (source.unreadable) planWhat.textContent = UNREADABLE[source.unreadable];
+  el("fileNote").textContent = source.type
+    ? `${source.type} — deflating helps on text, logs, saves and documents, and does`
+      + " nothing at all on anything already compressed."
+    : "No type given for it, so it is treated as a bag of bytes.";
+  if (source.kind === "video" && typeof VideoEncoder === "undefined") {
+    planWhat.textContent = "This browser has no WebCodecs, so a video cannot be re-encoded here."
+      + " Deflate or split it, or open the page in a Chromium.";
+  }
+  syncFields();
+}
+
+function syncFields() {
+  if (el("imageFields").hidden === false) {
+    const format = FORMATS.find((f) => f.type === el("formatSel").value) || FORMATS[0];
+    el("formatNote").textContent = format.note;
+    el("qualityField").hidden = !format.lossy;
+    el("qualityOut").textContent = el("qualityIn").value;
+    el("sideOut").textContent = `${el("sideIn").value}px`;
+    const size = stillSize(source, Number(el("sideIn").value));
+    el("sideNote").textContent = size.capped
+      ? `${size.w}×${size.h} — brought down to what this browser will draw`
+      : size.k < 1 ? `${size.w}×${size.h} — down from ${source.width}×${source.height}`
+      : `${size.w}×${size.h} — full size`;
+  }
+  if (el("videoFields").hidden === false) {
+    const p = movingPlan();
+    const share = (p.width * p.height) / (reel.width * reel.height);
+    el("resNote").textContent = share >= 0.999
+      ? `${p.width}×${p.height} — every pixel it came with`
+      : `${p.width}×${p.height} — ${Math.round(share * 100)}% of the pixels`;
+    el("fpsNote").textContent = `${p.frames} frames to read — the slow part`;
+    const codec = CODECS.find((c) => c.id === el("codecSel").value);
+    el("codecNote").textContent = codec ? codec.note : "";
+    el("soundNote").textContent = p.audioBitrate > 0
+      ? `about ${humanBytes((p.audioBitrate * reel.duration) / 8)} of the budget`
+      : "all of the budget goes to the picture";
+    el("monoField").hidden = p.audioBitrate <= 0;
+  }
+  if (el("audioFields").hidden === false) {
+    const want = Number(el("abrSel").value);
+    el("abrNote").textContent = want > 0
+      ? `${humanBytes((want * 1000 * source.duration) / 8)} for ${source.duration.toFixed(1)}s`
+      : "worked out from the limit and the length";
+  }
+  syncPlan();
+}
+
+for (const id of ["formatSel", "qualityIn", "sideIn", "resSel", "fpsSel", "codecSel",
+                  "soundSel", "monoChk", "abrSel", "achSel"]) {
+  el(id).addEventListener("input", syncFields);
+}
+for (const id of ["zipChk", "splitChk"]) el(id).addEventListener("input", syncPlan);
+
+function movingPlan() {
+  const asked = el("resSel").value;
+  let width = reel.width;
+  let height = reel.height;
+  if (asked !== "keep") {
+    const k = Number(asked) / Math.min(reel.width, reel.height);
+    width = reel.width * k;
+    height = reel.height * k;
+  }
+  const keeping = el("fpsSel").value === "keep";
+  const cap = keeping ? null : Number(el("fpsSel").value);
+  const fps = keeping ? (reel.fps || 30) : cap;
+  const audioBitrate = source.kind === "animation" || reel.hasSound === false
+    ? 0
+    : Number(el("soundSel").value) * 1000;
+  return {
+    source: reel, file: source.file, sourceSize: source.size,
+    width: even(width), height: even(height), fps, cap,
+    frames: reel.plan(cap).length,
+    codec: el("codecSel").value,
+    audioBitrate, mono: el("monoChk").checked,
+  };
+}
+
+/* What the plan would spend, before anybody presses anything. The sound here
+   is an estimate rather than the measured figure the encode uses, because
+   measuring it means encoding it; the word "about" is doing real work. */
+function syncPlan() {
+  if (!source) return;
+  const limit = limitBytes();
+  if (source.size <= limit) {
+    goBtn.textContent = "Compress it anyway";
+    setPlanStatus(`It already fits — ${humanBytes(limit - source.size)} under `
+      + `${humanBytes(limit)}. Nothing needs doing to it.`);
+    return;
+  }
+  goBtn.textContent = "Make it fit";
+  if (el("videoFields").hidden === false) {
+    const p = movingPlan();
+    const audioBytes = p.audioBitrate > 0 ? (p.audioBitrate * reel.duration) / 8 : 0;
+    const overhead = 2560 + 12 * (p.frames + (p.audioBitrate > 0 ? reel.duration * 50 : 0));
+    const bitrate = ((limit - audioBytes - overhead) * 8) / reel.duration;
+    const had = (source.size * 8) / reel.duration - p.audioBitrate;
+    setPlanStatus(bitrate < MIN_VIDEO_BITRATE
+      ? `${reel.duration.toFixed(1)}s into ${humanBytes(limit)} leaves about `
+        + `${kbps(Math.max(0, bitrate))} for the picture, which is not enough for one. `
+        + "Drop the sound or the frame rate, or split it instead."
+      : had < bitrate
+        ? `The limit would allow ${kbps(bitrate)}, but it only came in with about `
+          + `${kbps(had)} in it, so that is all it will be given — re-encoding upwards `
+          + "adds nothing."
+        : `About ${kbps(bitrate)} for the picture at ${p.width}×${p.height}, ${tidy(p.fps)}/s.`);
+    return;
+  }
+  setPlanStatus(`${humanBytes(source.size)} to get under ${humanBytes(limit)} — `
+    + `${(source.size / limit).toFixed(1)}× too big.`);
+}
+
+/* -------------------------------------------------------------- doing it -- */
+
+async function makeMoving(limit) {
+  const p = movingPlan();
+  if (p.codec === "none") throw new Error("this browser has no video encoder to use");
+  progress(0, "Reading the first frame…");
+  const got = await fitMoving(limit, p, (fraction, done, all, label) => {
+    progress(fraction, `Frame ${done} of ${all} — read once, encoded at every bitrate at once`
+      + (label === "second" ? ", on a second pass aimed with what the first one measured…" : "…"));
+  });
+  return {
+    blob: got.blob,
+    name: `${stemOf(source.name)}-small.webm`,
+    kind: "video",
+    fits: got.fits,
+    detail: `${got.w}×${got.h} at ${tidy(got.fps)}/s, ${got.codecName}`
+      + (got.audio ? `, Opus at ${kbps(got.audio.bitrate)} in `
+          + `${got.audio.channels === 1 ? "mono" : "stereo"}` : ", silent")
+      + ` — ${got.frames} frames, read ${got.passes === 1 ? "once" : "twice"} and encoded `
+      + `${got.tries.length} times`
+      + (got.passes === 1 ? "." : ". Every rung of the first ladder came out over, so the second"
+          + " was aimed with the bitrate this footage really produces.")
+      + (got.held ? ` The limit would have allowed ${kbps(got.allowed)}, but it only came in`
+          + ` with ${kbps(got.asked)} in it and bits cannot put back what is already gone.` : ""),
+    tries: got.tries.map((t) => ({ label: kbps(t.bitrate), size: t.size,
+                                   kept: t.kept, pass: t.pass })),
+    shape: got,
+  };
+}
+
+async function makeStill(limit) {
+  progress(0.2, "Encoding…");
+  const got = await fitStill(limit, {
+    format: el("formatSel").value,
+    quality: Number(el("qualityIn").value),
+    side: Number(el("sideIn").value),
+  });
+  if (!got.blob) throw new Error("the encoder gave nothing back");
+  return {
+    blob: got.blob,
+    name: `${stemOf(source.name)}-small.${got.format.ext}`,
+    kind: "image",
+    fits: got.fits,
+    detail: `${got.w}×${got.h} ${got.format.name}`
+      + (got.quality == null ? ", lossless" : ` at quality ${got.quality}`)
+      + ` — ${got.tries.length} ${got.tries.length === 1 ? "try" : "tries"}.`,
+    tries: got.tries.map((t, i) => ({
+      label: `${t.w}×${t.h}${t.quality == null ? "" : ` q${t.quality}`}`,
+      size: t.size, kept: i === got.tries.length - 1 && got.fits,
+    })),
+    shape: got,
+  };
+}
+
+async function makeSound(limit) {
+  progress(0.2, "Encoding the sound…");
+  const got = await fitSound(limit, {
+    bitrate: Number(el("abrSel").value) * 1000,
+    mono: el("achSel").value === "mono",
+  });
+  return {
+    blob: got.blob,
+    name: `${stemOf(source.name)}-small.webm`,
+    kind: "audio",
+    fits: got.fits,
+    detail: `Opus at ${kbps(got.bitrate)} in ${got.channels === 1 ? "mono" : "stereo"}, `
+      + `${got.seconds.toFixed(1)}s.`,
+    tries: got.tries.map((t) => ({ label: kbps(t.bitrate), size: t.size, kept: t.kept })),
+    shape: got,
+  };
+}
+
+async function makeFile(limit, zip) {
+  const bytes = new Uint8Array(await source.file.arrayBuffer());
+  if (!zip) {
+    return {
+      blob: new Blob([bytes], { type: source.type || "application/octet-stream" }),
+      name: source.name, kind: "raw", fits: bytes.length <= limit,
+      detail: "Left exactly as it came in — nothing here was asked to change it.",
+      tries: [], shape: null,
+    };
+  }
+  progress(0.3, "Deflating…");
+  const got = await zipOf(source.name, bytes, source.file.lastModified);
+  return {
+    blob: got.blob,
+    name: `${stemOf(source.name)}.zip`,
+    kind: "zip",
+    fits: got.blob.size <= limit,
+    detail: got.deflated
+      ? "Deflated into a zip."
+      : "Deflating made it bigger, so it is stored in the zip uncompressed — which is what"
+        + " happens to anything already compressed.",
+    tries: [], shape: got,
+  };
+}
+
+async function make() {
+  if (!source || busy) return null;
+  busy = true;
+  goBtn.disabled = true;
+  forgetOutput();
+  const limit = limitBytes();
+  const started = performance.now();
+  try {
+    const out = source.kind === "video" || source.kind === "animation" ? await makeMoving(limit)
+      : source.kind === "image" ? await makeStill(limit)
+      : source.kind === "audio" ? await makeSound(limit)
+      : await makeFile(limit, el("zipChk").checked);
+
+    if (!out.fits && el("splitChk").checked) {
+      const split = splitInto(out.blob, out.name, limit);
+      out.parts = split.parts.map((part) => ({ ...part, url: URL.createObjectURL(part.blob) }));
+      out.join = split.join;
+      out.fits = true;
+      out.detail += ` It still did not fit, so it is cut into ${out.parts.length} parts.`;
+    }
+
+    out.url = URL.createObjectURL(out.blob);
+    out.took = Math.round(performance.now() - started);
+    made = out;
+    render(limit);
+    /* The top line has spent the last few minutes counting frames. Leaving
+       "Frame 90 of 90" up there after the answer is on screen reads as a job
+       that stopped rather than one that finished. */
+    setStatus(describe());
+    syncPlan();
+    return out;
+  } catch (err) {
+    console.error(err);
+    setPlanStatus(`Couldn't do that: ${err.message}`, true);
+    forgetOutput();
+    return null;
+  } finally {
+    busy = false;
+    goBtn.disabled = false;
+    progress(null);
+  }
+}
+
+goBtn.addEventListener("click", make);
+
+/* ---------------------------------------------------------------- showing -- */
+
+/* The tally as data before any of it is a cell on screen: the figures are
+   wanted twice over, painted here and printed by the command line, and a
+   second subtraction is a second answer waiting to disagree with this one. */
+function tallyOf(limit) {
+  const saved = source.size - made.blob.size;
+  /* Split, the file is still the whole file and what fits is a part of it.
+     Reporting the part's size as the size that came out read as a 51 KB file
+     that was somehow 321 KB and over its own limit with nothing to spare. */
+  const biggest = made.parts
+    ? Math.max(...made.parts.map((part) => part.blob.size))
+    : made.blob.size;
+  return {
+    original: { cap: "Came in", human: humanBytes(source.size), bytes: source.size,
+                sub: `${source.type || "no type"}` },
+    out: { cap: "Came out", human: humanBytes(made.blob.size), bytes: made.blob.size,
+           each: biggest, parts: made.parts ? made.parts.length : 0,
+           sub: made.parts
+             ? `${made.parts.length} parts, the largest ${humanBytes(biggest)}`
+             : made.name },
+    saved: { cap: saved >= 0 ? "Saved" : "Added",
+             human: `${saved >= 0 ? "" : "+"}${humanBytes(Math.abs(saved))}`,
+             bytes: saved,
+             percent: Number(((saved / source.size) * 100).toFixed(1)),
+             sub: `${Math.abs((saved / source.size) * 100).toFixed(1)}% `
+                  + (saved >= 0 ? "smaller" : "bigger") },
+    limit: { cap: "The limit", human: humanBytes(limit), bytes: limit,
+             fits: made.fits,
+             sub: made.fits ? (made.parts ? "every part fits" : "it fits") : "it does not fit" },
+    took: made.took,
+  };
+}
+
+function render(limit) {
+  const tally = tallyOf(limit);
+  resultCard.classList.remove("off");
+  resultWhat.textContent = made.detail;
+
+  stage.textContent = "";
+  if (made.parts) {
+    const note = document.createElement("div");
+    note.className = "nothing";
+    note.textContent = `${made.parts.length} parts — each one is a piece of the file, not a file`;
+    stage.appendChild(note);
+  } else if (made.kind === "video") {
+    const video = document.createElement("video");
+    video.src = made.url;
+    video.controls = true;
+    video.loop = true;
+    video.muted = true;
+    video.playsInline = true;
+    stage.appendChild(video);
+  } else if (made.kind === "image") {
+    const img = document.createElement("img");
+    img.src = made.url;
+    img.alt = "the compressed picture";
+    stage.appendChild(img);
+  } else if (made.kind === "audio") {
+    const audio = document.createElement("audio");
+    audio.src = made.url;
+    audio.controls = true;
+    stage.appendChild(audio);
+  } else {
+    const note = document.createElement("div");
+    note.className = "nothing";
+    note.textContent = made.kind === "zip" ? "a zip — nothing to look at" : "nothing to look at";
+    stage.appendChild(note);
+  }
+
+  tallyEl.textContent = "";
+  for (const part of [tally.original, tally.out, tally.saved, tally.limit]) {
+    const cell = document.createElement("div");
+    cell.className = "cell" + (part === tally.saved && part.bytes > 0 ? " win" : "")
+      + (part === tally.limit ? (part.fits ? " win" : " miss") : "");
+    const cap = document.createElement("div"); cap.className = "cap"; cap.textContent = part.cap;
+    const n = document.createElement("div"); n.className = "n"; n.textContent = part.human;
+    const sub = document.createElement("div"); sub.className = "sub"; sub.textContent = part.sub;
+    cell.append(cap, n, sub);
+    tallyEl.appendChild(cell);
+  }
+
+  rungsEl.textContent = "";
+  if (made.tries.length) {
+    for (const attempt of made.tries) {
+      const line = document.createElement("div");
+      const name = document.createElement(attempt.kept ? "b" : "span");
+      name.textContent = `${attempt.label.padEnd(14, " ")} ${humanBytes(attempt.size)}`
+        + (attempt.kept ? "   ← kept" : attempt.size > limit ? "   over" : "")
+        + (attempt.pass === 2 ? "   (second pass)" : "");
+      line.appendChild(name);
+      rungsEl.appendChild(line);
+    }
+  }
+
+  partsEl.textContent = "";
+  joinEl.textContent = "";
+  if (made.parts) {
+    for (const part of made.parts) {
+      const row = document.createElement("li");
+      const link = document.createElement("a");
+      link.href = part.url;
+      link.download = part.name;
+      link.className = "nm";
+      link.textContent = part.name;
+      const size = document.createElement("span");
+      size.className = "sz";
+      size.textContent = humanBytes(part.blob.size);
+      row.append(link, size);
+      partsEl.appendChild(row);
+    }
+    joinEl.textContent = made.join;
+  }
+
+  saveBtn.disabled = false;
+  saveBtn.textContent = made.parts ? `Save all ${made.parts.length}` : "Save it";
+  outStat.textContent = made.parts
+    ? `${humanBytes(made.blob.size)} in ${made.parts.length} parts, none of them over `
+      + `${humanBytes(limit)}. They are pieces of a file, not files: whoever gets them needs `
+      + "the line above to put them back."
+    : made.fits
+      ? `${humanBytes(made.blob.size)} — under ${humanBytes(limit)} with `
+        + `${humanBytes(limit - made.blob.size)} to spare. Took ${(made.took / 1000).toFixed(1)}s.`
+      : `${humanBytes(made.blob.size)} — still over ${humanBytes(limit)} by `
+        + `${humanBytes(made.blob.size - limit)}. Tick Split, or give it less to carry.`;
+  outStat.classList.toggle("error", !made.fits);
+}
+
+function saveOne(url, name) {
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = name;
+  document.body.appendChild(link);
+  try { link.click(); } finally { link.remove(); }
+}
+
+saveBtn.addEventListener("click", async () => {
+  if (!made) return;
+  if (made.parts) {
+    for (const part of made.parts) {
+      saveOne(part.url, part.name);
+      await new Promise((r) => setTimeout(r, 250));
+    }
+    outStat.textContent = `Saved ${made.parts.length} parts. `
+      + "Whoever gets them needs the line above to put them back together.";
+    return;
+  }
+  saveOne(made.url, made.name);
+  outStat.textContent = `Saved ${made.name} — ${humanBytes(made.blob.size)}.`;
+});
+
+window.addEventListener("pagehide", forget);
+
+syncLimit();
+
+/* ------------------------------------------------------- the command line -- */
+
+/* A `<select>` set to a value it has no option for keeps the old value and
+   says nothing, which is a command that quietly did something else. So the
+   page refuses it, with the list it really has in the sentence — copied from
+   `wantOption` in color-picker.html, where it was first needed. */
+function wantOption(select, value, what) {
+  const names = [...select.options].map((o) => o.value);
+  if (!names.includes(String(value))) {
+    throw new Error(`${what} here is one of ${names.join(", ")} — not ${value}`);
+  }
+  select.value = String(value);
+}
+
+/* `cli/tools/discord-compressor.mjs` drives this page in a headless browser
+   rather than compressing anything in Node, so the file written in a terminal
+   is the file the Save button would have handed you. Every job below sets the
+   page's own controls and calls the page's own `make`; none of them knows
+   anything about bitrates that the page above does not. */
+window.CLI = {
+  page: "discord-compressor",
+
+  /* Whether a file has been handed in and read. The runner puts it into
+     `#fileInput`, which is the path a dropped file takes, and then waits on
+     `loads` going up — not on `ready`, which is still true of the file
+     before. `failed` is the page's own error state, so a file nothing can
+     read comes back as the sentence on screen rather than as a timeout. */
+  file() {
+    return {
+      ready: opened && !!source,
+      loads,
+      kind: source ? source.kind : null,
+      unreadable: source ? source.unreadable || null : null,
+      name: source ? source.name : null,
+      size: source ? source.size : null,
+      type: source ? source.type : null,
+      width: source ? source.width || null : null,
+      height: source ? source.height || null : null,
+      duration: source && source.duration ? source.duration : (reel ? reel.duration : null),
+      fps: reel ? reel.fps : null,
+      sound: reel ? reel.hasSound : null,
+      failed: statusEl.classList.contains("error"),
+      note: statusEl.textContent.trim(),
+    };
+  },
+
+  jobs: {
+    /* What this browser will really write, and what the presets are, asked
+       rather than assumed — so a terminal is told the same codecs, the same
+       formats and the same five limits the boxes are. */
+    async limits() {
+      return {
+        presets: LIMITS.map((l) => ({ mb: l.mb, note: l.note,
+                                      default: l.mb === Number(limitMb.defaultValue) })),
+        codecs: (await usableCodecs()).map((c) => ({ id: c.id, name: c.name, note: c.note })),
+        formats: FORMATS.map((f) => ({ ext: f.ext, type: f.type, name: f.name,
+                                       lossy: f.lossy, note: f.note })),
+        quality: { min: Number(el("qualityIn").min), max: Number(el("qualityIn").max),
+                   default: Number(el("qualityIn").defaultValue) },
+        longestSide: { min: Number(el("sideIn").min), step: Number(el("sideIn").step) },
+        rungs: RUNGS,
+        minVideoBitrate: MIN_VIDEO_BITRATE,
+        encoders: {
+          video: typeof VideoEncoder !== "undefined",
+          audio: typeof AudioEncoder !== "undefined",
+          animation: typeof ImageDecoder !== "undefined",
+        },
+      };
+    },
+
+    /* The file brought under the limit, and the tally the page shows for it.
+       The bytes come back only when they are asked for, so a sweep over the
+       settings does not shift a file out of the tab on every step. */
+    async fit(o) {
+      if (!source) throw new Error("no file has been opened to compress");
+
+      /* The box's own ends, asked of the box, so a terminal is held to the
+         same two numbers the page is rather than to a copy of them kept in
+         Node that can fall out of step. */
+      if (o.limit != null) {
+        const mb = Number(o.limit);
+        if (!Number.isFinite(mb) || mb < Number(limitMb.min) || mb > Number(limitMb.max)) {
+          throw new Error(`the limit box runs from ${limitMb.min} to ${limitMb.max} MB,`
+            + ` so ${o.limit} is off it`);
+        }
+        limitMb.value = String(mb);
+      }
+      syncLimit();
+
+      if (source.kind === "video" || source.kind === "animation") {
+        if (o.res != null) wantOption(el("resSel"), o.res, "the resolution");
+        if (o.fps != null) wantOption(el("fpsSel"), o.fps, "the frame rate");
+        if (o.codec != null) wantOption(el("codecSel"), o.codec, "the codec");
+        /* The box is hidden when there is nothing to keep, and a hidden box
+           is still a box a job can set — so asking to keep sound that is not
+           there is refused rather than set and ignored. Asking to drop it is
+           not: dropping nothing is what was going to happen anyway. */
+        if (o.sound != null && String(o.sound) !== "0" && reel && reel.hasSound === false) {
+          throw new Error("there is no sound in that video to keep");
+        }
+        if (o.sound != null) wantOption(el("soundSel"), o.sound, "the sound");
+        if (o.mono && reel && reel.hasSound === false) {
+          throw new Error("there is no sound in that video to downmix");
+        }
+        if (o.mono != null) el("monoChk").checked = !!o.mono;
+      }
+      if (source.kind === "image") {
+        if (o.format != null) {
+          const want = FORMATS.find((f) => f.type === o.format || f.ext === o.format);
+          if (!want) {
+            throw new Error("this browser will write "
+              + FORMATS.map((f) => f.ext).join(", ") + " — not " + o.format);
+          }
+          el("formatSel").value = want.type;
+        }
+        if (o.quality != null) {
+          const q = Number(o.quality);
+          if (!Number.isFinite(q) || q < Number(el("qualityIn").min) || q > Number(el("qualityIn").max)) {
+            throw new Error(`the quality slider runs ${el("qualityIn").min} to `
+              + `${el("qualityIn").max}, so ${o.quality} is off the end of it`);
+          }
+          el("qualityIn").value = String(q);
+        }
+        /* The slider is the page's only way of saying how big, so its floor
+           is the command line's floor too. Off its forty-pixel step the value
+           lands where the slider lands, and `side` in the answer below says
+           where that was — the one thing a caller must not be left to guess. */
+        if (o.max != null) {
+          const side = Number(o.max);
+          if (!Number.isFinite(side) || side < Number(el("sideIn").min)) {
+            throw new Error(`the shortest the longest side goes is ${el("sideIn").min} pixels`);
+          }
+          el("sideIn").value = String(side);
+        }
+      }
+      if (source.kind === "audio") {
+        if (o.bitrate != null) wantOption(el("abrSel"), o.bitrate, "the bitrate");
+        if (o.channels != null) wantOption(el("achSel"), o.channels, "the channels");
+      }
+      if (o.zip != null) el("zipChk").checked = !!o.zip;
+      if (o.split != null) el("splitChk").checked = !!o.split;
+
+      syncFields();
+      const out = await make();
+      if (!out) throw new Error(planStat.textContent.trim() || "nothing came out of it");
+
+      const limit = limitBytes();
+      const tally = tallyOf(limit);
+      const answer = {
+        kind: out.kind,
+        name: out.name,
+        fits: out.fits,
+        limit,
+        limitMb: Number(limitMb.value),
+        detail: out.detail,
+        took: out.took,
+        came: { bytes: source.size, human: tally.original.human,
+                kind: source.kind, name: source.name },
+        went: { bytes: out.blob.size, human: tally.out.human,
+                parts: tally.out.parts || null, largestPart: tally.out.parts ? tally.out.each : null },
+        saved: { bytes: tally.saved.bytes, percent: tally.saved.percent },
+        /* With the page's own words for the sizes beside them, so a
+           terminal cannot round a figure differently from the tab. */
+        tries: out.tries.map((t) => ({ ...t, human: humanBytes(t.size) })),
+        limitHuman: humanBytes(limit),
+        status: outStat.textContent.trim(),
+      };
+
+      if (out.kind === "video") {
+        answer.video = {
+          width: out.shape.w, height: out.shape.h, fps: out.shape.fps,
+          frames: out.shape.frames, seconds: out.shape.seconds, passes: out.shape.passes,
+          codec: out.shape.codec, bitrate: out.shape.bitrate, asked: out.shape.asked,
+          allowed: out.shape.allowed, held: out.shape.held,
+          audio: out.shape.audio,
+        };
+      }
+      if (out.kind === "image") {
+        answer.image = { width: out.shape.w, height: out.shape.h,
+                         quality: out.shape.quality, format: out.shape.format.ext,
+                         side: Number(el("sideIn").value) };
+      }
+      if (out.kind === "audio") {
+        answer.sound = { bitrate: out.shape.bitrate, channels: out.shape.channels,
+                         seconds: out.shape.seconds };
+      }
+      if (out.kind === "zip") answer.zip = { deflated: out.shape.deflated, method: out.shape.method };
+
+      if (out.parts) {
+        answer.parts = out.parts.map((p) => ({ name: p.name, bytes: p.blob.size }));
+        answer.join = out.join;
+      }
+
+      /* A blob cannot survive the trip out of the tab, so a file leaves as the
+         numbers in it and the tool module is what writes them. */
+      if (o.bytes) {
+        answer.bytes = out.parts
+          ? null
+          : Array.from(new Uint8Array(await out.blob.arrayBuffer()));
+        if (out.parts) {
+          answer.partBytes = [];
+          for (const part of out.parts) {
+            answer.partBytes.push(Array.from(new Uint8Array(await part.blob.arrayBuffer())));
+          }
+        }
+      }
+      return answer;
+    },
+  },
+};
+</script>
+</body>
+</html>

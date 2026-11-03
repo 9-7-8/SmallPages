@@ -690,6 +690,36 @@ Suites are named for the page they exercise. The ones worth knowing about:
   same arithmetic as snapping to the page's own pixels, so the one check that
   can tell them apart runs in a second context at a ratio of 2, which is also
   where the division that makes a zoom harmless is checked.
+- **`test-discord.mjs`** — the Discord compressor, and the suite where the
+  *prove every check can fail* step paid for itself three times over.
+
+  Everything is read back off the file that came out rather than off the
+  figure the page printed: the WebMs go into a `<video>` and into ffprobe,
+  the pictures are decoded again and measured, the sound is decoded and its
+  loudest frequency read off a Goertzel pass, the zip is handed to
+  `unzip.html` — the repo's own zip reader, so there is not a second one
+  here to drift from it — and the split parts are concatenated and compared
+  byte for byte with what went in.
+
+  Its fixtures are nearly all drawn: a PNG and a WAV and two bags of bytes
+  out of Node, two animated GIFs out of the vendored gifenc (one that looks
+  like a GIF, one that is flickering static), and a video *with sound* out of
+  MediaRecorder in the browser — which is a different encoder from the
+  WebCodecs the page uses, so the fixture is not the page marking its own
+  homework. The one committed fixture is `clip.webm`, which was already here.
+
+  Eleven deliberate breakages went through the page. Eight were caught. Of
+  the three that were not, two were the suite's fault and are written up
+  beside the checks that now catch them: a downmix that threw away the right
+  channel passed a check that held 660 Hz against a frequency with nothing at
+  it rather than against the 440 beside it, and an off-by-an-epsilon in the
+  animation's frame keeping hid behind a fixture whose GIF delays were all
+  the same. Chasing the second one found a real bug underneath: *Keep*
+  meant "a grid at the average frame rate", which for a GIF with uneven
+  delays is a rate no frame actually has, and it was quietly dropping a third
+  of the animation. The third breakage changed nothing because the behaviour
+  has a second guard behind it, and the foot of the file says so rather than
+  claiming coverage that is not there.
 - **`test-caps*.mjs`** — the caption fetcher's route ladder, against
   `stubs/stub-yt.py`, which stands in for both a CORS relay and YouTube behind
   it so the whole path can be walked with neither reachable.

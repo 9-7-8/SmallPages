@@ -140,8 +140,8 @@ const json = async (...args) => {
 {
   const got = await run();
   ok("with nothing asked for it lists what has a command line",
-    got.code === 0 && ["color-picker", "frutiger-orb", "image-compressor",
-      "playlist-to-audio", "quote-maker", "ruler", "uncrop"]
+    got.code === 0 && ["color-picker", "discord-compressor", "frutiger-orb",
+      "image-compressor", "playlist-to-audio", "quote-maker", "ruler", "uncrop"]
       .every((tool) => got.out.includes(tool)),
     got.out.slice(0, 400));
   const help = await run("color-picker", "--help");
@@ -1768,6 +1768,121 @@ const ihdrOf = (file) => {
     JSON.stringify([back.corner, back.middle]));
 
   ok("no page errors from frutiger-orb.html", errs.length === 0, errs.join(" | "));
+  await browser.close();
+}
+
+/* -------------------------- the same answer as the tab, getting it under -- */
+
+/* discord-compressor.html driven by hand: the limit box, the resolution and
+   frame-rate boxes, the Make it fit button and the real Save, against the
+   same four settings as flags.
+
+   The arithmetic half is unusually worth checking here because the page's
+   whole job *is* arithmetic — a limit in megabytes turned into a bitrate —
+   and a command line that worked that out for itself would be right about
+   the wrong page the first time anybody changed the overhead allowance. */
+{
+  const clip = path.join(WORK, "clip.webm");
+
+  const d = await json("discord-compressor", clip, "--limit", "0.08",
+                       "--res", "240", "--fps", "10");
+  ok("the limit a terminal asks for in megabytes is the limit in bytes",
+    d.limit === Math.round(0.08 * 1048576) && d.limitMb === 0.08,
+    `${d.limit} bytes for ${d.limitMb} MB`);
+  ok("the resolution box is read as the short side, and the sides come out even",
+    d.video.height === 240 && d.video.width === 426
+      && d.video.width % 2 === 0 && d.video.height % 2 === 0,
+    `${d.video.width}×${d.video.height}`);
+  ok("ten frames a second over four seconds is forty frames",
+    d.video.frames === 40 && Math.abs(d.video.seconds - 4) < 0.1,
+    `${d.video.frames} frames of ${d.video.seconds}s`);
+  ok("the tally subtracts what it says it subtracts",
+    d.saved.bytes === d.came.bytes - d.went.bytes,
+    `${d.came.bytes} - ${d.went.bytes} = ${d.saved.bytes}`);
+  ok("the rung that was kept is the largest that fits",
+    d.tries.find((t) => t.kept).size
+      === Math.max(...d.tries.filter((t) => t.size <= d.limit).map((t) => t.size)),
+    JSON.stringify(d.tries.map((t) => [t.bitrate, t.size, t.kept])));
+  ok("and with no --out nothing is written at all", d.wrote === null, String(d.wrote));
+
+  const byFlag = path.join(WORK, "cli-fit.webm");
+  fs.rmSync(byFlag, { force: true });
+  const wrote = await json("discord-compressor", clip, "--limit", "0.08",
+                           "--res", "240", "--fps", "10", "--out", byFlag);
+  ok("--out writes a file exactly as big as the tally said it would be",
+    fs.existsSync(byFlag) && fs.statSync(byFlag).size === wrote.went.bytes,
+    `${fs.existsSync(byFlag) ? fs.statSync(byFlag).size : "missing"} vs ${wrote.went.bytes}`);
+  ok("and what it wrote really is a WebM",
+    fs.readFileSync(byFlag).subarray(0, 4).toString("hex") === "1a45dfa3",
+    fs.readFileSync(byFlag).subarray(0, 4).toString("hex"));
+
+  /* A flag that belongs to some other kind of file. The page's own job reads
+     the picture settings only when a picture is open, so without this the
+     run takes the flag, ignores it and reports a success. */
+  const wrongFlag = await run("discord-compressor", clip, "--quality", "70");
+  ok("a flag that means nothing to this kind of file is a sentence",
+    wrongFlag.code === 1 && /--quality means nothing to it/.test(wrongFlag.err),
+    wrongFlag.err.trim());
+  const splitToFile = await run("discord-compressor", clip, "--split",
+                                "--out", path.join(WORK, "no.webm"));
+  ok("and --split onto a single name is refused before anything runs",
+    splitToFile.code === 1 && /--out has to be a directory/.test(splitToFile.err),
+    splitToFile.err.trim());
+
+  /* ---------------------------------------------- and now the page itself -- */
+
+  const browser = await chromium.launch({ executablePath: CHROMIUM_BIN });
+  const ctx = await browser.newContext({ viewport: { width: 1200, height: 1400 },
+                                         acceptDownloads: true });
+  const page = await ctx.newPage();
+  const errs = [];
+  page.on("pageerror", (e) => errs.push("pageerror: " + e.message));
+  page.on("console", (m) => {
+    if (m.type() === "error" && !/favicon|404/.test(m.text())) errs.push(m.text());
+  });
+
+  await page.goto(pathToFileURL(path.join(REPO, "discord-compressor.html")).href);
+  await page.setInputFiles("#fileInput", clip);
+  await page.waitForFunction(() => window.CLI.file().ready, null, { timeout: 90000 });
+
+  await page.fill("#limitMb", "0.08");
+  await page.selectOption("#resSel", "240");
+  await page.selectOption("#fpsSel", "10");
+  await page.click("#goBtn");
+  await page.waitForFunction(() => !document.getElementById("saveBtn").disabled
+    || document.getElementById("planStatus").classList.contains("error"),
+    null, { timeout: 180000 });
+
+  const inTab = await page.evaluate(() => ({
+    said: document.getElementById("outStatus").textContent.trim(),
+    detail: document.getElementById("resultWhat").textContent.trim(),
+    rungs: document.getElementById("rungs").textContent.replace(/\s+/g, " ").trim(),
+  }));
+  const byHand = path.join(WORK, "cli-fit-byhand.webm");
+  fs.rmSync(byHand, { force: true });
+  const waiting = page.waitForEvent("download", { timeout: 30000 });
+  await page.click("#saveBtn");
+  const got = await waiting;
+  await got.saveAs(byHand);
+
+  ok("the tab names the file the terminal named",
+    got.suggestedFilename() === wrote.name,
+    `${got.suggestedFilename()} against ${wrote.name}`);
+  /* Byte for byte, because VP9 given the same frames at the same bitrate is
+     the same file — and if it ever stops being, the thing that changed is
+     worth knowing about rather than papering over with a tolerance. */
+  ok("and the file saved by hand is byte for byte the file --out wrote",
+    fs.statSync(byHand).size === fs.statSync(byFlag).size
+      && fs.readFileSync(byHand).equals(fs.readFileSync(byFlag)),
+    `${fs.statSync(byHand).size} by hand vs ${fs.statSync(byFlag).size} by flag`);
+  ok("and the tab's own line about it says the same size",
+    inTab.said.includes(wrote.went.human),
+    `${JSON.stringify(inTab.said)} against ${wrote.went.human}`);
+  ok("and the ladder on screen is the ladder in the JSON",
+    wrote.tries.every((t) => inTab.rungs.includes(t.human)),
+    `${inTab.rungs} against ${JSON.stringify(wrote.tries.map((t) => t.human))}`);
+
+  ok("no page errors from discord-compressor.html", errs.length === 0, errs.join(" | "));
   await browser.close();
 }
 

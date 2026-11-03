@@ -12,6 +12,7 @@ node cli/run.mjs color-picker palette photo.jpg --count 6 --json
 node cli/run.mjs image-compressor photo.jpg --out small.webp --quality 70
 node cli/run.mjs playlist-to-audio "https://music.youtube.com/playlist?list=OLAK5uy_…"
 node cli/run.mjs uncrop covers/ --left 15%h --out wider/
+node cli/run.mjs discord-compressor clip.webm --out small.webm --res 720 --fps 30
 ```
 
 Games are not in this. A game is something you play.
@@ -373,6 +374,34 @@ which is why nothing here ran on Windows at all until `run.mjs` and
 for `page.goto`: a `file://` page is `pathToFileURL(…).href`, not a string
 with a path pasted after the slashes.
 
+**The same file twice over does not fire `change` a second time.** Chromium,
+driven through CDP, compares the list `setInputFiles` is handed with the one
+already on the input, and if they match it sets them without an event. A
+command only ever loads one file so it never meets this, but
+`tests/test-discord.mjs` loads the same fixture at several limits and sat
+there reading the *previous* answer and passing on it until the input was
+emptied in between &mdash; `setInputFiles('#fileInput', [])` and then the
+file. Worth knowing before writing the second batch tool as well as the next
+suite.
+
+**"Is it open yet" is not the same question as "is there a file".**
+`discord-compressor.html` sets its `source` early in `open` because
+everything after it needs one, and fills the resolution and frame-rate boxes
+afterwards, once a video's frame rate has been measured by playing a moment
+of it. A hook that answered `ready: !!source` was therefore true a second
+before the page was usable, and a job that set the resolution in that second
+set nothing at all: *the resolution here is one of &nbsp;&mdash; not 240*,
+which is `wantOption` correctly reporting an empty box. The flag that means
+*finished* is a flag of its own, and it goes up with the load counter.
+
+**A page that can take anything has flags that cannot.** `--quality` means
+nothing to a video and `--fps` means nothing to a spreadsheet, and the page's
+own job, which reads the picture settings only when a picture is open,
+ignores them in silence. `only` cannot catch it because the flag is a real
+flag &mdash; for some other kind of file. So the tool checks the flags a
+second time once the file is open and the kind is known, which is the first
+validation here that cannot happen before `open()`.
+
 **A fresh profile forgets.** See *A browser that remembers*, above: it was
 costing a 206 MB download a picture before anybody noticed, because a single
 run looks exactly the same either way.
@@ -391,6 +420,12 @@ to remember that it happened.
 - [x] **`image-compressor.html`** &mdash; `<picture> --out --format --quality
       --max`, and `formats`. The first one that writes a file, so it is the
       one to copy the `--out` rules off rather than inventing them again.
+- [x] **`discord-compressor.html`** &mdash; `<anything> --limit --out
+      --split`, plus `--res --fps --codec --sound --mono` for a video,
+      `--format --quality --max` for a picture, `--bitrate --channels` for
+      sound and `--zip` for everything else, and `limits`. The first whose
+      flags depend on what was handed in, and the first to write several
+      files out of one input, so `--split` insists on a directory.
 - [x] **`playlist-to-audio.html`** &mdash; `<playlist> --tier --quality --to
       --only --cookies --shell --one-line --why` and the seven `--no-…`
       boxes, plus `tiers` and `sizes`. The first with no file at either end
