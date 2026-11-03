@@ -724,6 +724,16 @@ Suites are named for the page they exercise. The ones worth knowing about:
   piece: no WebCodecs, an encoder that refuses everything, no `AudioEncoder`,
   no `CompressionStream`.
 
+  The other half of "it does not work on my phone" is Firefox, and it is a
+  different problem: not an encoder that writes other codecs but no
+  WebCodecs encoder at all. That fallback — play the clip, record the
+  canvas — *can* be run here for real, because Chromium has MediaRecorder
+  too: take `VideoEncoder` away and what is left is the path Firefox gets,
+  encoder and all. So the recorded video is checked the way the encoded one
+  is, by reading the file back: ffprobe for the picture, and the sound
+  decoded and its pitch read off a Goertzel pass, because a WebAudio tap
+  wired wrong gives a file with an audio track full of silence.
+
   Eleven deliberate breakages went through the page. Eight were caught. Of
   the three that were not, two were the suite's fault and are written up
   beside the checks that now catch them: a downmix that threw away the right

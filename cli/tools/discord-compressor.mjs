@@ -72,7 +72,10 @@ A video, or an animated GIF
                                 not read
   --codec vp9|h264|av1|hevc|vp8  whichever this browser will write. \`limits\`
                                 lists what it said yes to, and why the answer
-                                differs from one machine to the next
+                                differs from one machine to the next. On a
+                                browser with no WebCodecs the list is what
+                                its recorder writes instead, and the job runs
+                                in real time
   --container webm|mp4          where the codec allows a choice. H.264 and
                                 HEVC are MP4 only, VP8 is WebM only, and VP9
                                 and AV1 go in either
@@ -151,9 +154,15 @@ export async function run({ words, flags, open }) {
         ...rows(d.codecs.map((c) => [c.id,
           `${c.containers.join(", ").padEnd(12)}${dim(c.note)}`
           + (c.default ? `  ${bold("— the default")}` : "")])),
-        ...(d.codecs.length ? [] : wrap("This browser will not encode any codec this page can"
-          + " write, so a video cannot be re-made here. Every string it was asked about is"
-          + " below.")),
+        ...(d.codecs.length ? [] : wrap("This browser has no WebCodecs encoder, so the page"
+          + " falls back to recording the clip as it plays — which works, and takes as long as"
+          + " the clip is long. What it will record with:")),
+        ...(d.codecs.length ? [] : ["",
+          ...rows(d.recorders.map((r) => [r.id,
+            `${r.containers.join(", ").padEnd(12)}${dim(r.note)}`
+            + (r.sound ? "" : dim("  (silent only)"))]))]),
+        ...(d.codecs.length || d.recorders.length ? [] : wrap("And it has no MediaRecorder"
+          + " either, so a video cannot be re-made here at all.")),
         "",
         ...rows(d.sound.map((a) => [a.id, dim(`${a.name} — ${a.containers.join(", ")}`)])),
         ...(d.sound.length ? [] : wrap("No audio encoder here, so anything made would be"

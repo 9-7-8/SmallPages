@@ -956,25 +956,177 @@ const ONLY_H264 = () => {
   await close();
 }
 
-/* The three other ways a browser can be missing something this page wants.
-   Each has to be a sentence rather than a stack trace, because each of them
-   is somebody's actual phone. */
-for (const [what, stub, wants] of [
-  ['no WebCodecs at all', () => { delete window.VideoEncoder; }, /no WebCodecs/],
-  ['an encoder that refuses everything',
-    () => { VideoEncoder.isConfigSupported = async (c) => ({ supported: false, config: c }); },
-    /will not encode/],
-]) {
-  const { tab, broke, close } = await pretending(stub);
+/* Firefox is the other half of "it does not work on my phone", and a
+   different problem from Safari: not a browser whose encoder writes other
+   codecs, but one with no WebCodecs encoder at all. What it does have — what
+   every browser has had for a decade — is MediaRecorder, so the page records
+   the clip as it plays rather than encoding it frame by frame.
+
+   Chromium has MediaRecorder too, so unlike the H.264 path this one can be
+   run here for real: take WebCodecs away and what is left is the path
+   Firefox gets, encoder and all. */
+console.log('--- a browser with no WebCodecs, which still has a recorder ---');
+
+const NO_WEBCODECS = () => {
+  delete window.VideoEncoder;
+  delete window.AudioEncoder;
+  delete window.ImageDecoder;
+};
+
+{
+  const { tab, broke, close } = await pretending(NO_WEBCODECS);
+  const said = await tab.evaluate(() => window.CLI.jobs.limits());
+  ok('with no WebCodecs the page falls back to the recorder rather than giving up',
+    said.realtime && said.recorders.length >= 1 && said.codecs.length === 0,
+    `realtime ${said.realtime}, ` + JSON.stringify(said.recorders.map((r) => r.id)));
+
+  await tab.setInputFiles('#fileInput', F('clip.webm'));
+  await tab.waitForFunction(() => window.CLI.file().ready, null, { timeout: 90000 });
+  const offers = await tab.evaluate(() => ({
+    codecs: [...document.getElementById('codecSel').options].map((o) => o.value),
+    plan: document.getElementById('planWhat').textContent,
+  }));
+  ok('the codec box offers what the recorder writes, not nothing',
+    offers.codecs.length >= 1 && !offers.codecs.includes('none'),
+    JSON.stringify(offers.codecs));
+  /* The honest part: it is slower, and saying so beforehand is the
+     difference between a wait and a page that looks hung. */
+  ok('and the page says up front that it will take as long as the clip',
+    /recorded as it plays/.test(offers.plan) && /two-minute/.test(offers.plan),
+    offers.plan.slice(0, 140));
+
+  const taped = await tab.evaluate(() =>
+    window.CLI.jobs.fit({ limit: 0.08, res: '240', fps: '10', bytes: true }));
+  ok('a video really comes out of it, under the limit',
+    taped.fits && taped.went.bytes <= taped.limit && taped.went.bytes > 2000,
+    `${taped.went.bytes} vs ${taped.limit}`);
+  ok('and the page says it was recorded rather than encoded',
+    taped.video.recorded && /recorded as it played/.test(taped.detail), taped.detail);
+  fs.writeFileSync(F('dc-taped.webm'), Buffer.from(taped.bytes));
+  const tapedLine = probe(F('dc-taped.webm'), '-count_frames', '-select_streams', 'v:0',
+    '-show_entries', 'stream=codec_name,width,height,nb_read_frames');
+  if (tapedLine) {
+    ok('and ffprobe finds a real video in it at the size asked for',
+      /width=426/.test(tapedLine) && /height=240/.test(tapedLine)
+        && Number((/nb_read_frames=(\d+)/.exec(tapedLine) || [])[1]) >= 30,
+      tapedLine.replace(/\n/g, ' '));
+  }
+  ok('no WebCodecs: nothing threw', broke.length === 0, broke.join(' | '));
+  await close();
+}
+
+{
+  /* And with sound, which is the fiddly half: there is no AudioEncoder to
+     reach for, so the sound has to come off the element through WebAudio —
+     and through a graph that is deliberately not connected to the speakers,
+     because the obvious way plays the clip out loud at whoever is sitting
+     there. Rendered and measured rather than assumed: a tap wired wrong
+     gives a file with an audio track full of silence. */
+  const { tab, broke, close } = await pretending(NO_WEBCODECS);
+  await tab.setInputFiles('#fileInput', F('dc-rec.webm'));
+  await tab.waitForFunction(() => window.CLI.file().ready, null, { timeout: 90000 });
+  const withIt = await tab.evaluate(() =>
+    window.CLI.jobs.fit({ limit: 0.5, res: '240', fps: '15', sound: '64', bytes: true }));
+  ok('a recording with sound comes out under the limit too',
+    withIt.fits && withIt.went.bytes <= withIt.limit,
+    `${withIt.went.bytes} vs ${withIt.limit}`);
+  ok('and it kept the sound rather than dropping it quietly',
+    !!withIt.video.audio, JSON.stringify(withIt.video.audio));
+  const heardTaped = await tab.evaluate(async (bytes) => {
+    const ac = new AudioContext({ sampleRate: 48000 });
+    const buf = await ac.decodeAudioData(new Uint8Array(bytes).buffer);
+    ac.close();
+    const lane = buf.getChannelData(0);
+    const from = Math.round(buf.sampleRate * 0.8);
+    const n = 8192;
+    if (lane.length < from + n) return { seconds: buf.duration, peak: 0, hz: 0 };
+    let peak = 0;
+    for (let i = from; i < from + n; i++) peak = Math.max(peak, Math.abs(lane[i]));
+    const power = (hz) => {
+      const k = (2 * Math.PI * hz) / buf.sampleRate;
+      const coeff = 2 * Math.cos(k);
+      let s1 = 0, s2 = 0;
+      for (let i = from; i < from + n; i++) {
+        const s0 = lane[i] + coeff * s1 - s2;
+        s2 = s1; s1 = s0;
+      }
+      return s1 * s1 + s2 * s2 - coeff * s1 * s2;
+    };
+    let best = 0, bestHz = 0;
+    for (let hz = 200; hz <= 1200; hz += 5) {
+      const got = power(hz);
+      if (got > best) { best = got; bestHz = hz; }
+    }
+    return { seconds: buf.duration, peak, hz: bestHz };
+  }, withIt.bytes);
+  ok('the recorded sound is audible, not an empty track',
+    heardTaped.peak > 0.02, `peak ${heardTaped.peak}`);
+  ok('and it is still the 440 Hz that went in',
+    Math.abs(heardTaped.hz - 440) <= 10, `${heardTaped.hz} Hz`);
+  ok('recorded sound: nothing threw', broke.length === 0, broke.join(' | '));
+  await close();
+}
+
+{
+  /* Sound on its own needs an AudioEncoder, which Firefox has not got
+     either — so without a recorded fallback an mp3 too big to send has no
+     answer there at all. Rendered and measured again, both tones, because a
+     downmix that drops one is the mistake this page has already made once. */
+  const { tab, broke, close } = await pretending(NO_WEBCODECS);
+  await tab.setInputFiles('#fileInput', F('dc-tone.wav'));
+  await tab.waitForFunction(() => window.CLI.file().kind === 'audio', null, { timeout: 60000 });
+  const taped = await tab.evaluate(() => window.CLI.jobs.fit({ limit: 0.06, bytes: true }));
+  ok('sound on its own is recorded where it cannot be encoded',
+    taped.fits && taped.went.bytes <= taped.limit && taped.sound.codec,
+    `${taped.went.bytes} vs ${taped.limit}, ${JSON.stringify(taped.sound)}`);
+  ok('and the page says that is what happened',
+    /recorded as it played/.test(taped.detail), taped.detail);
+  const bothTones = await tab.evaluate(async (bytes) => {
+    const ac = new AudioContext({ sampleRate: 48000 });
+    const buf = await ac.decodeAudioData(new Uint8Array(bytes).buffer);
+    ac.close();
+    const look = (lane, hz) => {
+      const from = Math.round(buf.sampleRate * 0.8);
+      const n = 8192;
+      if (lane.length < from + n) return 0;
+      const k = (2 * Math.PI * hz) / buf.sampleRate;
+      const coeff = 2 * Math.cos(k);
+      let s1 = 0, s2 = 0;
+      for (let i = from; i < from + n; i++) { const s0 = lane[i] + coeff * s1 - s2; s2 = s1; s1 = s0; }
+      return Math.sqrt(Math.abs(s1 * s1 + s2 * s2 - coeff * s1 * s2)) / n;
+    };
+    const left = buf.getChannelData(0);
+    const right = buf.getChannelData(buf.numberOfChannels > 1 ? 1 : 0);
+    return { seconds: buf.duration, left440: look(left, 440), right660: look(right, 660),
+             quiet: look(left, 1500) };
+  }, taped.bytes);
+  ok('and both tones came through the recording',
+    bothTones.left440 > bothTones.quiet * 8 && bothTones.right660 > bothTones.quiet * 8,
+    `440 ${bothTones.left440.toFixed(4)}, 660 ${bothTones.right660.toFixed(4)}, `
+    + `nothing ${bothTones.quiet.toFixed(4)}`);
+  ok('recorded sound on its own: nothing threw', broke.length === 0, broke.join(' | '));
+  await close();
+}
+
+{
+  /* Neither one. There is nothing left to make a video with, and the only
+     honest answer is a sentence saying so. */
+  const { tab, broke, close } = await pretending(() => {
+    delete window.VideoEncoder;
+    delete window.MediaRecorder;
+  });
   await tab.setInputFiles('#fileInput', F('clip.webm'));
   await tab.waitForFunction(() => window.CLI.file().ready, null, { timeout: 90000 });
   let why = null;
   try { await tab.evaluate(() => window.CLI.jobs.fit({ limit: 0.08 })); }
   catch (e) { why = String(e.message).split('\n')[0]; }
-  ok(`${what}: a sentence, not a stack trace`, !!why && wants.test(why), String(why));
-  ok(`${what}: and it says what to do instead`, !!why && /deflate or split/i.test(why),
-    String(why));
-  ok(`${what}: nothing threw`, broke.length === 0, broke.join(' | '));
+  ok('neither WebCodecs nor a recorder: a sentence, not a stack trace',
+    !!why && /neither WebCodecs nor a MediaRecorder/.test(why), String(why));
+  ok('and it says what to do instead', !!why && /deflate or split/i.test(why), String(why));
+  ok('and the plan card said so before anybody pressed anything',
+    /neither WebCodecs nor a MediaRecorder/.test(await tab.textContent('#planWhat')),
+    (await tab.textContent('#planWhat')).slice(0, 120));
+  ok('neither: nothing threw', broke.length === 0, broke.join(' | '));
   await close();
 }
 

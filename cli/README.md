@@ -415,6 +415,14 @@ encoder will take one and refuse another. And **print what it answered**:
 `limits` lists every string tried and the yes or no beside it, because the
 alternative when somebody says "it does not work on my phone" is guessing.
 
+**Two browsers, two different kinds of missing.** Safari has WebCodecs and
+writes codecs this page did not offer; Firefox has no WebCodecs encoder at
+all. The first needed a second muxer, the second needed a second *encoder* —
+`MediaRecorder`, which every browser has had for a decade. They fail
+identically from outside ("no video encoder") and have nothing in common
+underneath, which is the argument for a page that reports what it asked and
+what it was told rather than one that reasons about browsers.
+
 **A browser you cannot run is still a browser you can shape.** Nothing in
 this container runs Safari, and the documentation sites that would settle
 what Safari encodes are outside the network policy, so `tests/test-discord.mjs`
@@ -454,7 +462,7 @@ to remember that it happened.
       browser about and what came back, which makes it the first command
       here whose job is partly to be read out loud: a page that compresses
       on one machine and not on another is nearly always that table
-      differing.
+      differing. It lists both halves, the encoder's and the recorder's.
 - [x] **`playlist-to-audio.html`** &mdash; `<playlist> --tier --quality --to
       --only --cookies --shell --one-line --why` and the seven `--no-…`
       boxes, plus `tiers` and `sizes`. The first with no file at either end

@@ -309,20 +309,31 @@
   tried it on a phone &mdash; simply said "no video encoder" to half the people who needed
   it.</p>
 
+  <p class="note"><strong>And where there is no encoder at all, it records instead.</strong>
+  Firefox has no <code>VideoEncoder</code> &mdash; WebCodecs is newer than Firefox's
+  <code>MediaRecorder</code> by about a decade &mdash; so there the clip is played and recorded
+  rather than encoded frame by frame. It works, and it has one cost worth knowing before you
+  start: a recording runs at the speed the thing plays, so a two-minute clip is a two-minute
+  wait, and twice that if the first attempt comes out over the limit and has to be aimed again.
+  The sound is taken off the video through a graph that is deliberately not plugged into your
+  speakers, so nothing plays out loud at you while it works. Sound on its own goes the same way
+  where there is nothing to encode it with.</p>
+
   <p class="note"><strong>What your browser will actually do.</strong> Nothing above is a list
   of browsers, because a list of browsers goes out of date between one release and the next and
   cannot be checked from here anyway. Every codec is asked for by name, at the size and bitrate
   about to be used, and only the ones that answer yes are offered. If the box says there is
   nothing, that is the browser's own answer and not a guess about it &mdash; and
   <code>node cli/run.mjs discord-compressor limits</code> prints every string that was tried
-  and what came back, which is the thing to read out when a file that compresses on one machine
-  will not compress on another.</p>
+  and what came back &mdash; both halves, the encoder's and the recorder's &mdash; which is the
+  thing to read out when a file that compresses on one machine will not compress on
+  another.</p>
 
   <p class="note"><strong>Reading the video is the slow part.</strong> The page steps through
   the source a frame at a time, seeking to each one and drawing it, because that is the only way
   to read a video a browser will play without a demuxer. Roughly real time on a short clip, and
   slower than real time on a long one at a high frame rate &mdash; a half-hour video is not what
-  this is for. Dropping to 15 or 24 frames a second makes it quicker as well as smaller, since a
+  this is for, and on a browser with no WebCodecs it is exactly as long as the clip. Dropping to 15 or 24 frames a second makes it quicker as well as smaller, since a
   frame not wanted is a frame not read.</p>
 
   <p class="note"><strong>Twice is worse than once.</strong> Everything here but the deflate and
@@ -942,6 +953,9 @@ async function videoSource(file) {
     : null;
   return {
     kind: "video", hasSound,
+    /* Lent out for the recorder path below, which does not read frames out
+       of it one at a time — it plays it and records what comes past. */
+    element: video,
     width: video.videoWidth, height: video.videoHeight,
     duration, fps,
     /* `rate` is a ceiling, and null means "whatever it has". A video has no
@@ -1080,6 +1094,46 @@ const AUDIO_CODECS = [
   { id: "opus", codec: "opus", containers: ["webm", "mp4"], name: "Opus" },
 ];
 
+/* The other encoder, for a browser that has not got WebCodecs at all.
+
+   `MediaRecorder` has been in every browser for a decade and writes VP8,
+   VP9 and Opus in a WebM wherever Firefox goes and H.264 and AAC in an MP4
+   wherever Safari does. It is a worse tool for this job in one specific way
+   — it records a stream, so it runs at the speed the video plays and there
+   is no making it go faster — but a compressor that takes two minutes over
+   a two-minute clip is a great deal better than one that says it cannot.
+
+   The last two rows are the bare container types, because a browser that
+   refuses every codec string by name will sometimes take `video/webm` and
+   pick for itself. */
+const RECORDERS = [
+  { id: "vp9", name: "VP9", containers: ["webm"],
+    mime: 'video/webm;codecs="vp9,opus"', quiet: 'video/webm;codecs="vp9"',
+    note: "the best picture for the bytes, recorded rather than encoded" },
+  { id: "h264", name: "H.264", containers: ["mp4"],
+    mime: 'video/mp4;codecs="avc1.42E01E,mp4a.40.2"', quiet: 'video/mp4;codecs="avc1.42E01E"',
+    note: "plays on everything, recorded rather than encoded" },
+  { id: "vp8", name: "VP8", containers: ["webm"],
+    mime: 'video/webm;codecs="vp8,opus"', quiet: 'video/webm;codecs="vp8"',
+    note: "older and worse at the same bitrate, and the one every browser takes" },
+  { id: "webm", name: "WebM", containers: ["webm"],
+    mime: "video/webm", quiet: "video/webm",
+    note: "whatever this browser chooses to put in a WebM" },
+  { id: "mp4", name: "MP4", containers: ["mp4"],
+    mime: "video/mp4", quiet: "video/mp4",
+    note: "whatever this browser chooses to put in an MP4" },
+];
+
+const RECORDER_ORDER = ["vp9", "h264", "vp8", "webm", "mp4"];
+
+/* The same again for sound on its own. */
+const SOUND_RECORDERS = [
+  { id: "opus", name: "Opus", container: "webm", ext: "webm", mime: "audio/webm;codecs=opus" },
+  { id: "aac", name: "AAC", container: "mp4", ext: "m4a", mime: "audio/mp4;codecs=mp4a.40.2" },
+  { id: "webm", name: "WebM", container: "webm", ext: "webm", mime: "audio/webm" },
+  { id: "mp4", name: "MP4", container: "mp4", ext: "m4a", mime: "audio/mp4" },
+];
+
 /* What this browser said, asked once and remembered: the probe costs a
    handful of promises and the answer cannot change while the page is open. */
 let ABLE = null;
@@ -1109,21 +1163,54 @@ async function able() {
       if (said && said.supported) audio.push(sound);
     }
   }
+  /* And the fallback, asked the same way. It is probed even when WebCodecs
+     answered, because `limits` reports both and the cost is a few string
+     lookups. */
+  const recorder = [];
+  if (typeof MediaRecorder !== "undefined") {
+    for (const id of RECORDER_ORDER) {
+      const way = RECORDERS.find((r) => r.id === id);
+      const quiet = MediaRecorder.isTypeSupported(way.quiet);
+      const sound = MediaRecorder.isTypeSupported(way.mime);
+      asked.push({ codec: `recorder:${way.id}`, tried: way.quiet, supported: quiet });
+      if (quiet) recorder.push({ ...way, sound });
+    }
+  }
+  const soundRecorder = [];
+  if (typeof MediaRecorder !== "undefined") {
+    for (const way of SOUND_RECORDERS) {
+      const can = MediaRecorder.isTypeSupported(way.mime);
+      asked.push({ codec: `recorder:${way.id}`, tried: way.mime, supported: can });
+      if (can) soundRecorder.push(way);
+    }
+  }
   ABLE = {
-    video, audio, asked,
+    video, audio, recorder, soundRecorder, asked,
     videoEncoder: typeof VideoEncoder !== "undefined",
     audioEncoder: typeof AudioEncoder !== "undefined",
+    mediaRecorder: typeof MediaRecorder !== "undefined",
     imageDecoder: typeof ImageDecoder !== "undefined",
     compression: typeof CompressionStream !== "undefined",
+    /* Which half of the page is in charge. WebCodecs where there is any,
+       because it is the one that can go faster than the clip is long. */
+    realtime: !video.length && recorder.length > 0,
   };
   return ABLE;
 }
 
-/* The containers the codecs this browser has can be put in, in the order the
-   box should offer them. */
-function containersFor(codec) {
-  return codec ? codec.containers : [];
+/* The codecs on offer, from whichever half of the page is in charge:
+   WebCodecs where there is any, and the recorder where there is not. The
+   boxes, the plan and the job all read this rather than each deciding for
+   themselves which half they are in. */
+function ways() {
+  if (!ABLE) return [];
+  if (ABLE.video.length) {
+    return CODEC_ORDER.map((id) => ABLE.video.find((c) => c.id === id)).filter(Boolean);
+  }
+  return ABLE.recorder;
 }
+
+const wayFor = (id) => ways().find((c) => c.id === id) || ways()[0] || null;
 
 function audioFor(container) {
   return (ABLE ? ABLE.audio : []).filter((a) => a.containers.includes(container))[0] || null;
@@ -1501,6 +1588,171 @@ async function fitMoving(limit, o, onStep) {
   };
 }
 
+/* ------------------------------------------------- recording it instead -- */
+
+/* The same job done the only other way a browser offers: play the video,
+   draw it onto a canvas at the size wanted, and record the canvas.
+
+   Three things are worse about it and all three are worth saying out loud.
+   It runs in real time, because a MediaStream is a clock and there is no
+   winding it on — a two-minute clip takes two minutes. It cannot run the
+   bitrate ladder off one read, because there is only one read and it is the
+   clip itself, so overshooting the limit costs a second recording rather
+   than nothing. And a MediaRecorder's WebM carries no duration in its
+   header, so a player that has not finished loading it shows no length;
+   the file is correct and Discord plays it, it just looks odd in a preview.
+
+   What is better about it: Firefox has had it for a decade and WebCodecs is
+   newer than that, so this is what makes the page work there at all. */
+async function record(src, { w, h, fps, bitrate, audioBitrate, way, wantSound }, onStep) {
+  const video = src.element;
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  ctx.imageSmoothingQuality = "high";
+
+  const stream = canvas.captureStream(fps);
+
+  /* The sound is taken off the element through WebAudio rather than off the
+     element's own captured stream, for one reason: a graph that is not
+     connected to the context's destination makes no sound in the room. The
+     obvious alternative — capture the element and leave it playing — plays
+     the clip out loud at whoever is sitting there. The node can only be
+     made once per element, so it is kept on the source for the second
+     recording to reuse. */
+  if (wantSound) {
+    if (!src.tap) {
+      const audioCtx = new AudioContext();
+      const node = audioCtx.createMediaElementSource(video);
+      const dest = audioCtx.createMediaStreamDestination();
+      node.connect(dest);
+      src.tap = { audioCtx, dest };
+    }
+    if (src.tap.audioCtx.state === "suspended") await src.tap.audioCtx.resume();
+    for (const track of src.tap.dest.stream.getAudioTracks()) stream.addTrack(track);
+  }
+  /* Muted only when nothing is tapping it; once a MediaElementSource exists
+     the element feeds the graph instead of the speakers, and a muted element
+     feeds it silence. */
+  video.muted = !wantSound;
+
+  const mime = wantSound && way.sound ? way.mime : way.quiet;
+  const recorder = new MediaRecorder(stream, {
+    mimeType: mime,
+    videoBitsPerSecond: bitrate,
+    ...(wantSound ? { audioBitsPerSecond: audioBitrate } : {}),
+  });
+  const bits = [];
+  recorder.addEventListener("dataavailable", (e) => { if (e.data.size) bits.push(e.data); });
+  const stopped = new Promise((done) => recorder.addEventListener("stop", done, { once: true }));
+
+  await seekTo(video, 0);
+  recorder.start();
+  await video.play();
+
+  /* Drawn on every frame the compositor presents where the browser will say
+     so, and on every animation frame where it will not — Firefox was late to
+     `requestVideoFrameCallback` and this is a Firefox path above all. The
+     stream samples the canvas at `fps` either way. */
+  let drawing = true;
+  const paint = () => {
+    if (!drawing) return;
+    ctx.drawImage(video, 0, 0, w, h);
+    if (onStep) onStep(Math.min(1, video.currentTime / Math.max(0.001, src.duration)));
+    if ("requestVideoFrameCallback" in video) video.requestVideoFrameCallback(paint);
+    else requestAnimationFrame(paint);
+  };
+  paint();
+
+  try {
+    await new Promise((done, fail) => {
+      video.addEventListener("ended", done, { once: true });
+      video.addEventListener("error", () => fail(new Error("the video stopped part way through")),
+        { once: true });
+      /* Half as long again as the clip, and twenty seconds on top, because a
+         stream that stalls would otherwise hang the page for ever. */
+      setTimeout(() => fail(new Error("the recording stalled part way through")),
+        src.duration * 1500 + 20000);
+    });
+  } finally {
+    drawing = false;
+    video.pause();
+    if (recorder.state !== "inactive") recorder.stop();
+  }
+  await stopped;
+
+  return new Blob(bits, { type: CONTAINERS[way.containers[0]].type });
+}
+
+async function fitRecording(limit, o, onStep) {
+  const can = await able();
+  const src = o.source;
+  if (!src.element) {
+    throw new Error("this browser has no WebCodecs, and the way round it only works on a"
+      + " video it can play — deflate or split this one instead");
+  }
+  const way = can.recorder.find((r) => r.id === o.codec) || can.recorder[0];
+  const container = way.containers[0];
+  const box = CONTAINERS[container];
+  const seconds = src.duration;
+  const w = even(o.width);
+  const h = even(o.height);
+
+  const wantSound = o.audioBitrate > 0 && src.hasSound !== false && !!way.sound;
+  const audioBitrate = wantSound ? o.audioBitrate : 0;
+
+  /* The same sum as the other path, minus the measured sound: there is no
+     encoding the sound separately here, so its share is the figure asked
+     for rather than one counted afterwards. */
+  const overhead = 4096 + Math.round(seconds * 600);
+  const allowed = Math.floor(((limit - overhead) * 8) / seconds) - audioBitrate;
+  const had = Math.floor((o.sourceSize * 8) / seconds) - audioBitrate;
+  const ceiling = Math.max(MIN_VIDEO_BITRATE, had);
+  let bitrate = Math.min(allowed, ceiling);
+  const held = bitrate < allowed;
+
+  if (bitrate < MIN_VIDEO_BITRATE) {
+    throw new Error(`${Math.round(seconds)} seconds will not go into ${humanBytes(limit)} —`
+      + ` that is ${kbps(Math.max(0, allowed))} for the picture.`
+      + " Drop the sound, lower the frame rate, or split the file instead");
+  }
+
+  const tries = [];
+  let made = null;
+  /* Two recordings at the most, because each one costs the length of the
+     clip. The first is aimed at the limit; the second, if it is needed, is
+     aimed with what the first one measured, which lands. */
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const blob = await record(src,
+      { w, h, fps: o.fps, bitrate, audioBitrate, way, wantSound },
+      (fraction) => onStep && onStep(fraction, attempt + 1));
+    tries.push({ bitrate, size: blob.size, kept: false, pass: attempt + 1 });
+    made = { blob, bitrate, fits: blob.size <= limit };
+    if (made.fits) break;
+    const next = Math.floor(bitrate * Math.min(0.9, (limit / blob.size) * 0.92));
+    if (next < MIN_VIDEO_BITRATE || next >= bitrate) break;
+    bitrate = next;
+  }
+  tries[tries.length - 1].kept = true;
+
+  return {
+    blob: made.blob,
+    w, h, fps: o.fps, frames: Math.round(seconds * o.fps), seconds,
+    codec: way.id, codecName: way.name,
+    container, ext: box.ext, containerName: box.name,
+    bitrate: made.bitrate, asked: bitrate, allowed, held,
+    tries, passes: tries.length, short: 0, recorded: true,
+    audio: wantSound
+      ? { bitrate: audioBitrate, channels: 2, bytes: Math.round((audioBitrate * seconds) / 8),
+          codec: container === "mp4" ? "aac" : "opus",
+          codecName: container === "mp4" ? "AAC" : "Opus" }
+      : null,
+    soundWanted: o.audioBitrate > 0,
+    fits: made.fits,
+  };
+}
+
 /* -------------------------------------------------------------- the sound -- */
 
 /* Sound on its own is the easy one: both encoders hold a bitrate closely
@@ -1512,11 +1764,60 @@ async function fitMoving(limit, o, onStep) {
    WebM is better at the bitrates this page ends up asking for, so it goes
    first; AAC in an MP4 is what is left on a browser that will not write
    Opus, which is the usual state of affairs on a phone. */
+/* Sound on its own where there is no AudioEncoder either: played through a
+   graph that goes nowhere but the recorder, in real time, for the same
+   reason the picture is. Firefox has no AudioEncoder, so without this an
+   mp3 too big to send has no answer there at all. */
+async function recordSound(buffer, { bitrate, mono, way }) {
+  const channels = mono ? 1 : Math.min(2, buffer.numberOfChannels);
+  const ctx = new AudioContext({ sampleRate: 48000 });
+  try {
+    let playing = buffer;
+    if (channels === 1 && buffer.numberOfChannels > 1) {
+      /* Averaged, not channel one — the same downmix the encoder path does,
+         and for the same reason: taking the left channel of a track mixed
+         wide loses whatever was panned right. */
+      playing = ctx.createBuffer(1, buffer.length, buffer.sampleRate);
+      const mix = playing.getChannelData(0);
+      for (let c = 0; c < buffer.numberOfChannels; c++) {
+        const lane = buffer.getChannelData(c);
+        for (let i = 0; i < mix.length; i++) mix[i] += lane[i] / buffer.numberOfChannels;
+      }
+    }
+    const source = ctx.createBufferSource();
+    source.buffer = playing;
+    const dest = ctx.createMediaStreamDestination();
+    source.connect(dest);
+
+    const recorder = new MediaRecorder(dest.stream,
+      { mimeType: way.mime, audioBitsPerSecond: bitrate });
+    const bits = [];
+    recorder.addEventListener("dataavailable", (e) => { if (e.data.size) bits.push(e.data); });
+    const stopped = new Promise((done) => recorder.addEventListener("stop", done, { once: true }));
+
+    recorder.start();
+    source.start();
+    await new Promise((done, fail) => {
+      source.addEventListener("ended", done, { once: true });
+      setTimeout(() => fail(new Error("the recording stalled part way through")),
+        buffer.duration * 1500 + 20000);
+    });
+    recorder.stop();
+    await stopped;
+    return { blob: new Blob(bits, { type: way.mime.split(";")[0] }), channels };
+  } finally {
+    ctx.close();
+  }
+}
+
 async function fitSound(limit, o) {
   const can = await able();
+  if ((!can.audioEncoder || !can.audio.length) && can.soundRecorder.length) {
+    return fitSoundRecorded(limit, o, can);
+  }
   if (!can.audioEncoder || !can.audio.length) {
-    throw new Error("this browser has no audio encoder, so it cannot re-encode sound."
-      + " Deflate or split the file instead");
+    throw new Error("this browser has neither an audio encoder nor a recorder that will"
+      + " write sound, so it cannot re-encode this. Deflate or split the file instead");
   }
   const sound = can.audio.find((a) => a.id === "opus") || can.audio[0];
   const container = sound.id === "opus" ? "webm" : "mp4";
@@ -1561,6 +1862,46 @@ async function fitSound(limit, o) {
     if (made.fits || o.bitrate > 0) break;
     const next = Math.floor(bitrate * Math.min(0.9, (limit / blob.size) * 0.95));
     if (next < floor || next >= bitrate) break;
+    bitrate = next;
+  }
+  tries[tries.length - 1].kept = true;
+  return made;
+}
+
+/* The recorded half of the above, which runs in real time and so gets one
+   correction rather than three. */
+async function fitSoundRecorded(limit, o, can) {
+  const way = can.soundRecorder[0];
+  let buffer = null;
+  try {
+    const ctx = new AudioContext({ sampleRate: 48000 });
+    buffer = await ctx.decodeAudioData(await source.file.arrayBuffer());
+    ctx.close();
+  } catch {
+    throw new Error("this browser could not decode the sound in that file");
+  }
+  const seconds = buffer.duration;
+  const overhead = 4096 + Math.round(seconds * 400);
+  const room = Math.max(0, limit - overhead);
+  let bitrate = o.bitrate > 0
+    ? o.bitrate
+    : Math.min(192000, Math.max(16000, Math.floor((room * 8) / seconds)));
+  if (bitrate < 16000) {
+    throw new Error(`${Math.round(seconds)} seconds of sound will not go into `
+      + `${humanBytes(limit)} with what this browser has. Split it instead`);
+  }
+
+  const tries = [];
+  let made = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const got = await recordSound(buffer, { bitrate, mono: o.mono, way });
+    tries.push({ bitrate, size: got.blob.size, kept: false });
+    made = { blob: got.blob, bitrate, channels: got.channels, seconds, tries,
+             codec: way.id, codecName: way.name, container: way.container, ext: way.ext,
+             recorded: true, fits: got.blob.size <= limit };
+    if (made.fits || o.bitrate > 0) break;
+    const next = Math.floor(bitrate * Math.min(0.9, (limit / got.blob.size) * 0.92));
+    if (next < 16000 || next >= bitrate) break;
     bitrate = next;
   }
   tries[tries.length - 1].kept = true;
@@ -1758,16 +2099,16 @@ function fillFrameRate(fps) {
 }
 
 async function fillCodecs() {
-  const can = await able();
-  if (!can.video.length) {
+  await able();
+  /* In the page's order of preference, filtered to what answered yes, so the
+     box opens on the best thing this browser can actually do rather than on
+     the first thing the list happens to name. */
+  const have = ways();
+  if (!have.length) {
     options(el("codecSel"), [{ value: "none", label: "none this browser will write" }], "none");
     options(el("boxSel"), [{ value: "none", label: "—" }], "none");
     return;
   }
-  /* In the page's order of preference, filtered to what answered yes, so the
-     box opens on the best thing this browser can actually do rather than on
-     the first thing the list happens to name. */
-  const have = CODEC_ORDER.map((id) => can.video.find((c) => c.id === id)).filter(Boolean);
   options(el("codecSel"), have.map((c) => ({ value: c.id, label: c.name })), have[0].id);
   fillContainers();
 }
@@ -1778,7 +2119,7 @@ async function fillCodecs() {
    a real choice: WebM is the smaller file by a hair and MP4 is the one every
    other piece of software on earth will open. */
 function fillContainers() {
-  const codec = (ABLE ? ABLE.video : []).find((c) => c.id === el("codecSel").value);
+  const codec = wayFor(el("codecSel").value);
   if (!codec) return;
   const was = el("boxSel").value;
   options(el("boxSel"),
@@ -1851,11 +2192,20 @@ function showKind() {
      outright, which was both out of date and the wrong shape of claim: what
      matters is what *this* browser answered, and it has already been asked. */
   if ((source.kind === "video" || source.kind === "animation") && ABLE && !ABLE.video.length) {
-    planWhat.textContent = ABLE.videoEncoder
-      ? "This browser has WebCodecs but will not encode any codec this page can write, so a"
-        + " video cannot be re-made here. Deflate or split it instead."
-      : "This browser has no WebCodecs, so a video cannot be re-encoded here. Deflate or"
-        + " split it instead.";
+    planWhat.textContent = !ways().length
+      ? (ABLE.videoEncoder
+          ? "This browser has WebCodecs but will not encode any codec this page can write, and"
+            + " has no MediaRecorder either, so a video cannot be re-made here. Deflate or"
+            + " split it instead."
+          : "This browser has neither WebCodecs nor a MediaRecorder, so a video cannot be"
+            + " re-made here. Deflate or split it instead.")
+      : source.kind === "animation"
+        ? "This browser has no WebCodecs, and the way round it records a video as it plays —"
+          + " which an animation is not. Deflate or split it instead."
+        : "This browser has no WebCodecs, so the clip is recorded as it plays rather than"
+          + " encoded frame by frame. That works, and it takes as long as the clip is long:"
+          + " a two-minute video is a two-minute wait, and twice that if the first attempt"
+          + " comes out over the limit.";
   }
   syncFields();
 }
@@ -1880,7 +2230,7 @@ function syncFields() {
       ? `${p.width}×${p.height} — every pixel it came with`
       : `${p.width}×${p.height} — ${Math.round(share * 100)}% of the pixels`;
     el("fpsNote").textContent = `${p.frames} frames to read — the slow part`;
-    const codec = (ABLE ? ABLE.video : []).find((c) => c.id === el("codecSel").value);
+    const codec = wayFor(el("codecSel").value);
     el("codecNote").textContent = codec ? codec.note
       : "nothing this browser will write — deflate or split it instead";
     el("boxField").hidden = !codec;
@@ -1979,19 +2329,26 @@ function syncPlan() {
 
 async function makeMoving(limit) {
   const p = movingPlan();
-  if (p.codec === "none") {
-    const can = await able();
+  const can = await able();
+  if (p.codec === "none" || !ways().length) {
     throw new Error(can.videoEncoder
       ? "this browser has WebCodecs but will not encode "
-        + VIDEO_CODECS.map((c) => c.name).join(", ") + " — deflate or split the file instead"
-      : "this browser has no WebCodecs, so it cannot re-encode a video — deflate or split"
-        + " the file instead");
+        + VIDEO_CODECS.map((c) => c.name).join(", ")
+        + ", and has no MediaRecorder either — deflate or split the file instead"
+      : "this browser has neither WebCodecs nor a MediaRecorder, so it cannot re-make a"
+        + " video — deflate or split the file instead");
   }
-  progress(0, "Reading the first frame…");
-  const got = await fitMoving(limit, p, (fraction, done, all, label) => {
-    progress(fraction, `Frame ${done} of ${all} — read once, encoded at every bitrate at once`
-      + (label === "second" ? ", on a second pass aimed with what the first one measured…" : "…"));
-  });
+  progress(0, can.realtime ? "Recording it as it plays…" : "Reading the first frame…");
+  const got = can.realtime
+    ? await fitRecording(limit, p, (fraction, attempt) => {
+        progress(fraction, `Recording as it plays — ${Math.round(fraction * 100)}% through`
+          + (attempt > 1 ? ", on a second go aimed with what the first one measured…" : "…"));
+      })
+    : await fitMoving(limit, p, (fraction, done, all, label) => {
+        progress(fraction, `Frame ${done} of ${all} — read once, encoded at every bitrate at once`
+          + (label === "second"
+            ? ", on a second pass aimed with what the first one measured…" : "…"));
+      });
   return {
     blob: got.blob,
     name: `${stemOf(source.name)}-small.${got.ext}`,
@@ -2005,10 +2362,17 @@ async function makeMoving(limit) {
           : got.soundWanted
             ? ", and silent because nothing here could encode its sound"
             : ", silent")
-      + ` — ${got.frames} frames, read ${got.passes === 1 ? "once" : "twice"} and encoded `
-      + `${got.tries.length} times`
-      + (got.passes === 1 ? "." : ". Every rung of the first ladder came out over, so the second"
-          + " was aimed with the bitrate this footage really produces.")
+      + (got.recorded
+          ? ` — recorded as it played, ${got.passes === 1 ? "once" : "twice"}, because this`
+            + " browser has no WebCodecs to encode it frame by frame with"
+          : ` — ${got.frames} frames, read ${got.passes === 1 ? "once" : "twice"} and encoded `
+            + `${got.tries.length} times`)
+      + (got.passes === 1 ? "."
+          : got.recorded
+            ? ". The first go came out over the limit, so the second was aimed with what it"
+              + " measured."
+            : ". Every rung of the first ladder came out over, so the second was aimed with"
+              + " the bitrate this footage really produces.")
       + (got.held ? ` The limit would have allowed ${kbps(got.allowed)}, but it only came in`
           + ` with ${kbps(got.asked)} in it and bits cannot put back what is already gone.` : "")
       + (got.short ? ` This browser would only open ${got.short} encoder`
@@ -2056,7 +2420,9 @@ async function makeSound(limit) {
     kind: "audio",
     fits: got.fits,
     detail: `${got.codecName} at ${kbps(got.bitrate)} in `
-      + `${got.channels === 1 ? "mono" : "stereo"}, ${got.seconds.toFixed(1)}s.`,
+      + `${got.channels === 1 ? "mono" : "stereo"}, ${got.seconds.toFixed(1)}s`
+      + (got.recorded ? ", recorded as it played because this browser has no audio encoder."
+                      : "."),
     tries: got.tries.map((t) => ({ label: kbps(t.bitrate), size: t.size, kept: t.kept })),
     shape: got,
   };
@@ -2379,7 +2745,13 @@ window.CLI = {
           audio: can.audioEncoder,
           animation: can.imageDecoder,
           deflate: can.compression,
+          recorder: can.mediaRecorder,
         },
+        recorders: can.recorder.map((r) => ({ id: r.id, name: r.name, note: r.note,
+                                              containers: r.containers, sound: r.sound })),
+        /* Which half of the page this browser gets: the frame-by-frame one,
+           or the one that records the clip as it plays. */
+        realtime: can.realtime,
       };
     },
 
@@ -2490,6 +2862,7 @@ window.CLI = {
           width: out.shape.w, height: out.shape.h, fps: out.shape.fps,
           frames: out.shape.frames, seconds: out.shape.seconds, passes: out.shape.passes,
           soundWanted: out.shape.soundWanted, short: out.shape.short,
+          recorded: !!out.shape.recorded,
           codec: out.shape.codec, container: out.shape.container, ext: out.shape.ext,
           bitrate: out.shape.bitrate, asked: out.shape.asked,
           allowed: out.shape.allowed, held: out.shape.held,
