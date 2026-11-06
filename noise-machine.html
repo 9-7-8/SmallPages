@@ -1360,6 +1360,35 @@ function purrer(gate) {
 
 const LEAD = 0.12;
 
+/* The noises are matched by how loud they sound, not by their peaks, so brown
+   leaves its buffer at nearly four times full scale and the fan at five, and
+   the faders add on top of that: everything up at full was peaking at eight.
+   A desktop browser clips that and carries on; a phone can drop the output
+   altogether, which is the sound cutting out at some settings and not others.
+   So the master runs into a limiter, which turns the hot stretches down
+   without touching the balance between faders, and then a curve that is the
+   signal unchanged below 0.8 and bends smoothly to 0.94, which nothing can get
+   past, for the few milliseconds the limiter takes to catch a peak. */
+function limiter() {
+  const comp = ctx.createDynamicsCompressor();
+  comp.threshold.value = -6;
+  comp.knee.value = 6;
+  comp.ratio.value = 20;
+  comp.attack.value = 0.003;
+  comp.release.value = 0.25;
+
+  const ceiling = ctx.createWaveShaper();
+  const curve = new Float32Array(2049);
+  for (let i = 0; i < curve.length; i++) {
+    const x = (i / (curve.length - 1)) * 2 - 1;
+    const a = Math.abs(x);
+    curve[i] = a < 0.8 ? x : Math.sign(x) * (0.8 + 0.18 * Math.tanh((a - 0.8) / 0.18));
+  }
+  ceiling.curve = curve;
+  comp.connect(ceiling);
+  return [comp, ceiling];
+}
+
 async function start() {
   if (running) return;
   ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -1370,7 +1399,10 @@ async function start() {
   master.gain.value = 0;
   analyser = ctx.createAnalyser();
   analyser.fftSize = 1024;
-  master.connect(analyser).connect(ctx.destination);
+  // The meter reads after the limiter, so it shows what really leaves the page.
+  const [comp, ceiling] = limiter();
+  master.connect(comp);
+  ceiling.connect(analyser).connect(ctx.destination);
 
   lanes = {};
   running = true;
